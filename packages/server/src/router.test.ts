@@ -22,7 +22,6 @@ import {
   hasUnresolvedBackgroundOps,
   isAppServerCodexRow,
   stopAndForgetRegisteredRuntime,
-  stopRegisteredRuntime,
   stopRuntimeBySlug,
   stopThreadRuntime,
 } from "./router.ts"
@@ -30,8 +29,7 @@ import { projectTranscriptPageAgentLifecycles } from "./transcript.ts"
 import { readProjectIdFile, writeProjectIdFile } from "./project-root.ts"
 import { findByPath, listProjects, registerProject } from "./project-registry.ts"
 import { createThreadNamer } from "./thread-names.ts"
-import { createStorage, type AdoptionClaimRow, type SessionRow } from "./storage.ts"
-import type { AdoptionPaneLookup, PaneIdentity, PaneIdentity as PaneSnapshot } from "./adoption-recovery.ts"
+import { createStorage, type SessionRow } from "./storage.ts"
 import type { AppContext } from "./context.ts"
 import type { Project } from "./project.ts"
 import type { Tailer } from "./tailer.ts"
@@ -118,7 +116,6 @@ function harness(tailer: Tailer = noopTailer) {
   }
   const backend = createClaudeBackend({ logDir: join(dir, "logs") })
   const settings = { permissionMode: "auto" } as unknown as Settings
-  let adoptCalls = 0
   // createRouter is lazy: unrelated procedures do not read the omitted context fields. Keep this
   // focused on the permission route's real storage/board/backend dependencies.
   const ctx = {
@@ -143,10 +140,6 @@ function harness(tailer: Tailer = noopTailer) {
     },
     dispatcher: {
       dispatch: async () => ({ slug: "dispatched", sessionId: "sid-dispatched" }),
-      adopt: async (slug: string) => {
-        adoptCalls++
-        return { slug, sessionId: `sid-${slug}` }
-      },
     },
   } as unknown as AppContext
   const addExitedThread = (slug: string) =>
@@ -176,7 +169,7 @@ function harness(tailer: Tailer = noopTailer) {
     } satisfies ThreadView)
   // `ctx` is exposed so a test can install an optional collaborator (e.g. codexAppServer) after
   // construction; createRouter closes over the object and reads those fields per-call, not at build time.
-  return { dir, ctx, storage, board, snapshot, router: createRouter(ctx), addExitedThread, refreshes: () => refreshes, adoptCalls: () => adoptCalls }
+  return { dir, ctx, storage, board, snapshot, router: createRouter(ctx), addExitedThread, refreshes: () => refreshes }
 }
 
 // `archived` is a LEGACY column, and writing it is not archiving. `effectiveSessionState` (board.ts)
@@ -256,33 +249,6 @@ test("renameThread RPC: commits a trimmed human title for Codex without touching
   assert.equal(saved.exited, 0, "renaming metadata must not stop or reattach the live process")
   assert.equal(saved.backend, "codex")
   assert.equal(h.refreshes(), 1, "the saved title is published immediately through a board delta")
-  h.storage.close()
-})
-
-test("adoptThread RPC rejects malformed or extended identities before handler dispatch", () => {
-  const h = harness()
-  const proc = h.router.adoptThread
-  assert.equal(proc.input.safeParse({ slug: "valid-thread", message: "continue" }).success, true)
-  for (const slug of ["../escape", "/absolute", ".", "%2e%2e", "Ünicode", "line\nbreak", "-option", "a".repeat(201)]) {
-    assert.equal(proc.input.safeParse({ slug }).success, false, JSON.stringify(slug))
-  }
-  assert.equal(proc.input.safeParse({ slug: "valid-thread", unexpected: true }).success, false)
-  h.storage.close()
-})
-
-test("mounted adoptThread HTTP RPC returns 400 with zero dispatcher calls for hostile input", async () => {
-  const h = harness()
-  const app = new Hono()
-  mountRouter(app, "/_ntwine/rpc", h.router)
-  for (const input of [{ slug: "../escape" }, { slug: "safe", extra: true }, { slug: "a".repeat(201) }]) {
-    const response = await app.request("http://localhost/_ntwine/rpc/adoptThread", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input),
-    })
-    assert.equal(response.status, 400, JSON.stringify(input))
-  }
-  assert.equal(h.adoptCalls(), 0)
   h.storage.close()
 })
 
@@ -576,55 +542,6 @@ test("follow-up safety: a durable permission handoff blocks every composer surfa
   assert.equal(hasPendingPermissionChange({ permission_pending: "future-mode" }), true, "unknown durable state fails closed")
 })
 
-function finalizedClaim(slug: string): AdoptionClaimRow {
-  return {
-    slug,
-    attempt_token: "11111111-1111-4111-8111-111111111111",
-    session_id: `sid-${slug}`,
-    state: "finalized",
-    reserved_at_ms: 1,
-    lease_expires_at_ms: 2,
-    recovery_token: null,
-    pane_id: "%41",
-    pane_pid: 4241,
-    session_created: 741,
-    finalized_at_ms: 3,
-  }
-}
-
-function terminatorHarness(initial: AdoptionPaneLookup) {
-  let pane = initial
-  const killedPanes: PaneIdentity[] = []
-  const killedSessions: string[] = []
-  return {
-    runtime: {
-      findExpectedAdoptionPane: () => pane,
-      killExpectedAdoptionPane: (expected: AdoptionClaimRow) => {
-        if (
-          pane.kind !== "found" || pane.pane.adoptionAttemptToken !== expected.attempt_token ||
-          pane.pane.paneId !== expected.pane_id || pane.pane.panePid !== expected.pane_pid ||
-          pane.pane.sessionCreated !== expected.session_created
-        ) return false
-        killedPanes.push({
-          paneId: pane.pane.paneId,
-          panePid: pane.pane.panePid,
-          sessionCreated: pane.pane.sessionCreated,
-        })
-        pane = { kind: "absent" }
-        return true
-      },
-      killPane: (identity: PaneIdentity) => {
-        killedPanes.push(identity)
-        pane = { kind: "absent" }
-      },
-      killSession: (slug: string) => killedSessions.push(slug),
-      isLive: () => pane.kind === "found" && !pane.pane.dead,
-    },
-    killedPanes,
-    killedSessions,
-  }
-}
-
 // The verdict alone left the dialog saying "this thread is still running", which answers nothing the
 // human can act on — they clicked Done because they believed it was finished. The hold carries the
 // server's actual evidence so the confirmation can name the executing turn and every child it is
@@ -716,8 +633,6 @@ test("completeRegisteredThread archives an inactive session without a confirmati
   try {
     h.storage.upsertSession(saved)
     assert.deepEqual(await completeRegisteredThread(h.storage, saved, false, {
-      findExpectedAdoptionPane: () => ({ kind: "absent" as const }),
-      killExpectedAdoptionPane: () => false,
       killSession: () => { kills++ },
       isLive: () => false,
     }), { needsConfirmation: false })
@@ -735,8 +650,6 @@ test("completeRegisteredThread archives an inactive session without a confirmati
 test("completeRegisteredThread names running terminals, stops them before Done, and files them only after", async () => {
   const h = harness()
   const dead = {
-    findExpectedAdoptionPane: () => ({ kind: "absent" as const }),
-    killExpectedAdoptionPane: () => false,
     killSession: () => { throw new Error("a dead runtime must never be terminated") },
     isLive: () => false,
   }
@@ -801,8 +714,6 @@ test("completeRegisteredThread asks before filing a cut-off worker as Done; the 
   const slug = "cut-off-complete"
   const saved = row(slug)
   const dead = {
-    findExpectedAdoptionPane: () => ({ kind: "absent" as const }),
-    killExpectedAdoptionPane: () => false,
     killSession: () => { throw new Error("a dead runtime must never be terminated") },
     isLive: () => false,
   }
@@ -832,194 +743,35 @@ test("completeRegisteredThread asks before filing a cut-off worker as Done; the 
   }
 })
 
-test("adoption teardown: forget/dismiss/stop kill only the finalized token + exact tuple", () => {
-  const slug = "adopted-owner"
-  const claim = finalizedClaim(slug)
-  const pane: PaneSnapshot = {
-    paneId: claim.pane_id!,
-    panePid: claim.pane_pid!,
-    sessionCreated: claim.session_created!,
-    adoptionAttemptToken: claim.attempt_token,
-    dead: true,
-  }
-  const h = terminatorHarness({ kind: "found", pane })
-
-  assert.equal(stopRegisteredRuntime({ getAdoptionClaim: () => claim }, row(slug), h.runtime), "stopped")
-  assert.deepEqual(h.killedPanes, [{ paneId: "%41", panePid: 4241, sessionCreated: 741 }])
-  assert.deepEqual(h.killedSessions, [], "a finalized adoption never falls back to reusable slug teardown")
-})
-
-test("adoption teardown cannot kill a pane retokened between proof and the atomic action", () => {
-  const slug = "adopted-retoken-race"
-  const claim = finalizedClaim(slug)
-  const competitorToken = "55555555-5555-4555-8555-555555555555"
-  let pane: PaneSnapshot = {
-    paneId: claim.pane_id!, panePid: claim.pane_pid!, sessionCreated: claim.session_created!,
-    adoptionAttemptToken: claim.attempt_token, dead: false,
-  }
-  let kills = 0
-  const runtime = {
-    findExpectedAdoptionPane: (expected: AdoptionClaimRow): AdoptionPaneLookup =>
-      pane.adoptionAttemptToken === expected.attempt_token
-        ? { kind: "found", pane }
-        : { kind: "unknown" },
-    killExpectedAdoptionPane: (expected: AdoptionClaimRow) => {
-      // Deterministically inject the ABA at the exact proof→action boundary. The atomic helper sees
-      // the new token and must decline even though pane id/pid/session-created are unchanged.
-      pane = { ...pane, adoptionAttemptToken: competitorToken }
-      if (pane.adoptionAttemptToken !== expected.attempt_token) return false
-      kills++
-      return true
-    },
-    killSession: () => { throw new Error("must not name-kill") },
-    isLive: () => true,
-  }
-  assert.throws(
-    () => stopRegisteredRuntime({ getAdoptionClaim: () => claim }, row(slug), runtime),
-    /changed before it could be stopped/,
-  )
-  assert.equal(kills, 0)
-  assert.equal(pane.adoptionAttemptToken, competitorToken)
-})
-
-test("legacy teardown retains name behavior while an absent finalized owner is a safe no-op", () => {
-  const slug = "legacy-owner"
-  const legacy = terminatorHarness({ kind: "absent" })
-  assert.equal(stopRegisteredRuntime({ getAdoptionClaim: () => undefined }, row(slug), legacy.runtime), "stopped")
-  assert.deepEqual(legacy.killedSessions, [slug])
-
-  const adopted = terminatorHarness({ kind: "absent" })
-  assert.equal(
-    stopRegisteredRuntime({ getAdoptionClaim: () => finalizedClaim(slug) }, row(slug), adopted.runtime),
-    "absent",
-  )
-  assert.deepEqual(adopted.killedSessions, [])
-  assert.deepEqual(adopted.killedPanes, [])
-})
-
-test("router teardown never downgrades a stale replaced row to reusable-name control", () => {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-router-aba-")), "ui.db"), "p")
+// A destructive verb acts on the row the caller read. If a resume or a replacement landed since, it must
+// refuse before stopping anything: the worker it would stop now belongs to someone else.
+test("dismissing a stale replaced row stops nothing and preserves the new worker", async () => {
+  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-router-stale-")), "ui.db"), "p")
   const slug = "router-stale-row"
   const stale = row(slug)
   storage.upsertSession(stale)
   storage.upsertSession({ ...stale, session_id: "replacement", runtime_generation: 0 })
-  const h = terminatorHarness({ kind: "absent" })
-  assert.throws(() => stopRegisteredRuntime(storage, stale, h.runtime), /competing adoption attempt/)
-  assert.deepEqual(h.killedSessions, [])
-  assert.deepEqual(h.killedPanes, [])
+  const killed: string[] = []
+  const runtime = { killSession: (target: string) => void killed.push(target), isLive: () => false }
+  await assert.rejects(() => stopAndForgetRegisteredRuntime(storage, stale, runtime), /changed while it was being dismissed/)
+  await assert.rejects(() => completeRegisteredThread(storage, stale, true, runtime), /resumed or was replaced/)
+  assert.deepEqual(killed, [])
+  assert.equal(storage.getSession(slug)?.session_id, "replacement")
+  assert.equal(storage.getSession(slug)?.state, "open")
+  storage.close()
 })
 
-test("rowless reserved/spawned adoption claims fail closed without a name or exact kill", async () => {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-rowless-adopt-")), "ui.db"), "p")
-  const slug = "rowless-adoption"
-  assert.equal(storage.reserveAdoptionClaim({
-    slug,
-    attemptToken: "33333333-3333-4333-8333-333333333333",
-    sessionId: "reserved-owner",
-    reservedAtMs: 1,
-    leaseExpiresAtMs: 100,
-  }), true)
-  const h = terminatorHarness({ kind: "absent" })
-  await assert.rejects(() => stopRuntimeBySlug(storage, slug, h.runtime), /adoption attempt is in progress/i)
-  assert.deepEqual(h.killedSessions, [])
-  assert.deepEqual(h.killedPanes, [])
-})
-
-test("rowless name teardown is fenced against a claim appearing after the optimistic read", async () => {
-  const h = terminatorHarness({ kind: "absent" })
-  const storage = {
-    getSession: () => undefined,
-    getAdoptionClaim: () => undefined,
-    withUnclaimedRuntimeFence: () => ({ acquired: false as const }),
-  }
-  await assert.rejects(() => stopRuntimeBySlug(storage, "rowless-race", h.runtime), /nothing was stopped/)
-  assert.deepEqual(h.killedSessions, [])
-  assert.deepEqual(h.killedPanes, [])
-})
-
-test("rowless adoption claim blocks kill, dismiss-status, and forget RPC handlers before the terminator", async () => {
-  const h = harness()
-  const slug = "rowless-rpc-adoption"
-  assert.equal(h.storage.reserveAdoptionClaim({
-    slug,
-    attemptToken: "66666666-6666-4666-8666-666666666666",
-    sessionId: "rowless-rpc-owner",
-    reservedAtMs: 1,
-    leaseExpiresAtMs: 100,
-  }), true)
-  await assert.rejects(h.router.killAgent.handler({ input: { slug } }), /adoption attempt is in progress/i)
-  await assert.rejects(
-    h.router.setThreadStatus.handler({ input: { slug, status: "dismissed" } }),
-    /adoption attempt is in progress/i,
-  )
-  await assert.rejects(h.router.deleteThread.handler({ input: { slug } }), /adoption attempt is in progress/i)
-  assert.equal(h.storage.getAdoptionClaim(slug)?.state, "reserved")
-})
-
-test("stale forget loses to a finalized successor token and preserves its row and pane binding", async () => {
-  const storage = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-forget-rotation-")), "ui.db"), "p")
-  const slug = "forget-successor"
-  const original = finalizedClaim(slug)
-  const saved = row(slug)
-  assert.equal(storage.reserveAdoptionClaim({
-    slug,
-    attemptToken: original.attempt_token,
-    sessionId: saved.session_id,
-    reservedAtMs: 1,
-    leaseExpiresAtMs: 2,
-  }), true)
-  assert.equal(storage.recordAdoptionPane(slug, original.attempt_token, {
-    paneId: original.pane_id!, panePid: original.pane_pid!, sessionCreated: original.session_created!,
-  }, 2), true)
-  assert.equal(storage.finalizeAdoptionClaim(slug, original.attempt_token, saved, 2), true)
-
-  const successorToken = "44444444-4444-4444-8444-444444444444"
-  let rotated = false
-  const originalPane: PaneSnapshot = {
-    paneId: original.pane_id!, panePid: original.pane_pid!, sessionCreated: original.session_created!,
-    adoptionAttemptToken: original.attempt_token, dead: true,
-  }
-  const runtime = {
-    findExpectedAdoptionPane: (expected: AdoptionClaimRow): AdoptionPaneLookup => {
-      if (!rotated && expected.attempt_token === original.attempt_token) return { kind: "found", pane: originalPane }
-      if (rotated && expected.attempt_token === successorToken) return { kind: "found", pane: {
-        paneId: "%99", panePid: 9900, sessionCreated: 99000,
-        adoptionAttemptToken: successorToken, dead: false,
-      } }
-      return { kind: "absent" }
-    },
-    killExpectedAdoptionPane: () => {
-    assert.equal(storage.rearmFinalizedAdoptionClaim({
-      slug,
-      attemptToken: successorToken,
-      sessionId: saved.session_id,
-      reservedAtMs: 3,
-      leaseExpiresAtMs: 4,
-    }, original.attempt_token), true)
-    assert.equal(storage.recordAdoptionPane(slug, successorToken, {
-      paneId: "%99", panePid: 9900, sessionCreated: 99000,
-    }, 4), true)
-    assert.equal(storage.finalizeAdoptionRespawnClaim(slug, successorToken, saved.session_id, 4), true)
-    rotated = true
-    return true
-    },
-    killPane: () => {},
-    killSession: () => {},
-    isLive: () => false,
-  }
-
-  await assert.rejects(
-    () => stopAndForgetRegisteredRuntime(storage, saved, runtime),
-    /new worker was preserved/,
-  )
-  assert.equal(storage.getSession(slug)?.session_id, saved.session_id)
-  assert.equal(storage.getAdoptionClaim(slug)?.attempt_token, successorToken)
+test("a rowless slug has no runtime identity to stop", async () => {
+  const killed: string[] = []
+  const runtime = { killSession: (target: string) => void killed.push(target), isLive: () => false }
+  await assert.rejects(() => stopRuntimeBySlug({ getSession: () => undefined }, "rowless", runtime), /nothing was stopped/)
+  assert.deepEqual(killed, [])
 })
 
 // ── Stopping an app-server Codex thread (2026-07-23) ───────────────────────────────────────────────
 // An app-server Codex thread has NO worker process of its own: its worker is a turn inside the shared
 // codex app-server, which now lives in a DETACHED daemon that outlives the ntwine runtime. Routed through
-// the registered-runtime terminator every stop verb took stopRegisteredRuntime's `unbound` branch, issued kill-session
+// the registered-runtime terminator every stop verb reached stopRegisteredRuntime, issued kill-session
 // for a session that never existed, and reported "stopped" — while the turn kept running, burning
 // tokens and touching the repo with no ntwine-side owner. Before the daemon worked this was masked,
 // because the app-server died with the runtime.
@@ -1107,11 +859,8 @@ test("a LEGACY pre-app-server Codex row keeps the registered-runtime terminator 
   assert.equal(isAppServerCodexRow(saved), false)
   const killed: string[] = []
   const outcome = await stopThreadRuntime(
-    storage,
     saved,
     {
-      findExpectedAdoptionPane: () => ({ kind: "absent" as const }),
-      killExpectedAdoptionPane: () => false,
       killSession: (target: string) => killed.push(target),
       isLive: () => false,
     },
@@ -1751,100 +1500,29 @@ test("an unknown RPC procedure answers 404 NAMING it, so the next version skew d
   }
 })
 
-// ---- PROMOTION: steering an EXTERNAL session turns it into an ntwine thread ----
-//
-// The External band's rows carry an ordinary composer, and sending the first message is the whole
-// ceremony (maintainer 2026-08-24). It runs inside followUp rather than behind a verb of its own so
-// that one round trip covers both halves — the message and the row it belongs to can never end up on
-// opposite sides of a failure.
-test("followUp on an EXTERNAL session registers it first, keeping its id, then delivers", async () => {
+// An EXTERNAL session is read only. Steering one used to promote it into an ordinary thread (removed
+// 2026-10-14); a send now says where to continue it, and writes no row and no ledger entry.
+test("followUp refuses an EXTERNAL session and registers nothing", async () => {
   const EXTERNAL = "6543d3fb-e38e-461a-b10a-9c78261b67b2"
-  let listed = [EXTERNAL]
-  const h = harness({
-    ...noopTailer,
-    foreignIds: () => listed,
-    get: () => ({ turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, aiTitle: "Debug a flaky test" }),
-    foreignBackend: () => "claude",
-  } as unknown as Tailer)
-  const promoted: unknown[] = []
+  const h = harness({ ...noopTailer, foreignIds: () => [EXTERNAL] } as unknown as Tailer)
   const delivered: string[] = []
-  ;(h.ctx as unknown as { dispatcher: Record<string, unknown> }).dispatcher.adoptSession = async (input: { sessionId: string; backend: string; title?: string }) => {
-    promoted.push(input)
-    // The real dispatcher writes the row; the fake writes the same one, because everything after the
-    // promotion in this handler reads the REGISTRY, not the return value.
-    h.storage.upsertSession({
-      slug: input.sessionId, session_id: input.sessionId, thread_name: `ntwine-${input.sessionId}`,
-      spawned_at: "2026-08-24T00:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0,
-      rested_at: null, title_auto: 0, title: input.title ?? null, transcript_id: null, state: "open",
-      meta: null, seen_at: null,
-    })
-    // The real dispatcher stamps the transport too; without it the follow-up falls through to the
-    // retired legacy path and throws instead of reaching the broker.
-    h.storage.setBackend(input.sessionId, input.backend)
-    h.storage.setClaudeRuntime(input.sessionId, "broker")
-    listed = [] // the foreign scan stops listing it the moment a row owns the id
-    return { slug: input.sessionId, sessionId: input.sessionId }
-  }
   ;(h.ctx as unknown as { claudeBroker: unknown }).claudeBroker = {
     followUp: async ({ text }: { text: string }) => void delivered.push(text),
   }
-
   try {
-    // The client sends slug === sessionId, which is the only shape an external row ever has.
-    await h.router.followUp.handler({ input: { slug: EXTERNAL, sessionId: EXTERNAL, message: "carry on from here" } })
-    assert.deepEqual(promoted, [{ sessionId: EXTERNAL, backend: "claude", title: "Debug a flaky test" }])
-    assert.deepEqual(delivered, ["carry on from here"], "the message that triggered the promotion is still delivered")
-    // The id is unchanged, which is what lets the composer that sent this stay mounted.
-    assert.equal(h.storage.getSession(EXTERNAL)?.session_id, EXTERNAL)
+    await assert.rejects(
+      () => h.router.followUp.handler({ input: { slug: EXTERNAL, sessionId: EXTERNAL, message: "carry on from here" } }),
+      /continue it in its own terminal/,
+    )
+    assert.equal(h.storage.getSession(EXTERNAL), undefined)
+    assert.deepEqual(delivered, [])
 
-    // A SECOND message is an ordinary follow-up: the row exists, so nothing is promoted again.
-    await h.router.followUp.handler({ input: { slug: EXTERNAL, sessionId: EXTERNAL, message: "and again" } })
-    assert.equal(promoted.length, 1)
-    assert.deepEqual(delivered, ["carry on from here", "and again"])
-  } finally {
-    h.storage.close()
-  }
-})
-
-// The promotion is UN-FORGEABLE by construction: it adopts only a transcript the server can see for
-// itself in this project's own log directory, right now. Without that check a crafted request could
-// talk ntwine into minting a row for any uuid at all.
-test("followUp refuses an unregistered slug the tailer does not currently list as external", async () => {
-  const h = harness()
-  const promoted: unknown[] = []
-  ;(h.ctx as unknown as { dispatcher: Record<string, unknown> }).dispatcher.adoptSession = async (input: unknown) => {
-    promoted.push(input)
-    return { slug: "x", sessionId: "x" }
-  }
-  try {
+    // An id nothing lists is the ordinary stale-thread refusal.
     const UNKNOWN = "11111111-1111-4111-8111-111111111111"
     await assert.rejects(
       () => h.router.followUp.handler({ input: { slug: UNKNOWN, sessionId: UNKNOWN, message: "hi" } }),
       /replaced/,
-      "an id nothing has seen is the ordinary stale-thread refusal, not a promotion",
     )
-    assert.deepEqual(promoted, [])
-  } finally {
-    h.storage.close()
-  }
-})
-
-// A request naming two different values did not come from this band — a promoted thread keeps the id it
-// was discovered under, so slug and sessionId are equal for the whole life of an external row.
-test("followUp does not promote when the slug and session id disagree", async () => {
-  const EXTERNAL = "6543d3fb-e38e-461a-b10a-9c78261b67b2"
-  const h = harness({ ...noopTailer, foreignIds: () => [EXTERNAL] } as unknown as Tailer)
-  const promoted: unknown[] = []
-  ;(h.ctx as unknown as { dispatcher: Record<string, unknown> }).dispatcher.adoptSession = async (input: unknown) => {
-    promoted.push(input)
-    return { slug: "x", sessionId: "x" }
-  }
-  try {
-    await assert.rejects(
-      () => h.router.followUp.handler({ input: { slug: EXTERNAL, sessionId: "some-other-session", message: "hi" } }),
-      /replaced/,
-    )
-    assert.deepEqual(promoted, [])
   } finally {
     h.storage.close()
   }

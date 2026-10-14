@@ -262,7 +262,7 @@ export type ThreadCommand = "done" | "snooze" | "open" | "terminal" | "editor" |
 
 // Every prompt box that answers the thing on screen. Deliberately NOT the question card's free-text
 // answer box (`questionAnswer`) — `r` is a reply to the thread, and a question has its own chips.
-const REPLY_BOXES = ["queueComposer", "chatComposer", "adoptComposer", "subAgentComposer", "terminalFollowUp"]
+const REPLY_BOXES = ["queueComposer", "chatComposer", "subAgentComposer", "terminalFollowUp"]
   .map((surface) => `[data-surface="${surface}"]`)
   .join(",")
 

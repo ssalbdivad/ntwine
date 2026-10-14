@@ -589,7 +589,7 @@ export const CompletionHold = z.object({
 export type CompletionHold = z.infer<typeof CompletionHold>
 
 // A PENDING native AskUserQuestion — the worker (or any session) called Claude Code's AskUserQuestion
-// tool and is frozen at its TUI dialog, no tool_result yet. Safety net for pre-contract / adopted
+// tool and is frozen at its TUI dialog, no tool_result yet. Safety net for pre-contract / external
 // sessions that bypass the thread-file ask channel: we surface the REAL question(s) so the human knows
 // what's being asked, and route them to answer in the terminal (a deny-hook enforces the contract
 // channel for compliant workers; answering here is deliberately NOT wired — too fragile). Structured
@@ -4405,7 +4405,7 @@ export const ThreadView = z.object({
   // then shows a "Spinning up a thread…" placeholder instead of the guess until aiTitle lands. Optional
   // (absent ⇒ legacy/slim row) so old snapshots parse; absent is treated as "not provisional".
   titleAuto: z.boolean().optional(),
-  // True when a HUMAN named this thread (rename / native /rename / an adopted file heading) and no
+  // True when a HUMAN named this thread (rename / native /rename) and no
   // backend auto-title may replace it. FALSE is the interesting case: a title hard-coded by a dispatch
   // CALLER — `Investigate acme/app#391`, a parent agent's guess through spawn_thread — reads as a real
   // name (titleAuto false) yet still yields to the worker's own aiTitle, which is usually the more
@@ -5098,7 +5098,7 @@ export function needsAction(t: ThreadView): boolean {
   if (futureSnoozedUntil(t) !== undefined && isSnoozed(t)) return false
   // Paused on an interactive permission prompt: the process is parked waiting on the human's answer.
   if (t.runtime === "perm-prompt") return true
-  // Frozen at a native AskUserQuestion TUI dialog (safety net for pre-contract / adopted sessions that
+  // Frozen at a native AskUserQuestion TUI dialog (safety net for pre-contract / external sessions that
   // bypass the thread-file ask channel). Unlike the chat/needs-human nets below, NO rest-gate: the ask
   // text lives in the tool_use input (tailer-captured) and is available even while the turn reads
   // "running" (the session is blocked mid-tool_use), so it should card the moment it appears.
@@ -5553,26 +5553,6 @@ export type SpinoffInput = z.infer<typeof SpinoffInput>
 export const SpinoffResult = z.object({ id: z.string() }).strict()
 export type SpinoffResult = z.infer<typeof SpinoffResult>
 
-
-export const ADOPT_THREAD_MESSAGE_MAX_CHARS = 64 * 1024
-export const AdoptThreadInput = z.object({
-  slug: ThreadSlug,
-  message: z.string().max(ADOPT_THREAD_MESSAGE_MAX_CHARS).optional(),
-}).strict()
-export type AdoptThreadInput = z.infer<typeof AdoptThreadInput>
-export const AdoptThreadResult = z.object({ slug: ThreadSlug, sessionId: z.string().min(1) }).strict()
-export type AdoptThreadResult = z.infer<typeof AdoptThreadResult>
-
-// Take over one of the human's OWN terminals — a session listed in the rail's External band. The id
-// is the one the board row carries, which for a foreign thread IS its session id. `title` is the name
-// the row already displays, passed through so the adopted thread keeps the name the human just read
-// rather than being re-derived from a transcript the server would have to re-open.
-export const AdoptSessionInput = z.object({
-  sessionId: ThreadSlug, // a bare session uuid — the same contract every other thread id satisfies
-  backend: z.enum(["claude", "codex"]),
-  title: z.string().max(200).optional(),
-}).strict()
-export type AdoptSessionInput = z.infer<typeof AdoptSessionInput>
 
 export const FollowUpInput = z.object({
   slug: ThreadSlug,

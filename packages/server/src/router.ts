@@ -6,8 +6,6 @@ import { z } from "zod"
 import { query, mutation } from "@ntwine/rpc/server"
 import {
   BoardSnapshot,
-  AdoptThreadInput,
-  AdoptThreadResult,
   DispatchInput,
   SetThreadDeadlineInput,
   SetRunningDeadlinesInput,
@@ -255,7 +253,6 @@ import { readAuthSnapshot } from "./backend/auth-status.ts"
 import { liveThreadsForBackend, runProviderLogout } from "./backend/account-actions.ts"
 import type { BackendKind } from "./backend/types.ts"
 import { threadProfileOptions, validateThreadProfile } from "./backend/thread-profiles.ts"
-import { adoptionRuntimeBinding, type AdoptionPaneLookup, type ExpectedAdoptionPane } from "./adoption-recovery.ts"
 import { parsePrRef, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING } from "./awaiting.ts"
 import { isBrokerClaudeRow, isHeldRow, isScheduleHeldRow, type CommandWatchRow, type RecurringWrite, type SessionRow, type Storage, type SubAgentSteerRow, type ThreadQuestionRow } from "./storage.ts"
 import { COMMAND_WATCH_FALLBACK } from "./command-watch.ts"
@@ -300,8 +297,6 @@ export function hasPendingPermissionChange(row: { permission_pending?: unknown }
 }
 
 interface RegisteredRuntimeTerminator {
-  findExpectedAdoptionPane(expected: ExpectedAdoptionPane): AdoptionPaneLookup
-  killExpectedAdoptionPane(expected: ExpectedAdoptionPane): boolean
   killSession(slug: string): void
   isLive(slug: string): boolean
 }
@@ -322,16 +317,14 @@ interface RegisteredRuntimeTerminator {
 // read fresh too. What survives all of it is the rule the branches below still keep: prove the runtime
 // stopped before recording Done.
 const cachedLivenessTerminator: RegisteredRuntimeTerminator = {
-  findExpectedAdoptionPane: () => ({ kind: "absent" }),
-  killExpectedAdoptionPane: () => true,
   killSession: () => {},
   isLive: () => false,
 }
 
 // The other terminator. An app-server Codex thread has NO runtime of its own to kill: its worker is a
 // TURN running inside the shared codex app-server, which now lives in a DETACHED daemon that
-// deliberately outlives the ntwine runtime. Routed through the registered-runtime terminator it takes
-// stopRegisteredRuntime's `unbound` branch, kills a session that never existed, and reports "stopped" —
+// deliberately outlives the ntwine runtime. Routed through the registered-runtime terminator it reaches
+// stopRegisteredRuntime, kills a session that never existed, and reports "stopped" —
 // while the turn keeps running, burning tokens and touching the repo with no ntwine-side owner and no UI
 // trace. Before the daemon worked this was masked, because the app-server died with the runtime.
 // `turn/interrupt` over the bridge is the only thing that actually stops it. (Subset of
@@ -369,7 +362,7 @@ export function isAppServerCodexRow(row: Pick<SessionRow, "backend" | "codex_run
 
 // The Claude twin of the codex turn terminator. A broker-backed Claude row also has NO runtime of its
 // own to kill: its worker is a Claude session owned by a DETACHED daemon that outlives ntwine. Routed
-// through the registered-runtime terminator it would take stopRegisteredRuntime's `unbound` branch, kill
+// through the registered-runtime terminator it would reach stopRegisteredRuntime, kill
 // a session that never existed, and report "stopped" while the ownerless daemon keeps running — the same
 // phantom-stop the codex terminator exists to prevent. releaseSession SIGTERMs the daemon by record
 // (even when this ntwine process holds no live socket, e.g. after a restart); isDaemonAlive reports
@@ -399,7 +392,6 @@ export function appServerCodexTurnLive(
 // degrading to "stopped", because the caller's next act is to record the worker as exited/done and that
 // record must not outrun the truth.
 export async function stopThreadRuntime(
-  storage: Pick<Storage, "getAdoptionClaim"> & Partial<Pick<Storage, "getSession" | "getAdoptionRuntimeSnapshot">>,
   row: SessionRow,
   runtime: RegisteredRuntimeTerminator = cachedLivenessTerminator,
   codex?: CodexTurnTerminator,
@@ -434,51 +426,33 @@ export async function stopThreadRuntime(
     claudeBroker.releaseSession(row.slug, row.session_id, "session-deleted")
     return wasAlive ? "stopped" : "absent"
   }
-  return stopRegisteredRuntime(storage, row, runtime)
+  return stopRegisteredRuntime(row, runtime)
 }
 
-// A finalized cold adoption is permanently bound to one exact runtime generation. Destructive UI
-// actions must never fall back to the reusable session name: another process may already occupy it
-// after the owner exited. Verify token + full tuple, kill that tuple only, then prove it disappeared
-// before deleting registry ownership or reporting the worker stopped. Adoption spawns through the broker
-// now, so a live claim carries no runtime tuple and every lookup answers "absent" (see
-// adoption-recovery.ts); the protocol is kept because a claim written by a PRE-cutover ntwine still has
-// to be refused safely rather than resolved to a name someone else may hold.
-export function stopRegisteredRuntime(
-  storage: Pick<Storage, "getAdoptionClaim"> & Partial<Pick<Storage, "getSession" | "getAdoptionRuntimeSnapshot">>,
-  row: Pick<SessionRow, "slug" | "session_id" | "runtime_generation">,
+// A pre-cutover row: its worker is long gone and the terminator it reaches answers nothing (see
+// cachedLivenessTerminator), so this only keeps the seam a test can substitute.
+function stopRegisteredRuntime(
+  row: Pick<SessionRow, "slug">,
   runtime: RegisteredRuntimeTerminator = cachedLivenessTerminator,
 ): "absent" | "stopped" {
-  const binding = adoptionRuntimeBinding(storage, row)
-  if (binding.kind === "conflict") {
-    throw new Error("This thread has a competing adoption attempt; nothing was stopped")
-  }
-  if (binding.kind === "unbound") {
-    runtime.killSession(row.slug)
-    return "stopped"
-  }
-
-  const claim = binding.claim
-  const current = runtime.findExpectedAdoptionPane(claim)
-  if (current.kind === "absent") return "absent"
-  if (current.kind !== "found") {
-    throw new Error("The adopted worker's exact runtime identity is unavailable; nothing was stopped")
-  }
-  if (!runtime.killExpectedAdoptionPane(claim)) {
-    const afterMiss = runtime.findExpectedAdoptionPane(claim)
-    if (afterMiss.kind !== "absent") {
-      throw new Error("The adopted worker changed before it could be stopped; nothing was stopped")
-    }
-    return "absent"
-  }
-  if (runtime.findExpectedAdoptionPane(claim).kind !== "absent") {
-    throw new Error("The adopted worker could not be confirmed stopped")
-  }
+  runtime.killSession(row.slug)
   return "stopped"
 }
 
+// Whether `row` is still the registry's row for its slug — the same session at the same runtime
+// generation. A destructive verb acting on a stale read (a resume or a replacement landed since) must
+// refuse before it stops anything, rather than stop the worker that now owns the slug.
+function isCurrentRow(
+  storage: Pick<Storage, "getSession">,
+  row: Pick<SessionRow, "slug" | "session_id" | "runtime_generation">,
+): boolean {
+  const current = storage.getSession(row.slug)
+  return current !== undefined && current.session_id === row.session_id &&
+    (current.runtime_generation ?? 0) === (row.runtime_generation ?? 0)
+}
+
 export async function stopRuntimeBySlug(
-  storage: Pick<Storage, "getAdoptionClaim" | "getSession">,
+  storage: Pick<Storage, "getSession">,
   slug: string,
   runtime: RegisteredRuntimeTerminator = cachedLivenessTerminator,
   codex?: CodexTurnTerminator,
@@ -486,8 +460,7 @@ export async function stopRuntimeBySlug(
   acp?: AcpTurnTerminator,
 ): Promise<{ outcome: "absent" | "stopped"; row?: SessionRow }> {
   const row = storage.getSession(slug)
-  if (row) return { outcome: await stopThreadRuntime(storage, row, runtime, codex, claudeBroker, acp), row }
-  if (storage.getAdoptionClaim(slug)) throw new Error("An adoption attempt is in progress; nothing was stopped")
+  if (row) return { outcome: await stopThreadRuntime(row, runtime, codex, claudeBroker, acp), row }
   // A rowless thread name has no durable owner identity. Even a DB lock cannot make a detached worker
   // crash-safe after this process dies, so never issue a reusable-name kill without a row.
   throw new Error("No registered runtime identity is available; nothing was stopped")
@@ -590,8 +563,7 @@ export function cutOffHold(telemetry: SessionTelemetry | undefined): CompletionH
 // A completion is intentionally stronger than an archive toggle. It first establishes whether the
 // *registered* runtime is still executing, and it only records Done after any necessary termination
 // has been proved. A live resting shell is stopped and archived in one click; an executing or
-// unobservable runtime requires explicit confirmation. Adopted workers stay bound to their exact
-// runtime tuple; a same-name replacement is never killed or mistaken for the original worker.
+// unobservable runtime requires explicit confirmation.
 /** The thread's own TERMINALS, as a completion sees them (thread-terminals.ts): which are still running,
  *  and the two halves of ending them — stop the processes, then file the rows away. */
 export interface CompletionTerminals {
@@ -614,9 +586,7 @@ function withTerminalHold(hold: CompletionHold | undefined, terminals: Completio
 }
 
 export async function completeRegisteredThread(
-  storage: Pick<Storage,
-    "getAdoptionClaim" | "getAdoptionRuntimeSnapshot" | "getSession" | "completeIfCurrent"
-  >,
+  storage: Pick<Storage, "getSession" | "completeIfCurrent">,
   row: SessionRow,
   terminateLive: boolean,
   runtime: RegisteredRuntimeTerminator = cachedLivenessTerminator,
@@ -626,9 +596,8 @@ export async function completeRegisteredThread(
   acp?: AcpTurnTerminator,
   terminals?: CompletionTerminals,
 ): Promise<{ needsConfirmation: boolean; hold?: CompletionHold }> {
-  const binding = adoptionRuntimeBinding(storage, row)
-  if (binding.kind === "conflict") {
-    throw new Error("This thread has a competing adoption attempt; nothing was changed")
+  if (!isCurrentRow(storage, row)) {
+    throw new Error("This thread resumed or was replaced while it was being completed; nothing was changed")
   }
   // An app-server Codex row is never "live" to the registered-runtime probe — it has no runtime of its
   // own — so asking that probe made Mark-as-done on a RUNNING codex thread archive it silently: no
@@ -667,12 +636,12 @@ export async function completeRegisteredThread(
     // row exactly as it was — an archived row whose worker is still running is the failure this whole
     // change exists to remove, and for codex it is unrecoverable from the UI (the daemon outlives us
     // and an archived thread has no card left to act on).
-    await stopThreadRuntime(storage, row, runtime, codex, claudeBroker, acp)
-    // For a standalone registered session this is the postcondition that turns an idempotent kill into
-    // a safe completion operation. An adopted binding is already verified by stopRegisteredRuntime, an
-    // app-server codex turn by interruptTurn's own proof that the turn retired, and a broker Claude
-    // session by releaseSession's SIGTERM-by-record (there is no separate runtime left to re-probe).
-    if (!appServerCodex && !brokerClaude && binding.kind === "unbound" && runtime.isLive(row.slug)) {
+    await stopThreadRuntime(row, runtime, codex, claudeBroker, acp)
+    // For a registered-runtime session this is the postcondition that turns an idempotent kill into a
+    // safe completion operation. An app-server codex turn is verified by interruptTurn's own proof that
+    // the turn retired, and a broker Claude session by releaseSession's SIGTERM-by-record (there is no
+    // separate runtime left to re-probe).
+    if (!appServerCodex && !brokerClaude && runtime.isLive(row.slug)) {
       throw new Error("The session could not be confirmed stopped; it was not marked done")
     }
   }
@@ -691,25 +660,18 @@ export async function completeRegisteredThread(
 }
 
 export async function stopAndForgetRegisteredRuntime(
-  storage: Pick<Storage,
-    "getAdoptionClaim" | "getAdoptionRuntimeSnapshot" | "getSession" | "forgetSessionIfCurrent"
-  >,
+  storage: Pick<Storage, "getSession" | "forgetSessionIfCurrent">,
   row: SessionRow,
   runtime: RegisteredRuntimeTerminator = cachedLivenessTerminator,
   codex?: CodexTurnTerminator,
   claudeBroker?: ClaudeBrokerTerminator,
   acp?: AcpTurnTerminator,
 ): Promise<SessionRow> {
-  const binding = adoptionRuntimeBinding(storage, row)
-  if (binding.kind === "conflict") {
+  if (!isCurrentRow(storage, row)) {
     throw new Error("This thread changed while it was being dismissed; nothing was removed")
   }
-  const expected = {
-    sessionId: row.session_id,
-    runtimeGeneration: row.runtime_generation ?? 0,
-    adoptionAttemptToken: binding.kind === "bound" ? binding.claim.attempt_token : null,
-  }
-  await stopThreadRuntime(storage, row, runtime, codex, claudeBroker, acp)
+  const expected = { sessionId: row.session_id, runtimeGeneration: row.runtime_generation ?? 0 }
+  await stopThreadRuntime(row, runtime, codex, claudeBroker, acp)
   const forgotten = storage.forgetSessionIfCurrent(row.slug, expected)
   if (!forgotten) {
     throw new Error("This thread resumed or was replaced while it was being dismissed; the new worker was preserved")
@@ -733,10 +695,7 @@ export async function deleteOwnedThread(
   slug: string,
 ): Promise<boolean> {
   const row = ctx.storage.getSession(slug)
-  if (!row) {
-    if (ctx.storage.getAdoptionClaim(slug)) throw new Error("An adoption attempt is in progress; nothing was deleted")
-    return false // already gone — idempotent
-  }
+  if (!row) return false // already gone — idempotent
   const forgotten = await stopAndForgetRegisteredRuntime(ctx.storage, row, cachedLivenessTerminator, ctx.codexAppServer, ctx.claudeBroker, ctx.acpBridge)
   // Its terminals have nothing left to show them in: stop them and drop the rows.
   await ctx.terminalRunner.forgetThread(slug)
@@ -1567,31 +1526,6 @@ export function createRouter(ctx: AppContext) {
 
   // Bind a mutation to the session the CALLER was looking at. A stale tab holding a replaced session
   // id fails closed rather than acting on whatever now owns the slug (merged from origin/main).
-  /** Register an EXTERNAL session on its first steer, so the follow-up that triggered it lands on a
-   *  real thread. A no-op for every ordinary send.
-   *
-   *  The three conditions are all necessary. There must be NO ROW (else this is an ordinary thread, or
-   *  a stale tab, and the ownership guard below owns that case). The slug must EQUAL the session id,
-   *  because that is the only shape an external row ever has — a promoted thread keeps the id it was
-   *  discovered under, so a request naming two different values did not come from this band. And the
-   *  tailer must still be listing it as external RIGHT NOW, which is what makes this un-forgeable:
-   *  the caller cannot talk ntwine into adopting an arbitrary uuid, only a transcript the server can
-   *  see for itself in this project's own log directory. */
-  async function promoteExternalSession(slug: string, sessionId: string): Promise<boolean> {
-    if (slug !== sessionId) return false
-    if (ctx.storage.getSession(slug)) return false
-    if (!ctx.tailer.foreignIds().includes(slug)) return false
-    const tele = ctx.tailer.get(slug)
-    await ctx.dispatcher.adoptSession({
-      sessionId: slug,
-      backend: ctx.tailer.foreignBackend?.(slug) ?? "claude",
-      // The session's own name (Claude's ai-title) when it has one. Codex writes no title record, so
-      // that row keeps the short-id name the band showed — the same string, not a second guess.
-      ...(tele?.aiTitle ? { title: tele.aiTitle.slice(0, 200) } : {}),
-    })
-    return true
-  }
-
   /**
    * The checkout `slug` works in when it is not the project root, for the `editor` tool (EditorStateCheckout):
    * the thread's own reading (threadWorkingDir — the tailer's, else its transcript's), spelled through the
@@ -1668,15 +1602,13 @@ export function createRouter(ctx: AppContext) {
       //
       // The row is bound to the CALLER's session id (origin/main's staleness guard): a stale tab must
       // not deliver a follow-up into a thread that has since been re-dispatched.
-      // PROMOTION. Steering an EXTERNAL session — one of the human's own terminals, listed in the
-      // rail's External band — is what turns it into an ntwine thread (maintainer 2026-08-24). It runs
-      // here, inside the follow-up, rather than behind a button of its own: one round trip, so the
-      // message and the row it belongs to can never end up on opposite sides of a failure.
-      //
-      // Below `currentOwnedSession` because that guard is what an ORDINARY follow-up needs and this
-      // is the case where it cannot yet pass — there is no row. `promoteExternalSession` returns
-      // false for every ordinary send, so the guard still runs first for everything else.
-      await promoteExternalSession(input.slug, input.sessionId)
+      // An EXTERNAL session — one of the human's own terminals, listed apart from the bands — is read
+      // only: it has no row, so there is nothing to deliver into. Said plainly rather than through the
+      // ownership guard below, whose "replaced" would send the human hunting for a newer thread.
+      // (Steering one used to promote it into an ordinary thread; removed 2026-10-14.)
+      if (!ctx.storage.getSession(input.slug) && ctx.tailer.foreignIds().includes(input.slug)) {
+        throw new Error("This session was started outside Ntwine; continue it in its own terminal")
+      }
       const row = currentOwnedSession(input.slug, input.sessionId)
       // A HELD THREAD HAS NO AGENT TO DELIVER TO: its first message is what starts one, through the dispatch
       // path (startHeldThreadRow). Every sender lands here — the drawer's prompt box, a snooze carrying a
@@ -3586,18 +3518,6 @@ export function createRouter(ctx: AppContext) {
         const from = forkSource(parent, target)
         return from ? forkSpinoff(parent, from, input.instructions) : summarySpinoff(parent, target, input.instructions)
       },
-    }),
-
-    // Cold-adopt a pre-existing thread (no session row): spawn a fresh worker on its file.
-    adoptThread: mutation({
-      input: AdoptThreadInput,
-      output: AdoptThreadResult,
-      handler: ({ input }) => audit(
-        "adoptThread",
-        { project: thisProject, thread: input.slug, detail: input.message ? { message: textDigest(input.message) } : undefined },
-        () => ctx.dispatcher.adopt(input.slug, input.message),
-        (result) => ({ detail: { sessionId: result.sessionId } }),
-      ),
     }),
 
     followUp: mutation({

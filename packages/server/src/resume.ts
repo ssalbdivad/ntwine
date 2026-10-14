@@ -29,13 +29,6 @@ import {
   ntwineConfigBlock,
   loadWorkerPrompt,
 } from "./dispatch.ts"
-import {
-  ADOPTION_ATTEMPT_LEASE_MS,
-  abandonAdoptionAttempt,
-  adoptionRuntimeBinding,
-  type AdoptionRecoveryRuntime,
-  type PaneIdentity,
-} from "./adoption-recovery.ts"
 
 /**
  * A follow-up/wake that cannot be delivered AND must not be retried. Raised when a live worker owns
@@ -56,8 +49,7 @@ export class TerminalDeliveryError extends Error {
 /**
  * A follow-up/wake that was refused BEFORE any byte of it could reach a worker, by a contention gate
  * that a later attempt can find open: a permission/profile handoff owning the runtime, a lost
- * runtime-control CAS (two follow-ups racing the same row), an adoption identity ntwine could not verify
- * this instant, or a lifecycle CAS that moved under us.
+ * runtime-control CAS (two follow-ups racing the same row), or a lifecycle CAS that moved under us.
  *
  * The distinction that matters is DELIVERY SAFETY, not the sentence: every site raising this sits
  * strictly upstream of the first byte written toward the worker, so a caller retrying it CANNOT
@@ -189,12 +181,18 @@ export type ProfileReattachPhase =
   | "target-starting" | "target-spawned" | "target-ready"
   | "rollback-starting" | "rollback-spawned" | "rollback-ready"
 
+// The multiplexer-era runtime identity a checkpoint could carry; nothing on the broker path sets it.
+interface PaneIdentity {
+  paneId: string
+  panePid: number
+  sessionCreated: number
+}
+
 export interface ProfileReattachCheckpoint {
   phase: ProfileReattachPhase
   generation: number
   handoffToken: string
   identity?: PaneIdentity
-  adoptionAttemptToken?: string
 }
 
 interface ProfileTransition {
@@ -205,11 +203,6 @@ interface ProfileTransition {
 }
 
 type PermissionProcessProbe = "ready" | "exited" | "replaced" | "unready"
-
-function samePaneIdentity(a: PaneIdentity | undefined, b: PaneIdentity | null | undefined): boolean {
-  if (!a || !b) return a === undefined && b === undefined
-  return a.paneId === b.paneId && a.panePid === b.panePid && a.sessionCreated === b.sessionCreated
-}
 
 class PermissionHandoffAbortedError extends Error {}
 class ProfileCheckpointAbortedError extends Error {}
@@ -334,9 +327,6 @@ export function resumeThread(deps: ResumeDeps, slug: string, message: string, de
   if (initial.profile_pending_model !== null && initial.profile_pending_model !== undefined ||
       initial.profile_pending_effort !== null && initial.profile_pending_effort !== undefined) {
     throw new RetryableDeliveryError("A model/effort change is in progress; wait for it to finish before sending a follow-up")
-  }
-  if (adoptionRuntimeBinding(deps.storage, initial).kind === "conflict") {
-    throw new RetryableDeliveryError("This thread has a competing adoption attempt; no worker was contacted")
   }
   if (initial.runtime_control !== null && initial.runtime_control !== undefined) {
     throw new RetryableDeliveryError("Another runtime control is in progress; wait for it to finish before sending a follow-up")

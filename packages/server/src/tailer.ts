@@ -12,7 +12,6 @@ import { isBrokerClaudeRow, isHeadlessRow, isHeldRow } from "./storage.ts"
 import type { Storage, SessionRow } from "./storage.ts"
 import { discoverTranscriptDir, discoverTranscriptId, mtimeOfNonEmpty, DISCOVERY_GRACE_MS } from "./discover.ts"
 import { CLAUDE_WORKER_ENV, type AgentBackend, type FoldState, type NormalizedEvent, type NormalizedTail } from "./backend/types.ts"
-import { adoptionRuntimeBinding } from "./adoption-recovery.ts"
 import { normalizeObservedThreadModel, validateThreadProfile } from "./backend/thread-profiles.ts"
 import { dispatchProfileCell } from "./subagent-profile.ts"
 import { resolveRuntimeTurn, type ClaudeRuntimeTask } from "./backend/claude-runtime-ingest.ts"
@@ -3563,12 +3562,6 @@ export function createTailer(deps: TailerDeps): Tailer {
         }
       })()
 
-  // Resolved at most ONCE per row per tick. Every row asks for its binding at least twice (liveness
-  // and the text-capture seam), and each ask is two registry point-queries — 4 queries per row per
-  // second that can only ever return the same answer, since a tick describes one instant. Reset at the
-  // top of each tick alongside the capture caches.
-  let adoptionBindings = new Map<string, ReturnType<typeof adoptionRuntimeBinding>>()
-
   // The turn a row is IN, folding in the provider's own reading when there is one. For every row
   // without a runtime signal — every codex row, every non-broker claude row, every test fixture —
   // this is exactly `computeTurn(state, nowMs)`.
@@ -3691,14 +3684,6 @@ export function createTailer(deps: TailerDeps): Tailer {
     }
   }
 
-  function adoptionBinding(row: SessionRow) {
-    const cached = adoptionBindings.get(row.slug)
-    if (cached) return cached
-    const binding = adoptionRuntimeBinding(deps.storage, row)
-    adoptionBindings.set(row.slug, binding)
-    return binding
-  }
-
   // "Is the process that owns this session's children gone?" — the registry's own exit stamp for a
   // HEADLESS row (broker claude / app-server codex), plus, for a broker row, a probe of its daemon's
   // own pid.
@@ -3724,8 +3709,11 @@ export function createTailer(deps: TailerDeps): Tailer {
     // defaultBrokerDaemonAlive; it fails safe to ALIVE, so this can only ever ADD deaths ntwine can prove.
     if (isBrokerClaudeRow(row)) return row.exited === 1 || !brokerDaemonAlive(row.session_id)
     if (isHeadlessRow(row)) return row.exited === 1
-    const binding = adoptionBinding(row)
-    if (binding.kind === "conflict") return true
+    // A stale snapshot (the registry now holds another session or generation under this slug) reads as
+    // dead without asking the name-keyed seam: that name may belong to the replacement's worker.
+    const current = deps.storage.getSession(row.slug)
+    if (!current || current.session_id !== row.session_id ||
+        (current.runtime_generation ?? 0) !== (row.runtime_generation ?? 0)) return true
     return paneDead(row.slug)
   }
 
@@ -6107,7 +6095,6 @@ export function createTailer(deps: TailerDeps): Tailer {
     const nowMs = now()
     // Every tick, so a host suspension is placed within one tick of where it really fell (awake-clock.ts).
     processAwakeClock.sample()
-    adoptionBindings = new Map()
     // Before anything this tick can flush (and the first flush PRUNES every other fold schema's rows):
     // the provisional readings are served from what this read finds. See `provisional`.
     if (tailCache && cacheEntries === null) loadCacheEntries()

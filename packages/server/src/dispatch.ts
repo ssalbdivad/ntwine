@@ -4,8 +4,6 @@ import { fileURLToPath } from "node:url"
 import { homedir } from "node:os"
 import { createHash, randomUUID } from "node:crypto"
 import {
-  AdoptSessionInput,
-  AdoptThreadInput,
   DISPATCH_TASK_BANNER_MARKER,
   CreateHeldThreadInput,
   DispatchInput,
@@ -48,15 +46,7 @@ import { dispatchFallsBackToFable } from "./backend/fable-fallback.ts"
 import { readCodexModels } from "./backend/codex-models.ts"
 import { AUTO_EFFORT, type ChooseEffort } from "./effort-chooser.ts"
 import { ProviderAuthRequiredError } from "./backend/auth-status.ts"
-import { readBoard, type NtwineBoard, type NtwineThread } from "./ntwine.ts"
-import { SYSTEM_PROMPT_DIR, cleanupAdoptionSessionFiles, systemPromptPath, writeMcpConfigFile } from "./session-files.ts"
-import {
-  ADOPTION_ATTEMPT_LEASE_MS,
-  abandonAdoptionAttempt,
-  reconcileAdoptionClaims,
-  type AdoptionRecoveryRuntime,
-  productionRuntime as productionAdoptionRuntime,
-} from "./adoption-recovery.ts"
+import { SYSTEM_PROMPT_DIR, cleanupSessionFiles, systemPromptPath, writeMcpConfigFile } from "./session-files.ts"
 
 // Dispatch = provision the thread's scratch DIRECTORY + compose the full prompt + fork a detached
 // BROKER DAEMON for the session + register the session row. There is no terminal, no multiplexer and
@@ -135,14 +125,9 @@ interface LegacyThreadFileIdentity {
   digest: string
 }
 
-function sameFileStat(a: LegacyThreadFileIdentity, b: LegacyThreadFileIdentity): boolean {
-  return a.path === b.path && a.realPath === b.realPath && a.dev === b.dev && a.ino === b.ino &&
-    a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs && a.digest === b.digest
-}
-
-// Resolve an adoption source without ever accepting an indirect path. Both `.ntwine` and the selected
-// markdown file must be real (not symlink) direct children of the real project root. Reading the file
-// into the identity digest closes replacement/content races across the fresh-board authorization pass.
+// Resolve a legacy `.ntwine/<slug>.md` thread file without ever accepting an indirect path. Both `.ntwine`
+// and the selected markdown file must be real (not symlink) direct children of the real project root, and
+// the file is read through one descriptor whose identity must match the path before and after the read.
 export function resolveLegacyThreadFile(projectDir: string, value: unknown): LegacyThreadFileIdentity | null {
   const parsed = ThreadSlug.safeParse(value)
   if (!parsed.success) return null
@@ -196,22 +181,6 @@ export function resolveLegacyThreadFile(projectDir: string, value: unknown): Leg
   }
 }
 
-const ADOPTABLE_LEGACY_STATUSES = new Set(["planning", "planned", "active", "needs-human", "blocked"])
-
-export function isAdoptableLegacyBoardThread(thread: NtwineThread, slug: string): boolean {
-  return thread.id === slug &&
-    ADOPTABLE_LEGACY_STATUSES.has(thread.status) &&
-    thread.owner == null &&
-    Array.isArray(thread.agents) && thread.agents.length === 0 &&
-    Array.isArray(thread.errors) && thread.errors.length === 0
-}
-
-function boardAuthorizesAdoption(board: NtwineBoard, slug: string): boolean {
-  const matches = board.threads.filter((thread) => thread.id === slug)
-  if (matches.length !== 1 || !isAdoptableLegacyBoardThread(matches[0], slug)) return false
-  return !board.errorItems.some((item) => item.file === `${slug}.md`)
-}
-
 function ensureSafeDirectDirectory(parent: string, name: string): string {
   const path = join(parent, name)
   try {
@@ -259,7 +228,7 @@ export function workerScratchPath(project: Pick<Project, "dir" | "workDir">, ses
 }
 
 // Provision the thread's scratch directory. Creates the folder and NOTHING inside it, returning the
-// project-relative path. sessionId is a fresh UUID at both dispatch and adopt, so this never collides.
+// project-relative path. sessionId is a fresh UUID at every dispatch, so this never collides.
 export function writeScratchDir(projectDir: string, sessionId: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/.test(sessionId)) throw new Error("invalid session id")
   const projectRoot = realpathSync(projectDir)
@@ -428,7 +397,7 @@ export function claudeWorkerSystemPrompt(
 }
 
 // The SYSTEM-level scratch-directory orientation (survives compaction, rebuilds on every resume).
-// Passed as extraSystemPrompt on dispatch, adopt, AND the followUp resume path.
+// Passed as extraSystemPrompt on dispatch AND the followUp resume path.
 //
 // It names the POST-COMPACTION trigger as an available capability, never a prescription (maintainer
 // 2026-08-28: say the directory is there if the worker wants it and that the goal hooks exist — do
@@ -470,7 +439,7 @@ export function operatorIdentity(): string | null {
 // built-in PROCESS defaults (NOT the ntwine-mechanical contract: signal fences, scratchpad, sub-agent
 // dispatch and the question handback stay in force — the injected header says so, matching the "Defer"
 // section of the worker contract). When present, its contents are injected into every worker's SYSTEM
-// prompt (dispatch, adopt, AND resume; both backends) under that header, so both see it without relying on the
+// prompt (dispatch AND resume; both backends) under that header, so both see it without relying on the
 // agent choosing to open the file. Read fresh on every spawn/resume, so an edit takes effect on the
 // next launch.
 //
@@ -524,7 +493,7 @@ export function ntwineConfigBlock(projectDir: string): string {
 // the keyboard) and which blocks all edits until then — a softlock. A worker "plans" by writing a
 // durable plan file and asking via `ntwinectl ask`, never via interactive plan
 // mode. So a worker is NEVER spawned in plan mode: `plan` is coerced to the safe ntwine default
-// (`auto`). Applied inside BOTH spawn builders so dispatch, adopt, AND resume are all covered. (The
+// (`auto`). Applied inside BOTH spawn builders so dispatch AND resume are both covered. (The
 // dispatch UI still OFFERS "plan" in its permission-mode dropdown — dropping it in web/options.ts is
 // a follow-up for UI honesty; this coercion is the actual enforcement + the softlock fix.)
 function workerPermissionMode(m: PermissionMode): PermissionMode {
@@ -534,7 +503,7 @@ function workerPermissionMode(m: PermissionMode): PermissionMode {
 // Every ntwine-CREATED worker launches maximally non-interactive: an unattended headless worker cannot
 // answer an interactive prompt, so a RESTRICTIVE dispatch-time permission choice is a footgun, not a
 // feature — it just stalls the thread on a modal nobody is watching. Claude gets `auto`; codex gets
-// `bypassPermissions` (→ `-s danger-full-access`). These are the FLOOR the dispatch/adopt paths stamp
+// `bypassPermissions` (→ `-s danger-full-access`). These are the FLOOR the dispatch path stamps
 // (a client-sent permissionMode is still ignored); the only thing that moves it is the operator's own
 // Settings choice — see workerDispatchPermission, which can only relax it further.
 export const WORKER_DISPATCH_PERMISSION: Record<BackendKind, PermissionMode> = {
@@ -560,8 +529,9 @@ export function workerDispatchPermission(kind: BackendKind, settings: Pick<Setti
   return WORKER_DISPATCH_PERMISSION[kind]
 }
 
-// The mode a Claude row COLD-RESUMES with. A persisted per-thread mode always wins; a row with none — a
-// terminal session promoted before adoptSession stamped one — takes the dispatch floor instead of
+// The mode a Claude row COLD-RESUMES with. A persisted per-thread mode always wins; a row with none — an
+// external terminal session promoted onto the board before promotion stamped one (promotion was removed
+// on 2026-10-14; such rows remain) — takes the dispatch floor instead of
 // falling through to the bridge's `"default"`, Claude's prompt-on-everything mode, which the worker's
 // perm-policy hook defers call by call (observed 2026-09-03: every Edit became a card). Shared by every
 // path that can fork a process for an existing row — the follow-up RPC and the scheduled wakes (timer,
@@ -584,7 +554,7 @@ export function effectivePermissionMode(kind: BackendKind, mode: PermissionMode)
 
 // The assembled system prompt (worker norms + spawn-specific orientation) is ~16KB — passing it
 // inline as `--append-system-prompt <text>` puts all 16KB on the launch command line. That is what
-// broke every spawn on 2026-07-09 (100% of dispatch/adopt/resume): the terminal multiplexer ntwine
+// broke every spawn on 2026-07-09 (100% of dispatch/resume): the terminal multiplexer ntwine
 // launched workers through back then capped its command length and failed each one with a silent
 // "command too long". That launch path is retired, but a command line is a bounded resource in its
 // own right (execvp's ARG_MAX), so the fix stays: claude accepts `--append-system-prompt-file
@@ -787,8 +757,8 @@ export function buildClaudeCommand(opts: {
   pluginDir?: string
   // Injectable for tests; defaults to the compiled-in worker contract ("" disables the append).
   workerPrompt?: string
-  // Extra spawn-specific system-prompt text appended AFTER the worker norms (e.g. the adoption
-  // orientation) — system-level so the visible transcript carries only the human's own words.
+  // Extra spawn-specific system-prompt text appended AFTER the worker norms — system-level so the
+  // visible transcript carries only the human's own words.
   extraSystemPrompt?: string
   ntwineMcp?: NtwineMcp
   projectMcpServers?: WorkerMcpServers
@@ -982,10 +952,6 @@ export interface Dispatcher {
   // links, a name the human typed — carries over, and the upsert that writes the live row clears the hold.
   // Server-only, like `fork`: the caller is held-start.ts.
   dispatch(input: DispatchInput, opts?: { backend?: BackendKind; nameSource?: string; fork?: { sessionId: string }; onto?: SessionRow }): Promise<{ slug: string; sessionId: string }>
-  // Cold-adopt an EXISTING thread ntwine didn't originate (e.g. a repo with a pre-existing .ntwine
-  // board): spawn a fresh worker pointed at the thread file. Ntwine's contract makes this sound —
-  // the doc, not the conversation, is the durable context; the worker reads it and continues.
-  adopt(slug: string, message?: string): Promise<{ slug: string; sessionId: string }>
   // Write down a HELD THREAD for `opts.holder`: a thread row with a name and a session id but no agent
   // (SessionRow.held_by). Nothing is spawned and no provider is contacted; `dispatch` with `opts.onto`
   // starts it later. The prompt rides `lazy_prompt` too — the run's own prompt for a schedule, and for any
@@ -998,31 +964,23 @@ export interface Dispatcher {
   // significant-word fallback, which reads like a different task) and is locked, and nothing is minted.
   // Server-only, like `dispatch`'s `onto`: the caller is schedules.ts.
   createHeldThread(input: CreateHeldThreadInput, opts: { holder: string; scheduleRun?: { scheduleId: string; snoozedUntil: string | null; title: string } }): { slug: string; sessionId: string }
-  // Take over an EXTERNAL session — one of the human's own `claude`/`codex` terminals, listed in the
-  // rail's External band. Distinct from `adopt` above, which cold-starts a fresh worker on a thread
-  // FILE: this one binds ntwine to a conversation that already exists and continues it.
-  adoptSession(input: { sessionId: string; backend: BackendKind; title?: string }): Promise<{ slug: string; sessionId: string }>
 }
 
 export interface DispatchDeps {
   project: Project
   storage: Storage
   board: BoardManager
-  // Adoption never authorizes from the BoardManager's potentially stale cache. Re-scan the legacy
-  // board at click time, after the selected file has passed the direct-file containment check.
-  readBoard?: typeof readBoard
   getSettings: () => Settings
   // The operator's CURRENT profile for one backend: the machine-wide record the prompt box and every
-  // thread's profile control write (dispatch-preferences.ts). It fills in a dispatch or an adoption that
-  // names no model. Absent (tests) ⇒ the per-project Settings pair, which no surface has written since
+  // thread's profile control write (dispatch-preferences.ts). It fills in a dispatch that names no
+  // model. Absent (tests) ⇒ the per-project Settings pair, which no surface has written since
   // the prompt box got its own record — so in production it would be a months-old value, or nothing.
   dispatchProfile?: (kind: BackendKind) => { model?: string; effort?: Settings["effort"] }
   claudeBin?: string // injectable (tests / a stand-in command)
   // Inert since the broker became the only transport: dispatch spawns through the bridge, and the
-  // rollback these seams performed — killing the terminal a worker had been claimed in — has nothing
-  // left to kill. Both stay as accepted-and-ignored seams so existing fixtures still typecheck.
+  // rollback this seam performed — killing the terminal a worker had been claimed in — has nothing
+  // left to kill. It stays as an accepted-and-ignored seam so existing fixtures still typecheck.
   spawn?: unknown
-  killExpectedAdoptionPane?: unknown
   // Per-session agent-backend resolver that builds the spawn argv + injection (Codex-support epic).
   // Injected by the composition layer (context.ts); when absent (tests) dispatch falls back to the
   // local Claude argv builder, producing a byte-identical command. Selected by `opts.backend`.
@@ -1067,17 +1025,9 @@ export interface DispatchDeps {
   // "daemon exited before it became ready" a missing binary otherwise produces. Fails open on
   // "unknown". Absent (tests) ⇒ no probe.
   preflightCodexBinary?: () => Promise<"present" | "missing" | "unknown">
-  // Durable adoption recovery seams. The production runtime is INERT since the transport cutover —
-  // it answers "absent" to every lookup, because the terminal panes its token-aware exact-match
-  // implementation used to identify no longer exist — so recovery now rests entirely on the durable
-  // SQLite claim/token ledger; focused tests inject an in-memory runtime and deterministic time.
-  adoptionRuntime?: AdoptionRecoveryRuntime
-  adoptionNow?: () => number
-  adoptionAttemptToken?: () => string
 }
 
 export function createDispatcher(deps: DispatchDeps): Dispatcher {
-  const readBoardSource = deps.readBoard ?? readBoard
   const ntwineDir = join(deps.project.dir, ".ntwine")
   // Where the agents run, as against where the board is (`deps.project.dir`). The same directory for
   // every registered project; the Home workspace's folder for Home. See project.ts workDirOf.
@@ -1085,7 +1035,6 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
   // The board root a worker's hooks must write under when it is NOT their cwd — undefined otherwise, so
   // a registered project's worker is launched exactly as before.
   const boardRoot = workDir === deps.project.dir ? undefined : deps.project.dir
-  const adoptionRuntime: AdoptionRecoveryRuntime = deps.adoptionRuntime ?? productionAdoptionRuntime
 
   function savedProfile(kind: BackendKind, settings: Settings): { model?: string; effort?: Settings["effort"] } {
     return deps.dispatchProfile ? deps.dispatchProfile(kind) : { model: settings.model, effort: settings.effort }
@@ -1143,7 +1092,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
     } catch {
       // The session-id-keyed scratch directory is inert and never identifies another worker.
     }
-    cleanupAdoptionSessionFiles(deps.project.dir, sessionId)
+    cleanupSessionFiles(deps.project.dir, sessionId)
   }
 
   return {
@@ -1494,282 +1443,6 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       })
       deps.storage.setBackend(slug, kind)
       if (!typed) void deps.threadNamer?.mint(slug, sessionId, input.prompt)
-      void deps.board.rebuild().catch(() => {})
-      return { slug, sessionId }
-    },
-
-    // ---- PROMOTION: the human steered one of their own terminals, so it becomes an ntwine thread ----
-    //
-    // There is no "adopt" button and no separate ceremony (maintainer 2026-08-24: "once the user steers
-    // an external thread, it should then be essentially promoted to operate as a regular thread"). The
-    // External band's rows carry an ordinary composer; sending the first message calls this, and by the
-    // time that message is delivered the row is registered and every other surface treats it as normal.
-    //
-    // It creates a ROW and stops — no worker is started here. The session is at rest (the band lists
-    // nothing else), so the follow-up that triggered this resumes it through the SAME broker path every
-    // other rested thread takes. Spawning here too would be a second, parallel resume path to keep
-    // correct forever.
-    //
-    // THE ID DOES NOT CHANGE. The slug, the session id and the external transcript id are all the same
-    // value, and that is load-bearing rather than lazy: the promotion happens UNDER a composer that is
-    // already mounted, and every piece of optimistic client state around it — the queued bubble, the
-    // steer overlay, the per-slug send queue, the draft key — is keyed by slug. Minting a fresh readable
-    // slug would strand all of it on an id that no longer exists, mid-send. A session uuid satisfies the
-    // slug contract (lowercase hex + hyphens), and the row still DISPLAYS its real title, so the only
-    // cost is a uuid in the URL.
-    //
-    // Codex additionally pins the same id on `agent_session_id`, because that is the column its rollout
-    // is located by; claude needs nothing extra, since its transcript IS `<session_id>.jsonl`. Either
-    // way the id now belongs to a registry row, so the foreign scan stops surfacing it and the session
-    // leaves the External band on the next tick — there is no separate hand-off to forget.
-    async adoptSession(input) {
-      const parsed = AdoptSessionInput.safeParse(input)
-      if (!parsed.success) throw new Error("that session cannot be adopted")
-      const { sessionId: externalId, backend, title } = parsed.data
-      // The id must be genuinely UNOWNED. Checking the registry (rather than trusting the caller's
-      // claim that this came from the External band) is what stops a crafted request from minting a
-      // second row over a thread ntwine is already driving.
-      for (const row of deps.storage.allSessions()) {
-        if (row.session_id === externalId || row.agent_session_id === externalId || row.transcript_id === externalId) {
-          throw new Error("that session is already an ntwine thread")
-        }
-      }
-      const displayTitle = title?.trim() || `Session ${externalId.slice(0, 8)}`
-      const slug = externalId
-      const sessionId = externalId
-      // The worker's scratch directory keys on the row's OWN session_id, matching dispatch — so a
-      // promoted thread's scratch dir is named for the transcript it inherited.
-      writeScratchDir(deps.project.dir, sessionId)
-      deps.storage.upsertSession({
-        slug,
-        session_id: sessionId,
-        thread_name: threadIdentityName(slug),
-        spawned_at: new Date().toISOString(),
-        last_read_at: null,
-        unread: 0,
-        exited: 0,
-        archived: 0,
-        rested_at: new Date().toISOString(),
-        // The name came from the session's OWN title (Claude's ai-title) or a short id — a real name
-        // either way, not the dispatch chop, so it is not marked provisional — and, like every name, it is
-        // final from here (thread-names.ts).
-        title_auto: 0,
-        title: displayTitle,
-        transcript_id: null,
-        state: "open",
-        meta: null,
-        seen_at: null,
-        // The SAME launch mode a dispatched worker gets. The follow-up that triggered this promotion
-        // resumes the session with `row.permission_mode`, and a row with none fell through to the
-        // bridge's `"default"` — Claude's prompt-on-everything mode, which the worker's own perm-policy
-        // hook then DEFERS on every call (`restrictive-mode`), so each Edit became a card. Observed
-        // 2026-09-03 on a terminal session driven from the board: every ntwine-sent turn ran at
-        // `default` while the human's own TUI on the same transcript sat at `auto`.
-        permission_mode: workerDispatchPermission(backend, deps.getSettings()),
-      })
-      deps.storage.setBackend(slug, backend)
-      // A session promoted onto the board was taught no contract at all. What it will be told from
-      // here on — every wake and bump — names `ntwinectl`, so that is the surface it is given.
-      deps.storage.setWorkerSurface(slug, "cli")
-      if (backend === "codex") deps.storage.setAgentSession(slug, externalId)
-      // The TRANSPORT, without which the follow-up that triggered this promotion has nowhere to go.
-      // Every claude thread is broker-backed — the legacy path throws "ntwine has no other claude
-      // transport" — and a row that never went through dispatch does not get this stamped for free.
-      else deps.storage.setClaudeRuntime(slug, "broker")
-      return { slug, sessionId }
-    },
-
-    async adopt(slug, message) {
-      const unavailable = () => new Error("thread is not available for adoption")
-      const parsed = AdoptThreadInput.safeParse({ slug, message })
-      if (!parsed.success) throw unavailable()
-      slug = parsed.data.slug
-      message = parsed.data.message
-
-      // Authorization is deliberately reconstructed from current raw inputs instead of trusting a
-      // browser affordance or the BoardManager cache: exact direct file identity + one fresh, valid,
-      // nonterminal, unowned, agentless board row + no registry row and no adoption claim already
-      // owning the slug. Every precondition shares
-      // one non-oracular failure and occurs before ensureServer, scratch creation, spawn, or storage.
-      const source = resolveLegacyThreadFile(deps.project.dir, slug)
-      if (!source) throw unavailable()
-      let freshBoard: NtwineBoard
-      try {
-        freshBoard = await readBoardSource(deps.project.dir)
-        if (!boardAuthorizesAdoption(freshBoard, slug)) throw unavailable()
-      } catch {
-        throw unavailable()
-      }
-      // A registry row owns its slug regardless of whether its worker is currently alive, exited, or
-      // archived. Adoption is a cold-start path, never a replacement/resume path.
-      try {
-        if (deps.storage.getSession(slug)) throw unavailable()
-      } catch {
-        throw unavailable()
-      }
-
-      // Retry performs the same leased reconciliation as boot. A stale attempt can be removed only
-      // after its token is absent (or its exact tuple was killed); an active/finalized/conflicted claim
-      // remains authoritative and returns the same non-oracular response as every other ineligible row.
-      try {
-        const outcome = reconcileAdoptionClaims({
-          storage: deps.storage,
-          projectDir: deps.project.dir,
-          now: deps.adoptionNow,
-          runtime: adoptionRuntime,
-          slug,
-        }).get(slug)
-        // A retired-token orphan has no live claim by design. Its reconciliation outcome is therefore
-        // an independent ownership fence: do not infer safety solely from the row/claim registry.
-        if (outcome && outcome !== "recovered-stale-attempt") throw unavailable()
-        if (deps.storage.getSession(slug) || deps.storage.getAdoptionClaim(slug)) throw unavailable()
-      } catch {
-        throw unavailable()
-      }
-
-      const recheckedSource = resolveLegacyThreadFile(deps.project.dir, slug)
-      if (!recheckedSource || !sameFileStat(source, recheckedSource)) throw unavailable()
-
-      const settings = deps.getSettings()
-      // Adoption always starts a Claude session, on the operator's current Claude profile.
-      const adoptProfile = savedProfile("claude", settings)
-      const sessionId = randomUUID()
-      const attemptToken = deps.adoptionAttemptToken?.() ?? randomUUID()
-      const now = deps.adoptionNow ?? Date.now
-      const reservedAtMs = now()
-      try {
-        if (!deps.storage.reserveAdoptionClaim({
-          slug,
-          attemptToken,
-          sessionId,
-          reservedAtMs,
-          leaseExpiresAtMs: reservedAtMs + ADOPTION_ATTEMPT_LEASE_MS,
-        })) {
-          throw unavailable()
-        }
-      } catch {
-        throw unavailable()
-      }
-
-      let scratchRel: string | undefined
-      const rollback = (): void => {
-        let abandoned = false
-        try {
-          abandoned = abandonAdoptionAttempt({
-            storage: deps.storage,
-            projectDir: deps.project.dir,
-            slug,
-            attemptToken,
-            sessionId,
-            runtime: adoptionRuntime,
-          })
-        } catch {
-          // Leave the durable claim for boot recovery if storage is temporarily unavailable.
-        }
-        if (!abandoned) return
-        if (scratchRel) cleanupDispatchFiles(scratchRel, { argv: [], env: {}, prewrite: [] }, sessionId)
-        else cleanupAdoptionSessionFiles(deps.project.dir, sessionId)
-      }
-
-      // The adoption orientation is SYSTEM-level (the visible transcript carries only the human's own
-      // words). Session-first: the legacy file is prior CONTEXT to read first, NOT a contract to maintain
-      // — the worker works session-first from here (scratchpad + end-of-turn fences), leaving the file's
-      // frontmatter untouched.
-      const adoption =
-        "ADOPTION: this thread predates you and has prior context recorded in `" +
-        (boardRoot ? join(boardRoot, ".ntwine", `${slug}.md`) : `.ntwine/${slug}.md`) +
-        "` (a previous agent or session worked it — you have no access to that conversation, and you don't need it). READ THAT FILE FIRST for context: `## Goal` is the mission, `## Status`/`## Decisions`/`## Next step` are where things stand. It is CONTEXT, not a contract — do NOT edit its frontmatter. You work session-first from here: keep your working state in your scratchpad and signal end-of-turn with the done/awaiting fences. The user's message below is your steer on top of that context."
-      const task = message?.trim() || "Pick up this thread and continue from where the file says things stand."
-      // Provision a scratch directory too (the adopted worker's own space); the legacy file stays read-only.
-      try {
-        scratchRel = writeScratchDir(deps.project.dir, sessionId)
-      } catch {
-        rollback()
-        throw unavailable()
-      }
-      const prompt = composePrompt(sessionId, task, "claude", workerScratchPath(deps.project, sessionId))
-      const permissionMode = workerDispatchPermission("claude", settings)
-
-      // Adoption spawns through the broker, exactly like a fresh dispatch. It used to claim a terminal
-      // pane under a leased attempt token and rebind the pane identity across slow post-create setup —
-      // a multi-process protocol whose entire purpose was making a PANE claim safe. There is no pane
-      // to claim now: the daemon record plus the session id is the identity, so the attempt token
-      // stays (it still fences two ntwine processes racing the same slug) and everything pane-shaped goes.
-      const bridge = deps.claudeBroker
-      if (!bridge) {
-        rollback()
-        throw unavailable()
-      }
-      // Re-check the authorized file identity immediately before spawning: local provisioning above is
-      // the window in which the source could have been replaced under us.
-      const beforeSpawn = resolveLegacyThreadFile(deps.project.dir, slug)
-      if (!beforeSpawn || !sameFileStat(source, beforeSpawn)) {
-        rollback()
-        throw unavailable()
-      }
-      try {
-        await bridge.spawnDispatch({
-          threadSlug: slug,
-          sessionId,
-          cwd: workDir,
-          prompt,
-          permissionMode,
-          appendSystemPrompt: [
-            loadWorkerPrompt("claude", workerCapabilities(deps.editors, workDir)),
-            scratchpadOrientation(sessionId, "claude", workerScratchPath(deps.project, sessionId)),
-            ntwineConfigBlock(deps.project.dir),
-            adoption,
-          ].filter(Boolean).join("\n\n"),
-          model: adoptProfile.model,
-          effort: adoptProfile.effort,
-        })
-      } catch {
-        try { bridge.releaseSession(slug, sessionId, "session-deleted") } catch { /* best-effort */ }
-        rollback()
-        throw unavailable()
-      }
-
-      const adopted = {
-        slug,
-        session_id: sessionId,
-        thread_name: threadIdentityName(slug),
-        spawned_at: new Date(now()).toISOString(),
-        last_read_at: null,
-        unread: 0,
-        exited: 0,
-        archived: 0,
-        rested_at: null,
-        title_auto: 0, // adopted threads keep their file title
-        title_locked: 1, // …and that heading is human-authored, so no auto-title may overwrite it
-        title: null,
-        state: "open",
-        meta: null,
-        seen_at: null,
-        transcript_id: null,
-        // Adoption starts a NEW session using the dispatch defaults in force at that moment. Pin those
-        // values now; a later settings change must not relabel this adopted conversation.
-        model: adoptProfile.model ?? null,
-        effort: adoptProfile.effort ?? null,
-        permission_mode: permissionMode,
-        // Adoption always starts a fresh Claude session. Keep both identity columns in the SAME atomic
-        // insert so a prior/competing Codex owner can never leak its native id into this row.
-        backend: "claude",
-        agent_session_id: null,
-      } satisfies SessionRow
-
-      let claimed = false
-      try {
-        claimed = deps.storage.finalizeAdoptionClaim(slug, attemptToken, adopted, now())
-      } catch {
-        rollback()
-        throw unavailable()
-      }
-      if (!claimed) {
-        rollback()
-        throw unavailable()
-      }
-
-      deps.storage.setClaudeRuntime(slug, "broker")
       void deps.board.rebuild().catch(() => {})
       return { slug, sessionId }
     },

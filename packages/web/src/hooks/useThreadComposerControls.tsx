@@ -128,8 +128,8 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
   const composerStatus = threadComposerStatus(profiles.isError ? (profiles.error as Error).message : undefined)
 
   // WHAT THE OPERATOR IS LOOKING AT, and it is deliberately not `thread.permissionMode` raw: a thread
-  // whose stored mode is one of the restrictive ones (an adopted foreign session, or a row left over
-  // from before this control narrowed to two) has no option to select, and a Select with a value that
+  // whose stored mode is one of the restrictive ones (a row promoted from an external session, or one left
+  // over from before this control narrowed to two) has no option to select, and a Select with a value that
   // matches nothing renders empty. `claudePermValue` folds the one such mode Claude can carry back onto
   // `auto`; anything else unrecognised does the same here, so the readout always names a real row.
   const storedPermission = thread.permissionMode ? claudePermValue(thread.permissionMode) : "auto"

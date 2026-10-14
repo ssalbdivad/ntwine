@@ -203,9 +203,9 @@ export interface DatabaseOptions {
 /**
  * Track whether `sql` opens or closes a transaction.
  *
- * `storage.ts` runs its adoption fence by hand — `exec("BEGIN IMMEDIATE")` … `exec("COMMIT")` — and
- * then asks `db.inTransaction` whether it still owes a ROLLBACK, so the flag has to see manual
- * statements and not just the ones `transaction()` issues. `ROLLBACK TO <savepoint>` and `RELEASE`
+ * A caller that runs a transaction by hand — `exec("BEGIN IMMEDIATE")` … `exec("COMMIT")` — and then
+ * asks `db.inTransaction` whether it still owes a ROLLBACK needs the flag to see manual statements and
+ * not just the ones `transaction()` issues (storage.ts's cold-adoption fence did, until 2026-10-14). `ROLLBACK TO <savepoint>` and `RELEASE`
  * deliberately do NOT end the enclosing transaction, which is why this cannot be a keyword match.
  */
 function transactionControl(sql: string): "open" | "close" | null {

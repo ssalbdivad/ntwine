@@ -62,7 +62,6 @@ import { lastAskIndex, messagePresentationText } from "../lib/messagePresentatio
 import { ICON_LABEL_NUDGE } from "../lib/iconAlign.ts"
 import { getThemeSnapshot, subscribeTheme } from "../lib/theme.ts"
 import { isVisualizationThemeAck, visualizationThemeMessage } from "../lib/visualizationThemeProtocol.ts"
-import { canAdoptThread } from "../lib/adoption.ts"
 import { THREAD_HEADER_CLASS, THREAD_HEADER_CONTAINER_CLASS, THREAD_HEADER_CONTROLS_CLASS, THREAD_HEADER_TITLE_CLASS } from "../lib/threadHeaderLayout.ts"
 import { SheetClose } from "./ui/SheetHeader.tsx"
 import { ThreadActionBar } from "./ThreadActionBar.tsx"
@@ -541,21 +540,6 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
               // A held thread (a schedule's next run): no agent has run, so there is nothing to read.
               // What it will start with is the prompt box below.
               "Not started yet."
-            ) : canAdoptThread(thread) ? (
-              // A thread ntwine never originated (pre-existing .ntwine board): no session, no
-              // transcript. Cold-adopt it — a fresh worker reads the thread FILE and continues;
-              // per the ntwine contract the doc, not the conversation, is the durable context.
-              // (Session language, not "agent": the thing that attaches IS an agent process, but the
-              // UI's thread/session vocabulary keeps "agent" for genuine child sub-agents only.)
-              <div className="text-center">
-                <p className="mb-3">No session is attached to this thread yet.</p>
-                <button
-                  className="btn-ghost border border-border text-[12px]"
-                  onClick={() => rpc.adoptThread({ slug }).catch(() => {})}
-                >
-                  Start a session on this thread
-                </button>
-              </div>
             ) : (
               "No conversation yet."
             )}
@@ -676,7 +660,8 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
           reaches the physical bottom edge of a tablet or a notched screen. The lifecycle footer used to
           sit under this and carried it, until the footer went on 2026-10-05. Not on a phone: its bar
           (Composer's phone layout) pads itself for the inset and the keyboard together. */}
-      <div data-thread-chat-footer className={`z-10 shrink-0 border-t border-border/60 bg-panel ${phone ? "" : "pb-[env(safe-area-inset-bottom)]"}`}>
+      {/* None for an EXTERNAL session: it is read only, so there is no prompt box to hold (ThreadActionBar). */}
+      {thread?.foreign !== true && <div data-thread-chat-footer className={`z-10 shrink-0 border-t border-border/60 bg-panel ${phone ? "" : "pb-[env(safe-area-inset-bottom)]"}`}>
         <ThreadActionBar
           slug={slug}
           // THE LIVE OPS AS ONE LINE OF COUNTS over the prompt box, their rows one hover away — the
@@ -696,7 +681,7 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
           // (and its rail's Goal) under the desktop header — which /full keeps at every width.
           phoneChrome={phone}
         />
-      </div>
+      </div>}
       {phone && answerSheetOpen !== false && (
         <RegisteredAnswerSheet questions={openQuestions} initialStep={typeof answerSheetOpen === "string" ? answerSheetOpen : undefined} onClose={() => setAnswerSheetOpen(false)} />
       )}

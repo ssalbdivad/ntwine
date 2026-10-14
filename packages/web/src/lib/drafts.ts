@@ -254,7 +254,6 @@ export const draftKey = {
   // A finished terminal's next line (TerminalFollowUp) — one per terminal.
   terminalNext: (projectDir: string | undefined, id: string) => `terminal-next:${projectDraftScope(projectDir)}:${encodeURIComponent(id)}`,
   followUp: (projectDir: string | undefined, slug: string, sessionId?: string) => `followup:${threadDraftScope(projectDir, slug)}:${encodeURIComponent(sessionId ?? "unowned")}`,
-  adopt: (projectDir: string | undefined, slug: string) => `adopt:${threadDraftScope(projectDir, slug)}`,
   answer: (projectDir: string | undefined, slug: string, sessionId: string | undefined, messageId: string, block: number) => `answer:${threadDraftScope(projectDir, slug)}:${encodeURIComponent(sessionId ?? "unowned")}:${encodeURIComponent(messageId)}:${block}`,
   interaction: (projectDir: string | undefined, projectId: string, slug: string, sessionId: string, epoch: number, id: string, field: string) => `interaction:${projectDraftScope(projectDir)}:${encodeURIComponent(projectId)}:${draftSlug(slug)}:${encodeURIComponent(sessionId)}:${epoch}:${encodeURIComponent(id)}:${encodeURIComponent(field)}`,
   // A REGISTERED question's free-text box. Keyed by the question's own durable id and its node path in

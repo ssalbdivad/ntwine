@@ -291,8 +291,8 @@ test("rows are ordinary objects, so deepStrictEqual against a literal still work
 })
 
 test("inTransaction sees a hand-rolled BEGIN, not just transaction()", () => {
-  // storage.ts opens its adoption fence by hand and then asks whether it still owes a ROLLBACK, so a
-  // flag that only tracked transaction() would leave a transaction open on every error path.
+  // A caller that opens a transaction by hand and then asks whether it still owes a ROLLBACK needs this:
+  // a flag that only tracked transaction() would leave a transaction open on every error path.
   withDb((db) => {
     db.exec("create table t (a integer primary key)")
     assert.equal(db.inTransaction, false)

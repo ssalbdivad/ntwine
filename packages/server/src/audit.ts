@@ -138,7 +138,6 @@ export type AuditAction =
   | "projectPick"
   | "projectRemove"
   | "dispatch"
-  | "adoptThread"
   | "followUp"
   | "subAgentSteer"
   | "messageThread"
