@@ -59,6 +59,28 @@ if (!app.commandLine.hasSwitch("user-data-dir")) {
 }
 if (process.platform === "win32") app.setAppUserModelId(APP_ID)
 
+/**
+ * A Start Menu shortcut carrying APP_ID, ntwine's icon and name. With an explicit app ID, Windows 11
+ * draws a combined taskbar button (the default) from that ID's registration, never from the window's own
+ * icon, and with none it falls back to the exe: Electron's atom, named "Electron", while WM_GETICON on
+ * the window still answers the n. The Start Menu only, never the desktop.
+ */
+function registerAppId(): void {
+  const icon = join(here, "icon.ico")
+  if (!existsSync(icon)) return
+  const link = join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs", "ntwine (dev).lnk")
+  const options = {
+    target: process.execPath,
+    args: `"${app.getAppPath()}"`,
+    appUserModelId: APP_ID,
+    icon,
+    iconIndex: 0,
+    description: "ntwine in an Electron window, for the dev loop",
+  }
+  if (!shell.writeShortcutLink(link, existsSync(link) ? "replace" : "create", options))
+    console.error(`[desktop] could not write ${link}; the taskbar will show Electron's icon`)
+}
+
 /** The server this app is showing — the one origin its windows may navigate within. */
 let origin: string | undefined
 let mainWindow: BrowserWindow | undefined
@@ -386,6 +408,7 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(buildMenu())
     // macOS takes the Dock's icon from the app bundle, which in dev is Electron's own.
     if (isMac && existsSync(join(here, "icon.png"))) app.dock?.setIcon(join(here, "icon.png"))
+    if (process.platform === "win32") registerAppId()
     createMainWindow()
   })
 }
