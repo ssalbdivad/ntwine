@@ -1,4 +1,3 @@
-import { eitherBrand } from "@ntwine/shared"
 import { normalizeObservedThreadModel } from "./backend/thread-profiles.ts"
 
 // THE DISPATCH PROFILE CELL — the one string every surface that names a sub-agent reads its model and
@@ -72,12 +71,11 @@ function shortModel(raw: unknown): string | undefined {
  *   general-purpose opus/high   a foreign agent type, which keeps its name and gains what the call named
  *   ntwine:high                  the model genuinely unknown — the profile verbatim, as before
  */
-const PROFILE_NAMESPACE = eitherBrand(/^ntwine:/)
-const PROFILE_ROUTE = eitherBrand(/^ntwine-/)
+const PROFILE_NAMESPACE = /^ntwine:/
+const PROFILE_ROUTE = /^ntwine-/
 
 export function dispatchProfileCell(input: DispatchProfileInput): string | undefined {
   const type = text(input.subagentType)
-  // Either product name's namespace: a transcript from before the rename has the old one (legacy-frizz.ts).
   const namespace = type ? PROFILE_NAMESPACE.exec(type)?.[0] : undefined
   const namespaced = namespace !== undefined
   const ours = namespaced || !type

@@ -1,5 +1,0 @@
-#!/bin/sh
-# LEGACY: frizzctl — the name `ntwinectl` had before the Frizz -> Ntwine rename (2026-10-13). A worker
-# started before it still has this name in its instructions and its allowed tools, so it keeps answering.
-# REMOVE with the rest of the old name (packages/shared/src/legacy-frizz.ts has the gate and the runbook).
-exec "$(dirname "$0")/ntwinectl" "$@"

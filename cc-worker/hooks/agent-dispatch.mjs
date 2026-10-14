@@ -68,7 +68,6 @@
 // discipline; a worker owns exactly one already-existing thread and its helpers own no thread).
 //
 // FAIL OPEN: any parse error → allow unmodified. A broken dispatch hook must never halt work.
-import '../lib/legacy-frizz.mjs';
 import { readFileSync } from 'node:fs';
 import { agentDeadline, shareIntoPrompt, threadDeadlineMs } from './agent-deadline.mjs';
 

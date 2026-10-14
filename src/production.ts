@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import "@ntwine/shared/legacy-frizz"
 import type { RemoteController } from "./remote-controller.ts";
 import { wireRemote } from "./remote-wiring.ts";
 import { bindHostIsExposed } from "@ntwine/server/local-origin";

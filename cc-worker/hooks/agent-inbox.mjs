@@ -28,7 +28,6 @@
 //
 // GATE: inert unless NTWINE_THREAD is set. FAIL-OPEN ABSOLUTELY: any error → exit 0, no output, and the
 // tool call proceeds as if this hook did not exist.
-import '../lib/legacy-frizz.mjs';
 import { mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';

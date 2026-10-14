@@ -1,7 +1,7 @@
 import { join } from "node:path"
 import { homedir } from "node:os"
 import { readdirSync, statSync, readFileSync, openSync, readSync, closeSync } from "node:fs"
-import { THREAD_HANDLE_MAX_CHARS, eitherBrand, type PermissionMode } from "@ntwine/shared"
+import { THREAD_HANDLE_MAX_CHARS, type PermissionMode } from "@ntwine/shared"
 import { codexProviderError } from "./codex-error.ts"
 import { applyEvent } from "../tailer.ts"
 import type { AgentBackend, BuiltCommand, FoldState, NormalizedEvent, ResumeOpts, SpawnOpts } from "./types.ts"
@@ -96,8 +96,8 @@ export interface CodexBackendOptions {
 const NTWINE_TITLE_MAX = 200
 // The current, invisible title transport. Keep it intentionally strict: a first-line Ntwine comment
 // with exactly one quoted title attribute. An ordinary HTML comment must remain ordinary prose.
-const NTWINE_TITLE_ATTRIBUTE = eitherBrand(/^<!--\s*ntwine\s+title="((?:[^"\\\r\n]|\\[^\r\n])*)"\s*-->(?:\r?\n|$)/)
-const NTWINE_TITLE_LINE = eitherBrand(/^<!-- ntwine-title: (.*) -->(?:\r?\n|$)/)
+const NTWINE_TITLE_ATTRIBUTE = /^<!--\s*ntwine\s+title="((?:[^"\\\r\n]|\\[^\r\n])*)"\s*-->(?:\r?\n|$)/
+const NTWINE_TITLE_LINE = /^<!-- ntwine-title: (.*) -->(?:\r?\n|$)/
 const NTWINE_TITLE_H1 = /^# ([^\r\n]*)(?:\r?\n|$)/
 // Unicode's Bidi_Control property includes ALM/LRM/RLM as well as the embedding, override, and
 // isolate ranges; a handwritten range is easy to leave incomplete. Default-ignorables are likewise

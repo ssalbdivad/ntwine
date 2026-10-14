@@ -14,7 +14,6 @@
 // only when an InteractionStore is actually wired to render and resolve the card, so a denial here
 // would block a question the operator CAN see. Any other path leaves the var unset, so it keeps the
 // deny plus the `ntwinectl ask` redirect.
-import '../lib/legacy-frizz.mjs';
 import { readFileSync } from 'node:fs';
 
 const slug = process.env.NTWINE_THREAD;

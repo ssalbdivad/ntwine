@@ -36,7 +36,7 @@ import type { NtwineMcp } from "./types.ts"
 import type { CodexAppServerProcess } from "./codex-app-server.ts"
 import { log as ntwineLog } from "../logging.ts"
 import { launchEnvironment } from "./worker-env.ts"
-import { daemonControlKey } from "./daemon-control.ts"
+import { isDaemonControlLine } from "./daemon-control.ts"
 
 export interface CodexAppServerDaemonRecord {
   projectId: string
@@ -353,7 +353,7 @@ function attach(record: CodexAppServerDaemonRecord, timeoutMs: number): Promise<
         buffer = buffer.slice(index + 1)
         const trimmed = line.trim()
         if (!trimmed) continue
-        if (daemonControlKey(trimmed)) {
+        if (isDaemonControlLine(trimmed)) {
           if (!settled) {
             settled = true
             clearTimeout(timer)

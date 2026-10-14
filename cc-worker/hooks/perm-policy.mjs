@@ -41,7 +41,6 @@
 // FAIL-SAFE: any error at all → emit nothing → the prompt is raised and the human decides. Note this
 // inverts the old observer's "fail open": for a hook that can APPROVE, the safe failure is to fall
 // back to asking, never to allow.
-import { LEGACY_CTL_NAME } from '../lib/legacy-frizz.mjs';
 import { readFileSync, mkdirSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -96,10 +95,7 @@ function isDiskWrite(cmd) {
 // command. A QUOTED delimiter makes the body literal, so nothing in it runs however it reads. The body
 // ends at the first line that is exactly WORD, which is bash's own rule, and only blank lines may
 // follow. Anything else, `<<EOF` unquoted included, is not this and falls through to the table.
-// LEGACY_CTL_NAME is the same command in the contract of a worker started before the rename.
-const NTWINECTL_HEREDOC = new RegExp(
-  `^(?:ntwinectl|${LEGACY_CTL_NAME})` + /(?: +[A-Za-z0-9_.\/:=@%+,-]+)* +<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*\n([\s\S]*)$/.source,
-);
+const NTWINECTL_HEREDOC = /^ntwinectl(?: +[A-Za-z0-9_.\/:=@%+,-]+)* +<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*\n([\s\S]*)$/;
 function isOwnNtwinectlHeredoc(cmd) {
   // Blanks are the SHELL's — space, tab, newline — and not JavaScript's `\s`, which also takes a
   // no-break space or a form feed: to bash and zsh those are ordinary characters of a word, so

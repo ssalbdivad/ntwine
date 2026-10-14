@@ -3,7 +3,7 @@ export type { AppRouter } from "./router.ts"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { readFileSync, existsSync, statSync } from "node:fs"
 import { basename, dirname, join, resolve, extname, posix, sep } from "node:path"
-import { adoptLegacyRoute, DEFAULT_PORT, NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
+import { DEFAULT_PORT, NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 import {
 ContextStartupError,
   createContext,
@@ -1192,7 +1192,6 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
 
     accepting = true
     httpServer = await phase("HTTP server", () => runtime.createHttpServer((req, res) => {
-      if (req.url) req.url = adoptLegacyRoute(req.url, NTWINE_ROUTE_PREFIX)
       if (!accepting) {
         res.writeHead(503, { connection: "close" })
         res.end("server shutting down")
@@ -1269,7 +1268,6 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     httpServer.keepAliveTimeout = 5000
     httpServer.headersTimeout = 10000
     httpServer.on("upgrade", (req, socket, head) => {
-      if (req.url) req.url = adoptLegacyRoute(req.url, NTWINE_ROUTE_PREFIX)
       if (!accepting) {
         socket.destroy()
         return

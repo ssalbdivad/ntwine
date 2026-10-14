@@ -114,9 +114,6 @@ function fixture(root: string, content: string, omit: readonly string[] = []): s
   writeFileSync(join(dir, "runtime", "cc-worker", "bin", "ntwinectl"), "launcher");
   writeFileSync(join(dir, "runtime", "cc-worker", "bin", "ntwinectl.mjs"), "cli");
   writeFileSync(join(dir, "runtime", "cc-worker", "lib", "ntwine-tools.mjs"), "tools");
-  writeFileSync(join(dir, "runtime", "cc-worker", "lib", "legacy-frizz.mjs"), "legacy env");
-  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizzctl"), "legacy launcher");
-  writeFileSync(join(dir, "runtime", "cc-worker", "bin", "frizz-mcp.mjs"), "legacy mcp");
   writeFileSync(join(dir, "runtime", "board", "config.mjs"), "config");
   writeFileSync(join(dir, "runtime", "board", "agent-bindings.mjs"), "bindings");
   writeFileSync(join(dir, "runtime", "board", "index.mjs"), "index");
@@ -143,9 +140,6 @@ function fixture(root: string, content: string, omit: readonly string[] = []): s
         "cc-worker/bin/ntwinectl": hash("launcher"),
         "cc-worker/bin/ntwinectl.mjs": hash("cli"),
         "cc-worker/lib/ntwine-tools.mjs": hash("tools"),
-        "cc-worker/lib/legacy-frizz.mjs": hash("legacy env"),
-        "cc-worker/bin/frizzctl": hash("legacy launcher"),
-        "cc-worker/bin/frizz-mcp.mjs": hash("legacy mcp"),
         "board/config.mjs": hash("config"),
         "board/agent-bindings.mjs": hash("bindings"),
         "board/index.mjs": hash("index"),

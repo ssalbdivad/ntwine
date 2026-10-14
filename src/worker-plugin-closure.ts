@@ -46,10 +46,6 @@ export const WORKER_PLUGIN_REQUIRED_FILES = [
   "cc-worker/bin/ntwinectl",
   "cc-worker/bin/ntwinectl.mjs",
   "cc-worker/lib/ntwine-tools.mjs",
-  // LEGACY: a worker started before the rename still uses these three (packages/shared/src/legacy-frizz.ts).
-  "cc-worker/lib/legacy-frizz.mjs",
-  "cc-worker/bin/frizzctl",
-  "cc-worker/bin/frizz-mcp.mjs",
   "board/config.mjs",
   "board/agent-bindings.mjs",
   "board/index.mjs",

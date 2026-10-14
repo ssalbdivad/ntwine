@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 // @ts-check
-import '../lib/legacy-frizz.mjs';
 /**
  * ntwinectl — the Ntwine command line a worker runs from its own shell. THE worker surface: every
  * capability Ntwine hands a worker is a command here, and none of them is a tool in the model's registry.

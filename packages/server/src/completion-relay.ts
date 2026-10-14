@@ -31,7 +31,6 @@
 // task-id, so the report resolves as delivered and is never repaired twice. Nothing to persist,
 // nothing to migrate, and the evidence lives in the same file as the thing it is evidence about.
 
-import { brandSpellings, eitherBrand } from "@ntwine/shared"
 
 /** A completion report the runtime queued. Cleared the moment a model-facing carrier names it. */
 export interface QueuedReport {
@@ -61,8 +60,6 @@ export interface QueuedReport {
  * relay idempotent with nothing persisted.
  */
 export const RELAY_MARKER = "ntwine-relay"
-/** RELAY_MARKER in either product name: a repair injected before the rename still counts as one. */
-const RELAY_MARKER_PATTERN = eitherBrand(new RegExp(RELAY_MARKER)).source
 
 // Bounds the tracking map. Sized GENEROUSLY on purpose: an evicted entry is a lost report that ntwine
 // then silently declines to repair, which is precisely the failure this module exists to end — so the
@@ -178,8 +175,8 @@ export function parseReportBlock(block: string, at?: string, taskId = ""): Omit<
  * is what closes the idempotence loop described at the top of the file.
  */
 export function relayedTaskIds(text: string): string[] {
-  if (!brandSpellings(RELAY_MARKER).some((marker) => text.includes(marker))) return []
-  return [...text.matchAll(new RegExp(`<${RELAY_MARKER_PATTERN}:([A-Za-z0-9_-]+)>`, "g"))].map((m) => m[1])
+  if (!text.includes(RELAY_MARKER)) return []
+  return [...text.matchAll(new RegExp(`<${RELAY_MARKER}:([A-Za-z0-9_-]+)>`, "g"))].map((m) => m[1])
 }
 
 /**
@@ -269,7 +266,7 @@ function relayedStatus(summary: string): "completed" | "failed" | "killed" {
  * falls back to, so a repaired completion lands on exactly the same card.
  */
 export function relayNotificationBlock(text: string): string | undefined {
-  const tag = text.match(new RegExp(`^\\s*<${RELAY_MARKER_PATTERN}:([A-Za-z0-9_-]+)>\\s*`))
+  const tag = text.match(new RegExp(`^\\s*<${RELAY_MARKER}:([A-Za-z0-9_-]+)>\\s*`))
   if (!tag) return undefined
   const body = text.slice(tag[0].length)
   const shellCut = body.indexOf(SHELL_SUMMARY_END)

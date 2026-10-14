@@ -146,7 +146,6 @@ test("a copy where the gate cannot load (under node_modules, or missing) emits b
   mkdirSync(installed, { recursive: true })
   cpSync(join(cc, "hooks"), join(installed, "hooks"), { recursive: true })
   cpSync(join(cc, "job-gate"), join(installed, "job-gate"), { recursive: true })
-  cpSync(join(cc, "lib"), join(installed, "lib"), { recursive: true }) // every hook imports lib/legacy-frizz.mjs
   const inNodeModules = join(installed, "hooks", "bash-background.mjs")
   assert.deepEqual(runHook(inNodeModules, { command: "pnpm test" }), {})
   assert.deepEqual(runHook(inNodeModules, { command: "pnpm test", run_in_background: true }).hookSpecificOutput.updatedInput, {
