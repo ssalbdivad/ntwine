@@ -116,7 +116,7 @@ test("switching the page to another project re-points the live feed at that proj
     }
 
     // All projects keeps the project just left as the page's (the pick); the picker then moves it.
-    await page.click('[data-tour="dock-all"] [data-xq-lens="All"]')
+    await page.click("[data-xq-dock-all]")
     await page.waitForFunction(() => location.pathname === "/" && location.search === "", { timeout: 15_000 })
     const other = slugs[0]!
     await choose("[data-xq-project-picker]", other)

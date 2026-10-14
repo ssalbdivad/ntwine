@@ -122,7 +122,7 @@ const clickSettled = async (page, selector, { text } = {}) => {
   await handle.asElement().click()
 }
 // The dock (ProjectDock.tsx) is the one place to choose a view: All leads it, then a square per project.
-const choose = (page, value) => clickSettled(page, value === "all-projects" ? '[data-tour="dock-all"] [data-xq-lens="All"]' : `[data-xq-dock-square="${value}"]`)
+const choose = (page, value) => clickSettled(page, value === "all-projects" ? "[data-xq-dock-all]" : `[data-xq-dock-square="${value}"]`)
 
 try {
   // ── the board's address ────────────────────────────────────────────────────────────────────────────

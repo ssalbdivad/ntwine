@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react"
-import { House } from "lucide-react"
+import { House, Layers } from "lucide-react"
 import type { ProjectCard } from "@ntwine/shared"
 import { useMonogram } from "../lib/monograms.ts"
 
@@ -184,6 +184,19 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
         } ${loaded ? "opacity-100" : "opacity-0"}`}
       />
       )}
+    </span>
+  )
+}
+
+/** All projects' square: the layers glyph on Home's neutral tile — the views that are ntwine's, not a project's. */
+export function AllProjectsSquare({ size }: { size: number }) {
+  return (
+    <span
+      aria-hidden
+      className="flex shrink-0 items-center justify-center overflow-hidden rounded-[30%]"
+      style={{ width: size, height: size, background: "hsl(0 0% 24%)", color: "hsl(0 0% 80%)" }}
+    >
+      <Layers size={Math.round(size * 0.55)} strokeWidth={1.75} absoluteStrokeWidth />
     </span>
   )
 }

@@ -24,7 +24,7 @@ import { squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { deleteLens, saveLens, savedNameOf, setLens, useLens, useSavedLenses } from "../lib/lens.ts"
 import { usePageView } from "../lib/pageView.ts"
 import { ProjectMenu, useAddProject } from "./ProjectActions.tsx"
-import { ProjectSquare } from "./ProjectSquare.tsx"
+import { AllProjectsSquare, ProjectSquare } from "./ProjectSquare.tsx"
 
 const SQUARE = 20
 
@@ -87,15 +87,21 @@ export function ProjectDock({
         </div>
       )}
       <div data-xq-dock-squares data-tour="dock-squares" className={`flex min-w-0 flex-wrap items-center gap-x-[10px] gap-y-2 ${inline ? "py-[3px]" : "pt-[8px]"}`}>
-        {/* All LEADS the squares, as the first of the views they are: one row reading "All, or one of
-            these" is what says a square narrows the page — and, with no title menu over the prompt box
-            since 2026-10-14, it is the way back from a project's page. */}
-        {/* `-ml-1.5` hangs the chip's padding past the column's edge, so "All"'s ink starts on it. Not the right:
-            selected, the chip draws its fill, and that BOX then stands the squares' own 10px off the first. */}
-        {/* In the status row the edge is the prompt box's border, and the chip's fill stands on it instead. */}
-        <span data-tour="dock-all" className={`flex ${inline ? "" : "-ml-1.5"}`}>
-          <LensChip label="All" active={!focused && !lens} onClick={() => { setLens(null); onAll(focused) }} />
-        </span>
+        {/* All LEADS the squares, a square itself (the phone's layers tile): one row reading "All, or one
+            of these" is what says a square narrows the page, and it is the way back from a project's page.
+            Ringed while it is the view, dimmed like any square outside it. It was a text chip until 2026-10-14. */}
+        <button
+          type="button"
+          data-tour="dock-all"
+          data-xq-dock-all
+          aria-pressed={!focused && !lens}
+          aria-label="All projects"
+          title="All projects"
+          onClick={() => { setLens(null); onAll(focused) }}
+          className={`relative flex shrink-0 rounded-[5px] outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-focus-ink-60 ${!focused && !lens ? "ring-1 ring-fg/70 ring-offset-2 ring-offset-bg" : "opacity-40 hover:opacity-90"}`}
+        >
+          <AllProjectsSquare size={SQUARE} />
+        </button>
         {reorder.ordered.map((project) => {
           const ready = project.queued.filter((t) => !hidden(threadKey(project.id, t.id))).length
           const working = project.running.length

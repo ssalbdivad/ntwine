@@ -204,7 +204,7 @@ try {
   const allFrom = async (slug) => {
     await page.goto(`${origin}/project/${slug}`, { waitUntil: "networkidle2" })
     await page.waitForSelector('[data-xq-dock-square][aria-current="page"]', { timeout: 30_000 })
-    await clickSettled('[data-tour="dock-all"] [data-xq-lens="All"]')
+    await clickSettled("[data-xq-dock-all]")
     await page.waitForFunction((paths) => paths.includes(location.pathname) && location.search === "", { timeout: 15_000 }, ALL_PATHS)
     await page.evaluate(() => { document.documentElement.dataset.theme = "dark" })
     await page.waitForSelector('[data-surface="newComposer"]', { timeout: 30_000 })
@@ -617,7 +617,7 @@ try {
     await sleep(400)
     return cardProjects()
   }
-  const switchTo = (value) => clickSettled(value === "all-projects" ? '[data-tour="dock-all"] [data-xq-lens="All"]' : `[data-xq-dock-square="${value}"]`)
+  const switchTo = (value) => clickSettled(value === "all-projects" ? "[data-xq-dock-all]" : `[data-xq-dock-square="${value}"]`)
 
   await step("a card's project chip and the dock each focus the page on it; Back and All projects come back", async () => {
     await allFrom("billing-worker")
