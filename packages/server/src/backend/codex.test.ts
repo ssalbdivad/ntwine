@@ -32,7 +32,7 @@ const execLines = execTwoTurn.split("\n").filter((l) => l.trim())
 // ---- REAL captured rollout fixtures (codex-cli 0.153.2, 2026-09-04) ----
 // The schema codex moved to: every semantic event now rides ONE `event_msg/item_completed` envelope
 // carrying a typed `item`, and the flat `agent_message` / `user_message` / `sub_agent_activity`
-// payloads the fixtures above are built on are no longer written at all. Ntwine read only the flat
+// payloads the fixtures above are built on are no longer written at all. ntwine read only the flat
 // spelling, so on this rollout it folded ZERO assistant text, ZERO user turns and ZERO sub-agents —
 // the thread went in-flight and came to rest (the turn brackets did NOT move) while the board showed
 // no title, no preview, no fences and no children.
@@ -858,7 +858,7 @@ test("foldLine: task_complete-only finals can title once, while an existing nati
 
   const native = newTailState("t", "sid", "/x")
   applyEvent(native, { kind: "title", title: "Provider native title" })
-  backend.foldLine(native, completion("<!-- ntwine-title: Ntwine fallback -->\nVisible"))
+  backend.foldLine(native, completion("<!-- ntwine-title: ntwine fallback -->\nVisible"))
   assert.equal(native.aiTitle, "Provider native title")
 })
 

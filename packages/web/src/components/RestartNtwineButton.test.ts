@@ -6,11 +6,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SUPERVISOR_STATUS_KEY } from "../api/supervisorStatus.ts"
 import { isBadgeRelease, PANEL_ARROW_GEOMETRY, showsUpdateBadge, RestartActionButton, RestartFailureNotice, RestartNtwineButton, UPDATE_RESTART_ICON_ROTATION, UpdateRestartPopover } from "./RestartNtwineButton.tsx"
 
-test("Update Ntwine presents one calm sentence whose highlight is that threads are untouched", () => {
+test("Update ntwine presents one calm sentence whose highlight is that threads are untouched", () => {
   const html = renderToStaticMarkup(createElement(UpdateRestartPopover, { open: true, update: true }))
-  assert.match(html, /Update Ntwine/)
+  assert.match(html, /Update ntwine/)
   assert.equal((html.match(/<button/g) ?? []).length, 0)
-  assert.match(html, /Install the latest version of Ntwine\. Your running threads will not be affected\./)
+  assert.match(html, /Install the latest version of ntwine\. Your running threads will not be affected\./)
   // A single body paragraph — no divider, no second "stays in place" line, no stray emphasis block.
   assert.equal((html.match(/<p /g) ?? []).length, 1)
   assert.doesNotMatch(html, /stay in place/)
@@ -22,11 +22,11 @@ test("Update Ntwine presents one calm sentence whose highlight is that threads a
 // same popover they always have (the versionless assertions above and below pin that).
 test("a registry launcher's update popover names both versions and says a newer one exists", () => {
   const html = renderToStaticMarkup(createElement(UpdateRestartPopover, { open: true, update: true, version: "0.4.2", updateVersion: "0.5.0" }))
-  assert.match(html, /Update Ntwine/)
+  assert.match(html, /Update ntwine/)
   // Identifiers, not prose: the line stays mono whatever the board font is set to.
   assert.match(html, /font-mono[^"]*"[^>]*>0\.4\.2 → 0\.5\.0</)
-  assert.match(html, /A newer version of Ntwine is available\. Your running threads will not be affected\./)
-  assert.doesNotMatch(html, /Install the latest version of Ntwine/)
+  assert.match(html, /A newer version of ntwine is available\. Your running threads will not be affected\./)
+  assert.doesNotMatch(html, /Install the latest version of ntwine/)
   // Still a single body paragraph — the version line rides in the header, not as a second <p>.
   assert.equal((html.match(/<p /g) ?? []).length, 1)
 })
@@ -46,7 +46,7 @@ test("the popover shows only the application version, not launcher diagnostics",
 
 test("an up-to-date registry install still shows what version it is running", () => {
   const html = renderToStaticMarkup(createElement(UpdateRestartPopover, { open: true, update: false, version: "0.4.2" }))
-  assert.match(html, /Restart Ntwine\. Your running threads will not be affected\./)
+  assert.match(html, /Restart ntwine\. Your running threads will not be affected\./)
   assert.match(html, />0\.4\.2</)
   assert.doesNotMatch(html, /→/)
 })
@@ -54,7 +54,7 @@ test("an up-to-date registry install still shows what version it is running", ()
 test("a registry probe that has not answered keeps the generic update copy", () => {
   // The launcher starts update-optimistic but versionless; claiming a number here would be a lie.
   const html = renderToStaticMarkup(createElement(UpdateRestartPopover, { open: true, update: true, version: "0.4.2" }))
-  assert.match(html, /Install the latest version of Ntwine\. Your running threads will not be affected\./)
+  assert.match(html, /Install the latest version of ntwine\. Your running threads will not be affected\./)
   assert.match(html, />0\.4\.2</)
   assert.doesNotMatch(html, /→/)
 })
@@ -68,12 +68,12 @@ test("Update and restart keeps its clockwise arrow treatment", () => {
 
 test("Update and restart is one compact icon-only action with an accessible name", () => {
   const html = renderToStaticMarkup(createElement(RestartActionButton, { update: true, busy: false, onClick: () => undefined }))
-  assert.match(html, /aria-label="Update Ntwine"/)
+  assert.match(html, /aria-label="Update ntwine"/)
   // Sized by STATUS_ROW_ACTION — it shares the prompt box's status row with the settings gear, and
   // the two must carry identical weight (this was a lone 32px corner button before the row existed).
   assert.match(html, /h-6 w-6/)
   assert.match(html, /lucide-refresh-cw/)
-  assert.doesNotMatch(html, />\s*Update Ntwine\s*</)
+  assert.doesNotMatch(html, />\s*Update ntwine\s*</)
   assert.doesNotMatch(html, /cursor-wait/)
 })
 
@@ -147,33 +147,33 @@ test("the restart control is live only when there is an update to install, and g
   }
   const greyed = (html: string) => /aria-disabled="true"/.test(html) && /pointer-events-none opacity-40/.test(html)
   for (const live of [render({ updateRestart: true, updateAvailable: true, version: "0.4.2", updateVersion: "0.5.0" }), render({ updateRestart: true })]) {
-    assert.match(live, /aria-label="Update Ntwine"/)
+    assert.match(live, /aria-label="Update ntwine"/)
     assert.equal(greyed(live), false)
   }
   for (const current of [render({ updateRestart: true, updateAvailable: false, version: "0.5.0" }), render({})]) {
-    assert.match(current, /aria-label="Ntwine is up to date"/)
+    assert.match(current, /aria-label="ntwine is up to date"/)
     assert.equal(greyed(current), true)
-    assert.doesNotMatch(current, /Restart Ntwine/)
+    assert.doesNotMatch(current, /Restart ntwine/)
   }
   assert.equal(render(null), "", "nothing before a supervisor has answered")
 })
 
 test("the greyed control's popover says there is nothing to install, not a verb", () => {
   const html = renderToStaticMarkup(createElement(UpdateRestartPopover, { open: true, update: false, current: true, version: "0.5.0" }))
-  assert.match(html, /Ntwine is up to date/)
+  assert.match(html, /ntwine is up to date/)
   assert.match(html, /font-mono[^"]*"[^>]*>0\.5\.0</)
-  assert.match(html, /There is no newer version of Ntwine to install\./)
-  assert.doesNotMatch(html, /Restart Ntwine|Update Ntwine/)
+  assert.match(html, /There is no newer version of ntwine to install\./)
+  assert.doesNotMatch(html, /Restart ntwine|Update ntwine/)
 })
 
 // The greyed button offers no verb; this plain-restart spelling survives only for a failure card that
 // stays on screen after an answer flips `updateAvailable` off.
 test("the plain restart popover names itself as a restart, not an update", () => {
   const html = renderToStaticMarkup(createElement(UpdateRestartPopover, { open: true, update: false }))
-  assert.match(html, /Restart Ntwine/)
-  assert.match(html, /Restart Ntwine\. Your running threads will not be affected\./)
+  assert.match(html, /Restart ntwine/)
+  assert.match(html, /Restart ntwine\. Your running threads will not be affected\./)
   assert.equal((html.match(/<p /g) ?? []).length, 1)
-  assert.doesNotMatch(html, /latest version of Ntwine/)
+  assert.doesNotMatch(html, /latest version of ntwine/)
 })
 
 const supervisorLog =
@@ -200,7 +200,7 @@ test("the supervisor's build log is contained, not spilled down the board", () =
     createElement(RestartFailureNotice, { update: true, message: supervisorLog, onDismiss: () => undefined }),
   )
   assert.match(html, /Update failed/)
-  assert.match(html, /Ntwine kept running the previous version, and your threads are unaffected\./)
+  assert.match(html, /ntwine kept running the previous version, and your threads are unaffected\./)
   // Raw build output reads as a terminal excerpt in a height-capped, scrolling mono block, so a
   // several-hundred-character stderr dump can't stretch the card down over the thread list.
   const pre = html.match(/<pre class="([^"]*)"/)?.[1] ?? ""
@@ -219,7 +219,7 @@ test("a successor that came up and then failed is named, not reported as the pre
     createElement(RestartFailureNotice, { update: true, message: "control plane stopped (exit 1) before ready", outcome: { kind: "successor-failed", version: "0.5.0" }, onDismiss: () => undefined }),
   )
   assert.match(html, /Update failed/)
-  assert.match(html, /Ntwine 0\.5\.0 came up but could not start its board, and the previous version is gone\./)
+  assert.match(html, /ntwine 0\.5\.0 came up but could not start its board, and the previous version is gone\./)
   assert.match(html, /npx ntwine/)
   assert.doesNotMatch(html, /kept running the previous version/)
   // The supervisor's own reason still rides in the log block underneath.
@@ -230,7 +230,7 @@ test("a successor that came up and then failed is named, not reported as the pre
   const kept = renderToStaticMarkup(
     createElement(RestartFailureNotice, { update: true, message: "boom", outcome: { kind: "previous-kept" }, onDismiss: () => undefined }),
   )
-  assert.match(kept, /Ntwine kept running the previous version, and your threads are unaffected\./)
+  assert.match(kept, /ntwine kept running the previous version, and your threads are unaffected\./)
 })
 
 test("a failure can be dismissed, and a legacy restart names itself correctly", () => {

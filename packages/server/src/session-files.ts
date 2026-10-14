@@ -64,7 +64,7 @@ function unlinkDirectChild(parent: string, filename: string): boolean {
     // unlink removes the direct child itself and never follows a child symlink. Not rmSync: on Node
     // 23.0–24.13.0 and 25.0–25.3.x it looks through a link (nodejs/node#61040) — EISDIR on a link to a
     // directory, a silent no-op on a dangling one. Parent validation above prevents a poisoned
-    // directory symlink from redirecting recovery outside Ntwine-owned roots.
+    // directory symlink from redirecting recovery outside ntwine-owned roots.
     unlinkSync(child)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false

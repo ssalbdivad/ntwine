@@ -74,7 +74,7 @@ const messages: ChatMessage[] = [
   // is still a hairline, and the envelope around both is still not drawn.
   wake("batched-unread", merged(
     ["background shell finished (b52kqwc13)", shellDoneMessage({ taskId: "b52kqwc13", label: "vite --port 5199 --strictPort", status: "failed" })],
-    ["a wake this build predates", "⏰ Ntwine has invented a wake shape this build predates.\n\nIts text survives, in a card of its own."],
+    ["a wake this build predates", "⏰ ntwine has invented a wake shape this build predates.\n\nIts text survives, in a card of its own."],
   )),
   wake("w1", review),
   wake("w2", prWatchWakeMessage({ target: "nubjs/nub#760", closed: true })),
@@ -155,11 +155,11 @@ const messages: ChatMessage[] = [
   wake("w21", prWatchWakeMessage({ target: "nodejs/node#65796", changes: ["labels +blocked, −needs-ci", "review requested from richardlau"] })),
   // The FALLBACK still has to work: a wake this build cannot read keeps its first-party card and loses
   // no prose.
-  wake("w15", "⏰ Ntwine has invented a wake shape this build predates.\n\n(And whatever it says, the text must survive — the card is what guarantees that.)"),
+  wake("w15", "⏰ ntwine has invented a wake shape this build predates.\n\n(And whatever it says, the text must survive — the card is what guarantees that.)"),
   // …and that prose is rendered as the Markdown it may be, SAFELY: a list, a link, a fenced block too
   // long for the card, and a script tag that must stay text. Whatever wake reaches this card is one no
   // parser vouched for, so it is the last place to trust what it carries.
-  wake("md", `⏰ Ntwine has invented a wake shape this build predates.
+  wake("md", `⏰ ntwine has invented a wake shape this build predates.
 
 ### What it carries
 
@@ -180,7 +180,7 @@ ${PR_WATCH_ARMED_TRAILER}`),
   // parenthetical ever reached an operator, and it did, an hour after the PR-state line shipped
   // (maintainer 2026-09-04: "why am I still seeing shit like this? This should just never show up").
   // The card below must show the sentence and NOT the trailer under it.
-  wake("w15b", `⏰ Ntwine has invented a wake shape this build predates.\n\n${PR_WATCH_ARMED_TRAILER}`),
+  wake("w15b", `⏰ ntwine has invented a wake shape this build predates.\n\n${PR_WATCH_ARMED_TRAILER}`),
 ]
 
 function Fixture() {
@@ -188,7 +188,7 @@ function Fixture() {
     <main className="min-h-screen bg-bg p-4 sm:p-8">
       <section className="mx-auto flex max-w-[760px] flex-col border border-border bg-panel px-5 py-4 shadow-xl shadow-black/30 sm:px-7">
         <header className="border-b border-border pb-3">
-          <h1 className="text-[16px] font-semibold text-fg">Ntwine wakes — every shape ntwine speaks in</h1>
+          <h1 className="text-[16px] font-semibold text-fg">ntwine wakes — every shape ntwine speaks in</h1>
           <p className="mt-0.5 text-[12px] text-muted">Several wakes held and sent as one delivery, review activity, a finished PR, a CI verdict, both at once, the PR&rsquo;s own state moving, a background shell, a usage window, a fired timer, a park that ran out or finished, a lapsed watcher or watch — and the unparsed fallback, with and without ntwine&rsquo;s agent-facing trailer.</p>
         </header>
         <div className="flex flex-1 flex-col gap-3.5 py-5">

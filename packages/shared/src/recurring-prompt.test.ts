@@ -214,7 +214,7 @@ test("a human reply after a long gap carries the gap; a fast one carries nothing
   assert.match(note ?? "", /arrived 3h 12m after your last one/)
   assert.match(note ?? "", /It is now \d{4}-\d{2}-\d{2} \d{2}:\d{2}\./)
   // ATTRIBUTED: it rides on the HUMAN's message, so it must not read as something the human wrote.
-  assert.match(note ?? "", /^⏱ Ntwine:/)
+  assert.match(note ?? "", /^⏱ ntwine:/)
 
   // NO ANCHOR, NO GUESS — a thread whose worker has never spoken gets nothing rather than a fabricated
   // elapsed time.
@@ -241,7 +241,7 @@ test("the gap note is stripped back off for display, and only when ntwine wrote 
   // describes the note stays in the bubble intact — including the report that produced this fix.
   const quoting = `why does "${note}" show up in my own messages?`
   assert.equal(stripHumanGapNote(quoting), quoting)
-  const truncated = "ship it\n\n⏱ Ntwine: the message above arrived 3h12m after your last one."
+  const truncated = "ship it\n\n⏱ ntwine: the message above arrived 3h12m after your last one."
   assert.equal(stripHumanGapNote(truncated), truncated)
   assert.equal(stripHumanGapNote("ship it"), "ship it")
 })

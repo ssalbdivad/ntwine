@@ -71,9 +71,9 @@ function runHook(
       CLAUDE_PROJECT_DIR: dir,
       NTWINE_THREAD: "",
       NTWINE_SCRATCHPAD_HOOK: "",
-      // An Ntwine worker running this suite carries its own board root (Home's state dir), and the hook
+      // An ntwine worker running this suite carries its own board root (Home's state dir), and the hook
       // honours it over CLAUDE_PROJECT_DIR — so the hook looked for these fixtures' scratch files in the
-      // worker's board and every case below failed, only when the suite ran inside an Ntwine thread.
+      // worker's board and every case below failed, only when the suite ran inside an ntwine thread.
       NTWINE_BOARD_ROOT: "",
       ...env,
     },
@@ -222,7 +222,7 @@ test("the codex child epilogue gives a child its OWN file instead of a document 
   assert.doesNotMatch(ctx, /merge your own scoped progress/, "the merge mandate is gone, not reworded")
   // The delegated-authority carve-out survives: a task that says "write only <path>" must not be read
   // as forbidding the child's own coordination file.
-  assert.match(ctx, /Ntwine coordination state, not a project deliverable or source edit/)
+  assert.match(ctx, /ntwine coordination state, not a project deliverable or source edit/)
   assert.match(ctx, /“write only <path>”/)
   assert.match(ctx, /location alone neither permits nor forbids editing/)
 })
@@ -459,8 +459,8 @@ test("the codex hook config is built unconditionally, and carries what codex req
   assert.match(cfg.hooks?.SessionStart?.[0]?.hooks[0]?.command ?? "", /--mode=session-start --resume-keeps-context$/)
 })
 
-// A Codex thread is resumed from its rollout with its whole conversation, and Ntwine resumes one
-// routinely: its first message after every Ntwine restart, and again when a newer Ntwine hands it new
+// A Codex thread is resumed from its rollout with its whole conversation, and ntwine resumes one
+// routinely: its first message after every ntwine restart, and again when a newer ntwine hands it new
 // hooks. Those hooks ride every resume since 2026-10-11, so SessionStart(resume) now FIRES there — and
 // "Context was just lost" would be false every time. The Codex registration carries the flag; Claude's
 // does not, because a Claude resume is a cold start of the process.
@@ -477,9 +477,9 @@ test("a Codex resume is silent, because it lost nothing — and only a resume is
 })
 
 // ---- a board that is NOT the worker's cwd: the Home workspace (server/home-workspace.ts) ----
-// A Home worker runs in the operator's home folder, but its board lives in Ntwine's state directory:
-// `~/.ntwine` is Ntwine's legacy data root, and creating it switches an install onto it at the next boot.
-// Ntwine names the board root with NTWINE_BOARD_ROOT (Claude) or `--board-root` (codex's shared
+// A Home worker runs in the operator's home folder, but its board lives in ntwine's state directory:
+// `~/.ntwine` is ntwine's legacy data root, and creating it switches an install onto it at the next boot.
+// ntwine names the board root with NTWINE_BOARD_ROOT (Claude) or `--board-root` (codex's shared
 // app-server, which carries no per-thread env). The cwd below gets its OWN `.ntwine/` so that a hook
 // ignoring the board root would succeed there — and fail these tests — rather than error out.
 

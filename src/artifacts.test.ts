@@ -167,7 +167,7 @@ test("artifact host compatibility accepts the host that built it", () => {
 test("artifact host compatibility fails closed for a pre-portability manifest", () => {
   assert.throws(
     () => assertArtifactHostCompatible({ digest: "a".repeat(64), manifest: {} } as any),
-    /does not record host compatibility; stop Ntwine and rerun ntwine-dev/
+    /does not record host compatibility; stop ntwine and rerun ntwine-dev/
   );
 });
 
@@ -177,7 +177,7 @@ for (const field of ["platform", "arch", "nodeMajor", "nodeModules"] as const) {
     const artifactHost = { ...host, [field]: `${host[field]}-other` };
     assert.throws(
       () => assertArtifactHostCompatible({ digest: "a".repeat(64), manifest: { host: artifactHost } } as any, host),
-      /incompatible with this host.*stop Ntwine and rerun ntwine-dev/
+      /incompatible with this host.*stop ntwine and rerun ntwine-dev/
     );
   });
 }
@@ -474,7 +474,7 @@ test("Update & Restart promotes even when the artifact it replaces no longer ver
  * WIDENS the closure — the artifact it replaces stops verifying and the update lands anyway. Narrowing
  * had no such escape, and on 2026-08-26 it cost the maintainer their update: `dafe4309` deleted
  * cc-worker/bin/browser-mcp.mjs together with the closure entry requiring it, correctly and in one
- * commit, and every instance built before that refused to update — "Ntwine worker plugin closure is
+ * commit, and every instance built before that refused to update — "ntwine worker plugin closure is
  * missing cc-worker/bin/browser-mcp.mjs", naming a file the new source is right not to have.
  *
  * The building process is ALWAYS the older one during Update & Restart, so its list can only ever be
@@ -836,7 +836,7 @@ test("a real Nub/esbuild artifact boots its WebSocket-capable server and loads i
     assert.match(
       // Under a throwaway HOME: a test never starts a launcher entry against the real install.
       execFileSync(process.execPath, [join(artifact.runtimeDir, "src", "index.js"), "--help"], { encoding: "utf8", env: { ...process.env, HOME: join(root, "home") } }),
-      /Ntwine source launcher/
+      /ntwine source launcher/
     );
     assert.ok(artifact.manifest.dependencyCell, "runtime binds an immutable dependency cell");
     const modules = join(artifact.runtimeDir, "node_modules");
@@ -1240,7 +1240,7 @@ printf 'export const dispatch = true\\n' > "$6/node_modules/@ntwine/server/src/d
     mkdirSync(join(project, ".ntwine", "threads", "portable-session"), { recursive: true })
     writeFileSync(join(project, ".ntwine", "threads", "portable-session", "scratch.md"), "# scratch\n")
     // Erase the checkout closure before invoking the copied artifact. The hook and both executable
-    // shims must resolve only runtime/{cc-worker,board}, with no global Ntwine config/plugin to help.
+    // shims must resolve only runtime/{cc-worker,board}, with no global ntwine config/plugin to help.
     rmSync(source, { recursive: true, force: true })
     rmSync(plugin, { recursive: true, force: true })
     rmSync(join(root, "board"), { recursive: true, force: true })

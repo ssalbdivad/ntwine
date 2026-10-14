@@ -12,6 +12,9 @@
 // A square says, without a hover: how many of its threads are Ready (the accent badge, the one number that
 // wants you), and whether any is working (a tick under it). Outside the view — another project's page, or
 // not in the lens — it is dimmed, not hidden: every project is always one click away.
+//
+// It is the page's ONE place to choose a view: the title over the prompt box was a dropdown of the same
+// projects until 2026-10-14, and was dropped as a second copy of this.
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Plus, X } from "lucide-react"
@@ -65,9 +68,8 @@ export function ProjectDock({
 
   return (
     <div data-xq-dock className="mb-2 flex min-w-0 flex-col gap-1.5 pl-5 pr-1.5">
-      {(saved.length > 0 || lens) && (
+      {(saved.length > 0 || (lens && !lensName)) && (
         <div data-xq-lenses className="flex min-w-0 flex-wrap items-center gap-1">
-          <LensChip label="All" active={!focused && !lens} onClick={() => { setLens(null); onAll(focused) }} />
           {saved.map((entry) => (
             <LensChip
               key={entry.name}
@@ -80,7 +82,13 @@ export function ProjectDock({
           {lens && !lensName && <SaveLens count={lens.size} onSave={(name) => saveLens(name, lens)} onClear={() => setLens(null)} />}
         </div>
       )}
-      <div data-xq-dock-squares className="flex min-w-0 flex-wrap items-center gap-x-[10px] gap-y-2 pt-[8px]">
+      <div data-xq-dock-squares data-tour="dock-squares" className="flex min-w-0 flex-wrap items-center gap-x-[10px] gap-y-2 pt-[8px]">
+        {/* All LEADS the squares, as the first of the views they are: one row reading "All, or one of
+            these" is what says a square narrows the page — and, with no title menu over the prompt box
+            since 2026-10-14, it is the way back from a project's page. */}
+        <span data-tour="dock-all" className="flex">
+          <LensChip label="All" active={!focused && !lens} onClick={() => { setLens(null); onAll(focused) }} />
+        </span>
         {reorder.ordered.map((project) => {
           const ready = project.queued.filter((t) => !hidden(threadKey(project.id, t.id))).length
           const working = project.running.length
@@ -146,6 +154,7 @@ export function ProjectDock({
         <button
           type="button"
           data-xq-dock-add
+          data-tour="dock-add"
           aria-label="Add a project"
           title="Add a project"
           disabled={add.pending}

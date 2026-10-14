@@ -3,7 +3,7 @@
 //
 // FOCUSED ON A PROJECT — its board, `/project/<slug>`, the default view since 2026-10-06 — the list on the
 // left is that project and the queue on the right is its cards, and the prompt box dispatches into it. ALL
-// PROJECTS — `/all`, one click away (the switcher's first entry, the board's home crumb), and the bare `/`
+// PROJECTS — `/all`, one click away (the dock's All chip, the board's home crumb), and the bare `/`
 // from 2026-09-30 until then — is every project's list and ONE queue across all of them. The two are
 // the same page drawn from the same parts, not two UIs: the list (TierList.tsx) is identical in both, and
 // focus mode is All projects with one project in it and the prompt box's picker gone.
@@ -80,12 +80,11 @@ import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 import { ProjectSquare, warmProjectIcon } from "./ProjectSquare.tsx"
 import { SIDEBAR_COLUMN_CLASS, SIDEBAR_SLOT_CLASS } from "./Sidebar.tsx"
 import { BandLabel } from "./BandLabel.tsx"
-import { homeOf, shortPath, useAddProject } from "./ProjectActions.tsx"
+import { homeOf, shortPath } from "./ProjectActions.tsx"
 import { StatusRow } from "./StatusRow.tsx"
 import { ThreadConnector } from "./ThreadConnector.tsx"
 import { DispatchForm, type DispatchDirs } from "./NewThreadModal.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
-import { ProjectSwitcher, type SwitcherProject } from "./ProjectSwitcher.tsx"
 import { TierList } from "./TierList.tsx"
 import { BoardIdentity } from "./BoardIdentity.tsx"
 import { isAsk } from "../lib/phonePage.ts"
@@ -103,11 +102,9 @@ const POLL_MS = 3_000
 /**
  * How often a project's own board re-reads the OTHER projects (P12, plans/upstream-superset.md §2: the
  * all-projects poll runs only while All projects is showing). On a project board the page project is
- * drawn from its live board (`liveQueue`), so the poll is left with what the switcher's menu lists — every
- * other project's counts, the stand-in for upstream's project rail — and the project the page just LEFT
- * (useDepartedQueue). A slow cadence rather than a read when the switcher opens: a menu whose counts were
- * fetched on open would redraw under the pointer a beat after it appeared, and its trigger is the page's
- * title, opened often in passing. 30s is the rail's own 5s cadence relaxed for counts nobody is watching;
+ * drawn from its live board (`liveQueue`), so the poll is left with what the dock's squares wear —
+ * every other project's counts, the stand-in for upstream's project rail — and the project the page just
+ * LEFT (useDepartedQueue). 30s is the rail's own 5s cadence relaxed for counts nobody is watching;
  * react-query also re-reads when the window regains focus, so a board left in the background is current
  * the moment it is looked at again. Everything this tab does is invalidated by its own act regardless.
  */
@@ -311,7 +308,7 @@ export function AllQueuesPage() {
   const inDrawer = new Set(focusId === undefined ? [] : [...slugsInThreadDrawers(snap.drawers)].map((slug) => threadKey(focusId, slug)))
   const hidden = (key: string) => leaving.hidden(key)
   // Registered projects this server has not opened (still being opened after a boot, served by another
-  // Ntwine, or failed to open): their queues are unknown, so "nothing in any queue" would be a claim.
+  // ntwine, or failed to open): their queues are unknown, so "nothing in any queue" would be a claim.
   const unopened = projects.filter((project) => !project.open && !project.stale).length
   // What the view shows, in the list and the queue alike: its one project, or every project. A view
   // naming a project this machine does not list is the route's to correct (routes.tsx), so for the moment
@@ -401,16 +398,16 @@ export function AllQueuesPage() {
   const ready = queue.filter((slot) => !slot.ghost && !leaving.isLeaving(slot.key)).length
   // THE TAB NAMES ITS VIEW. Someone who keeps one tab per project (the original design's way of
   // working, and how its one-project-per-page board titled its tabs) tells them apart by title and favicon alone, so a
-  // focused tab reads "<project> — Ntwine" and its favicon counts that project's queue (lib/faviconBadge.ts);
-  // All projects reads so, counting every project's. A count, not a dot, so a background tab says how
+  // focused tab reads "<project> — ntwine" and its favicon counts that project's queue (lib/faviconBadge.ts);
+  // All projects, the default view, is the bare "ntwine", counting every project's. A count, not a dot, so a background tab says how
   // much is waiting rather than only that something is. Set here, not in
   // <App/>, because only this page knows its view — and an effect in App would run AFTER this child's on
   // mount and overwrite it. Cleared back to the bare mark when the page goes (the welcome page, `/full`).
-  const tabName = focused ? viewed?.name : "All projects"
+  const tabName = focused ? viewed?.name : undefined
   useEffect(() => {
-    document.title = tabName ? `${tabName} — Ntwine` : "Ntwine"
+    document.title = tabName ? `${tabName} — ntwine` : "ntwine"
   }, [tabName])
-  useEffect(() => () => { document.title = "Ntwine" }, [])
+  useEffect(() => () => { document.title = "ntwine" }, [])
   useEffect(() => {
     setFaviconBadge(ready)
     return () => setFaviconBadge(false)
@@ -433,7 +430,7 @@ export function AllQueuesPage() {
   // The list drops a row only with a card being FINISHED. A thread open in a drawer keeps its row, marked
   // open: the card steps aside because the drawer is the same thread, but the list is where the reader
   // finds their place, and a row that vanished when clicked left them nothing to find. Focused, it is the
-  // one project, and adding another is the switcher's (its last item) rather than a row of this list.
+  // one project, and adding another is the dock's + rather than a row of this list.
   // The queue as drawn, by key: All projects' Ready rows list in this order, so a row faces its card.
   const queueKeysId = queue.filter((slot) => !slot.ghost).map((slot) => slot.key).join("\n")
   const queueKeys = useMemo(() => (queueKeysId ? queueKeysId.split("\n") : []), [queueKeysId])
@@ -448,7 +445,7 @@ export function AllQueuesPage() {
   )
 
   // AN EDITOR'S SIDEBAR IS THE DESKTOP'S LEFT COLUMN (SidebarPage.tsx): the prompt box over the list, the
-  // view's switcher heading the list, a thread in its drawer. The cards have no room; a Ready row opens its
+  // dock heading the list, a thread in its drawer. The cards have no room; a Ready row opens its
   // thread instead of landing on its card.
   if (sidebar) {
     return (
@@ -489,9 +486,6 @@ export function AllQueuesPage() {
         }
         list={(reading) => (
           <>
-            <div data-xq-switcher-row className="flex min-w-0 py-0.5 pl-5 pr-1.5">
-              <Switcher projects={projects} hidden={hidden} current={viewed} row />
-            </div>
             {dock}
             <TierList projects={shown} activeKey={reading} hidden={leaving.hidden} onQueuedRow={noCard} queueOrder={queueKeys} subAgentRows={focused} />
           </>
@@ -548,14 +542,14 @@ export function AllQueuesPage() {
       <div className={SIDEBAR_SLOT_CLASS}>
         <aside aria-label="Projects" className={`${SIDEBAR_COLUMN_CLASS} !justify-start pt-[48px] max-[800px]:!pt-5 has-[[data-mention-menu]]:z-[6] has-[[data-slash-menu]]:z-[6]`}>
           <div className="flex max-h-[calc(100vh-68px)] min-h-0 min-w-0 w-full flex-col max-[800px]:max-h-none">
-            {/* The column head: the status row, led by the page's title (the switcher), and the prompt box
+            {/* The column head: the status row, led, on a project's page, by its title, and the prompt box
                 under it — a new thread without leaving.
                 Focused, it starts in the view's project; showing All projects, in the project chosen in the
                 box's own bottom strip, beside the model. */}
             <div className="mb-5 shrink-0 px-0.5" onKeyDown={onColumnKeyDown}>
-              {/* On a project's board: the door home before the switcher, the project's repo and menu after it. */}
+              {/* On a project's board: the door home before its title, the project's repo and menu after it. */}
               <StatusRow
-                title={<Switcher projects={projects} hidden={hidden} current={viewed} />}
+                title={focused && viewed ? <ProjectTitle project={viewed} /> : undefined}
                 crumb={focused}
                 identity={focused && viewed ? <BoardIdentity project={viewed} home={home} /> : undefined}
               />
@@ -661,46 +655,25 @@ export function AllQueuesPage() {
 }
 
 /**
- * The page's title, the project switcher (ProjectSwitcher.tsx): the project the page is focused on, or All
- * projects. Choosing is a navigation to that view (lib/pageView.ts), so Back returns to the one before.
- * Leaving a project for All projects carries it over as the prompt box's pick, so the box there starts
- * where the operator just was.
+ * A PROJECT PAGE'S TITLE in the status row: its square and name, plain text. All projects has none — the
+ * dock under the prompt box is the page's one place to choose a view (ProjectDock.tsx), and its ringed
+ * square already says which. A dropdown here did the dock's job a second time until 2026-10-14.
  */
-function Switcher({ projects, hidden, current, row = false }: { projects: QueuesProject[]; hidden: (key: string) => boolean; current: QueuesProject | undefined; row?: boolean }) {
-  const choose = useChooseView()
-  const add = useAddProject()
-  // The machine-wide (drag) order; Home last, on its own — unlike the dock, where Home is dragged into
-  // place like any project.
-  const ordered = projects.filter((project) => !project.card?.home)
-  const item = (project: QueuesProject): SwitcherProject => ({
-    id: project.id,
-    slug: project.slug,
-    name: project.name,
-    card: project.card ?? fallbackCard(project),
-    ready: project.queued.filter((t) => !hidden(threadKey(project.id, t.id))).length,
-    running: project.running.length,
-    asks: [...project.queued, ...project.running].filter(isAsk).length,
-    note: project.stale ? "Missing" : undefined,
-  })
-  const homeProject = projects.find((project) => project.card?.home)
-  const items = ordered.map(item)
-  const home = homeProject && item(homeProject)
+function ProjectTitle({ project }: { project: QueuesProject }) {
   return (
-    <ProjectSwitcher
-      projects={items}
-      home={home}
-      homeHint={homeProject?.card && shortPath(homeProject.card.path, homeProject.homeDir)}
-      current={current && (current.card?.home ? home : items.find((entry) => entry.id === current.id))}
-      onAll={() => choose.all(current)}
-      onProject={(project) => choose.project(project.slug)}
-      onAdd={add.start}
-      row={row}
-    />
+    <span data-xq-page-title className="flex min-w-0 items-baseline gap-1.5 text-[13px] font-semibold text-fg">
+      {/* The square has no baseline of its own: it sits ON the name's and is lowered by half its height
+          less half a cap, which puts it on the name's cap band in any font. */}
+      <span className="flex shrink-0 self-baseline translate-y-[calc(8px_-_0.5cap)]">
+        <ProjectSquare project={project.card ?? fallbackCard(project)} size={16} />
+      </span>
+      <span data-xq-page-title-name className="min-w-0 truncate">{project.name}</span>
+    </span>
   )
 }
 
 /**
- * CHANGE THE PAGE'S VIEW — the switcher's one verb, and the phone's projects list's (PhonePage.tsx), so the
+ * CHANGE THE PAGE'S VIEW — the dock's one verb, and the phone's projects list's (PhonePage.tsx), so the
  * two cannot drift. Choosing is a navigation (`/project/<slug>`, `/all`), so Back returns to the view before.
  * Leaving a project for All projects carries it over as the prompt box's pick, so the box there starts
  * where the operator just was. A different set of cards is a different page to read, so it is read from
@@ -895,7 +868,7 @@ const UNOPENED_HOLD_MS = 60_000
  * by one: for those seconds every other project's cards vanished and came back, moving each card below
  * them on the reader's screen. Held here instead, they wait where they were. Only a project still
  * registered and not stale: one removed or whose directory is gone has really left. Past the minute a
- * project that has still not come back (another Ntwine serves it, it failed to open) is shown as it is.
+ * project that has still not come back (another ntwine serves it, it failed to open) is shown as it is.
  */
 function useLastKnownQueues(queues: readonly ProjectQueue[] | undefined, cards: readonly ProjectCard[] | undefined): readonly ProjectQueue[] | undefined {
   const seen = useRef(new Map<string, { queue: ProjectQueue; at: number }>())

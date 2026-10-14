@@ -17,7 +17,7 @@ test("open overlay is a full-viewport modal block above every modal", () => {
   assert.match(html, /fixed inset-0/)
   assert.match(html, /z-\[300\]/)
   assert.doesNotMatch(html, /z-\[200\]/)
-  assert.match(html, /Updating and restarting Ntwine/)
+  assert.match(html, /Updating and restarting ntwine/)
   assert.match(html, /animate-spin/)
   // The focusable card is what we park focus on so Tab cannot reach a background control.
   assert.match(html, /tabindex="-1"/)
@@ -60,12 +60,12 @@ test("past the deadline the overlay lifts its block and says what to do", () => 
   assert.match(html, /reconnects on its own/)
   assert.doesNotMatch(html, /3 minutes/)
   // Sentence case, no shouting.
-  assert.equal(STALLED_HEADING, "Ntwine did not come back")
+  assert.equal(STALLED_HEADING, "ntwine did not come back")
 })
 
 test("the stalled copy still reads when no silence has been measured yet", () => {
-  assert.match(stalledRestartCopy(undefined), /^Nothing is answering\. Restart Ntwine from the terminal/)
-  assert.match(stalledRestartCopy("2m"), /^Nothing has answered for 2m\. Restart Ntwine/)
+  assert.match(stalledRestartCopy(undefined), /^Nothing is answering\. Restart ntwine from the terminal/)
+  assert.match(stalledRestartCopy("2m"), /^Nothing has answered for 2m\. Restart ntwine/)
 })
 
 test("closed is closed in the stalled shape too", () => {

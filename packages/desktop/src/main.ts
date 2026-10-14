@@ -22,7 +22,7 @@ import { errorPage, loadingPage, waitingPage } from "./pages.ts"
 import { locateServer } from "./server.ts"
 
 /**
- * Ntwine in an Electron window, for the dev loop: a Chromium window onto the board `nub run dev` serves,
+ * ntwine in an Electron window, for the dev loop: a Chromium window onto the board `nub run dev` serves,
  * and as little else as possible.
  *
  * It never starts or runs a server. It joins the one that is up (server.ts), and when none is it waits
@@ -46,14 +46,14 @@ const pinnedUrl = process.env.NTWINE_DESKTOP_URL ?? argValue("ntwine-url")
 const here = dirname(fileURLToPath(import.meta.url))
 const isMac = process.platform === "darwin"
 
-app.setName("Ntwine")
-// NOT Electron's default for an app named Ntwine: on macOS that is ~/Library/Application Support/Ntwine,
-// which is Ntwine's own data root (ntwine-paths.ts), and Chromium would fill it with a browser profile.
+app.setName("ntwine")
+// NOT Electron's default for an app named ntwine: on macOS that is ~/Library/Application Support/ntwine,
+// which is ntwine's own data root (ntwine-paths.ts), and Chromium would fill it with a browser profile.
 // setPath throws for a directory that does not exist yet, which on a first launch this one does not.
 // Chromium's own `--user-data-dir=` still wins: a second profile is how a second window runs beside the
 // first, since the single-instance lock below is per profile.
 if (!app.commandLine.hasSwitch("user-data-dir")) {
-  const userData = join(app.getPath("appData"), "Ntwine Desktop")
+  const userData = join(app.getPath("appData"), "ntwine Desktop")
   mkdirSync(userData, { recursive: true })
   app.setPath("userData", userData)
 }
@@ -109,7 +109,7 @@ function restorableBounds(bounds: Rectangle | undefined): Partial<Rectangle> {
 }
 
 function windowOptions(): BrowserWindowConstructorOptions {
-  // Ntwine's mark, not the Electron logo an unpackaged app otherwise shows (scripts/dev.ts copies both files in).
+  // ntwine's mark, not the Electron logo an unpackaged app otherwise shows (scripts/dev.ts copies both files in).
   const icon = join(here, process.platform === "win32" ? "icon.ico" : "icon.png")
   return {
     minWidth: 420,
@@ -118,7 +118,7 @@ function windowOptions(): BrowserWindowConstructorOptions {
     // The board's own first-paint colours, so a document load never flashes white between pages.
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#0d0e10" : "#f7f7f7",
     autoHideMenuBar: true,
-    title: "Ntwine",
+    title: "ntwine",
     ...(process.platform !== "darwin" && existsSync(icon) ? { icon } : {}),
     webPreferences: {
       preload: join(here, "preload.cjs"),
@@ -142,7 +142,7 @@ function createMainWindow(): BrowserWindow {
   return win
 }
 
-/** Whatever window should answer "bring Ntwine to the front". */
+/** Whatever window should answer "bring ntwine to the front". */
 function focusApp(): void {
   const win = mainWindow ?? BrowserWindow.getAllWindows()[0]
   if (!win) {

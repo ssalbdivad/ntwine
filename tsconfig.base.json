@@ -12,7 +12,7 @@
     // Every project here is `noEmit`, so `tsc -b` has no output file to date-stamp: without this it
     // asked for `src/index.js`, never found one, and declared each project out of date on EVERY run.
     // The .tsbuildinfo files were written and never read, so the "incremental" typecheck was a full
-    // cold check every time — 39.5s, and 16.5s of it on the critical path of every Ntwine restart that
+    // cold check every time — 39.5s, and 16.5s of it on the critical path of every ntwine restart that
     // rebuilds its artifact (measured 2026-09-04 across the boot logs). With the flag, an unchanged
     // tree resolves in 0.2s and a one-file edit in packages/server in 3.9s.
     "incremental": true,

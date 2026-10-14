@@ -47,7 +47,7 @@ function currentPerm(): NotifPerm {
 // means it no longer lives here at all, so the tab strip went with it.
 export function SettingsDrawer({ offerUpdate = false }: {
   /**
-   * Show the phone page's "Update Ntwine" row. Only the board passes it: an update is finished by App's
+   * Show the phone page's "Update ntwine" row. Only the board passes it: an update is finished by App's
    * supervisor monitor and RestartOverlay (App.tsx), which mount with the board and not with the Projects
    * page (`/`), so the same row there would raise no overlay and never reload onto the new version.
    */
@@ -100,7 +100,7 @@ export function SettingsDrawer({ offerUpdate = false }: {
   async function toggleNotifications(on: boolean) {
     if (!draft) return
     // Not from an editor's sidebar: a frame is never granted the permission, so asking only records a
-    // refusal against Ntwine's origin. The setting itself is the machine's, and stands (see below).
+    // refusal against ntwine's origin. The setting itself is the machine's, and stands (see below).
     if (on && !inEditor && typeof Notification !== "undefined" && Notification.permission === "default") {
       const result = (await Notification.requestPermission()) as NotifPerm
       setPerm(result)
@@ -228,7 +228,7 @@ export function SettingsDrawer({ offerUpdate = false }: {
             {/* LAST, on purpose: which app a vetted local path opens in is the one power-user knob in the
                 drawer, so it sits below everything an ordinary operator adjusts. Upstream's row; the
                 fork's per-browser "Open code files" beside it folded back into it 2026-10-07 — a code
-                file goes to the editor named here while its Ntwine extension is connected, and to the
+                file goes to the editor named here while its ntwine extension is connected, and to the
                 reader otherwise (lib/editorWindows.ts codeFilesDestination). */}
             <SettingsField label="Local file links" help={SETTINGS_HELP.localFileOpener}>
               <Select
@@ -274,7 +274,7 @@ export function SettingsDrawer({ offerUpdate = false }: {
 //
 // Plain full-width rows under section labels — no grouped-inset cards, no iOS chrome.
 //
-// ADDED 2026-10-08 (maintainer, on #52): "Update Ntwine", as a row beside the `Ntwine {version}` footer.
+// ADDED 2026-10-08 (maintainer, on #52): "Update ntwine", as a row beside the `ntwine {version}` footer.
 // The phone had no way to update at all; #52 proposed bringing back a ⋯ sheet on the board to hold it,
 // and the maintainer kept the gear instead, with a dot on it when a new release line is out.
 
@@ -492,7 +492,7 @@ function MobileSettingsPage({
         {offerUpdate ? <MobileUpdateRow /> : null}
 
         {version ? (
-          <div data-mobile-version className="px-[18px] py-[14px] text-[12.5px] text-faint">Ntwine {version}</div>
+          <div data-mobile-version className="px-[18px] py-[14px] text-[12.5px] text-faint">ntwine {version}</div>
         ) : null}
       </div>
     </div>
@@ -507,7 +507,7 @@ function MobileSettingsPage({
  * to a new release line (`isBadgeRelease`). Inside Settings the dot only says which row is the news.
  * ntwine-dev rebuilds from source and names no version, so its row is live but undotted.
  *
- * Up to date, it stays as a muted, inert "Ntwine is up to date", the desktop's grey state; the version
+ * Up to date, it stays as a muted, inert "ntwine is up to date", the desktop's grey state; the version
  * itself is the footer under it. A rejected request leaves its failure card inline under the row,
  * dismissible, rather than anchored to a button the phone does not have.
  */
@@ -516,7 +516,7 @@ export function MobileUpdateRow() {
   if (!control.visible) return null
   const label = control.busy
     ? control.update ? "Updating…" : "Restarting…"
-    : control.current ? "Ntwine is up to date" : control.update ? "Update Ntwine" : "Restart Ntwine"
+    : control.current ? "ntwine is up to date" : control.update ? "Update ntwine" : "Restart ntwine"
   const newer = control.update ? control.updateVersion : undefined
   return (
     <div data-mobile-update>
@@ -637,7 +637,7 @@ function EditorConnectedHint() {
   if (names.length === 0) return null
   // Which build of the extension each window runs, on hover: "is this window running the fix?" is
   // answered here as well as in the editor's own status bar.
-  const builds = [...new Set(editorWindows.flatMap((window) => (window.extensionVersion ? [`${window.app}: Ntwine extension ${window.extensionVersion}`] : [])))]
+  const builds = [...new Set(editorWindows.flatMap((window) => (window.extensionVersion ? [`${window.app}: ntwine extension ${window.extensionVersion}`] : [])))]
   return <span data-editor-connected title={builds.length ? builds.join("\n") : undefined} className="text-[11px] text-muted-70">{names.join(" and ")} {names.length > 1 ? "are" : "is"} connected.</span>
 }
 

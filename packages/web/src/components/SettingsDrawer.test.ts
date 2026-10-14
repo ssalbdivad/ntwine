@@ -50,7 +50,7 @@ test("the drawer no longer duplicates the composer's controls or offers vestigia
   assert.doesNotMatch(source, /label="Model"/)
   assert.doesNotMatch(source, /label="Effort"/)
   // The Runtime QA gate setting is gone entirely — browser-QA policy is a project's own NTWINE.md
-  // concern, not a global Ntwine switch.
+  // concern, not a global ntwine switch.
   assert.doesNotMatch(source, /Runtime QA gate/)
   assert.doesNotMatch(source, /runtimeGate/)
   // Auto-resume after a usage limit is unconditional now: nothing to turn off.
@@ -64,7 +64,7 @@ test("the drawer no longer duplicates the composer's controls or offers vestigia
 // need to have them in the drawer anymore, so yeah, you can drop the tab switcher").
 test("the drawer is one untabbed list of interface preferences, with no project or runtime settings", () => {
   // (The note above the component NAMES the retired tab in prose; what must be gone is the markup.)
-  assert.doesNotMatch(source, /role="tab(?:list)?"|SettingsTabs|label: "(?:Project|Ntwine) settings"/)
+  assert.doesNotMatch(source, /role="tab(?:list)?"|SettingsTabs|label: "(?:Project|ntwine) settings"/)
   const fields = [...source.matchAll(/<SettingsField label="([^"]+)"/g)].map((m) => m[1])
   assert.deepEqual(fields, ["Appearance", "Density", "Desktop notifications", "Always show status lines", "Show recent threads", "Remove idle worktrees after", "Delete done threads", "Local file links"])
   assert.doesNotMatch(source, /<textarea/)

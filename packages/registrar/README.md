@@ -5,12 +5,12 @@ it. One wildcard DNS record covers every name, so a claim creates no infrastruct
 what removed the 200-name ceiling the original tunnel design could never get past.
 
 It runs during signup and never again. **It is not on the data plane** — a board that is already
-running keeps working whether or not this Worker is up, and nothing in Ntwine has to reach it to stay
+running keeps working whether or not this Worker is up, and nothing in ntwine has to reach it to stay
 reachable. Protect that property above anything else here.
 
 ## How a name is owned
 
-A name belongs to whoever holds an Ed25519 private key, kept at `identity.key` under Ntwine's state root (`~/.ntwine/` on an install that has that directory, the platform's state directory otherwise) on the
+A name belongs to whoever holds an Ed25519 private key, kept at `identity.key` under ntwine's state root (`~/.ntwine/` on an install that has that directory, the platform's state directory otherwise) on the
 claiming machine. Every claim is signed; the signature covers the public key, so a request cannot be
 re-attributed by swapping it. Ownership moves between machines the way an SSH key does: copy the file.
 
@@ -18,7 +18,7 @@ re-attributed by swapping it. Ownership moves between machines the way an SSH ke
 registrar recognizes that shape and waives the GitHub gate. Unauthenticated creation is capped at 10
 names an hour per network address, and renewals never count against it.
 
-**Claiming a custom name also needs a GitHub account, and that is the only thing standing between this and a squatter.** The CLI signs the person in through GitHub's device flow against Ntwine's own OAuth App, which requests no scopes, and sends the resulting token with the first claim. The registrar spends it on `api.github.com/user`, keeps the numeric id and discards the token. One name per account, and an account younger than 30 days cannot claim. Nothing afterwards touches GitHub — the keypair alone renews the lease, so a name keeps working whether or not GitHub does. Set `REQUIRE_GITHUB=0` to lift the gate on a test deployment; never on the one anybody can reach.
+**Claiming a custom name also needs a GitHub account, and that is the only thing standing between this and a squatter.** The CLI signs the person in through GitHub's device flow against ntwine's own OAuth App, which requests no scopes, and sends the resulting token with the first claim. The registrar spends it on `api.github.com/user`, keeps the numeric id and discards the token. One name per account, and an account younger than 30 days cannot claim. Nothing afterwards touches GitHub — the keypair alone renews the lease, so a name keeps working whether or not GitHub does. Set `REQUIRE_GITHUB=0` to lift the gate on a test deployment; never on the one anybody can reach.
 
 **Only a token with no scopes is accepted.** Until 2026-10-08 the CLI sent its `gh auth token`, which can push to every repository its owner can, and a compromised build of this Worker collected those tokens. The verifier (`githubVerifier` in [`worker.ts`](src/worker.ts)) now refuses, as `github-token-scoped`, any token that is not an OAuth App user token (`gho_…`) without sending it anywhere, and any token whose `X-OAuth-Scopes` header lists a scope. An old CLI is told to update.
 
@@ -57,7 +57,7 @@ Then, in the `ntwine.app` zone's DNS, a **proxied `AAAA` record named `*` with c
 Three things that will waste your time otherwise:
 
 - **A WORKERS ROUTE BEATS A CUSTOM DOMAIN.** The relay owns `*.ntwine.app/*`, which swallowed
-  the registrar's hostname the day it shipped and took signup down — the wildcard answered "No Ntwine board
+  the registrar's hostname the day it shipped and took signup down — the wildcard answered "No ntwine board
   has claimed this name." to every claim. `wrangler.toml` therefore declares BOTH the custom domain and
   a more specific `registrar.ntwine.app/*` route; the route is what wins. Do not remove either.
 - **The deploy exits 1 unless the token can read Workers Routes.** Wrangler reconciles routes *after*

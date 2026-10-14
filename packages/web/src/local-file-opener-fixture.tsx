@@ -11,7 +11,7 @@ import { useLocalFileCodeLinks } from "./lib/localFileCode.ts"
 import { useInnerHtml } from "./lib/innerHtml.ts"
 import { store } from "./store.ts"
 
-// Every destination a local-file link can have, on one page. A file Ntwine can show opens in Ntwine: a
+// Every destination a local-file link can have, on one page. A file ntwine can show opens in ntwine: a
 // `.md` or any other text file in its reader (the interceptor pushes a `file` drawer and never calls
 // the RPC), a picture in the picture viewer. A format the page cannot draw — the PDF here — is handed
 // to the desktop opener through `openLocalFile`. The readouts below are what the e2e test asserts, so
@@ -143,7 +143,7 @@ createRoot(document.getElementById("root")!).render(
     {/* A PLACE IN A FILE, in every spelling a link, a deep link, a relative path, a file URL or inline
         code uses (shared file-position.ts), plus a raw-HTML button an author wrote by hand. Each one's
         path is bare on the element and its line beside it; with code files sent to the external app the
-        line reaches `openLocalFile`, and in Ntwine's reader the bare path does. */}
+        line reaches `openLocalFile`, and in ntwine's reader the bare path does. */}
     <PositionedProse
       html={mdToHtml([
         "At [`a.ts`](/fixture/src/a.ts#L5-L9) and [again](/fixture/src/a.ts:30), [`b.ts`](vscode://file/fixture/src/b.ts:3:2), [`c.ts`](src/c.ts:12), [`d.ts`](src/d.ts#L7) and [`e.ts`](file:///fixture/src/e.ts#L4).",
@@ -161,7 +161,7 @@ createRoot(document.getElementById("root")!).render(
     {/* The OTHER producer of a local-file link: a tool card's header path (PathLink), here in its diff
         form. It used to be an `<a href="cursor://file/…">` the OS resolved, so it ignored the opener
         setting entirely and always landed in Cursor. It now takes the same route as everything above —
-        a source file and a `.md` both into Ntwine's reader — so both are asserted for it too. The header
+        a source file and a `.md` both into ntwine's reader — so both are asserted for it too. The header
         is also a disclosure control, so the click must open the file WITHOUT toggling the block. */}
     <div className="mt-6">
       <DiffBlock edits={[{ file: "/fixture/src/app.ts", old: "a\n", new: "b\n" }]} />

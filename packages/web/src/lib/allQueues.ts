@@ -23,7 +23,7 @@ export interface QueuesProject {
   slug: string
   name: string
   card: ProjectCard | undefined
-  /** A board is open for it on this server. False: its directory is gone, another Ntwine serves it, it
+  /** A board is open for it on this server. False: its directory is gone, another ntwine serves it, it
    *  failed to open, or the server has not reached it yet this boot. */
   open: boolean
   stale: boolean
@@ -41,7 +41,7 @@ export interface QueuesProject {
    *  RECENT_DONE_THREADS) — the sidebar's Done-today tail (TierList.tsx). Pinned ones included; the
    *  tail leaves them to the Pinned band. */
   recentDone: ThreadView[]
-  /** Its schedules' count, and whether one wants the human (paused by Ntwine, or a proposal to turn on) —
+  /** Its schedules' count, and whether one wants the human (paused by ntwine, or a proposal to turn on) —
    *  the row's fourth quiet count. Absent when it has none. */
   schedules?: ProjectSchedules
 }

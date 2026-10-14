@@ -15,7 +15,7 @@ import { handleDialogEscape } from "../lib/selectOverlay.ts"
 import { OpenAction } from "./FileReaderDrawer.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 
-// THE PICTURE VIEWER: a click on any picture Ntwine renders — a tool's screenshot, a delivered image, a
+// THE PICTURE VIEWER: a click on any picture ntwine renders — a tool's screenshot, a delivered image, a
 // path a worker wrote on its own line, a Markdown `![](…)`, an attachment — opens it HERE, over
 // whatever page or drawer it was clicked in, instead of handing the file to the desktop opener (which on
 // a WSL box meant a browser tab; see lib/localViewer.ts). Esc, the close button or a click anywhere off

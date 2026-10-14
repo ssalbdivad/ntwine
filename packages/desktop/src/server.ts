@@ -5,7 +5,7 @@ import { projectLaunchTokenProof, readProjectLaunchOwner } from "@ntwine/server/
 import { readStableServerOwner, type ServerOwnerRead } from "../../../src/server-owner.ts"
 
 /**
- * Finding the ONE Ntwine server on this machine. This app never starts or runs it: the dev loop
+ * Finding the ONE ntwine server on this machine. This app never starts or runs it: the dev loop
  * already has a board (`nub run dev`), and the window is a client of it exactly as a browser tab is.
  * Electron's embedded Node could not host the server anyway — node-pty is built for the system Node.
  */
@@ -36,16 +36,16 @@ async function readHealth(port: number, timeoutMs: number): Promise<NtwineHealth
   }
 }
 
-/** An Ntwine answering on this loopback port, by the launcher's own health handshake. */
+/** An ntwine answering on this loopback port, by the launcher's own health handshake. */
 export async function ntwineAnswers(port: number, timeoutMs = 1_500): Promise<boolean> {
   return (await readHealth(port, timeoutMs)) !== undefined
 }
 
 /**
- * An Ntwine on this port that THIS USER launched, from these roots.
+ * An ntwine on this port that THIS USER launched, from these roots.
  *
  * Loopback is shared by every account on the machine, and by an `ntwine --sandbox`, so answering the
- * health handshake proves only that some Ntwine is there. What proves it is ours is the launch token:
+ * health handshake proves only that some ntwine is there. What proves it is ours is the launch token:
  * the server's health carries a hash of the token in its project's owner record, and that record lives
  * in our own data root, readable by nobody else — the same proof `ntwine --stop` checks.
  */

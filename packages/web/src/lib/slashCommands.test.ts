@@ -54,7 +54,7 @@ test("a run's offset decides whether its command opens the draft", () => {
   assert.deepEqual(slashSegments("/context", items, 5, 5).map((s) => s.kind), ["command"])
 })
 
-test("a user command is offered and tinted mid-prompt, where Ntwine expands it", () => {
+test("a user command is offered and tinted mid-prompt, where ntwine expands it", () => {
   assert.deepEqual(matchSlashItems(withUserCommand, "arm", false).map((s) => s.name), ["armstrong"])
   const text = "only finish when sure /armstrong"
   assert.deepEqual(slashSegments(text, withUserCommand, 0, draftStart(text)).map((s) => `${s.kind}:${s.text}`), ["text:only finish when sure ", "command:/armstrong"])

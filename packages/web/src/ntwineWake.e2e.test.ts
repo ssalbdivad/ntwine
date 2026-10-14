@@ -103,7 +103,7 @@ test("a batch of held wakes draws one hairline per wake, and the fallback card r
         assert.match(result.batched.lines[0], /^Wait over — its work finished/)
         assert.match(result.batched.lines[1], /^Agent terminal «Running the update harness against the built shell and server» finished/)
         assert.deepEqual(result.batched.cards, [], "no part of it is a card")
-        assert.doesNotMatch(result.batched.text, /Ntwine held|###|awaiting park named|READ ITS OUTPUT|NOTHING running|ntwinectl ask|Ntwine sends this because/)
+        assert.doesNotMatch(result.batched.text, /ntwine held|###|awaiting park named|READ ITS OUTPUT|NOTHING running|ntwinectl ask|ntwine sends this because/)
         // …at the pitch of two wakes that arrived a second apart, which is the whole claim: the
         // transcript must not say which delivery carried them.
         assert.ok(Math.abs(result.batched.tops[1] - result.batched.tops[0] - result.lonePitch) < 0.5, `merged pitch ${result.batched.tops[1] - result.batched.tops[0]} vs lone ${result.lonePitch}`)
@@ -114,13 +114,13 @@ test("a batch of held wakes draws one hairline per wake, and the fallback card r
         assert.match(result.mixed.lines[0], /^CI failed on nubjs\/nub#761: build \(windows-latest\), test \(macos-14\)/)
         assert.match(result.mixed.lines[1], /^Timer/)
         assert.match(result.mixed.lines[2], /^Goal · at rest/)
-        assert.doesNotMatch(result.mixed.text, /Ntwine held|###|identical events|KEEP GOING|STILL ARMED/)
+        assert.doesNotMatch(result.mixed.text, /ntwine held|###|identical events|KEEP GOING|STILL ARMED/)
         // A part no parser reads keeps the card for ITSELF; the wake beside it is still a hairline.
         assert.equal(result.unread.lines.length, 1)
         assert.match(result.unread.lines[0], /^Agent terminal «vite --port 5199 --strictPort» failed/)
         assert.equal(result.unread.cards.length, 1)
         assert.match(result.unread.cards[0], /Its text survives, in a card of its own\./)
-        assert.doesNotMatch(result.unread.text, /Ntwine held|###|Ntwine sends this because/)
+        assert.doesNotMatch(result.unread.text, /ntwine held|###|ntwine sends this because/)
         assert.match(result.ownWatch[0], /^Watch expired on a background shell/)
         assert.match(result.ownWatch[1], /^Watch expired on a sub-agent/)
         assert.deepEqual(result.headings, ["What it carries"])

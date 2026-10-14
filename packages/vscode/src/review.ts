@@ -1,10 +1,10 @@
 // A THREAD'S CHANGES, AS GIT TELLS THEM — what "Review changes" opens as VS Code's multi-file diff, the
-// pure half (no `vscode`; review-view.ts is the glue and the content provider). Ntwine names WHICH
+// pure half (no `vscode`; review-view.ts is the glue and the content provider). ntwine names WHICH
 // checkouts the thread changed (server review-target.ts, `EditorReviewCheckout`); this asks git, in each,
 // what to compare against and which files differ. Design: ARCHITECTURE.md § VS Code
 // extension.
 //
-// THE BASE. Ntwine records nothing about where a thread started, so it is read off git:
+// THE BASE. ntwine records nothing about where a thread started, so it is read off git:
 //
 //   "files" — the project folder, which several agents and the human share. Its review is the thread's
 //     own files against HEAD: their uncommitted changes. Nothing else changed in that tree is the

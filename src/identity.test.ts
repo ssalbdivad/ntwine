@@ -69,7 +69,7 @@ test("a corrupt identity is an ERROR, never silently replaced", async () => {
   try {
     mkdirSync(join(home, ".ntwine"), { recursive: true });
     writeFileSync(claimIdentityPath(home), Buffer.alloc(4));
-    await assert.rejects(loadOrCreateClaimIdentity(home), /not a usable Ntwine identity key/);
+    await assert.rejects(loadOrCreateClaimIdentity(home), /not a usable ntwine identity key/);
     assert.equal(readFileSync(claimIdentityPath(home)).byteLength, 4, "the broken file is left for recovery");
   } finally {
     rmSync(home, { recursive: true, force: true });

@@ -73,19 +73,19 @@ test("a void mutation's `{result:null}` is a success, and the error envelope kee
   }
 })
 
-test("nothing listening is `unreachable`, which reads as Ntwine not running", async () => {
+test("nothing listening is `unreachable`, which reads as ntwine not running", async () => {
   const server = await rpcServer(() => ({ status: 200, body: "{}" }))
   const origin = server.origin
   await server.close()
   const error = await new NtwineRpc(origin).query("p1", "board").catch((e: unknown) => e)
   assert.ok(error instanceof RpcError)
   assert.equal(error.kind, "unreachable")
-  assert.equal(describeRpcError(error), "Ntwine isn't running.")
+  assert.equal(describeRpcError(error), "ntwine isn't running.")
 })
 
-test("a request Ntwine took and never answered is `unanswered`, not Ntwine being down — and Ask says to check before asking again", async () => {
+test("a request ntwine took and never answered is `unanswered`, not ntwine being down — and Ask says to check before asking again", async () => {
   // A dispatch on a busy server (a cold Codex app-server) can run past the extension's 60s: the
-  // request is held, the thread may well be started, and "Ntwine isn't running" would invite a second.
+  // request is held, the thread may well be started, and "ntwine isn't running" would invite a second.
   const held: import("node:http").ServerResponse[] = []
   const slow = createServer((_request, response) => void held.push(response))
   await new Promise<void>((resolve) => slow.listen(0, "127.0.0.1", resolve))
@@ -95,16 +95,16 @@ test("a request Ntwine took and never answered is `unanswered`, not Ntwine being
     assert.ok(timedOut instanceof RpcError)
     assert.equal(timedOut.kind, "unanswered")
     assert.equal(timedOut.retryable, false, "never resent: it may have taken effect")
-    assert.equal(describeRpcError(timedOut, "ask"), "Ntwine didn't answer in time. Check Ntwine before asking again: it may have started the thread.")
-    assert.match(describeRpcError(timedOut, "send"), /^Ntwine didn't answer in time\. Check the thread before sending again/)
-    assert.equal(describeRpcError(timedOut), "Ntwine didn't answer in time. Try again.")
+    assert.equal(describeRpcError(timedOut, "ask"), "ntwine didn't answer in time. Check ntwine before asking again: it may have started the thread.")
+    assert.match(describeRpcError(timedOut, "send"), /^ntwine didn't answer in time\. Check the thread before sending again/)
+    assert.equal(describeRpcError(timedOut), "ntwine didn't answer in time. Try again.")
   } finally {
     for (const response of held) response.destroy()
     slow.closeAllConnections()
     await new Promise((resolve) => slow.close(resolve))
   }
 
-  // A connection dropped mid-request (Ntwine restarting under it) is the same kind of ambiguous.
+  // A connection dropped mid-request (ntwine restarting under it) is the same kind of ambiguous.
   const dropping = createServer((request) => request.socket.destroy())
   await new Promise<void>((resolve) => dropping.listen(0, "127.0.0.1", resolve))
   try {
@@ -141,8 +141,8 @@ test("only a retryable refusal is retried, on the page's schedule, and the attem
 })
 
 test("a signed-out provider says where to sign in", () => {
-  assert.equal(describeRpcError(new RpcError("AUTH_REQUIRED:claude", "failed", false, 500)), "Sign in to Claude in Ntwine first.")
-  assert.equal(describeRpcError(new RpcError("AUTH_REQUIRED:codex", "failed", false, 500)), "Sign in to Codex in Ntwine first.")
+  assert.equal(describeRpcError(new RpcError("AUTH_REQUIRED:claude", "failed", false, 500)), "Sign in to Claude in ntwine first.")
+  assert.equal(describeRpcError(new RpcError("AUTH_REQUIRED:codex", "failed", false, 500)), "Sign in to Codex in ntwine first.")
   assert.equal(describeRpcError(new Error("something else")), "something else")
 })
 

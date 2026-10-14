@@ -24,9 +24,9 @@
  *   writes, and it exercises the path every launch after the first one takes, which is the path that
  *   actually has to keep working.
  *
- *   A GIT REPOSITORY as the launch directory, from when Ntwine refused a bare one. Neither is adopted
+ *   A GIT REPOSITORY as the launch directory, from when ntwine refused a bare one. Neither is adopted
  *   any more — a launch from a folder that is not already a project lands on the dashboard, hosted
- *   on Ntwine's own folder — and nothing below asks which board is open.
+ *   on ntwine's own folder — and nothing below asks which board is open.
  *
  *   THE OWNING IDENTITY, seeded into the sandbox home. A name belongs to the key that claimed it, so a
  *   fresh key is correctly refused with "that name is already taken" — verified below, because that

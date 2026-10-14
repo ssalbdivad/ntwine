@@ -40,7 +40,7 @@ export interface NtwineSupervisorStatus {
    */
   preparing?: boolean
   /**
-   * Is this Ntwine a DEVELOPMENT build — launched from a source checkout by `ntwine-dev` or `pnpm dev`,
+   * Is this ntwine a DEVELOPMENT build — launched from a source checkout by `ntwine-dev` or `pnpm dev`,
    * rather than the published `ntwine` bin? Sent only when true, so absent means "no".
    *
    * The client cannot answer this itself. `import.meta.env.DEV` is a Vite COMPILE-TIME constant, true
@@ -51,7 +51,7 @@ export interface NtwineSupervisorStatus {
    */
   dev?: boolean
   /**
-   * Did THIS page reach Ntwine through the public origin, holding a live session? Sent only when true.
+   * Did THIS page reach ntwine through the public origin, holding a live session? Sent only when true.
    * A fact about the request, not the board: the operator's own loopback tab never gets it, and the
    * page cannot work it out for itself because the session cookie is HttpOnly. It is what shows the
    * "Sign out this device" row (see api/signOut.ts).
@@ -91,14 +91,14 @@ export function restartFailureOutcome(versionAtRequest: string | undefined, stat
 export function restartFailureCopy(outcome: RestartFailureOutcome): { summary: string; detail: string } {
   if (outcome.kind === "previous-kept") {
     return {
-      summary: "Ntwine kept running the previous version",
-      detail: "Ntwine kept running the previous version, and your threads are unaffected.",
+      summary: "ntwine kept running the previous version",
+      detail: "ntwine kept running the previous version, and your threads are unaffected.",
     }
   }
-  const name = outcome.version ? `Ntwine ${outcome.version}` : "The new version of Ntwine"
+  const name = outcome.version ? `ntwine ${outcome.version}` : "The new version of ntwine"
   return {
     summary: `${name} failed to start`,
-    detail: `${name} came up but could not start its board, and the previous version is gone. Restart Ntwine from the terminal (npx ntwine) and check its log for the reason.`,
+    detail: `${name} came up but could not start its board, and the previous version is gone. Restart ntwine from the terminal (npx ntwine) and check its log for the reason.`,
   }
 }
 
@@ -243,7 +243,7 @@ export function canRestart(status: NtwineSupervisorStatus | null): boolean {
  * Two conditions, and conflating them was a real shipped bug: `updateRestart` says the verb is WIRED
  * (legacy/static supervisors omit it, so their recovery endpoint is never surfaced as an update), while
  * `updateAvailable` says a newer artifact actually EXISTS. With only the first, a fully up-to-date
- * production Ntwine still read "Update Ntwine" and a click reinstalled its own version and restarted the
+ * production ntwine still read "Update ntwine" and a click reinstalled its own version and restarted the
  * app for nothing — measured end-to-end against the published package.
  *
  * `updateAvailable` absent ⇒ treated as available, so ntwine-dev (which can always rebuild from source,
@@ -254,9 +254,9 @@ export function canUpdateRestart(status: NtwineSupervisorStatus | null): boolean
 }
 
 /**
- * Is Ntwine itself running as a development build? Deliberately strict: an unreachable supervisor, a
- * legacy one that predates the field, and a published Ntwine all read the same — NOT a dev build — so a
- * dev-only verb can never appear for someone who merely installed Ntwine.
+ * Is ntwine itself running as a development build? Deliberately strict: an unreachable supervisor, a
+ * legacy one that predates the field, and a published ntwine all read the same — NOT a dev build — so a
+ * dev-only verb can never appear for someone who merely installed ntwine.
  */
 export function isDevNtwineBuild(status: NtwineSupervisorStatus | null): boolean {
   return status?.dev === true
@@ -285,12 +285,12 @@ async function requestNtwineRestartAction(path: "/_ntwine/control/restart" | "/_
     // Keep the failure leg actionable even if an old/non-supervised server returned HTML.
   }
   if (!response.headers.get("content-type")?.includes("application/json") || !result || result.protocol !== 1 || (result.state !== "ready" && result.state !== "restarting" && result.state !== "failed")) {
-    throw new Error("Ntwine restart controls are unavailable for this server")
+    throw new Error("ntwine restart controls are unavailable for this server")
   }
   if (!response.ok) {
     throw new Error(result.message ?? `Restart request failed (${response.status})`)
   }
-  if (result.state === "failed") throw new Error(result.message ?? "Ntwine did not become ready")
+  if (result.state === "failed") throw new Error(result.message ?? "ntwine did not become ready")
   return result
 }
 
@@ -299,7 +299,7 @@ export function requestNtwineRestart(fetcher: typeof fetch = fetch): Promise<Res
   return requestNtwineRestartAction("/_ntwine/control/restart", fetcher)
 }
 
-/** Reaches the durable ntwine-dev supervisor, never the disposable Ntwine application child directly. */
+/** Reaches the durable ntwine-dev supervisor, never the disposable ntwine application child directly. */
 export function requestNtwineUpdateRestart(fetcher: typeof fetch = fetch): Promise<RestartNtwineResult> {
   return requestNtwineRestartAction("/_ntwine/control/update-restart", fetcher)
 }

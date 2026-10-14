@@ -21,7 +21,7 @@ if (process.argv[2] !== "--server") {
 
 const webDist = resolve(repo, "packages/web/dist")
 execFileSync("pnpm", ["--dir", repo, "--filter", "@ntwine/web", "build"], { stdio: "pipe" })
-if (!existsSync(webDist)) throw new Error("Ntwine web build did not produce packages/web/dist")
+if (!existsSync(webDist)) throw new Error("ntwine web build did not produce packages/web/dist")
 rmSync(webTarget, { recursive: true, force: true })
 cpSync(webDist, webTarget, { recursive: true })
 
@@ -31,7 +31,7 @@ const skip = (src) => {
 }
 rmSync(runtime, { recursive: true, force: true })
 const stage = (from, to, label) => {
-  if (!existsSync(from)) throw new Error(`Ntwine runtime closure source is missing: ${label} (${from})`)
+  if (!existsSync(from)) throw new Error(`ntwine runtime closure source is missing: ${label} (${from})`)
   cpSync(from, to, { recursive: true, filter: (s) => !skip(s) })
 }
 stage(resolve(repo, "board"), resolve(runtime, "board"), "board")

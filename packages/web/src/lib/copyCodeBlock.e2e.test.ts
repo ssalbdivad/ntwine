@@ -127,8 +127,8 @@ test("a fenced code block copies its own source, minus the renderer's trailing n
 })
 
 // The SAME shipped path with `navigator.clipboard` GONE — not a contrived state: the async clipboard
-// API exists only in a secure context, and an Ntwine served over `--host` to a LAN address is plain
-// http, where every copy affordance used to refuse with "copy the code from a secure Ntwine page". The
+// API exists only in a secure context, and an ntwine served over `--host` to a LAN address is plain
+// http, where every copy affordance used to refuse with "copy the code from a secure ntwine page". The
 // fallback selects the text in an off-screen textarea and execCommand("copy")s it, so this shadows the
 // API exactly the way an insecure origin removes it, clicks the shipped button inside a real trusted
 // gesture, and reads the REAL clipboard back through the un-shadowed API afterwards.

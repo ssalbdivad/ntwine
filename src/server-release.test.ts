@@ -325,14 +325,14 @@ test("a failed npm operation reports the error that caused it, not only the end 
     "  errno: -2,", "  code: 'ENOENT',", "  syscall: 'uv_cwd'", "}", "", "Node.js v26.11.1",
   ];
   await assert.rejects(() => failing("crash", crash).latestVersion("ntwine-server"), (error: Error) => {
-    assert.match(error.message, /^Ntwine server npm operation failed: Error: ENOENT: process\.cwd failed/);
+    assert.match(error.message, /^ntwine server npm operation failed: Error: ENOENT: process\.cwd failed/);
     assert.match(error.message, /Node\.js v26\.11\.1$/, "the tail is still there under the cause");
     return true;
   });
   // npm's own failures already end in their summary; nothing is added or repeated.
   const npmError = ["npm error code E404", "npm error 404 Not Found - GET https://registry.npmjs.org/ntwine-server - Not found"];
   await assert.rejects(() => failing("e404", npmError).latestVersion("ntwine-server"), (error: Error) => {
-    assert.equal(error.message, `Ntwine server npm operation failed: ${npmError.join("\n")}`);
+    assert.equal(error.message, `ntwine server npm operation failed: ${npmError.join("\n")}`);
     return true;
   });
 });
@@ -359,6 +359,6 @@ test("the latest-version probe reads npm 12's one-element array and still refuse
   };
   assert.equal(await answering("npm11", '"1.1.0"').latestVersion("ntwine-server"), "1.1.0");
   assert.equal(await answering("npm12", '[\n  "1.1.0"\n]').latestVersion("ntwine-server"), "1.1.0");
-  await assert.rejects(() => answering("two", '["1.1.0", "1.2.0"]').latestVersion("ntwine-server"), /npm returned an invalid Ntwine server version/);
-  await assert.rejects(() => answering("empty", "[]").latestVersion("ntwine-server"), /npm returned an invalid Ntwine server version/);
+  await assert.rejects(() => answering("two", '["1.1.0", "1.2.0"]').latestVersion("ntwine-server"), /npm returned an invalid ntwine server version/);
+  await assert.rejects(() => answering("empty", "[]").latestVersion("ntwine-server"), /npm returned an invalid ntwine server version/);
 });

@@ -117,7 +117,7 @@ test("on collision the incumbent keeps its slug and the newcomer is qualified", 
   }
 })
 
-test("a slug that would shadow Ntwine's own routes is refused", () => {
+test("a slug that would shadow ntwine's own routes is refused", () => {
   const taken = new Set<string>()
   // These are reachable: a repo really can be called `rpc`, `assets` or `editor`.
   for (const reserved of ["rpc", "assets", "events", "health", "editor"]) {
@@ -322,7 +322,7 @@ test("a corrupt registry reads as empty rather than throwing", () => {
   }
 })
 
-test("an entry an older server wrote for Ntwine's own launch folder is never listed, and the next write drops it", () => {
+test("an entry an older server wrote for ntwine's own launch folder is never listed, and the next write drops it", () => {
   const home = sandbox()
   try {
     const host = launchHostDir(home)
@@ -362,7 +362,7 @@ test("forgetting a project removes exactly one card", () => {
   }
 })
 
-// A machine that has been running Ntwine for months arrives at its first grid with ONE card, and the
+// A machine that has been running ntwine for months arrives at its first grid with ONE card, and the
 // only way to fill it would be to visit every repository in a terminal — the chore one server per
 // machine exists to end. Everything needed is already on disk.
 test("backfill recovers projects from existing state dirs, and refuses to guess", () => {
@@ -494,7 +494,7 @@ test("backfill recovers a project whose server is STOPPED, not just a running on
   }
 })
 
-// A server on Ntwine's own folder opens every project as one of many, and leaves no `launcher.json` in
+// A server on ntwine's own folder opens every project as one of many, and leaves no `launcher.json` in
 // any of them: the serving record it keeps is what names the folder.
 test("backfill recovers a project a server opened as one of many, from its serving record", () => {
   const home = mkdtempSync(join(tmpdir(), "ntwine-backfill-serving-"))

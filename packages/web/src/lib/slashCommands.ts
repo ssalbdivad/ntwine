@@ -8,7 +8,7 @@
 // when it OPENS the message; anywhere else it is plain text the model reads. A SKILL is invocable by
 // name anywhere. So a command is offered, and tinted, only as the draft's first token, and a skill at
 // any boundary — the tint never promises something the send will not do. A USER command
-// (`~/.agents/commands/armstrong.md`) is Ntwine's to expand, and it expands anywhere, so it rides as a skill.
+// (`~/.agents/commands/armstrong.md`) is ntwine's to expand, and it expands anywhere, so it rides as a skill.
 
 import { insideCodeFence, type ThreadSkill } from "@ntwine/shared"
 

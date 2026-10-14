@@ -484,7 +484,7 @@ test("followUp yields to a live external writer but still answers a thread whose
   install({ bridgeTurn: false, ownedSince: new Date().toISOString() }, yielded)
   await assert.rejects(
     h.router.followUp.handler({ input: { slug: external, sessionId: `sid-${external}`, message: "hello" } }),
-    /driven outside Ntwine/,
+    /driven outside ntwine/,
   )
   assert.deepEqual(yielded, [], "ntwine must not race a second writer onto a live external turn")
 
@@ -2005,7 +2005,7 @@ test("projectAdd: a folder under a nested package root names the enclosing regis
   }
 })
 
-// Minting an id in $HOME writes a project into ~/.ntwine, Ntwine's own state root, and every unmarked
+// Minting an id in $HOME writes a project into ~/.ntwine, ntwine's own state root, and every unmarked
 // directory under home then resolves to it. The launcher refuses this (2026-08-06); the grid must too.
 test("projectAdd: the home directory itself is refused, and nothing is written", () => {
   const home = mkdtempSync(join(tmpdir(), "ntwine-add-home-"))
@@ -2265,7 +2265,7 @@ test("dispatch treats a stale spawn_thread's spinoff id as a plain spawn", async
 })
 
 // The RPC the thread's menu calls never reaches the thread's own worker: a Claude parent with no
-// transcript yet gets a fresh child on Ntwine's own context (router.spinoff-fork.test.ts covers its prompt).
+// transcript yet gets a fresh child on ntwine's own context (router.spinoff-fork.test.ts covers its prompt).
 test("spinoff starts the child itself and delivers nothing to the thread's worker", async () => {
   const { h, slug, calls } = restartHarness()
   try {
@@ -2321,7 +2321,7 @@ test("Compact now refuses a turn in flight rather than splicing /compact into it
   h.storage.close()
 })
 
-test("Compact now refuses a runtime Ntwine cannot compact", async () => {
+test("Compact now refuses a runtime ntwine cannot compact", async () => {
   const { h, slug, calls } = compactHarness()
   h.storage.setBackend(slug, "acp")
   await assert.rejects(h.router.compactThread.handler({ input: { slug, sessionId: `sid-${slug}` } }), /can't be compacted/)
@@ -2344,9 +2344,9 @@ test("Compact now asks an app-server codex thread for thread/compact/start", asy
   h.storage.close()
 })
 
-// ── "Send to queue": Ntwine HOLDS the message until the agent rests ───────────────────────────────
+// ── "Send to queue": ntwine HOLDS the message until the agent rests ───────────────────────────────
 // The prompt box's Send menu has two rows (maintainer 2026-10-11): "Send as steer", which is the
-// follow-up above, and "Send to queue" — "Ntwine maintains that in memory until the agent comes to rest,
+// follow-up above, and "Send to queue" — "ntwine maintains that in memory until the agent comes to rest,
 // and then it pushes it". Held means no transport has been handed anything, so these pin both halves:
 // nothing reaches the runtime while the turn runs, and the same send — same id, same bubble — is what
 // goes out when it ends.
@@ -2426,7 +2426,7 @@ test("steering past a held message leaves it held", async () => {
 
 test("a held message is taken back without asking the runtime, on any backend", async () => {
   const { h, slug, sid, cancelled, ledger, sent, rest } = holdHarness()
-  h.storage.setBackend(slug, "codex") // a runtime whose own queue Ntwine cannot reach into
+  h.storage.setBackend(slug, "codex") // a runtime whose own queue ntwine cannot reach into
   await h.router.followUp.handler({ input: { slug, sessionId: sid, message: "never mind", deliveryId: "d-hold", hold: true } })
   const result = await h.router.unqueueFollowUp.handler({ input: { slug, sessionId: sid, deliveryId: "d-hold" } })
   assert.deepEqual(result, { unqueued: true })

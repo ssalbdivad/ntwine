@@ -5,7 +5,7 @@ import { isDevNtwineBuild } from "./restart.ts"
 import { supervisorPollMs, supervisorStatusQueryOptions } from "./supervisorStatus.ts"
 
 // The contract, not an optimisation detail: THREE independent surfaces ask the supervisor the same
-// question — App's control-plane monitor, the Restart Ntwine button, and the dev-build verb in a thread
+// question — App's control-plane monitor, the Restart ntwine button, and the dev-build verb in a thread
 // header (one header per queue card). On the maintainer's board they were measured firing at t+58ms,
 // t+61ms and t+63ms of a single navigation, into a six-connection HTTP/1.1 pool that was already
 // carrying ~11 RPCs. Sharing one query is what keeps that at one request.

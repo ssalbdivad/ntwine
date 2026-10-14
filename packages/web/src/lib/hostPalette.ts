@@ -8,12 +8,12 @@ import type { EmbedTheme, EmbedThemeColors } from "@ntwine/shared"
 //  - muted (secondary text: ages, counts, hints). A theme's `descriptionForeground` is usually right, but
 //    Light Modern — VS Code's default light theme — sets it to its foreground exactly (#3b3b3b both), and
 //    the queue's whole hierarchy (a title over its age) went flat. So muted is the description colour
-//    held inside a band: no closer to the text than 60% of the text's own contrast (Ntwine's palette sits at
+//    held inside a band: no closer to the text than 60% of the text's own contrast (ntwine's palette sits at
 //    ~0.4–0.46 of it), and no fainter than WCAG AA's 4.5:1 — or, in a theme whose text itself is barely
 //    past that (Solarized Light's #616161 on #eee8d5 is 5.05:1), 80% of the text's contrast.
-//  - faint (the dimmest text: separators, a disabled count): 3.2:1 on a dark surface, as Ntwine's own
-//    #5f646d on #0d0e10 is; the muted colour on a light one, where Ntwine's light palette flattens the two.
-//  - accent — Ntwine's focus colour, which is ALSO text (links, a selection's line count, RECOMMENDED):
+//  - faint (the dimmest text: separators, a disabled count): 3.2:1 on a dark surface, as ntwine's own
+//    #5f646d on #0d0e10 is; the muted colour on a light one, where ntwine's light palette flattens the two.
+//  - accent — ntwine's focus colour, which is ALSO text (links, a selection's line count, RECOMMENDED):
 //    the theme's `focusBorder`, lifted toward the text until it reads at 4.5:1. Most themes' focus colour
 //    is a mid blue drawn as a 1px ring, never as type: Dark Modern's #0078d4 is 3.9:1 on its side bar,
 //    Dark+'s 3.6, Solarized Dark's teal 2.8, Solarized Light's 2.3.

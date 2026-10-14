@@ -145,7 +145,7 @@ test("the activity window starts at the operator's latest message and keeps wake
   assert.equal(read.activity, [
     "Agent: On it.",
     "→ Bash: Running the rail tests",
-    "[Ntwine] CI went red",
+    "[ntwine] CI went red",
     "→ Edit: Sidebar.tsx",
   ].join("\n"))
 })

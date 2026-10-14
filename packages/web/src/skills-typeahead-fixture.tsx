@@ -18,7 +18,7 @@ document.documentElement.dataset.font = font
 // One row per SOURCE the harness can report, plus one with none — the unlabelled row is the case that
 // matters, because "show it if we know it" means a harness that stays silent must still render.
 const SKILLS: ThreadSkill[] = [
-  { name: "ntwine-stack", description: "Boot a real, fully-isolated, disposable Ntwine you can poke", source: "project" },
+  { name: "ntwine-stack", description: "Boot a real, fully-isolated, disposable ntwine you can poke", source: "project" },
   { name: "ntwine:gh", description: "The gh-CLI playbook for an ntwine worker signed into GitHub", source: "plugin" },
   { name: "headless-browser", description: "Drive a local page in Chrome and capture it without putting a window on screen", source: "project" },
   { name: "optical-spacing", description: "Space a row of small marks by the ink the eye reads instead of the boxes CSS lays out", source: "user" },

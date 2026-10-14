@@ -96,7 +96,7 @@ const concepts = [
     idea: "A single-storey f with a straight stem, a shallow top hook and a descender that curls left. Barely cursive — this is the version that would sit comfortably next to body text in a wordmark.",
     small: "The most stable f here. Nothing crosses, nothing closes, and the crossbar has 84 units of clearance.",
     risk: "Loses the thread metaphor almost entirely. At this point it is a letter, not a mark.",
-    verdict: "The conservative pick. Take it if the icon has to work as a lockup with the word Ntwine beside it.",
+    verdict: "The conservative pick. Take it if the icon has to work as a lockup with the word ntwine beside it.",
     mark: `<path d="${smooth(uprightSpine)}" stroke-width="56"/>
       <path d="M176 252 H332" stroke-width="52"/>`,
   },

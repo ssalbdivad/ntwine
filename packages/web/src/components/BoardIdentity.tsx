@@ -9,7 +9,7 @@ import { glideTo } from "../lib/viewportLock.ts"
 import { ProjectMenu } from "./ProjectActions.tsx"
 
 /**
- * THE BOARD'S IDENTITY, beside the switcher in the status row (StatusRow.tsx `identity`): the project's
+ * THE BOARD'S IDENTITY, beside the project's title in the status row (StatusRow.tsx `identity`): the project's
  * `owner/repo`, a link to it on GitHub when its origin is there (upstream's StatusRow, maintainer
  * 2026-08-28: "Perhaps it should actually be showing owner/repo if a repo is detected"), and the project's
  * "…" menu — its icon, rename, delete and the way back to All projects — which in All projects rides the
@@ -21,10 +21,7 @@ export function BoardIdentity({ project, home }: { project: QueuesProject; home:
   const [menuOpen, setMenuOpen] = useState(false)
   const repo = project.githubRepo
   return (
-    // `-ml-[5px]`: the status row's rhythm is 12px of INK (StatusRow.tsx), and the title's 8px gap after the
-    // switcher's own 6px of padding and its chevron's dead space stood the repo 17px off the chevron's ink
-    // (scripts/ink-gaps.mjs, sans 12px, 2026-10-06).
-    <span data-xq-board-identity className="group/identity -ml-[5px] flex min-w-0 items-center gap-3">
+    <span data-xq-board-identity className="group/identity flex min-w-0 items-center gap-3">
       {repo && (
         <a
           href={`https://github.com/${repo}`}
@@ -33,7 +30,7 @@ export function BoardIdentity({ project, home }: { project: QueuesProject; home:
           data-xq-board-repo
           title={`Open ${repo} on GitHub`}
           aria-label={`Open ${repo} on GitHub`}
-          // Muted beside the switcher's name: the name is the page's title, the repo its address.
+          // Muted beside the title's name: the name is the page's title, the repo its address.
           className="block min-w-0 rounded-sm text-[12px] text-muted-70 underline-offset-2 outline-none transition-colors hover:text-fg hover:underline focus-visible:ring-1 focus-visible:ring-border-strong"
         >
           <StartTruncated text={repo} />
@@ -48,7 +45,7 @@ export function BoardIdentity({ project, home }: { project: QueuesProject; home:
             focused
             onFocus={() => {
               // Leaving a project for All projects carries it over as the prompt box's pick, as the
-              // switcher does (AllQueues.tsx Switcher).
+              // dock does (AllQueues.tsx useChooseView).
               rememberCrossProjectFocus(project.id)
               navigate(viewHref(ALL_PROJECTS))
               glideTo(() => 0)

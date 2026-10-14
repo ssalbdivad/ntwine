@@ -2,13 +2,13 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 // Point at the BOARD URL of an isolated adhoc-stack, never the live instance. Only the supervisor is
-// simulated, and every POST to it is REJECTED, so no state here can update or restart a real Ntwine:
+// simulated, and every POST to it is REJECTED, so no state here can update or restart a real ntwine:
 // the real App chooses its shell and renders the shared update control (useUpdateRestart).
 // Start with `nub scripts/adhoc-stack.mjs --port=49637 --project=/path/to/disposable/demo`, then run
 // `NTWINE_MOBILE_UPDATE_E2E_URL=<board URL> nub run test packages/web/src/components/mobileUpdate.e2e.test.ts`.
 //
 // The phone shape is the maintainer's (2026-10-08, on #52): the board header keeps its gear, the gear
-// wears a dot for a new release line only, and "Update Ntwine" is a row on the phone Settings page.
+// wears a dot for a new release line only, and "Update ntwine" is a row on the phone Settings page.
 const url = process.env.NTWINE_MOBILE_UPDATE_E2E_URL
 
 test("the phone updates from Settings, and the board gear's dot follows the desktop badge rule", { skip: !url, timeout: 120_000 }, async () => {
@@ -76,14 +76,14 @@ test("the phone updates from Settings, and the board gear's dot follows the desk
     assert.equal(await gearDot(), false)
     await openSettings()
     await page.waitForSelector("[data-mobile-update-row]")
-    assert.deepEqual(await rowText(), { text: "Update Ntwine", disabled: false, dot: false })
+    assert.deepEqual(await rowText(), { text: "Update ntwine", disabled: false, dot: false })
 
     // Up to date: a muted, inert row.
     await load(390, { updateRestart: true, updateAvailable: false, version: "0.14.0" })
     assert.equal(await gearDot(), false)
     await openSettings()
     await page.waitForSelector("[data-mobile-update-row]")
-    assert.deepEqual(await rowText(), { text: "Ntwine is up to date", disabled: true, dot: false })
+    assert.deepEqual(await rowText(), { text: "ntwine is up to date", disabled: true, dot: false })
 
     // No supervisor: the gear opens Settings with no update row at all.
     await load(390, null)
@@ -114,13 +114,13 @@ test("the phone updates from Settings, and the board gear's dot follows the desk
 
     // Desktop is unchanged: one icon button in the status row, dotted for a release line only.
     await load(1440, minor)
-    await page.waitForSelector('[data-status-row] button[aria-label="Update Ntwine"]')
-    assert.ok(await page.$('[data-status-row] button[aria-label="Update Ntwine"] .bg-accent'))
+    await page.waitForSelector('[data-status-row] button[aria-label="Update ntwine"]')
+    assert.ok(await page.$('[data-status-row] button[aria-label="Update ntwine"] .bg-accent'))
     assert.equal(await page.$("[data-mobile-update-row]"), null)
     await load(1440, { ...minor, updateVersion: "0.13.9" })
     await page.waitForFunction(() => document.querySelector("#update-restart-popover") === null)
-    await page.waitForSelector('[data-status-row] button[aria-label="Update Ntwine"]')
-    assert.equal(await page.$('[data-status-row] button[aria-label="Update Ntwine"] .bg-accent'), null)
+    await page.waitForSelector('[data-status-row] button[aria-label="Update ntwine"]')
+    assert.equal(await page.$('[data-status-row] button[aria-label="Update ntwine"] .bg-accent'), null)
 
     assert.deepEqual(errors, [])
   } finally {

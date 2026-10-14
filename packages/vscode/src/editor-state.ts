@@ -1,6 +1,6 @@
 // THE EDITOR, AS AN AGENT READS IT — the pure half of the `editor` frame (packages/shared/src/
 // editor-protocol.ts EditorSnapshot): the file in front with its selection and the selected text, the
-// other open tabs, and the editor's errors and warnings, built from plain inputs and FITTED to what Ntwine
+// other open tabs, and the editor's errors and warnings, built from plain inputs and FITTED to what ntwine
 // takes. A worker reads it through `mcp__ntwine__editor`, the way Claude Code's own agent reads its IDE
 // (getCurrentSelection, getOpenEditors, getDiagnostics). editor-state-feed.ts reads the inputs out of
 // VS Code; connection.ts sends the result. No `vscode` here, so every rule is a unit test under plain
@@ -74,7 +74,7 @@ export interface SnapshotInputs {
   diagnostics: readonly DiagnosticInput[]
 }
 
-/** The frame for a window that does not share its editor: it tells Ntwine to forget what it had. */
+/** The frame for a window that does not share its editor: it tells ntwine to forget what it had. */
 export function unsharedSnapshot(): EditorSnapshot {
   return { t: "editor", shared: false, active: null, open: [], diagnostics: [], problems: { errors: 0, warnings: 0 } }
 }
@@ -141,7 +141,7 @@ function diagnostic(input: DiagnosticInput): EditorDiagnostic {
 
 /**
  * The frame, capped to the server's schema (but not yet fitted to its byte ceiling: fitEditorSnapshot).
- * The file in front is left out of the open tabs; a path longer than Ntwine takes is left out wherever it
+ * The file in front is left out of the open tabs; a path longer than ntwine takes is left out wherever it
  * appears — the file in front included, which then reads as no file at all rather than get the frame refused.
  */
 export function buildEditorSnapshot(inputs: SnapshotInputs): EditorSnapshot {

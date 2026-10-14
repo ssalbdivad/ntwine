@@ -41,7 +41,7 @@ const { RestartOverlay } = await import("./components/RestartOverlay.tsx")
 // reached by clicking here — the card is raised by a status POLL reporting "failed", which this
 // fixture's stubbed control plane never does — and it is the panel whose arrow has to clear the same
 // corner arc, so it needs to be measurable beside the popover rather than only in a broken instance.
-const failureMessage = params.get("failure") || "Ntwine worker plugin closure is missing cc-worker/bin/browser-mcp.mjs"
+const failureMessage = params.get("failure") || "ntwine worker plugin closure is missing cc-worker/bin/browser-mcp.mjs"
 
 function Fixture() {
   const snap = useSnapshot(store)

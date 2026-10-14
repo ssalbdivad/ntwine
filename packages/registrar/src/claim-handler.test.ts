@@ -463,7 +463,7 @@ test("a token that can do more than name its account is refused, and nothing is 
   )
   assert.equal(result.status, 400)
   assert.equal("error" in result.body && result.body.error, "github-token-scoped")
-  assert.match("message" in result.body ? result.body.message : "", /update Ntwine/)
+  assert.match("message" in result.body ? result.body.message : "", /update ntwine/)
   assert.deepEqual(cf.calls, [], "nothing was provisioned")
   assert.equal(st.rows.size, 0, "nothing was recorded")
 })

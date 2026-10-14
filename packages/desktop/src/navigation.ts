@@ -3,8 +3,8 @@
  *
  * A browser tab gets this for free: a link to GitHub opens another tab of the operator's own browser,
  * signed in and with their extensions. A bare BrowserWindow has no tabs, so without a policy every
- * `target=_blank` link — and Ntwine sets one on every link in rendered Markdown — opens a chromeless
- * Electron window on an anonymous profile. So the window only ever shows the Ntwine server's own
+ * `target=_blank` link — and ntwine sets one on every link in rendered Markdown — opens a chromeless
+ * Electron window on an anonymous profile. So the window only ever shows the ntwine server's own
  * origin, and everything else is handed to the OS.
  *
  * Link targets are untrusted: workers write the Markdown they come from. Only http(s) and mailto are

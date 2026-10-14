@@ -2,7 +2,7 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 
 // WHICH PROJECT THIS PAGE IS SHOWING, taken from its own URL.
 //
-// One Ntwine per machine serves every project from one origin, and ONE PAGE shows them. Its PATH names its
+// One ntwine per machine serves every project from one origin, and ONE PAGE shows them. Its PATH names its
 // view (lib/pageView.ts), and with it the project the page is bound to:
 //
 //   /                              where this browser was last (a redirect), or a phone's projects list —
@@ -12,7 +12,7 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 //   /project/<slug>                that project's board
 //   /project/<slug>/thread/<t>     the board with that thread open (its card, or its drawer)
 //
-// and either thread address plus `/full` is that thread's fullscreen page. That works because Ntwine's own
+// and either thread address plus `/full` is that thread's fullscreen page. That works because ntwine's own
 // routes live under `/_ntwine/`, so the top-level namespace is the SPA's.
 //
 // `/project/<slug>` was retired on 2026-09-28, when one page replaced the project view and focus mode moved
@@ -42,7 +42,7 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 export const APP_ROUTE_SEGMENTS = new Set(["thread"])
 
 /**
- * The in-app addresses Ntwine minted before the singleton put every project under a prefix: the launching
+ * The in-app addresses ntwine minted before the singleton put every project under a prefix: the launching
  * project's unprefixed `/status/<s>` lists. Nothing mints them now, and the route tree sends each one home
  * untranslated (routes.tsx). (The `/project/<slug>…` shapes were on this list from 2026-09-28 to
  * 2026-10-06, while the project board was gone; they are its live addresses again — projectSlug.)
@@ -83,7 +83,7 @@ function here(pathname?: string): string {
  * A project lives UNDER a segment of its own rather than at the root — `/all/<slug>/…` for a drawer on All
  * projects, `/project/<slug>…` for its board.
  *
- * `/nub/thread/x` would have made every project slug a top-level route name, so every page Ntwine might
+ * `/nub/thread/x` would have made every project slug a top-level route name, so every page ntwine might
  * later want — settings, docs, a machine dashboard — would have to be fought for against a directory
  * somebody happens to have. A segment in front costs one segment and keeps the root free.
  */

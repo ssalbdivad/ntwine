@@ -122,11 +122,11 @@ test("the fix note reads as the Problems panel spells the problem, one line, bou
   assert.ok(long.endsWith("…"))
 })
 
-test("one problem is 'Ask Ntwine to fix'; several are told apart by their messages", () => {
-  assert.equal(fixTitle({ message: "Cannot find name 'foo'." }, false), "Ask Ntwine to fix")
-  assert.equal(fixTitle({ message: "Cannot find name 'foo'." }, true), "Ask Ntwine to fix: Cannot find name 'foo'.")
+test("one problem is 'Ask ntwine to fix'; several are told apart by their messages", () => {
+  assert.equal(fixTitle({ message: "Cannot find name 'foo'." }, false), "Ask ntwine to fix")
+  assert.equal(fixTitle({ message: "Cannot find name 'foo'." }, true), "Ask ntwine to fix: Cannot find name 'foo'.")
   const title = fixTitle({ message: `A very long message that goes on\nand on ${"and on ".repeat(20)}` }, true)
-  assert.ok(title.length <= "Ask Ntwine to fix: ".length + 60 && title.endsWith("…"), title)
+  assert.ok(title.length <= "Ask ntwine to fix: ".length + 60 && title.endsWith("…"), title)
 })
 
 test("a terminal selection is taken as its text, trimmed, or refused with what to do", () => {

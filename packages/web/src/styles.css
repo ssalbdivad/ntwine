@@ -2002,7 +2002,7 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
 }
 /* ── Rendered diffs ─────────────────────────────────────────────────────────────────────────────
    The Edit card's rows (lib/diff/diff.css) in a Markdown fence: the same fills and sign colours, from
-   the same palette, so a diff an agent writes and one Ntwine renders from a tool call read as one thing.
+   the same palette, so a diff an agent writes and one ntwine renders from a tool call read as one thing.
    A row is the line number (only when the diff has hunk headers to count from), the sign, the code.
 
    The numbers are drawn by the stylesheet from `data-line`, and the sign column is not selectable: the

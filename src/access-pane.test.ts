@@ -152,7 +152,7 @@ test("disposing always restores raw mode, and is safe to call twice", () => {
   assert.ok(pane);
   assert.equal(tty.input.rawMode, true);
   pane.dispose();
-  assert.equal(tty.input.rawMode, false, "a shell left in raw mode echoes nothing after Ntwine stops");
+  assert.equal(tty.input.rawMode, false, "a shell left in raw mode echoes nothing after ntwine stops");
   pane.dispose();
   assert.equal(tty.input.rawMode, false);
 });

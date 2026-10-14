@@ -9,12 +9,12 @@ const WEBVIEW = "vscode-webview://0abc"
 
 const cspOf = (html: string) => /http-equiv="Content-Security-Policy" content="([^"]*)"/u.exec(html)?.[1]
 
-test("the frame document frames exactly Ntwine's origin and runs only its own nonce'd code", () => {
+test("the frame document frames exactly ntwine's origin and runs only its own nonce'd code", () => {
   const html = frameDocument({ nonce: "N0nce", url: URL_, origin: NTWINE })
   assert.equal(cspOf(html), `default-src 'none'; frame-src ${NTWINE}; style-src 'nonce-N0nce'; script-src 'nonce-N0nce'`)
   const frames = [...html.matchAll(/<iframe [^>]*>/gu)].map((match) => match[0])
   // No src in the markup: the relay sets it, with the editor's colours on its fragment (below).
-  assert.deepEqual(frames, [`<iframe id="ntwine" title="Ntwine" allow="clipboard-read; clipboard-write; local-network-access">`])
+  assert.deepEqual(frames, [`<iframe id="ntwine" title="ntwine" allow="clipboard-read; clipboard-write; local-network-access">`])
   assert.deepEqual([...html.matchAll(/<script\b[^>]*>/gu)].map((match) => match[0]), ['<script nonce="N0nce">'])
   assert.deepEqual([...html.matchAll(/<style\b[^>]*>/gu)].map((match) => match[0]), ['<style nonce="N0nce">'])
   assert.doesNotMatch(html, /\son[a-z]+=/u, "no inline handlers, which the policy would block anyway")
@@ -26,10 +26,10 @@ test("the frame document refuses an origin that is not the URL's, or not a plain
 })
 
 test("a message document escapes its copy and frames nothing", () => {
-  const html = messageDocument({ nonce: "n", text: `Ntwine said <img src=x onerror="alert(1)">`, actions: [{ action: "retry", label: "Try <again>" }] })
+  const html = messageDocument({ nonce: "n", text: `ntwine said <img src=x onerror="alert(1)">`, actions: [{ action: "retry", label: "Try <again>" }] })
   assert.equal(cspOf(html), contentSecurityPolicy("n"))
   assert.doesNotMatch(cspOf(html)!, /frame-src/u)
-  assert.match(html, /Ntwine said &lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/u)
+  assert.match(html, /ntwine said &lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/u)
   assert.match(html, /<button type="button" data-action="retry">Try &lt;again&gt;<\/button>/u)
   assert.doesNotMatch(html, /<iframe/u)
 })
@@ -153,7 +153,7 @@ function relay(html: string, theme: { vars: Record<string, string>; bodyClass: s
   }
 }
 
-test("the relay hands the host only what its own frame sent from Ntwine's origin", () => {
+test("the relay hands the host only what its own frame sent from ntwine's origin", () => {
   const r = relay(frameDocument({ nonce: "n", url: URL_, origin: NTWINE }))
   assert.deepEqual(r.toHost, [{ view: "platform", mac: false }], "it says which platform the UI is on")
   r.toHost.length = 0
@@ -163,14 +163,14 @@ test("the relay hands the host only what its own frame sent from Ntwine's origin
   r.dispatch({ source: r.frameWindow, origin: "http://evil.example", data: ready })
   r.dispatch({ source: r.frameWindow, origin: "http://127.0.0.1:9394", data: ready })
   r.dispatch({ source: {}, origin: NTWINE, data: ready })
-  assert.equal(r.toHost.length, 1, "another origin in the frame, or another window at Ntwine's origin, is dropped")
+  assert.equal(r.toHost.length, 1, "another origin in the frame, or another window at ntwine's origin, is dropped")
   // Nothing from the page reaches the page back, or passes for one of the view's own messages.
   r.dispatch({ source: r.frameWindow, origin: NTWINE, data: { view: "reload" } })
   assert.deepEqual(r.toHost[1], { page: { view: "reload" } })
   assert.deepEqual(r.toPage, [])
 })
 
-test("the relay posts the host's ntwine: messages to the page at Ntwine's origin only, and keeps its own", () => {
+test("the relay posts the host's ntwine: messages to the page at ntwine's origin only, and keeps its own", () => {
   const r = relay(frameDocument({ nonce: "n", url: URL_, origin: NTWINE }))
   const compose = { type: "ntwine:compose", id: "1", item: { path: "/r/a.ts", app: "Code" }, target: "front", focus: false }
   r.dispatch({ source: r.hostFrame, origin: WEBVIEW, data: compose })
@@ -190,7 +190,7 @@ test("the relay posts the host's ntwine: messages to the page at Ntwine's origin
   assert.equal(r.hint.hidden, false)
   r.dispatch({ source: r.hostFrame, origin: WEBVIEW, data: { view: "hint", show: false } })
   assert.equal(r.hint.hidden, true)
-  // An Ntwine from before the sidebar: the bar says so, in the extension's words.
+  // An ntwine from before the sidebar: the bar says so, in the extension's words.
   r.dispatch({ source: r.hostFrame, origin: WEBVIEW, data: { view: "hint", show: true, text: HINT_OLD_NTWINE } })
   assert.equal(r.hint.hidden, false)
   assert.equal(r.hintText.textContent, HINT_OLD_NTWINE)
@@ -201,7 +201,7 @@ test("the bar is drawn shut with the loading words, or open from the first paint
   const plain = frameDocument({ nonce: "n", url: URL_, origin: NTWINE })
   assert.match(plain, new RegExp(`<div class="hint" id="hint" role="status" hidden><p id="hint-text">${HINT.text.replace(/'/gu, "&#39;")}</p>`, "u"))
   const old = frameDocument({ nonce: "n", url: URL_, origin: NTWINE, hint: HINT_OLD_NTWINE })
-  assert.match(old, /<div class="hint" id="hint" role="status"><p id="hint-text">This Ntwine is older than the sidebar\. Update Ntwine to use it here, or open it in your browser\.<\/p>/u)
+  assert.match(old, /<div class="hint" id="hint" role="status"><p id="hint-text">This ntwine is older than the sidebar\. Update ntwine to use it here, or open it in your browser\.<\/p>/u)
 })
 
 test("focus landing on the relay goes on to the page — including when the frame is already its focused element", async () => {
@@ -216,7 +216,7 @@ test("focus landing on the relay goes on to the page — including when the fram
   assert.equal(r.focused, 1)
 })
 
-test("the relay tells the host when it takes the keyboard, so Ctrl+L knows which Ntwine was used last", async () => {
+test("the relay tells the host when it takes the keyboard, so Ctrl+L knows which ntwine was used last", async () => {
   const r = relay(frameDocument({ nonce: "n", url: URL_, origin: NTWINE }))
   r.toHost.length = 0
   await r.windowFocus("body")

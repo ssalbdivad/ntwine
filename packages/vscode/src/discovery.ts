@@ -1,4 +1,4 @@
-// FINDING NTWINE from an editor window, with nothing configured. Ntwine is one server per machine, and
+// FINDING NTWINE from an editor window, with nothing configured. ntwine is one server per machine, and
 // it leaves records of where it listens in its own data and state roots; this reads them in the order
 // that gets the PUBLIC origin — the one the human's tab is on — whenever one exists:
 //
@@ -18,7 +18,7 @@
 //      socket work there, but a page opened on it is a different origin (its own storage, and a port
 //      that moves on every restart). Without a supervisor (a bare `startServer`) it IS the public port.
 //      Last for the first reason. The steps above win whenever a supervisor is up, so pages land here
-//      only in narrow windows — a supervisor that died under a live child, or an Ntwine on a port outside
+//      only in narrow windows — a supervisor that died under a live child, or an ntwine on a port outside
 //      the well-known set with no address record — and the extension logs which kind of address a page
 //      was opened on (app.ts `openUrl`) instead of refusing to open one.
 //
@@ -49,7 +49,7 @@ export const SOURCE_WORDS: Record<DiscoverySource, string> = {
 
 /**
  * What kind of address a page is being opened on, for the log line beside it. Every source but the
- * lock file names the port the human's own tab is on. The lock file's is that port only when Ntwine runs
+ * lock file names the port the human's own tab is on. The lock file's is that port only when ntwine runs
  * without its restart supervisor; behind one it is the control plane's private port, where a tab keeps
  * drafts of its own and stops answering on the next restart — the log says so, so a tab that went dead
  * has its explanation one command away.
@@ -58,7 +58,7 @@ export function pageAddressNote(source: DiscoverySource): { level: "info" | "war
   if (source !== "server-lock") return { level: "info", note: `a public address, from ${SOURCE_WORDS[source]}` }
   return {
     level: "warn",
-    note: "an address from the server's own lock file, found because no public one was. It is Ntwine's page address only when Ntwine runs without its restart supervisor; otherwise the tab keeps separate drafts and stops working when Ntwine restarts. Set ntwine.serverUrl to Ntwine's page address to pin it",
+    note: "an address from the server's own lock file, found because no public one was. It is ntwine's page address only when ntwine runs without its restart supervisor; otherwise the tab keeps separate drafts and stops working when ntwine restarts. Set ntwine.serverUrl to ntwine's page address to pin it",
   }
 }
 
@@ -131,7 +131,7 @@ export async function readHealth(origin: string, timeoutMs = 1_000): Promise<Ntw
 }
 
 /**
- * The launch-token proof an Ntwine's health carries: sha256 over a fixed tag, the launching project's id
+ * The launch-token proof an ntwine's health carries: sha256 over a fixed tag, the launching project's id
  * and folder, and the owner token from `<data>/projects/<id>/project-launch.owner`. Reimplemented, not
  * imported — `@ntwine/server/project-launch` drags process bookkeeping into the bundle — and pinned
  * byte-for-byte to `projectLaunchTokenProof` by discovery.test.ts.
@@ -173,7 +173,7 @@ export function defaultPidAlive(pid: number): boolean {
 }
 
 /**
- * Whether the Ntwine on this port is the one THIS user launched from these roots. The health answer
+ * Whether the ntwine on this port is the one THIS user launched from these roots. The health answer
  * names the launching project; its owner record sits in our data root, readable by nobody else, and
  * the proof in the answer must be the hash of the token in it.
  */
@@ -195,8 +195,8 @@ export async function ownedNtwine(port: number, data: string, timeoutMs = 1_000)
 // extension on one thread: its module load observes the current process's generation, which on
 // Windows is a synchronous PowerShell spawn (250-430ms, process-generation.ts) during activation; its
 // staleness check spawns PowerShell synchronously again on every discovery that finds a live pid; and
-// `stableServerOwnerTarget` creates Ntwine's data folder — a read that writes, on a machine where the
-// extension is installed and Ntwine is not. Here the same verdict is reached with async spawns and no
+// `stableServerOwnerTarget` creates ntwine's data folder — a read that writes, on a machine where the
+// extension is installed and ntwine is not. Here the same verdict is reached with async spawns and no
 // writes, and discovery.test.ts runs both readers over the same fixture files, written by the server's
 // own writer, so the two cannot drift apart silently.
 
@@ -316,7 +316,7 @@ export async function readOwnerAddress(
   try {
     dataDir = realpathSync(roots.data)
   } catch {
-    return { kind: "not-running", why: "no Ntwine data folder" }
+    return { kind: "not-running", why: "no ntwine data folder" }
   }
   const stateDir = join(roots.state, STABLE_SERVER_DIR)
   const owner = readOwner(join(stateDir, "project-launch.owner"))
@@ -330,7 +330,7 @@ export async function readOwnerAddress(
   return { kind: "running", port: address.port }
 }
 
-/** Find the running Ntwine. Asked again before every connection attempt: the port can move. */
+/** Find the running ntwine. Asked again before every connection attempt: the port can move. */
 export async function discoverNtwine(options: DiscoveryOptions = {}): Promise<DiscoveryResult> {
   const notes: string[] = []
   const timeoutMs = options.timeoutMs ?? 1_000
@@ -346,7 +346,7 @@ export async function discoverNtwine(options: DiscoveryOptions = {}): Promise<Di
     return { found: { origin, port: Number(new URL(origin).port || (origin.startsWith("https:") ? 443 : 80)), source: "setting" }, notes }
   }
 
-  // Resolved afresh per discovery, never memoised: this host lives for days and owns no Ntwine data,
+  // Resolved afresh per discovery, never memoised: this host lives for days and owns no ntwine data,
   // and the server it looks for may have started on other roots than this process would have frozen
   // (ntwine-paths.ts `ntwinePathsNow`).
   const roots = options.roots ?? ntwinePathsNow()
@@ -358,7 +358,7 @@ export async function discoverNtwine(options: DiscoveryOptions = {}): Promise<Di
       notes.push(`${addressPath}: port ${owner.port} answers`)
       return { found: { origin: loopbackOrigin(owner.port), port: owner.port, source: "owner-record" }, notes }
     }
-    notes.push(`${addressPath}: port ${owner.port} does not answer (Ntwine may be starting)`)
+    notes.push(`${addressPath}: port ${owner.port} does not answer (ntwine may be starting)`)
   } else {
     notes.push(`${addressPath}: ${owner.why}`)
   }
@@ -372,7 +372,7 @@ export async function discoverNtwine(options: DiscoveryOptions = {}): Promise<Di
     notes.push(`port ${ownedPort} answers with this user's launch token`)
     return { found: { origin: loopbackOrigin(ownedPort), port: ownedPort, source: "well-known-port" }, notes }
   }
-  notes.push(`ports ${ports.join(", ")}: no Ntwine of this user's`)
+  notes.push(`ports ${ports.join(", ")}: no ntwine of this user's`)
 
   const lockPath = join(roots.data, "server.lock")
   const lock = readJson(lockPath)

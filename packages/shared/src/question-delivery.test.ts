@@ -77,14 +77,14 @@ test("the open-questions note names each question by text and id, and comes back
     { id: "qst_bbbbbbbbbbbb", question: "x".repeat(140) },
   ])!
   assert.doesNotMatch(note, /\n/, "one line, so the stripper can anchor on it")
-  assert.match(note, /^❓ Ntwine: 2 questions you registered are still open: “Should the settings store use SQLite or a JSON file\?” \(qst_aaaaaaaaaaaa\), “x{99}…” \(qst_bbbbbbbbbbbb\)\./)
+  assert.match(note, /^❓ ntwine: 2 questions you registered are still open: “Should the settings store use SQLite or a JSON file\?” \(qst_aaaaaaaaaaaa\), “x{99}…” \(qst_bbbbbbbbbbbb\)\./)
   // A typed message leaves them open, and the next rest names each one still needed or withdraws it.
   // One the message moved past is withdrawn at once, not at the next rest: a stale card otherwise sits
   // open above the new work, holding the thread as waiting on the human (2026-10-13).
   assert.match(note, /If it moves past one — a new direction, a different priority — `unask` that one NOW, before any other work/)
   assert.match(note, /Name each one still needed under `questions:` when you rest\.$/)
   assert.doesNotMatch(note, /set aside|`keep`/)
-  assert.match(openQuestionsNote([{ id: "qst_1", question: "Merge it?" }])!, /^❓ Ntwine: 1 question you registered is still open: “Merge it\?” \(qst_1\)\./)
+  assert.match(openQuestionsNote([{ id: "qst_1", question: "Merge it?" }])!, /^❓ ntwine: 1 question you registered is still open: “Merge it\?” \(qst_1\)\./)
 
   // ROUND TRIP, as the router appends it — after the gap note, so "the message above" stays the human's.
   const gap = humanGapNote(Date.parse("2026-09-29T15:00:00.000Z"), "2026-09-29T11:00:00.000Z")!
@@ -95,15 +95,15 @@ test("the open-questions note names each question by text and id, and comes back
   assert.equal(stripOpenQuestionsNote(quoting), quoting)
   assert.equal(stripOpenQuestionsNote("ship it"), "ship it")
   // A transcript written under the 2026-09-29 wording keeps coming back off the bubble too.
-  const tenThirteen = "❓ Ntwine: 1 question you registered is still open: “Merge it?” (qst_1). The message above leaves them open. When you next rest, name each one you still need under `questions:` in your ```awaiting fence, and withdraw the rest with `unask`."
+  const tenThirteen = "❓ ntwine: 1 question you registered is still open: “Merge it?” (qst_1). The message above leaves them open. When you next rest, name each one you still need under `questions:` in your ```awaiting fence, and withdraw the rest with `unask`."
   assert.equal(stripOpenQuestionsNote(`ok\n\n${tenThirteen}`), "ok")
-  const older = "❓ Ntwine: 1 question you registered is still open: “Merge it?” (qst_1). If the message above made any of them moot, `unask` exactly those and say so; leave the rest open — they are still the human's to answer, and still your sign-off."
+  const older = "❓ ntwine: 1 question you registered is still open: “Merge it?” (qst_1). If the message above made any of them moot, `unask` exactly those and say so; leave the rest open — they are still the human's to answer, and still your sign-off."
   assert.equal(stripOpenQuestionsNote(`ship it\n\n${older}`), "ship it")
   // …and the two set-aside wordings: 2026-10-02 (withdrawn at the next rest unless kept)…
-  const oct02 = "❓ Ntwine: 1 question you registered is now set aside by this message: “Merge it?” (qst_1). They no longer hold this thread, and ntwine WITHDRAWS every one still set aside when you next come to rest. `keep` one only if it is directly relevant to the message above — reworded with `question` if the direction changed — and it rides to the bottom of your next handoff; let the rest go. If the work later needs one of them, ask a new question then."
+  const oct02 = "❓ ntwine: 1 question you registered is now set aside by this message: “Merge it?” (qst_1). They no longer hold this thread, and ntwine WITHDRAWS every one still set aside when you next come to rest. `keep` one only if it is directly relevant to the message above — reworded with `question` if the direction changed — and it rides to the bottom of your next handoff; let the rest go. If the work later needs one of them, ask a new question then."
   assert.equal(stripOpenQuestionsNote(`ship it\n\n${oct02}`), "ship it")
   // …and 2026-09-30, when a set-aside card stayed answerable indefinitely.
-  const sept30 = "❓ Ntwine: 1 question you registered is now set aside by this message: “Merge it?” (qst_1). Their cards stay answerable where they were asked, but no longer hold this thread. If the message above did not move past one, `keep` it — reworded with `question` if the direction changed — and it rides to the bottom of your next handoff; otherwise leave it."
+  const sept30 = "❓ ntwine: 1 question you registered is now set aside by this message: “Merge it?” (qst_1). Their cards stay answerable where they were asked, but no longer hold this thread. If the message above did not move past one, `keep` it — reworded with `question` if the direction changed — and it rides to the bottom of your next handoff; otherwise leave it."
   assert.equal(stripOpenQuestionsNote(`ship it\n\n${sept30}`), "ship it")
 })
 

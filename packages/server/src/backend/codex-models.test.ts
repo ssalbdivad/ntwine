@@ -143,7 +143,7 @@ const REAL_CACHE = JSON.stringify({
   ],
 })
 
-test("the degraded catalogue is re-read whenever Ntwine's pinned Codex runtime moves", () => {
+test("the degraded catalogue is re-read whenever ntwine's pinned Codex runtime moves", () => {
   assert.equal(CODEX_MODELS_FALLBACK_VERSION, CODEX_APP_SERVER_SUPPORTED_VERSION)
 })
 
@@ -247,7 +247,7 @@ test("a foreign Codex client's cache cannot make the pinned runtime's models dis
   assert.deepEqual(
     parseCodexModelsCache(foreign, "0.156.1", pinned),
     pinned,
-    "an older writer retains the last catalogue read from Ntwine's pinned runtime",
+    "an older writer retains the last catalogue read from ntwine's pinned runtime",
   )
   assert.deepEqual(
     parseCodexModelsCache(foreign, "0.156.1"),

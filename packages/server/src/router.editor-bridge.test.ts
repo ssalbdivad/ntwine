@@ -176,7 +176,7 @@ test("editorState asks the bridge about the folder the project's agents work in,
 
 // What a worker's ntwine-mcp lists `editor` under (and what the contract's editor section is rendered
 // under, dispatch.ts workerCapabilities): a window that has THIS project open — not merely one connected
-// to Ntwine on another project, where the tool would only answer "none has this project open".
+// to ntwine on another project, where the tool would only answer "none has this project open".
 test("workerCapabilities reports an editor only while a window has this project open", async () => {
   const window = { app: "Visual Studio Code", kind: "vscode", focused: true, folders: ["/work/alpha"] }
   let answer: { windows: unknown[]; connected: number } = { windows: [], connected: 0 }

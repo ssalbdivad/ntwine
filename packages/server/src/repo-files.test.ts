@@ -59,7 +59,7 @@ test("a path outside the project is passed through — git has no opinion on ano
   assert.deepEqual(repoCarriedFiles(dir, [outside]), [outside])
 })
 
-// A worktree Ntwine's way: `.ntwine/worktrees/<slug>`, INSIDE the project, whose `.gitignore` ignores all
+// A worktree ntwine's way: `.ntwine/worktrees/<slug>`, INSIDE the project, whose `.gitignore` ignores all
 // of `.ntwine/`. Asked in the project root, every one of these paths read as ignored and the rail of a
 // worktree thread was empty; asked in the worktree, its own rules apply.
 function worktreeOf(dir: string, slug: string, at = join(dir, ".ntwine", "worktrees", slug)): string {
@@ -121,7 +121,7 @@ test("rows from two checkouts keep their order and diffstats", () => {
 })
 
 // THE WORKER CONTRACT'S OWN WORKTREE LOCATION, in the shape a real project has it: no top-level rule
-// for `.ntwine/` at all, only the `*` Ntwine writes inside it (project-root.ts). Asked from the project
+// for `.ntwine/` at all, only the `*` ntwine writes inside it (project-root.ts). Asked from the project
 // root, git ignores every file in that checkout, so before this an isolated effort left the rail empty.
 function repoWithWorktree(): { dir: string; worktree: string } {
   const dir = repo()

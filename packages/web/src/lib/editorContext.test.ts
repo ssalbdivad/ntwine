@@ -127,7 +127,7 @@ test("the hint says what goes on its own and what the chord adds, and never teac
   assert.deepEqual(hints({ selection: true }), ["Goes with your message · Ctrl+L puts it at the caret", "Goes with your message"])
   assert.deepEqual(hints({ selection: true, withheld: true }), ["Lines only: the file may hold secrets", "Lines only"])
   assert.deepEqual(hints({ sending: false, selection: true }), ["Not shared · Ctrl+L still adds it", "Not shared"])
-  assert.deepEqual(hints({ sending: false }), ["Not shared with Ntwine", "Not shared"])
+  assert.deepEqual(hints({ sending: false }), ["Not shared with ntwine", "Not shared"])
   for (const state of [{}, { selection: true }, { sending: false }]) {
     for (const hint of hints(state)) {
       assert.doesNotMatch(hint, /^Select code\b/u, "not the old 'Select code and press'")

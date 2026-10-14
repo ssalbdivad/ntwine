@@ -185,7 +185,7 @@ export class ServerStartupError extends Error {
   }) {
     const startupMessage = options.startupError instanceof Error ? options.startupError.message : String(options.startupError)
     const cleanupMessage = options.cleanupError instanceof Error ? `; rollback failed: ${options.cleanupError.message}` : ""
-    super(`Ntwine server startup failed during ${options.phase}: ${startupMessage}${cleanupMessage}`, {
+    super(`ntwine server startup failed during ${options.phase}: ${startupMessage}${cleanupMessage}`, {
       cause: options.startupError,
     })
     this.name = "ServerStartupError"
@@ -231,7 +231,7 @@ export interface StartedServer {
   readonly shutdownFence: ServerShutdownFence
 }
 
-// Everything Ntwine serves is under the reserved prefix now, so this is one test instead of a list
+// Everything ntwine serves is under the reserved prefix now, so this is one test instead of a list
 // that had to grow with every new route — and a prefixed request that missed the old allowlist fell
 // through to the SPA shell with a 200, i.e. a blank page rather than an error.
 const isApiUrl = (url: string) => url === NTWINE_ROUTE_PREFIX || url.startsWith(`${NTWINE_ROUTE_PREFIX}/`)
@@ -263,7 +263,7 @@ function readServerAddressHolder(path: string): { pid: number; port: number } | 
  *
  * A project segment and a route name share this position, so `/_ntwine/rpc/board` and
  * `/_ntwine/nub/rpc/board` look alike until you know which projects exist. The registry settles it, and
- * cannot be ambiguous: it refuses to mint a slug that shadows one of Ntwine's own route names.
+ * cannot be ambiguous: it refuses to mint a slug that shadows one of ntwine's own route names.
  *
  * The segment is a slug OR a project id. The browser uses the slug, because it is what the operator
  * reads in the URL bar; a worker's ntwine MCP server uses the ID, because it is handed the segment once
@@ -288,16 +288,16 @@ export function splitTenantRequest(
 /**
  * Answer `/_ntwine/<slug>/health` for a registered project WITHOUT opening it.
  *
- * The launcher's join probe asks this exact question to decide whether to use the Ntwine already
+ * The launcher's join probe asks this exact question to decide whether to use the ntwine already
  * running on this machine or start a second one (`src/index.ts` joinRunningNtwine). Letting it route
- * through routeToTenant made "is this machine's Ntwine serving my project" cost a full tenant
+ * through routeToTenant made "is this machine's ntwine serving my project" cost a full tenant
  * activation — createContext plus the board/tailer/scheduler cold prime, measured at 34.5s against a
  * live server on 2026-08-12 and at 1.5-7.5s in plans/singleton-ntwine.md §6b. The probe gives up long
  * before that, so which server the operator got was decided by a race, and LOSING it starts a rival
  * server: two Ntwinees, two schedulers, one board fired twice.
  *
  * §4b of that plan specifies this shape directly — assert the machine identity, then confirm the
- * specific project is REGISTERED. The registry is the authority on which projects this Ntwine serves
+ * specific project is REGISTERED. The registry is the authority on which projects this ntwine serves
  * and answering from it is one file read.
  *
  * An already-open project falls through to its own app instead, because that is what carries
@@ -473,7 +473,7 @@ export function createShutdownSignalHandler(options: ShutdownSignalHandlerOption
  *
  * index.html is the opposite case and must never get that treatment: it is the document that NAMES
  * the current hashes, so an immutably-cached copy strands the browser on the old build's asset URLs.
- * Ntwine updates itself by promoting a new artifact and restarting, which means "restart and reload"
+ * ntwine updates itself by promoting a new artifact and restarting, which means "restart and reload"
  * has to be enough to land on the new app — caching the shell would break exactly that. `no-cache`
  * says "store it, but revalidate before every use": the reload still costs ~300 bytes when nothing
  * changed (a 304 off the ETag below) and picks up a new build the moment there is one. Verified by
@@ -486,7 +486,7 @@ const STATIC_CACHE_REVALIDATE = "no-cache"
 /**
  * Encoded static bodies, keyed by file + mtime + size + encoding.
  *
- * Brotli takes the cold load from 1,568,997 to 473,271 bytes — 70% — which is what an Ntwine reached
+ * Brotli takes the cold load from 1,568,997 to 473,271 bytes — 70% — which is what an ntwine reached
  * through the relay from a remote origin actually pays, the same reason /rpc is compressed (app.ts).
  * It is NOT free-but-pointless locally either: measured 2026-09-04 against one server with the only
  * variable being the client's accept-encoding, median cold FCP was 260 ms with brotli and 280 ms with
@@ -561,7 +561,7 @@ export function serveStatic(distDir: string, req: IncomingMessage, res: ServerRe
       etag,
       "last-modified": stats.mtime.toUTCString(),
       // Sent on every static response, not just the compressed ones: a shared cache in front of a
-      // tunnelled Ntwine must not hand a brotli body to a client that asked for identity.
+      // tunnelled ntwine must not hand a brotli body to a client that asked for identity.
       vary: "Accept-Encoding",
     }
     if (staticIsFresh(req, etag, stats.mtimeMs)) {
@@ -629,7 +629,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
    *
    * Two tailers on one SQLite file is the survivable half — two SCHEDULERS is not: both would
    * independently decide the same recurring prompt or timer was due and dispatch it twice into the
-   * same worker. The launch lease guarded only the folder a server runs on, and the installed Ntwine
+   * same worker. The launch lease guarded only the folder a server runs on, and the installed ntwine
    * runs on its own folder now, so every project it opens needs a claim of its own. A claim whose
    * server has gone never blocks, so this only ever refuses the board that is genuinely taken.
    */
@@ -913,7 +913,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       { name: "idle worktree sweep", run: cleanupWorktreeSweep },
       { name: "other projects", run: cleanupExtraTenants },
       { name: "tailer producer", run: cleanupTailer },
-      // Hang up every thread terminal, so a dev server started from Ntwine stops with it.
+      // Hang up every thread terminal, so a dev server started from ntwine stops with it.
       { name: "thread terminals", run: cleanupTerminalRunner },
       { name: "context subscriptions", run: cleanupSubscriptions },
       { name: "wake scheduler", run: cleanupScheduler },
@@ -993,7 +993,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     },
     whenSafe() {
       if (finalized) return Promise.resolve()
-      return activeSafety ?? Promise.reject(new Error("Ntwine server shutdown has not started"))
+      return activeSafety ?? Promise.reject(new Error("ntwine server shutdown has not started"))
     },
     recover() {
       if (finalized) return Promise.resolve()
@@ -1048,7 +1048,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     }))
     for (const backend of ["claude", "codex"] as const) ntwineLog.info("server", `runtimes: ${describeRuntime(backend, runtimes[backend])}`)
     // A provisioned Claude Code must not update itself out from under the pin. Every worker, and every
-    // `claude auth status` / `claude auth login` Ntwine runs, inherits the server's environment.
+    // `claude auth status` / `claude auth login` ntwine runs, inherits the server's environment.
     if (runtimes.claude.source === "provisioned") process.env.DISABLE_AUTOUPDATER = "1"
     // Committed through the ledger callback, like the context below: an injected failure right after
     // this phase throws before the assignment would run, and the rollback must still find the handle.
@@ -1081,7 +1081,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     )
     tenants.adopt(project, ctx)
     // Recover the projects this machine already has state for. Without it a machine that has been
-    // running Ntwine for months reaches its first project list with ONE project, and the only way to fill it is
+    // running ntwine for months reaches its first project list with ONE project, and the only way to fill it is
     // to visit every repository in a terminal — the chore one server per machine exists to end.
     try {
       const recovered = backfillRegistry()

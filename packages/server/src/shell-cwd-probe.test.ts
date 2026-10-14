@@ -45,7 +45,7 @@ test("the lowest holder is the shell, and its folder is the answer", async () =>
   }
 })
 
-// Ntwine's own server holds the same log for the length of a drawer read or a line count. Sampled then, it
+// ntwine's own server holds the same log for the length of a drawer read or a line count. Sampled then, it
 // is the lowest holder, and its folder was taken for the shell's — for good (the tailer keeps the reading).
 test("the server's own pid is never taken for the shell, even as the lowest holder", async () => {
   const log = taskLog()

@@ -209,7 +209,7 @@ test("a detached successor with no pid is refused on the spot, and its late erro
   const child = fakeChild(null);
   assert.throws(
     () => handoffToRegistrySuccessor({ plan, entry: thisFile }, { port: 4917, cwd: "/repo", env: {} }, { spawnDetached: () => child as never }),
-    /could not start Ntwine 1\.3\.0 from /,
+    /could not start ntwine 1\.3\.0 from /,
   );
   assert.equal(child.unrefCalls, 0);
   // The ENOENT arrives after the throw; an unhandled 'error' on a ChildProcess would take the old owner down.
@@ -231,7 +231,7 @@ test("a successor that never answers fails the handoff at the deadline, naming i
   const { watch, polls } = fakeWatch([undefined]);
   await assert.rejects(
     () => awaitRegistrySuccessor(child, { version: "1.3.0", port: 4917, logFile: "/logs/ntwine-run.log" }, watch),
-    /Ntwine 1\.3\.0 did not answer on port 4917 within 60s; its log is \/logs\/ntwine-run\.log/,
+    /ntwine 1\.3\.0 did not answer on port 4917 within 60s; its log is \/logs\/ntwine-run\.log/,
   );
   assert.equal(polls.at(-1), 60_000);
   assert.equal(child.killCalls, 1, "a successor still starting must not bind the port under the restored board");
@@ -243,7 +243,7 @@ test("a successor that exits before answering fails the handoff with its exit an
   const { watch } = fakeWatch([undefined]);
   const pending = awaitRegistrySuccessor(child, { version: "1.3.0", port: 4917, logFile: "/logs/ntwine-run.log" }, watch);
   child.emit("exit", 1, null);
-  await assert.rejects(pending, /Ntwine 1\.3\.0 exited \(exit 1\) before it answered on port 4917; its log is \/logs\/ntwine-run\.log/);
+  await assert.rejects(pending, /ntwine 1\.3\.0 exited \(exit 1\) before it answered on port 4917; its log is \/logs\/ntwine-run\.log/);
   assert.equal(child.killCalls, 0, "nothing to kill: it is already gone");
   // A child that was already dead when the wait began is reported the same way, without a poll.
   const dead = fakeChild();

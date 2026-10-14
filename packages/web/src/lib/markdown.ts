@@ -460,7 +460,7 @@ function walk(node: ParentNode, ctx: WalkContext) {
           // Don't turn a filesystem path into a bogus localhost URL or inert code. The app-wide
           // same-origin click handler sends this explicit action to the server, which realpath-gates
           // it before invoking the selected desktop opener — EXCEPT for a `.md` file, which that same
-          // handler opens in Ntwine's own reader drawer instead. The markup is identical either way (one
+          // handler opens in ntwine's own reader drawer instead. The markup is identical either way (one
           // `data-local-path` button); only the title says which of the two the click will do, because
           // the routing decision belongs to the click handler and not to every producer of a path.
           const readable = target.filePath && isLocalMarkdownFile(target.filePath)

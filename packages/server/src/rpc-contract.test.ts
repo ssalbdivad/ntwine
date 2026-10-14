@@ -87,7 +87,7 @@ test("the client's GET/POST table matches each procedure's real query|mutation k
       Object.entries(router).map(([name, proc]) => [name, (proc as { _tag: string })._tag]),
     )
     // A flipped kind is silent until a user clicks: the client would GET a POST-only route and take
-    // Hono's plain-text 404/405, which the transport reports as "Ntwine server restart required".
+    // Hono's plain-text 404/405, which the transport reports as "ntwine server restart required".
     assert.deepEqual(actual, { ...PROCEDURES }, "query/mutation kind drift between the router and web/src/api/contract.ts")
   } finally {
     cleanup()

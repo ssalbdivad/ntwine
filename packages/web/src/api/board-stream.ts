@@ -117,7 +117,7 @@ export function refreshProjectList(queryClient: QueryClient | null | undefined):
 export function notify(event: Extract<ServerEvent, { type: "notify" }>, forProject?: string): void {
   if (!store.notificationsEnabled) return
   // A page framed by an editor's sidebar (lib/embed.ts) cannot raise one: a cross-origin frame is
-  // refused the permission, and the editor shows Ntwine's attention itself (its badge and status bar).
+  // refused the permission, and the editor shows ntwine's attention itself (its badge and status bar).
   if (embedded()) return
   if (!document.hidden) return
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return

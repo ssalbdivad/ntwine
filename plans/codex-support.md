@@ -103,7 +103,7 @@ turns and across a dead-session resume.
 
 ### 1.4 Custom-instruction / worker-contract injection
 
-Ntwine injects the fixed worker norms (`WORKER_PROMPT.md`) at **system** level via
+ntwine injects the fixed worker norms (`WORKER_PROMPT.md`) at **system** level via
 `claude --append-system-prompt-file`. Codex has no `--append-system-prompt` flag. Two channels were
 tested; results:
 

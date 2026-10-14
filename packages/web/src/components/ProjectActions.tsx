@@ -57,7 +57,7 @@ const MENU_ITEM = "block cursor-default rounded px-2 py-1.5 text-[12.5px] text-f
  * merge was for. It rides the project's square in the dock (ProjectDock.tsx), on right-click. Its repo on GitHub
  * leads the menu when it has one — the link a project view's status row carried, which went with it on
  * 2026-09-28 when the project view folded into Everything. Delete is
- * last and red, the one irreversible act here, kept apart from those that only change what Ntwine calls
+ * last and red, the one irreversible act here, kept apart from those that only change what ntwine calls
  * a project.
  *
  * The short path heads the menu: it is the one place a project's directory is still shown, and it is
@@ -165,7 +165,7 @@ export function ProjectMenu({
             </RadixDropdown.Label>
             {onFocus && (
               <>
-                {/* The page's view, from the project it names — the READY header's switcher, said here
+                {/* The page's view, from the project it names — the dock, said here
                     too: focused on this project it offers every project back, and otherwise this one. */}
                 <RadixDropdown.Item className={MENU_ITEM} onSelect={onFocus}>
                   {focused ? "Show all projects" : "Focus on this project"}
@@ -185,7 +185,7 @@ export function ProjectMenu({
               </>
             )}
             {project.home ? (
-              // The Home workspace is Ntwine's, not a folder the operator registered: it has no icon to
+              // The Home workspace is ntwine's, not a folder the operator registered: it has no icon to
               // choose, its name is fixed, and it cannot be deleted. What CAN change is the folder its
               // agents run in, which is a setting — so the menu opens Settings there.
               <RadixDropdown.Item className={MENU_ITEM} onSelect={() => { store.showSettings = true }}>
@@ -354,7 +354,7 @@ function RenameProjectDialog({
               <span className="text-[11.5px] text-muted-80">
                 {renameDirectory
                   ? <><span className="font-mono text-[11px]">{shortPath(project.path, home)}</span> becomes <span className="font-mono text-[11px]">{shortPath(parent + trimmed, home)}</span>. Running workers keep going.</>
-                  : "Left off, the folder keeps its name and only what Ntwine calls it changes."}
+                  : "Left off, the folder keeps its name and only what ntwine calls it changes."}
               </span>
             </span>
           </label>
@@ -437,7 +437,7 @@ function DeleteProjectDialog({
     >
       <div className="flex flex-col gap-3 p-4 text-[12.5px] leading-relaxed text-muted">
         <p>
-          Ntwine forgets this project. The folder itself is not touched — nothing inside{" "}
+          ntwine forgets this project. The folder itself is not touched — nothing inside{" "}
           <span className="font-mono text-[11.5px] text-fg/80">{shortPath(project.path, home)}</span> is
           changed or removed.
         </p>
@@ -457,7 +457,7 @@ function DeleteProjectDialog({
             <span>Also delete its threads and history</span>
             <span className="text-[11.5px] text-muted-80">
               {deleteData
-                ? "Everything Ntwine has stored for this project, and any workers still running are stopped. This cannot be undone."
+                ? "Everything ntwine has stored for this project, and any workers still running are stopped. This cannot be undone."
                 : "Left off, its threads are kept — adding the folder again brings them back."}
             </span>
           </span>
@@ -511,10 +511,10 @@ function AddProjectDialog({
           </RadixDialog.Title>
           <p className="mb-3.5 text-[12.5px] leading-relaxed text-muted">
             {proposed
-              ? "You ran Ntwine here and it is not a project yet. Nothing has been written — adding it is what makes it one."
+              ? "You ran ntwine here and it is not a project yet. Nothing has been written — adding it is what makes it one."
               : reason
-                ? `${reason}. Paste the folder instead — Ntwine walks up to the repository root, the same way it does when you run it in a terminal.`
-                : "Paste the folder you want to add. Ntwine walks up to the repository root, the same way it does when you run it in a terminal."}
+                ? `${reason}. Paste the folder instead — ntwine walks up to the repository root, the same way it does when you run it in a terminal.`
+                : "Paste the folder you want to add. ntwine walks up to the repository root, the same way it does when you run it in a terminal."}
           </p>
           <form
             onSubmit={(event) => {
@@ -888,11 +888,11 @@ export function Welcome({ projects: cards }: { projects: readonly ProjectCard[] 
       <div data-home-welcome className="m-auto flex w-full max-w-[420px] flex-col items-center gap-2.5 px-6 py-14 text-center">
         <img src="/favicon.svg" width={MARK_PX} height={MARK_PX} alt="" className="rounded-[17px]" />
         <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-fg">
-          {projects.length === 0 ? "Welcome to Ntwine" : "No project folder can be found"}
+          {projects.length === 0 ? "Welcome to ntwine" : "No project folder can be found"}
         </h1>
         <p className="text-[13px] leading-relaxed text-muted">
           {projects.length === 0
-            ? "A project is a folder on this machine. Ntwine keeps each project's threads together."
+            ? "A project is a folder on this machine. ntwine keeps each project's threads together."
             : "Every registered project's folder is missing. Add a folder, or delete the projects that are gone."}
         </p>
         <button
@@ -924,7 +924,7 @@ export function Welcome({ projects: cards }: { projects: readonly ProjectCard[] 
         )}
         {/* Not "it registers itself": the launcher adopts no folder. Run in a repository it sends you here
             with that folder proposed (`/?add=<dir>`), and nothing is written until yes; anywhere else it
-            just opens Ntwine (upstream 49000c91). */}
+            just opens ntwine (upstream 49000c91). */}
         <p className="mt-4 text-[11.5px] text-muted-70">
           Or run{" "}
           <code className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-muted">ntwine</code>{" "}

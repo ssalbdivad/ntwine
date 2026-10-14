@@ -51,7 +51,7 @@ if (windowsUrl) console.log(`[desktop] Windows Electron onto ${windowsUrl}`)
 
 rmSync(dist, { recursive: true, force: true })
 mkdirSync(dist, { recursive: true })
-// The window icon: Ntwine's mark. A PNG for Linux and the macOS Dock, from the web app's own icon set;
+// The window icon: ntwine's mark. A PNG for Linux and the macOS Dock, from the web app's own icon set;
 // an ICO for Windows, whose taskbar, title bar and Alt-Tab each ask for their own size. Both are written
 // by assets/logo-ntwine/final.ts --install, so neither can drift from the favicon.
 copyFileSync(join(pkg, "..", "web", "public", "icon-512.png"), join(dist, "icon.png"))
@@ -73,7 +73,7 @@ function launch(): void {
     // to show the rebuild in.
     if (!quitting) {
       // main.ts ALREADY_OPEN: another loop's window holds the profile, and was raised instead.
-      if (code === 75) console.log("[desktop] an Ntwine window is already open (brought to the front); pass --user-data-dir=<dir> to open a second")
+      if (code === 75) console.log("[desktop] an ntwine window is already open (brought to the front); pass --user-data-dir=<dir> to open a second")
       else console.log(`[desktop] Electron exited (${signal ?? code}); stopping the watcher`)
       void shutdown()
     }

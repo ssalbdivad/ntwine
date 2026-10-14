@@ -18,7 +18,7 @@ import { launchEnvironment } from "./backend/worker-env.ts"
 // own queue card and its own Done. That was reversed on 2026-09-29 (maintainer: prompt threads are the
 // only top-level thread kind; terminals hang off a thread), for two reasons raised upstream: a
 // standalone terminal ran in the project root and so ignored which worktree an agent was actually in —
-// Ntwine deliberately leaves the worktree choice to the agent, so the terminal has to follow it — and
+// ntwine deliberately leaves the worktree choice to the agent, so the terminal has to follow it — and
 // every terminal was one more row in a sidebar whose whole value is density. The table, `thread_terminal`,
 // was named `command_thread` until 2026-10-06 (storage.ts renameCommandThreadTable); `parent_slug` is what
 // makes a row a thread's terminal, and a row without one is a pre-2026-09-29 command thread, archived at boot.
@@ -35,7 +35,7 @@ import { launchEnvironment } from "./backend/worker-env.ts"
 //
 // WHAT IS DURABLE AND WHAT IS NOT. The row — its thread, the command, the folder, how its last run ended —
 // lives in SQLite, so the thread keeps it across a restart. The process does not: a pty is a child of this
-// server, and replacing the control plane (Restart Ntwine, an update) closes the pty master and hangs the
+// server, and replacing the control plane (Restart ntwine, an update) closes the pty master and hangs the
 // process up. Boot records every run that never reported an exit as interrupted, so the strip says
 // "interrupted" and offers Restart rather than showing a process that is not there.
 //
@@ -180,10 +180,10 @@ export async function loadNodePty(): Promise<SpawnPty> {
 export function startFailureScreen(what: "load" | "spawn", cause: unknown): string {
   const detail = (cause instanceof Error ? cause.message : String(cause)).trim().split("\n").slice(0, 6).join("\r\n")
   const head = what === "load"
-    ? "Ntwine could not start this terminal: the node-pty native module did not load."
-    : "Ntwine could not start this terminal: the shell did not spawn."
+    ? "ntwine could not start this terminal: the node-pty native module did not load."
+    : "ntwine could not start this terminal: the shell did not spawn."
   const hint = what === "load"
-    ? `\r\n\r\nTerminals need node-pty's prebuilt binary for ${process.platform}-${process.arch}.\r\nEverything else in Ntwine works without it.`
+    ? `\r\n\r\nTerminals need node-pty's prebuilt binary for ${process.platform}-${process.arch}.\r\nEverything else in ntwine works without it.`
     : ""
   return `\x1b[31m${head}\x1b[0m\r\n\r\n\x1b[2m${detail}\x1b[22m${hint}\r\n`
 }
@@ -220,7 +220,7 @@ export function shellLabel(env: NodeJS.ProcessEnv, platform = process.platform):
 }
 
 /** The environment a terminal runs in: the server's, minus every NTWINE_* variable. Those name the
- *  running server's own project, state dir and log — a `npm run dev` of Ntwine itself inside Ntwine would
+ *  running server's own project, state dir and log — a `npm run dev` of ntwine itself inside ntwine would
  *  otherwise obey them and write into the live server's files. The keys Vite writes into the dev
  *  server's process.env go back to their launch values first, exactly as for a worker
  *  (backend/worker-env.ts): a `next build` typed here must not inherit NODE_ENV=development. */

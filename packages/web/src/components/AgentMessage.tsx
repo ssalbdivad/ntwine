@@ -1,9 +1,9 @@
-// ONE AGENT TALKING TO ANOTHER, drawn as a message in a chat app rather than as Ntwine machinery.
+// ONE AGENT TALKING TO ANOTHER, drawn as a message in a chat app rather than as ntwine machinery.
 //
-// Four channels carry agent-to-agent words into a thread's transcript: another Ntwine thread
+// Four channels carry agent-to-agent words into a thread's transcript: another ntwine thread
 // (`mcp__ntwine__message_thread`), another Claude session (cross-session `SendMessage`), a sub-agent
 // reporting up mid-flight, and this worker steering a child. Until 2026-10-08 each had its own shape — a
-// "Ntwine" card that printed the recipient's own instructions under the message, a petite-caps hairline
+// "ntwine" card that printed the recipient's own instructions under the message, a petite-caps hairline
 // with the body one or two clicks away, an outgoing call folded inside "Ran 1 tool call" — so an exchange
 // between two agents read as four unrelated system events (maintainer 2026-10-08: "a clean dedicated UI
 // for these type of agent exchanges that more closely mirrors an elegant message UI you'd have in a chat

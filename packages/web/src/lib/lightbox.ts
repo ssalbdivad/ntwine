@@ -1,4 +1,4 @@
-// The ```lightbox fence: a worker lists image and video files, one per line, and Ntwine renders them as
+// The ```lightbox fence: a worker lists image and video files, one per line, and ntwine renders them as
 // ONE gallery the human can click through (components/Lightbox.tsx) instead of a stack of full-width
 // frames — in the transcript, and on every card and reader that renders a worker's Markdown. It is THE
 // way a worker shows the human a picture: a picture a tool returned folds into the collapsed tool digest

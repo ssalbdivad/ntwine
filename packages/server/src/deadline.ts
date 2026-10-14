@@ -65,7 +65,7 @@ function named(d: Pick<ThreadDeadline, "atMs" | "setAtMs">, nowMs: number): stri
 // ---- THE CHECK-INS ----------------------------------------------------------------------------------
 // One per stage, each asking for a different behaviour. Written for a model that has no clock of its
 // own (wakeTimeHeader), so each says the time left in absolute and relative form. Delivered mid-turn,
-// headed so the worker reads it as Ntwine speaking rather than as output of whatever tool it just ran.
+// headed so the worker reads it as ntwine speaking rather than as output of whatever tool it just ran.
 
 export function deadlineCheckInMessage(stage: DeadlineStage, d: Pick<ThreadDeadline, "atMs" | "setAtMs" | "setBy">, nowMs: number): string {
   const left = preciseSpanLabel(Math.max(0, d.atMs - nowMs))
@@ -119,7 +119,7 @@ export function deadlineNoticeMessage(change: { kind: "set"; deadline: Pick<Thre
   return (
     `⏰ The user ${verb}: your deadline is now ${deadlineClock(d.atMs, nowMs)}, ${left} from now.\n\n` +
     (note ? `${note.split("\n").map((line) => `> ${line}`).join("\n")}\n\n` : "") +
-    "Plan to the best deliverable you can hand over by then, not the complete one eventually. Ntwine checks in " +
+    "Plan to the best deliverable you can hand over by then, not the complete one eventually. ntwine checks in " +
     "at half-time, at 80% and shortly before the deadline."
   )
 }
@@ -146,10 +146,10 @@ export function deadlineSection(row: Parameters<typeof rowDeadline>[0], nowMs = 
     "the deadline: it is enforced by what you are told and by the board showing this thread as over time.\n\n" +
     "- **Plan to an anytime deliverable.** Commit at each coherent checkpoint and keep your write-up true at every stage, " +
     "so that whenever the clock runs out there is something real to hand over — never a big reveal at the end.\n" +
-    `- **Ntwine checks in, mid-turn, at fixed points:** half-time (${stageAt("half")}) — if you are still exploring, commit to an ` +
+    `- **ntwine checks in, mid-turn, at fixed points:** half-time (${stageAt("half")}) — if you are still exploring, commit to an ` +
     `approach; 80% (${stageAt("converge")}) — start nothing new, finish and commit what is open; just before the deadline ` +
     `(${stageAt("final")}) — hand off at your next stop; and at the deadline itself — your next stop IS the handoff. Every wake ` +
-    "Ntwine sends you also carries the time left on its clock line.\n" +
+    "ntwine sends you also carries the time left on its clock line.\n" +
     "- **Waiting counts.** The clock is wall time, parks and pauses included. A wait on CI or a reviewer that will outlive the " +
     "deadline is handed to the user, not waited out.\n" +
     "- **Size your sub-agents' time explicitly.** Put a line `Time limit: 20m` on a line of its own in an Agent or Workflow " +

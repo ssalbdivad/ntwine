@@ -16,9 +16,9 @@ import {
  * Two servers on one project is two tailers on one SQLite file, which survives, and two SCHEDULERS,
  * which does not: both decide the same recurring prompt or timer is due and dispatch it twice into the
  * same worker. The launch lease used to be the only guard (`servedByAnotherProcess`), and only the
- * folder a server RUNS ON has one. The installed Ntwine runs on its own folder now and opens every
+ * folder a server RUNS ON has one. The installed ntwine runs on its own folder now and opens every
  * project as one of many, so without this record nothing stopped a `ntwine-dev` typed in a project the
- * installed Ntwine had open from opening it again (decided by the maintainer 2026-10-11: refuse, and
+ * installed ntwine had open from opening it again (decided by the maintainer 2026-10-11: refuse, and
  * name the other server).
  *
  * Written when a server opens the project and kept when it closes it, minus the server: the folder it
@@ -97,7 +97,7 @@ export function servingRecordElsewhere(
 
 /**
  * The pid of ANOTHER live server that has this project open, if there is one: by its serving record,
- * or by the launch lease of a server that runs on the project itself (an older Ntwine, or `ntwine-dev`
+ * or by the launch lease of a server that runs on the project itself (an older ntwine, or `ntwine-dev`
  * still booting, which takes the lease before it opens anything).
  *
  * Not for the project a server was LAUNCHED on: under a supervisor that lease is the supervisor's, a
@@ -113,7 +113,7 @@ export function projectServedElsewhere(
 }
 
 export function servedElsewhereMessage(name: string, pid: number): string {
-  return `${name} is already being served by another Ntwine (pid ${pid}). Stop that one first — two servers on one board would fire its timers and recurring prompts twice.`
+  return `${name} is already being served by another ntwine (pid ${pid}). Stop that one first — two servers on one board would fire its timers and recurring prompts twice.`
 }
 
 export class ProjectServedElsewhereError extends Error {

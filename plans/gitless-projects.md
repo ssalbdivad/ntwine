@@ -1,4 +1,4 @@
-# Running Ntwine without Git
+# Running ntwine without Git
 
 Brainstorm, 2026-08-01. Prompted by "a lot of people don't use Git" after `npx ntwine` was found to
 hard-fail outside a repository.
@@ -8,7 +8,7 @@ hard-fail outside a repository.
 They need very different work, and only one of them is hard.
 
 1. **"I don't use Git *workflows*"** — no branches, no PRs, no worktrees. **Already supported.** The
-   README promises it ("Ntwine adds no worktrees, no branches"), and nothing in the launcher creates
+   README promises it ("ntwine adds no worktrees, no branches"), and nothing in the launcher creates
    one. The one thing that contradicts the promise is the worker prompt: `GIT_DISCIPLINE`
    (`packages/server/src/workerPrompt.ts:200`) tells every dispatched agent to commit small and often,
    to work from `git worktree add`, and to treat "landed" as a merge. A user who just wants edits in
@@ -58,7 +58,7 @@ Any replacement has to match these or it's a regression, not a port. This is the
 
 ## 3. Identity without Git — `.ntwine/ntwine.id`, cross-checked against `~/.ntwine`
 
-**Decided: the id is a file in the project, at `.ntwine/ntwine.id`.** Ntwine already writes `.ntwine/` into
+**Decided: the id is a file in the project, at `.ntwine/ntwine.id`.** ntwine already writes `.ntwine/` into
 the working tree on first dispatch (thread scratchpads, hook state), so this adds no new footprint
 and nothing new to explain, and whether that directory is ignored is the user's call — the README
 already tells them to add `.ntwine/` to `.gitignore` themselves.
@@ -117,13 +117,13 @@ this keeps the promise true.
 ### Prevention: offer to ignore it, at the moment it is created
 
 **Decided: ask.** The first-run prompt (§4) offers to add `.ntwine/` to a `.gitignore` that already
-exists. That is not an opinion about the user's version control — it is Ntwine asking what to do about
-Ntwine's own footprint, at the one moment the question is in front of them.
+exists. That is not an opinion about the user's version control — it is ntwine asking what to do about
+ntwine's own footprint, at the one moment the question is in front of them.
 
 Rejected alternative: a `.ntwine/.gitignore` containing a single `*`, which makes the directory
 invisible to Git and ignores *itself*, so `git add -A` cannot commit any of it (verified: clean `git
 status`, `check-ignore` reports both the id and the `.gitignore` as ignored). Strictly more reliable,
-and it needs no existing `.gitignore` — but it is Ntwine deciding unilaterally what belongs in
+and it needs no existing `.gitignore` — but it is ntwine deciding unilaterally what belongs in
 someone's repository, silently, in a file they did not write. Asking is worse mechanically and better
 on the principle, and the principle is the one being defended here.
 
@@ -138,24 +138,24 @@ thread histories, and nothing tells you why.
 
 Walk up from cwd to `$HOME` (never past it, never to `/`), taking the first hit:
 
-1. `.ntwine/ntwine.id` — an existing Ntwine project always wins (§3).
+1. `.ntwine/ntwine.id` — an existing ntwine project always wins (§3).
 2. A repository marker: `.git`, and while we're here `.jj`, `.hg`, `.svn` (see §7).
 3. A project marker: `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `deno.json`,
    `composer.json`, `Gemfile`… — the same heuristic every editor already uses to pick a workspace root.
 4. Otherwise **cwd**. The readout already prints the chosen root (`project: notes — ~/notes`), which
-   is the whole disclosure needed — it is a statement of what Ntwine picked, not a remark about what
+   is the whole disclosure needed — it is a statement of what ntwine picked, not a remark about what
    the directory is or isn't.
 
 Two guards worth building in from the start:
 
 - **Never adopt `$HOME` itself** as a project root. A stray `~/package.json` would otherwise turn a
-  user's entire home directory into one Ntwine project, with agents dispatched at it.
+  user's entire home directory into one ntwine project, with agents dispatched at it.
 - **Confirm on first use, and say what will be written.** The prompt's job is not to ask permission
-  in the abstract — it is to name the directory Ntwine is about to create, at the moment it would be
+  in the abstract — it is to name the directory ntwine is about to create, at the moment it would be
   created. The maintainer's copy, verbatim:
 
   ```
-  Ntwine writes into a .ntwine directory to store session state. 
+  ntwine writes into a .ntwine directory to store session state. 
   This directory will be created automatically and added to .gitignore.
   Continue? [Y/n] >
   ```
@@ -163,7 +163,7 @@ Two guards worth building in from the start:
   Skip it with `--yes`, and never ask again once `.ntwine/ntwine.id` exists.
 
   **One detail to settle:** line 2 states the `.gitignore` addition as fact, but the standing rule is
-  to append only to a `.gitignore` that already exists — Ntwine creating one would be Ntwine deciding the
+  to append only to a `.gitignore` that already exists — ntwine creating one would be ntwine deciding the
   user should have version control, which §6 rules out. So in a directory with no `.gitignore` the
   sentence is not true as written. Either drop that sentence in that case, or create the file. The
   copy above is exact for the common case; the no-`.gitignore` variant is the human's call.
@@ -182,20 +182,20 @@ The replacement block has real content, not just an absence:
 - The `awaiting` fence keeps `human:` and `timer:`; `pr-watch:` is unavailable.
 
 Also make `ntwineConfigBlock` and the queue's own copy stop assuming a repo — and note the FAQ already
-says "Ntwine doesn't own your git workflow", which becomes true rather than aspirational.
+says "ntwine doesn't own your git workflow", which becomes true rather than aspirational.
 
-## 6. What Ntwine deliberately does NOT do here
+## 6. What ntwine deliberately does NOT do here
 
-**Ntwine has no opinion about version control.** That is a product position, not an oversight, and it
-is the one the README already makes: *"Ntwine adds no worktrees, no branches, no dev server, no build
-integration, no workflow engine to fight with"* and *"Ntwine doesn't own your git workflow."* Running
-outside a repository must not become the exception where Ntwine suddenly develops opinions.
+**ntwine has no opinion about version control.** That is a product position, not an oversight, and it
+is the one the README already makes: *"ntwine adds no worktrees, no branches, no dev server, no build
+integration, no workflow engine to fight with"* and *"ntwine doesn't own your git workflow."* Running
+outside a repository must not become the exception where ntwine suddenly develops opinions.
 
 So, concretely, none of these:
 
 - **No `git init` offer.** Not a prompt, not a flag suggestion, not a hint in the readout. A user in a
   plain directory has either decided about version control or hasn't thought about it, and neither is
-  Ntwine's business.
+  ntwine's business.
 - **No warning that agents can't undo.** Nobody needs a localhost dashboard editorializing about
   their setup, and a notice nobody can action is just nagging.
 - **No snapshots, no backups, no shadow anything.** See below.
@@ -205,7 +205,7 @@ So, concretely, none of these:
 The only thing that IS ours is the inverse: a worker prompt that assumes a repo when there isn't one.
 `GIT_DISCIPLINE` (`workerPrompt.ts:200`) currently tells every agent to commit small and often and to
 treat "landed" as a merge. Swapping it for `NO_VCS_DISCIPLINE` in a non-repo (§5) is **removing** an
-opinion Ntwine holds, not adding one — which is exactly the direction this section argues for.
+opinion ntwine holds, not adding one — which is exactly the direction this section argues for.
 
 ### Rejected: a hidden "shadow" repository
 
@@ -215,23 +215,23 @@ sees. **Rejected, and it should stay rejected**, for reasons that outlive the op
 
 - It copies the entire contents of a directory the user never offered into a store outside it. A
   `.env`, an `id_rsa`, a customer CSV sitting in a scratch folder all end up in `~/.ntwine`, and they
-  **survive deleting the project**, because the shadow lives outside it. Ntwine's README promises its
+  **survive deleting the project**, because the shadow lives outside it. ntwine's README promises its
   state lives outside your checkout; silently doing the reverse with your file *contents* is a
   different promise entirely.
-- `GIT_DIR`/`GIT_WORK_TREE` are environment variables, and Ntwine's whole job is spawning agent
+- `GIT_DIR`/`GIT_WORK_TREE` are environment variables, and ntwine's whole job is spawning agent
   processes that run `git`. Any leak into a worker's environment points that agent's commits at the
   shadow — or, in a directory that later becomes a real repo, silently mixes the two. That is a
   data-loss footgun, not an inconvenience.
 - It grows without bound and without visibility, per turn, on a directory of unknown size.
 
-The principle worth keeping from all of it: **Ntwine should never copy a user's files somewhere they
+The principle worth keeping from all of it: **ntwine should never copy a user's files somewhere they
 did not ask for, and should not become a backup system.**
 
 ### The consequence, stated plainly
 
-An agent working in a directory with no version control can destroy work, and Ntwine will neither
+An agent working in a directory with no version control can destroy work, and ntwine will neither
 prevent it nor mention it. That is the same deal a user already gets from running `claude` in that
-directory themselves, which is the bar Ntwine holds itself to everywhere else: *"a thread behaves like
+directory themselves, which is the bar ntwine holds itself to everywhere else: *"a thread behaves like
 a Claude Code session you started yourself."* Document it once in the README's FAQ, where someone
 looking for it will find it, and nowhere else.
 
@@ -272,7 +272,7 @@ Steps 1-3 are the feature; there is no separate safety workstream, by design.
 ## 9. What this does NOT do: Git stops being REQUIRED, not used
 
 Worth stating flatly, because "drop `git` from `REQUIRED_EXECUTABLES`" reads like more than it is.
-After all of the above, Ntwine launches and runs in any directory — but on a machine that has Git, in a
+After all of the above, ntwine launches and runs in any directory — but on a machine that has Git, in a
 directory that is a repository, **almost nothing changes**:
 
 | | in a Git repo | in a plain directory |
@@ -282,7 +282,7 @@ directory that is a repository, **almost nothing changes**:
 | Worktree = its own board | yes, via `--git-dir`/`--git-common-dir` | n/a — no worktrees |
 | GitHub picker, `pr-watch:` | yes | hidden; the fence keeps `human:`/`timer:` |
 | Worker prompt | `GIT_DISCIPLINE` | `NO_VCS_DISCIPLINE` (§5) |
-| Undo for a bad turn | whatever the user set up | whatever the user set up — Ntwine neither supplies nor mentions one (§6) |
+| Undo for a bad turn | whatever the user set up | whatever the user set up — ntwine neither supplies nor mentions one (§6) |
 
 **Existing repo projects keep using `git config --local ntwine.id`, and do not migrate.** Using the
 file everywhere would be one less code path, but it would hand every existing user a new tracked file
@@ -290,11 +290,11 @@ in a directory many of them have never ignored — reintroducing the committed-i
 largest population, where today it is structurally impossible. The provider interface exists for
 exactly this; two implementations is the point, not a compromise.
 
-So the honest summary is: **in a repository Ntwine keeps using Git exactly as it does today, and in a
+So the honest summary is: **in a repository ntwine keeps using Git exactly as it does today, and in a
 plain directory it does not call Git at all.** What goes away is the hard failure — `ntwine-dev must be
 run inside a Git repository` — and the assumption that a project must be a repo. What does *not*
 appear is any new opinion: no offer, no warning, no fallback version control. A repo is better
-because Git is better, not because Ntwine rewards you for it.
+because Git is better, not because ntwine rewards you for it.
 
 ## 10. What is in `~/.ntwine`, and what could be project-local
 
@@ -303,7 +303,7 @@ measurements rather than an argument. Taken from this machine, 35 projects:
 
 | | where | size | could it be project-local? |
 | --- | --- | --- | --- |
-| `builds/` — promoted Ntwine artifacts | `~/.ntwine` | **1.8 GB**, 59 digests | **No.** One artifact serves every project; per-project means copying the runtime 35 times |
+| `builds/` — promoted ntwine artifacts | `~/.ntwine` | **1.8 GB**, 59 digests | **No.** One artifact serves every project; per-project means copying the runtime 35 times |
 | `ports/`, the global launch lock | `~/.ntwine` | ~0 | **No.** Port allocation coordinates ACROSS projects; that is what makes it global |
 | `quota-cache/` | `~/.ntwine` | 4 KB | **No.** Keyed by provider account, not by project |
 | `projects/<id>/browser-profile` | `~/.ntwine` | **1.51 GB** | Technically yes, and obviously not — that is a Chrome profile per project, in someone's source tree |
@@ -385,7 +385,7 @@ forever, and the one-store end state costs one careful migration rather than a p
 ### The rejection in §3 does not survive contact with precedent
 
 §3 rejects a `.ntwine/.gitignore` containing `*` — which it concedes is "strictly more reliable" and
-"needs no existing `.gitignore`" — on the principle that it is "Ntwine deciding unilaterally what
+"needs no existing `.gitignore`" — on the principle that it is "ntwine deciding unilaterally what
 belongs in someone's repository." That principle is misapplied. Declaring that *your own scratch
 directory is not source* is not an opinion about the user's version control, and it is the ordinary
 convention: on this machine `.venv/.gitignore` (Python venv) and `.swc/.gitignore` (SWC) are both
@@ -420,9 +420,9 @@ Nothing is destroyed by the change: delete `.ntwine/` and the threads are still 
 `rm -rf .git` to be a no-op. The honest sentence is that `.ntwine/` holds the scratchpads and the
 project's id, the heavy state still lives outside the checkout, and deleting it starts a fresh board.
 
-One clause of the FAQ gets *better*: "Ntwine does not touch your `.gitignore`, so add `.ntwine/`
+One clause of the FAQ gets *better*: "ntwine does not touch your `.gitignore`, so add `.ntwine/`
 yourself" stops being needed, because `.ntwine/.gitignore` self-ignores. Note that promise was never
-in tension with it — the file goes inside Ntwine's own directory, not in the user's `.gitignore`.
+in tension with it — the file goes inside ntwine's own directory, not in the user's `.gitignore`.
 
 End state: **no global identity state at all.** `~/.ntwine/projects/<id>/` remains where the heavy
 state lives, but it is keyed BY the id, never a source of truth ABOUT it.

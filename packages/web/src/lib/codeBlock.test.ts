@@ -222,7 +222,7 @@ test("long diffs and long tabs clamp too, each tab with its own button", () => {
   assert.equal(count(tabs, `class="md-code-copy"`), 1)
 })
 
-test("the fences Ntwine draws as something else keep their one markup, however long", () => {
+test("the fences ntwine draws as something else keep their one markup, however long", () => {
   const graph = Array.from({ length: 60 }, (_, i) => `  a${i} --> a${i + 1}`).join("\n")
   for (const name of ["mermaid", "lightbox"]) {
     assert.equal(render(fence(name, graph)), renderHighlightedCode(graph, name).trim(), name)

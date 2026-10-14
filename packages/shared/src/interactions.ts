@@ -296,7 +296,7 @@ export const InteractionFileChangeDisplay = z.object({
   operation: z.enum(["create", "write", "move", "delete"]),
   pathLabel: plainText(2_048, 4_096),
   destinationLabel: plainText(2_048, 4_096).optional(),
-  // Display-only, bounded plain text. This value is never parsed or applied as a patch by Ntwine.
+  // Display-only, bounded plain text. This value is never parsed or applied as a patch by ntwine.
   diffPreview: InteractionPreview.optional(),
 }).strict()
 export type InteractionFileChangeDisplay = z.infer<typeof InteractionFileChangeDisplay>
@@ -327,7 +327,7 @@ export const InteractionPayload = z.discriminatedUnion("kind", [
     // labeled so the affected-file summary cannot disguise the durable scope.
     grantRootLabel: plainText(2_048, 4_096).optional(),
     scopeLabel: InteractionDescription.optional(),
-    // Plain-text, bounded preview only. It is never a trusted patch and must never be applied by Ntwine.
+    // Plain-text, bounded preview only. It is never a trusted patch and must never be applied by ntwine.
     diffPreview: InteractionPreview.optional(),
     changes: z.array(InteractionFileChangeDisplay).min(1).max(16).optional(),
   }).strict(),

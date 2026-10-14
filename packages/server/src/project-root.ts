@@ -6,12 +6,12 @@ import { acquireNamedLaunchLockSync, readGitProjectId, validateProjectId } from 
 
 // WHAT A PROJECT IS, WITHOUT ASKING GIT.
 //
-// Ntwine used to define a project as a Git repository: the root came from `rev-parse --show-toplevel`
+// ntwine used to define a project as a Git repository: the root came from `rev-parse --show-toplevel`
 // and the id from `git config --local ntwine.id`. That made Git a hard requirement to LAUNCH, which
-// contradicts the product's own position — Ntwine has no opinion about version control — and locked
+// contradicts the product's own position — ntwine has no opinion about version control — and locked
 // out anyone on jj (a non-colocated repo has no `.git` at all), hg, or nothing.
 //
-// So the id lives in the project instead, at `.ntwine/.id`, beside the scratchpads Ntwine already
+// So the id lives in the project instead, at `.ntwine/.id`, beside the scratchpads ntwine already
 // writes there. Two of the four properties `git config` was buying (project-identity.ts) come free
 // that way: a directory that MOVES keeps its id because the id moved with it, and an alias resolves
 // to the same id because it resolves to the same directory. The other two — atomic creation under a
@@ -30,7 +30,7 @@ const NTWINE_DIR = ".ntwine"
 const ID_FILE = ".id"
 const SELF_IGNORE = ".gitignore"
 
-/** Any of these makes a directory the project root. An Ntwine project wins over the VCS it sits in. */
+/** Any of these makes a directory the project root. An ntwine project wins over the VCS it sits in. */
 const REPO_MARKERS = [".git", ".jj", ".hg", ".svn"]
 const PROJECT_MARKERS = [
   "package.json",
@@ -171,7 +171,7 @@ function hasAny(dir: string, names: readonly string[]): boolean {
 /**
  * THE HOME DIRECTORY IS NOT A PROJECT, and adopting it is not merely untidy.
  *
- * Ntwine's own global state lives in `~/.ntwine` — the registry, every project's state dir, the launch
+ * ntwine's own global state lives in `~/.ntwine` — the registry, every project's state dir, the launch
  * locks. Making $HOME a project writes `~/.ntwine/.id` and `~/.ntwine/.gitignore` INTO that state
  * root, and from then on the walk-up below finds that `.ntwine/.id` from any unmarked directory under
  * $HOME, so every one of them resolves to the home "project". That happened (2026-08-06).
@@ -202,7 +202,7 @@ export function isHomeDirectory(dir: string, home = homedir()): boolean {
  * The id this directory ALREADY claims, from either store — or undefined if it claims none.
  *
  * Both stores count, and checking only the file is a bug that has now bitten twice. `.ntwine/.id` is
- * where an id lives once a current Ntwine has opened the project; `git config ntwine.id` is where it
+ * where an id lives once a current ntwine has opened the project; `git config ntwine.id` is where it
  * lived before, and a repository that has not been reopened since the gitless change still carries
  * only that. On this machine boron and pullfrog/app were both in that state — established boards with
  * 15 and 85 threads — so a file-only check made them invisible to the registry backfill AND made the
@@ -230,7 +230,7 @@ export function isExistingProjectRoot(dir: string): boolean {
  *
  * The markers discoverProjectRoot walks UP for, asked about ONE directory. That is what separates the
  * two cases the launcher has to tell apart: `ntwine` in a repository is someone opening that
- * repository, and Ntwine adopts it on the spot; `ntwine` in `~/Downloads` is a command typed in the
+ * repository, and ntwine adopts it on the spot; `ntwine` in `~/Downloads` is a command typed in the
  * wrong terminal, and gets offered rather than adopted. Never a substitute for isHomeDirectory —
  * $HOME frequently carries a marker and is still never a project.
  */
@@ -253,7 +253,7 @@ export function discoverProjectRoot(cwd = process.cwd(), home = homedir()): stri
     // $HOME — the loop simply breaks and the launch directory is returned unchanged. Whether that is
     // adoptable is isHomeDirectory's question, asked by the launcher, not answered here.
     if (at === stop || at === filesystemRoot) break
-    // An existing Ntwine project wins over the VCS or manifest it happens to sit in.
+    // An existing ntwine project wins over the VCS or manifest it happens to sit in.
     if (existsSync(projectIdPath(at))) return at
     if (hasAny(at, REPO_MARKERS)) return at
     if (hasAny(at, PROJECT_MARKERS)) return at

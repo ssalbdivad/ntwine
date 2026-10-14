@@ -3,15 +3,15 @@ title: Introduction
 description: Run all your coding agents from one tab, with one queue for the ones that need you.
 ---
 
-Ntwine runs your coding agents from one browser tab. That includes Claude Code, Codex, and any agent that speaks the Agent Client Protocol. When an agent comes to rest needing you, it becomes a card in a single queue, so you can work through a list instead of checking on ten terminals.
+ntwine runs your coding agents from one browser tab. That includes Claude Code, Codex, and any agent that speaks the Agent Client Protocol. When an agent comes to rest needing you, it becomes a card in a single queue, so you can work through a list instead of checking on ten terminals.
 
 ```bash
 npx ntwine
 ```
 
-Ntwine doesn't bring a model or a workflow of its own. It drives the CLIs you already pay for under your sign-in, and every opinion it has lives in a text file you can edit.
+ntwine doesn't bring a model or a workflow of its own. It drives the CLIs you already pay for under your sign-in, and every opinion it has lives in a text file you can edit.
 
-<Shot src="/img/board.png" width={1760} height={1100} alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick." />
+<Shot src="/img/board.png" width={1760} height={1100} alt="ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick." />
 
 ## What it does
 
@@ -26,7 +26,7 @@ Ntwine doesn't bring a model or a workflow of its own. It drives the CLIs you al
     One server serves every repo on your machine. Each has its own board, and All projects is a click away.
   </Card>
   <Card title="Headless" href="/docs/threads">
-    Each agent runs in its own background process. Close the tab or stop Ntwine, and it keeps working.
+    Each agent runs in its own background process. Close the tab or stop ntwine, and it keeps working.
   </Card>
   <Card title="Threads that talk" href="/docs/handles">
     Every thread has an `@handle`. Agents read, message and wait on each other by it.
@@ -35,16 +35,16 @@ Ntwine doesn't bring a model or a workflow of its own. It drives the CLIs you al
     "Every weekday at 9am" starts a fresh thread each time. "2h" bounds one.
   </Card>
   <Card title="Your editor" href="/docs/editor">
-    Ntwine in VS Code, Cursor or Windsurf, with your selection sent along.
+    ntwine in VS Code, Cursor or Windsurf, with your selection sent along.
   </Card>
   <Card title="From anywhere" href="/docs/remote-access">
-    Reach Ntwine from your phone with a private ntwine.app name, a tunnel, or Tailscale.
+    Reach ntwine from your phone with a private ntwine.app name, a tunnel, or Tailscale.
   </Card>
 </Cards>
 
 ## What it is not
 
-- It's not a model. Ntwine drives the CLIs you already have signed in, on your subscription.
+- It's not a model. ntwine drives the CLIs you already have signed in, on your subscription.
 - It's not a cloud. There's no account and no telemetry. The server binds `127.0.0.1`, and its state lives in your user directory, never in your checkout.
 - It's not a workflow. No worktrees, branches or build steps happen behind your back, and a thread behaves like a session you started yourself.
 

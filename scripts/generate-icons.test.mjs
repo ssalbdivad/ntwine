@@ -48,7 +48,7 @@ function makeFixture(t, count = 2) {
   const projectsRoot = realpathSync(projectsPath)
   const apps = []
   for (let index = 0; index < count; index += 1) {
-    const bundleName = index === 0 ? "Ntwine" : `Ntwine ${index}`
+    const bundleName = index === 0 ? "ntwine" : `ntwine ${index}`
     const appPath = join(appsDir, `${bundleName}.app`)
     const contents = join(appPath, "Contents")
     const macos = join(contents, "MacOS")
@@ -114,7 +114,7 @@ function assertOriginals(fixture) {
   assert.deepEqual(readdirSync(fixture.appsDir).filter((name) => name.startsWith(".ntwine-icon-")), [])
 }
 
-test("owned shim identity accepts canonical Ntwine bundles and rejects forged metadata", (t) => {
+test("owned shim identity accepts canonical ntwine bundles and rejects forged metadata", (t) => {
   const fixture = makeFixture(t, 1)
   const [app] = fixture.apps
   const owned = inspectOwnedNtwineShim(app.appPath, {
@@ -148,7 +148,7 @@ test("owned shim identity accepts canonical Ntwine bundles and rejects forged me
 test("symlinked bundles and resources are rejected, including a staged no-follow attack", (t) => {
   const fixture = makeFixture(t, 1)
   const [app] = fixture.apps
-  const linkedBundle = join(fixture.appsDir, "Ntwine 1.app")
+  const linkedBundle = join(fixture.appsDir, "ntwine 1.app")
   symlinkSync(app.appPath, linkedBundle)
   assert.throws(() => discoverOwnedNtwineShims({
     appsDir: fixture.appsDir,
@@ -175,13 +175,13 @@ test("symlinked bundles and resources are rejected, including a staged no-follow
   }
 
   const nestedRoot = join(fixture.appsDir, "nested")
-  const nestedBundle = join(nestedRoot, "Ntwine 1.app")
+  const nestedBundle = join(nestedRoot, "ntwine 1.app")
   mkdirSync(nestedRoot)
   copyBundleTree(app.appPath, nestedBundle)
   assert.throws(() => inspectOwnedNtwineShim(nestedBundle, {
     containerRoot: fixture.appsDir,
     projectsRoot: fixture.projectsRoot,
-    expectedBundleName: "Ntwine",
+    expectedBundleName: "ntwine",
     parsePlist: parseJsonPlist,
   }), /not a direct child/)
 
@@ -236,7 +236,7 @@ test("final signature verification failure rolls back every swapped shim", (t) =
   const fixture = makeFixture(t, 2)
   assert.throws(() => refreshInstalledAppIcons(options(fixture, {
     verifyBundle(path) {
-      if (dirname(path) === fixture.appsDir && basename(path) === "Ntwine 1.app") {
+      if (dirname(path) === fixture.appsDir && basename(path) === "ntwine 1.app") {
         throw new Error("signature invalid")
       }
     },

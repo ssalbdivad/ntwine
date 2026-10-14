@@ -112,7 +112,7 @@ test("a REFUSAL is asked first, stores nothing, runs nothing, and names the back
     h.storage.upsertSession(row("t"))
     h.gate.refusal = "this thread runs in `default` permission mode. Run the check in a background shell instead."
     const refused = await h.router.addOwnCommandWatch.handler({ input: { slug: "t", command: NPM, every: "5m", for: "6h" } })
-    assert.match(refused.refused!, /^Ntwine will not run a command watch for this thread: this thread runs in `default`/)
+    assert.match(refused.refused!, /^ntwine will not run a command watch for this thread: this thread runs in `default`/)
     assert.match(refused.refused!, /background shell instead\.$/)
     assert.equal(refused.id, undefined)
     assert.deepEqual(h.probes, [], "a refused command is never run, not even once")

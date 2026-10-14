@@ -54,7 +54,7 @@ test("a response of known length comes back in ONE frame", async () => {
 });
 
 test("the board sees the PUBLIC host, not loopback — without this it refuses every relayed request", async () => {
-  // Ntwine's origin gate keys on the request having arrived AS the declared public origin. Forwarding
+  // ntwine's origin gate keys on the request having arrived AS the declared public origin. Forwarding
   // with a loopback Host would be judged local and skip the access gate entirely.
   let seen = "";
   const b = await board((req, res) => { seen = req.headers.host ?? ""; res.writeHead(200); res.end("ok"); });
@@ -149,7 +149,7 @@ test("a board that is down answers 502 rather than leaving the visitor to time o
   );
   const head = out.frames[0] as Extract<RelayUpFrame, { t: "res" }>;
   assert.equal(head.status, 502);
-  assert.match(text(out.frames), /Ntwine is not answering on this machine/);
+  assert.match(text(out.frames), /ntwine is not answering on this machine/);
 });
 
 test("hop-by-hop headers are not replayed onto the local connection", async () => {

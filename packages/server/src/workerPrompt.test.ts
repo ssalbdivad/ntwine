@@ -202,7 +202,7 @@ test("the contract teaches steps: as the wait on a human's act, and routes to it
     // by a bad/good pair, and the example fence itself carries a link.
     assert.match(c, /EVERY STEP IS CLICKABLE AND COMPLETE — A STEP THAT MAKES THE USER GO LOOKING IS A BROKEN STEP/)
     assert.match(c, /every page it names is a real Markdown link to that exact page/)
-    assert.match(c, /Good: `Open the \[Ntwine account audit log\]\(https:\/\/dash\.cloudflare\.com\/<account-id>\/audit-log\)/)
+    assert.match(c, /Good: `Open the \[ntwine account audit log\]\(https:\/\/dash\.cloudflare\.com\/<account-id>\/audit-log\)/)
     assert.match(prompt, /steps:\n {4}- Open \[the npm sign-in this thread started\]\(https:\/\/www\.npmjs\.com\/login\?next=\/login\/cli\/9f3c2a71\)[^\n]*\n {4}- /)
     // THE FIRST TEST (maintainer 2026-10-10): a step is only what the worker cannot do itself. It sits
     // AHEAD of clickable-and-complete, and the example fence obeys it — the command is the worker's, run
@@ -228,7 +228,7 @@ test("the contract teaches steps: as the wait on a human's act, and routes to it
 // COMMAND WATCHES ARE CLAUDE-ONLY (2026-10-11). The server refuses every Codex and ACP thread one
 // (command-watch.ts `commandWatchRefusal`), so only Claude's contract may teach the key, the week-long
 // ceiling and the route to it; anywhere else each mention is a refused call per wait. Claude's must
-// also say why a polling shell is the wrong wait, and where the loop goes when Ntwine refuses.
+// also say why a polling shell is the wrong wait, and where the loop goes when ntwine refuses.
 test("only the Claude contract teaches command watches, and it routes outside-condition waits to them", () => {
   const claude = buildWorkerPrompt("claude")
   assert.match(claude, /`commands:` — command watches you REGISTERED with `ntwinectl watch-command add`/)
@@ -236,7 +236,7 @@ test("only the Claude contract teaches command watches, and it routes outside-co
   assert.match(claude, /`ntwinectl watch-command add "<check that exits 0 once it holds>" --every 5m --for 6h`/)
   assert.match(claude, /Not a polling loop in a background shell/)
   assert.match(claude, /can never be hibernated/)
-  assert.match(claude, /Only when Ntwine REFUSES it[\s\S]{0,140}does the loop go in a background shell/)
+  assert.match(claude, /Only when ntwine REFUSES it[\s\S]{0,140}does the loop go in a background shell/)
   for (const backend of ["codex", "acp"] as const) {
     const prompt = buildWorkerPrompt(backend)
     assert.doesNotMatch(prompt, /watch-command|commands:|cmw_/, backend)

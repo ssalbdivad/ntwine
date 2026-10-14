@@ -1,5 +1,5 @@
-// A PROJECT'S THREADS, as "Send to Ntwine thread…" lists them. Only threads a follow-up can reach: open
-// (not Done), Ntwine's own (not an external terminal session), and real sessions (not a legacy row) with
+// A PROJECT'S THREADS, as "Send to ntwine thread…" lists them. Only threads a follow-up can reach: open
+// (not Done), ntwine's own (not an external terminal session), and real sessions (not a legacy row) with
 // a session to address. Ordered the way the human scans the page: the queue first (Ready — waiting on
 // them), then what is spinning, then the rest, newest activity first within each.
 //
@@ -148,9 +148,9 @@ export function pickerThreads<T extends PickerThread>(threads: readonly T[]): (T
 //
 // A VS Code window whose workspace folder IS a thread's worktree (the drawer's "Open in editor" on a thread
 // in `.ntwine/worktrees/<slug>` opens exactly that) is about that thread, not about the project in general:
-// the sidebar opens on it, and "Send to Ntwine thread…" offers it first. The thread's `checkout` is the
+// the sidebar opens on it, and "Send to ntwine thread…" offers it first. The thread's `checkout` is the
 // server's own reading of where its agent works (thread-cwd.ts, the same one the terminal and Done use),
-// so the match needs nothing new from Ntwine. Decided on the EXTENSION's side, after the page says it is
+// so the match needs nothing new from ntwine. Decided on the EXTENSION's side, after the page says it is
 // ready, rather than through the frame's address: the page already takes `ntwine:navigate`, and the
 // address is read once per frame — a thread chosen there would be stale the moment the human moved on.
 

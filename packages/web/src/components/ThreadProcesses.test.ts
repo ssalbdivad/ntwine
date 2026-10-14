@@ -259,7 +259,7 @@ test("a Codex exec's row opens like every other; a transcript-only row has nothi
     withQuery(createElement(ThreadProcessStrip, { thread, surface: "card", transcriptShells: transcript }))
   const codex = strip({ id: "t", bgShells: [shell({ id: "p1", outputUnavailable: true, stoppable: true })], watches: [] })
   assert.match(codex, /<button[^>]*aria-label="Open agent terminal: vite dev server"/)
-  assert.doesNotMatch(codex, /lines/, "no line counter for output Ntwine cannot read")
+  assert.doesNotMatch(codex, /lines/, "no line counter for output ntwine cannot read")
   const orphan = strip({ id: "t", bgShells: [], watches: [] }, [{ label: "child's watcher", startedAt: at("01"), state: "running" }])
   assert.doesNotMatch(orphan, /aria-label="Open agent terminal/)
   assert.match(orphan, /child&#x27;s watcher|child's watcher/)

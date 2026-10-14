@@ -1,6 +1,6 @@
 // One local IPC endpoint address, spelled the way the running platform can actually bind it.
 //
-// Ntwine's detached daemons — the Claude session broker, the codex app-server daemon, the codex native
+// ntwine's detached daemons — the Claude session broker, the codex app-server daemon, the codex native
 // listener — each talk to the server over a local socket whose path is DERIVED from the identity they
 // serve (state dir + session/project id), so a restarted ntwine can find a daemon it did not spawn
 // without a registry. That derivation is what this module owns.

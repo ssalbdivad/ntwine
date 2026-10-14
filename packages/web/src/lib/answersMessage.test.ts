@@ -175,7 +175,7 @@ test("the SERVER's composed answer round-trips through this reader — the one t
   // THE WHOLE POINT OF THE PAIRING. questionAnswerMessage composes the answer to a REGISTERED question,
   // and it is delivered as an ntwine WAKE — which the chat draws as ntwine's own notification card unless
   // this parser claims it first. It did not claim it until 2026-08-27, and the human's answer rendered as
-  // agent-facing prose in an Ntwine card over their own words. Composer and reader are pinned to each other
+  // agent-facing prose in an ntwine card over their own words. Composer and reader are pinned to each other
   // here because nothing else in the system compares them.
   const wire = questionAnswerMessage([
     {
@@ -367,7 +367,7 @@ test("the buried form pairs from its OWN quoted questions, ignoring the lookback
 // in `text`; the server projects it away into `displayText`. The pairing must read the projection, or
 // the note rides into the card as a continuation line of the last answer — which is exactly what the
 // maintainer saw (2026-08-25) under their chosen option.
-const GAP_NOTE = "\n\n⏱ Ntwine: the message above arrived 4h9m after your last one. It is now 2026-08-25 16:39."
+const GAP_NOTE = "\n\n⏱ ntwine: the message above arrived 4h9m after your last one. It is now 2026-08-25 16:39."
 const userWithNote = (text: string): MsgLike => ({ role: "user", text: text + GAP_NOTE, displayText: text })
 
 test("an answers turn carrying ntwine's clock note pairs from displayText — the note never reaches the card", () => {

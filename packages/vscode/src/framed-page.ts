@@ -38,7 +38,7 @@ export interface PageHost {
   addContext(message: EmbedAddContextMessage, into: PageComposer | undefined): Promise<string>
   /** What the page shows of the extension's own state (`ntwine:host-state`). */
   hostState(): Omit<EmbedHostStateMessage, "type">
-  /** The page's eye: share the editor with Ntwine or stop (`ntwine:share-editor`); resolves to what came of it. */
+  /** The page's eye: share the editor with ntwine or stop (`ntwine:share-editor`); resolves to what came of it. */
   setShareEditor(on: boolean): Promise<string>
   /** A thread's changes in this window (`ntwine:review`); resolves to what came of it. */
   review(message: EmbedReviewMessage): Promise<string>

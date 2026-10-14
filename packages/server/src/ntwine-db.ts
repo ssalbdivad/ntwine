@@ -10,7 +10,7 @@ import { WAKE_DELIVERY_TABLES, ensureWakeDeliverySchema } from "./wake-store.ts"
 
 // ONE DATABASE FOR THE MACHINE — `<data>/ui.db` (2026-08-27).
 //
-// Ntwine kept one SQLite file per project, `<data>/projects/<id>/ui.db`, from the day it stored
+// ntwine kept one SQLite file per project, `<data>/projects/<id>/ui.db`, from the day it stored
 // anything: each server served one repo and owned that repo's file. The singleton (one server, every
 // project — see ARCHITECTURE.md) kept the files and opened all of them, which is how a bad migration
 // on 2026-08-27 could leave seven of fifty-four unopenable at once, with the launch project among

@@ -97,7 +97,7 @@ test("Claude: the thread's own latest folder, lifted; a vanished or missing read
     writeFileSync(path, record({ cwd: join(project, ".ntwine", "worktrees", "gone") }) + "\n")
     assert.deepEqual(resolveThreadWorkingDir({ projectDir: project, backend: "claude", transcriptPath: path }), { dir: project, source: "project" })
     assert.deepEqual(resolveThreadWorkingDir({ projectDir: project, backend: "claude" }), { dir: project, source: "project" })
-    // An ACP agent has no reading Ntwine knows how to take.
+    // An ACP agent has no reading ntwine knows how to take.
     assert.deepEqual(resolveThreadWorkingDir({ projectDir: project, backend: "acp", transcriptPath: path }), { dir: project, source: "project" })
   } finally {
     cleanup()

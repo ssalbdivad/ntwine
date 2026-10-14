@@ -118,7 +118,7 @@ test("Claude worker profile sanitization reaches the launch environment", () => 
   for (const [key, value] of Object.entries(CLAUDE_WORKER_ENV)) {
     assert.equal(built.env[key], value, `${key} must reach the launch environment`)
   }
-  // The DEFAULT foreground timeout is Claude Code's own: Ntwine pinned 60s until 2026-10-10.
+  // The DEFAULT foreground timeout is Claude Code's own: ntwine pinned 60s until 2026-10-10.
   assert.equal("BASH_DEFAULT_TIMEOUT_MS" in built.env, false, "the default Bash timeout is left to Claude Code")
   assert.ok("CLAUDE_CODE_SUBAGENT_MODEL" in built.env)
   assert.ok("CLAUDE_CODE_EFFORT_LEVEL" in built.env)

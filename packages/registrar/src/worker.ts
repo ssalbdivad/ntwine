@@ -12,7 +12,7 @@ import { createCloudflareApi } from "./cloudflare.ts"
  *
  * It runs during signup and never again — it is not on the data plane, so a board that is already
  * running keeps working whether or not this is up. Protecting that property is worth more than any
- * other choice here: nothing in Ntwine should ever have to reach this to stay reachable.
+ * other choice here: nothing in ntwine should ever have to reach this to stay reachable.
  */
 
 /**
@@ -40,7 +40,7 @@ export interface KvNamespace {
  *
  * ONLY A ZERO-SCOPE TOKEN IS ACCEPTED. Until 2026-10-08 the CLI sent its `gh` token, which can push to
  * every repository its owner can, and a compromised build of this Worker collected them. The CLI now
- * signs in through Ntwine's own OAuth App, which asks for no scopes, so its token can read only the
+ * signs in through ntwine's own OAuth App, which asks for no scopes, so its token can read only the
  * public profile. Two checks hold every client to that, an old one above all:
  *
  * - The shape, BEFORE GitHub is asked anything: an OAuth App user token is `gho_…`. A classic PAT

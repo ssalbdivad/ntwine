@@ -53,7 +53,7 @@ export interface GithubIdentity {
 
 /**
  * Resolve a token to its account. `null` means GitHub did not accept it; `"scoped"` means it is a token
- * that can do more than name its account — a `gh` CLI token from an Ntwine older than the device flow —
+ * that can do more than name its account — a `gh` CLI token from an ntwine older than the device flow —
  * and is refused whoever it belongs to, so the registrar never again accepts one worth stealing.
  */
 export interface GithubVerifier {
@@ -130,7 +130,7 @@ export type ClaimOutcome =
   | { status: 400 | 409 | 429 | 502 | 503; body: { error: ClaimFailure; message: string } }
 
 const MESSAGES: Record<ClaimFailure, string> = {
-  "bad-version": "this Ntwine is too old to claim a name — upgrade and try again",
+  "bad-version": "this ntwine is too old to claim a name — upgrade and try again",
   "bad-name": "that name is not usable as a hostname",
   reserved: "that name is reserved — pick another",
   "bad-port": "the port must be between 1 and 65535",
@@ -143,11 +143,11 @@ const MESSAGES: Record<ClaimFailure, string> = {
   malformed: "the request body was not a claim",
   "provisioning-failed": "the name could not be provisioned; nothing was left behind",
   "one-name-per-key":
-    "this machine already holds a name — release it first, or claim from a different Ntwine identity",
-  "github-required": "claiming a custom name needs a GitHub sign-in — update Ntwine and try again",
+    "this machine already holds a name — release it first, or claim from a different ntwine identity",
+  "github-required": "claiming a custom name needs a GitHub sign-in — update ntwine and try again",
   "github-rejected": "GitHub did not recognise that sign-in — try again",
   "github-token-scoped":
-    "this claim carried a GitHub token with more access than a name needs; the registrar accepts only a sign-in that grants no permissions — update Ntwine and try again",
+    "this claim carried a GitHub token with more access than a name needs; the registrar accepts only a sign-in that grants no permissions — update ntwine and try again",
   "github-too-new": "that GitHub account is too new to claim a name",
   "one-name-per-account": "that GitHub account already holds a name",
   "namespace-full": "ntwine.app has no free names left — this is our limit to raise, not yours",

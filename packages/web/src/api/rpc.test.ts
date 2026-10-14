@@ -7,7 +7,7 @@ import { store } from "../store.ts"
 test("RPC response: a stale server's plain-text missing route asks for a server restart", async () => {
   await assert.rejects(
     parseRpcResponse(new Response("404 Not Found", { status: 404 }), "setThreadPermission"),
-    /Ntwine server restart required/,
+    /ntwine server restart required/,
   )
 })
 

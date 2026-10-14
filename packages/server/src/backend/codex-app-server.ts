@@ -165,7 +165,7 @@ const PROTOCOL_FINGERPRINT = [
 // The handshake identity. Shared with the daemon host, which performs `initialize` on our behalf and
 // serves the cached response to every later attachment — so the version gate below still reads the
 // REAL app-server userAgent, not something the daemon invented.
-export const CLIENT_INFO = Object.freeze({ name: "ntwine", title: "Ntwine", version: "0.0.1" })
+export const CLIENT_INFO = Object.freeze({ name: "ntwine", title: "ntwine", version: "0.0.1" })
 export const CLIENT_CAPABILITIES = Object.freeze({
   experimentalApi: true,
   requestAttestation: false,
@@ -823,7 +823,7 @@ class JsonlRpcConnection {
       try {
         await this.onRequest(message.method, parsedId.data, message.params)
       } catch (error) {
-        const rpcError = error instanceof RpcProtocolError ? error : new RpcProtocolError(-32603, "Ntwine could not stage the provider request")
+        const rpcError = error instanceof RpcProtocolError ? error : new RpcProtocolError(-32603, "ntwine could not stage the provider request")
         await this.errorResponse(parsedId.data, rpcError.code, rpcError.message).catch(() => undefined)
       }
       return
@@ -888,7 +888,7 @@ interface BindingRow {
    * server state, not of operator intent (intent lives in ntwine's own `sessions.permission_mode`). It is
    * written only from authoritative reads: the mode we passed to `thread/start`, the `sandbox` the
    * `thread/resume` RESPONSE reports back, and a `thread/settings/updated` notification. NULL means
-   * "unknown" (a row migrated from an older Ntwine), which makes setSandbox demand a notification rather
+   * "unknown" (a row migrated from an older ntwine), which makes setSandbox demand a notification rather
    * than assume a no-op.
    */
   sandbox: string | null
@@ -925,7 +925,7 @@ const BindingRowSchema = z.object({
   updated_at: z.string().datetime(),
   auto_resumed_turn_id: Opaque.nullable(),
   auto_resume_count: z.number().int().nonnegative(),
-  // Bounded string rather than an enum: a value this Ntwine does not recognise (a newer sandbox mode
+  // Bounded string rather than an enum: a value this ntwine does not recognise (a newer sandbox mode
   // written by a later build) must degrade to "unknown", never poison the row as corrupt.
   sandbox: z.string().max(64).nullable(),
   intended_sandbox: z.string().max(64).nullable(),
@@ -1079,7 +1079,7 @@ export interface CodexAppServerBridgeOptions {
    */
   getSettings?: () => { codexContextWindow?: number }
   /**
-   * What an Ntwine WORKER thread carries beyond its MCP mount: the hooks, and the reasoning-summary
+   * What an ntwine WORKER thread carries beyond its MCP mount: the hooks, and the reasoning-summary
    * setting. Asked for at `thread/start` and at EVERY `thread/resume`, because a resume that rebuilds
    * the thread rebuilds it from the bag in that one request and nothing else (see threadConfig) — the
    * bag used to reach `thread/start` alone, as the dispatcher's own argument, and every thread lost
@@ -1996,8 +1996,8 @@ export class CodexAppServerBridge {
   }
 
   async startDisposableSession(input: StartCodexAppServerSessionInput): Promise<CodexAppServerSessionBinding> {
-    if (!ThreadSlug.safeParse(input.threadSlug).success) throw new Error("invalid Ntwine thread slug")
-    if (!input.sessionId || input.sessionId.length > 256) throw new Error("invalid Ntwine session id")
+    if (!ThreadSlug.safeParse(input.threadSlug).success) throw new Error("invalid ntwine thread slug")
+    if (!input.sessionId || input.sessionId.length > 256) throw new Error("invalid ntwine session id")
     if (!isAbsoluteBoundedPath(input.cwd)) throw new Error("Codex app-server cwd must be an absolute bounded path")
     if (input.permissions && input.sandbox) throw new Error("Codex app-server permissions and sandbox are mutually exclusive")
     const startKeys = [`slug:${input.threadSlug}`, `session:${input.sessionId}`]
@@ -2121,7 +2121,7 @@ export class CodexAppServerBridge {
   /**
    * Drop this connection's subscription to an IDLE thread, so the resume that follows rebuilds it.
    * True when the app-server answered, which is when the thread is known to have no subscriber left:
-   * Ntwine is the only client an app-server of its own ever has.
+   * ntwine is the only client an app-server of its own ever has.
    *
    * A refusal is remembered for the life of this bridge and the sync is left alone from then on: it
    * means this Codex has no such method, and asking before every turn would buy nothing. Any other
@@ -2163,8 +2163,8 @@ export class CodexAppServerBridge {
     codexThreadId: string
     cwd: string
   }): Promise<CodexAppServerSessionBinding> {
-    if (!ThreadSlug.safeParse(input.threadSlug).success) throw new Error("invalid Ntwine thread slug")
-    if (!input.sessionId || input.sessionId.length > 256) throw new Error("invalid Ntwine session id")
+    if (!ThreadSlug.safeParse(input.threadSlug).success) throw new Error("invalid ntwine thread slug")
+    if (!input.sessionId || input.sessionId.length > 256) throw new Error("invalid ntwine session id")
     if (!input.codexThreadId || input.codexThreadId.length > 256) throw new Error("invalid Codex rollout id")
     if (!isAbsoluteBoundedPath(input.cwd)) throw new Error("Codex app-server cwd must be an absolute bounded path")
     const releaseOperation = this.beginOperation()
@@ -2615,10 +2615,10 @@ export class CodexAppServerBridge {
   }
 
   // Called only from the registry's exact old-session lifecycle event. It is intentionally scoped by
-  // both slug and Ntwine session id, so replacing/deleting a TUI session cannot touch this bridge. The
+  // both slug and ntwine session id, so replacing/deleting a TUI session cannot touch this bridge. The
   // registry transaction has already terminalized delivery rows and detached any matching binding;
   // this hook removes that binding and terminates the shared child so no native server request can
-  // remain waiting in a process Ntwine no longer owns.
+  // remain waiting in a process ntwine no longer owns.
   releaseSession(
     threadSlug: string,
     sessionId: string,
@@ -2669,7 +2669,7 @@ export class CodexAppServerBridge {
     let detachError: unknown
     try {
       if (!this.dbReleased) {
-        // A clean Ntwine shutdown may later resume a persisted native session, but no binding may stay
+        // A clean ntwine shutdown may later resume a persisted native session, but no binding may stay
         // active against the process being killed. Preserve current_turn_id for witnessed replay/rebind.
         this.scope.prepare(`
           UPDATE codex_app_server_session SET state = 'detached', updated_at = ?
@@ -3173,11 +3173,11 @@ export class CodexAppServerBridge {
           ...this.resumeSandboxOverride(row),
           ...cwdOverride,
           // The per-thread ntwine MCP mount, exactly as resumeOwnedSession sends it. THIS is the resume a
-          // Ntwine restart issues for every thread that was mid-turn when the app-server died, and it
+          // ntwine restart issues for every thread that was mid-turn when the app-server died, and it
           // was the one resume that did not carry it (2026-09-18, hypergres/this-is-a-fresh-project-i:
           // the 0.13.9 restart replaced the daemon, this path resumed the thread with no mount, and the
           // worker's next registry probe listed no `mcp__ntwine__*` at all — "The restart removed
-          // Ntwine's question-registration tool"). The argv mount is not a fallback here: a thread
+          // ntwine's question-registration tool"). The argv mount is not a fallback here: a thread
           // resumed onto a FRESH app-server gets its MCP children from this call, so without the
           // override it keeps neither its identity nor, in practice, the tools.
           //
@@ -3247,7 +3247,7 @@ export class CodexAppServerBridge {
   // explicitly makes that re-establishment reliable instead of lucky. `list_agents` is codex's own
   // authoritative snapshot, so it is the correct thing to point at.
   private static readonly RESTART_RECOVERY_NUDGE = [
-    "[ntwine] Your previous turn was interrupted: the Codex app-server process running it exited (an Ntwine",
+    "[ntwine] Your previous turn was interrupted: the Codex app-server process running it exited (an ntwine",
     "restart or a crash). This was not a decision by you or the user, and nothing you had already done",
     "was rolled back — but any command or edit that was in flight at that moment may not have finished.",
     "Re-check the state of your work before trusting it, then continue from where you left off.",
@@ -3387,7 +3387,7 @@ export class CodexAppServerBridge {
    * a resume rebuilds the thread, it is built from the bag in that request and nothing else: a bag with
    * only a context window in it left the thread on the process-wide MCP mount, with no slug; a bag with
    * no hooks left it with no hooks. That second one is what every resume sent until 2026-10-11, because
-   * the hooks were the dispatcher's own argument to `thread/start` — so after any Ntwine restart each
+   * the hooks were the dispatcher's own argument to `thread/start` — so after any ntwine restart each
    * Codex thread lost its hooks and its reasoning summaries at its next message, for the rest of its
    * life, and nothing reported it.
    *
@@ -3403,7 +3403,7 @@ export class CodexAppServerBridge {
    * - it is mid-turn, or some connection still subscribes to it: the bag is IGNORED and the resume
    *   only rejoins.
    *
-   * So the bag reaches a live thread when Ntwine makes the second case happen, and only then:
+   * So the bag reaches a live thread when ntwine makes the second case happen, and only then:
    * `thread/unsubscribe` first (rebindOwnedSession), on an idle thread with no background command.
    * That is how a thread that was mid-turn when this server came up moves onto this server's MCP shim
    * and hook registrations — before its next turn (startTurn), never during one. A thread holding a
@@ -3530,7 +3530,7 @@ export class CodexAppServerBridge {
    * because completion in codex is POLLED, never pushed — the `exitCode:-1` goes to the CLIENT and
    * never enters model context. `thread/inject_items` ("Raw Responses API items to append to the
    * thread's model-visible history") is the channel that fixes it, and with the notice injected the
-   * model instead said the command "is stopped and will never report a result, because the Ntwine
+   * model instead said the command "is stopped and will never report a result, because the ntwine
    * operator explicitly terminated it from the dashboard".
    *
    * A notice that fails to land is REPORTED, never thrown: the process is already dead by then, and
@@ -3680,7 +3680,7 @@ export class CodexAppServerBridge {
   private ownedBinding(threadId: string, turnId: string | null): BindingRow {
     const row = this.bindingForCodexThread(threadId)
     if (!row || row.state !== "active" || row.connection_epoch !== this.connectionEpoch) {
-      throw new RpcProtocolError(-32602, "Codex request is not owned by this Ntwine bridge connection")
+      throw new RpcProtocolError(-32602, "Codex request is not owned by this ntwine bridge connection")
     }
     if (turnId !== null) {
       if (row.current_turn_id !== null && row.current_turn_id !== turnId) {
@@ -3820,7 +3820,7 @@ export class CodexAppServerBridge {
       payload,
       expiresAt,
     })
-    if (!parsed.success) throw new RpcProtocolError(-32602, "Codex request cannot be represented by the Ntwine interaction protocol")
+    if (!parsed.success) throw new RpcProtocolError(-32602, "Codex request cannot be represented by the ntwine interaction protocol")
     return parsed.data
   }
 
@@ -3963,7 +3963,7 @@ export class CodexAppServerBridge {
       if (!parsed.success) throw new RpcProtocolError(-32602, "Invalid Codex user-input request")
       const params = parsed.data
       if (params.questions.some((question) => question.isSecret)) {
-        // The exact protocol can carry secret answers, but Ntwine's durable provider outbox cannot do
+        // The exact protocol can carry secret answers, but ntwine's durable provider outbox cannot do
         // so without retaining plaintext. Keep this capability unavailable until transient encrypted
         // delivery exists; do not render an action that will inevitably fail. Turn interruption is a
         // separate `turn/interrupt` client request, never a fabricated user-input response.
@@ -3998,7 +3998,7 @@ export class CodexAppServerBridge {
       providerContext = { fingerprint: requestFingerprint(params) }
       if (params.mode === "openai/form") {
         // The initialize capability explicitly disables this opaque, vendor-extended form contract.
-        throw new RpcProtocolError(-32601, "OpenAI extended MCP forms are not supported by this Ntwine bridge")
+        throw new RpcProtocolError(-32601, "OpenAI extended MCP forms are not supported by this ntwine bridge")
       }
       const row = this.ownedBinding(params.threadId, params.turnId)
       const ownerTurnId = params.turnId ?? `mcp-unscoped-${params.threadId}`
@@ -4110,7 +4110,7 @@ export class CodexAppServerBridge {
   // The level above is folded off `item/started`, and that notification went to the client connection
   // we just lost: the daemon queues only while NO client is attached, and the native listener queues
   // nothing, so neither ever replays it. The exec, meanwhile, is still running in that process's PTY —
-  // so without this its row vanished from the board after every Ntwine restart or dropped socket and
+  // so without this its row vanished from the board after every ntwine restart or dropped socket and
   // never came back until the exec ended, taking its × with it. `thread/backgroundTerminals/list` is
   // the app-server's own answer to "what is still running".
   //
@@ -4290,18 +4290,18 @@ export class CodexAppServerBridge {
       if (!binding || binding.connection_epoch !== this.connectionEpoch || binding.state !== "active") return
       if (binding.current_turn_id !== null) {
         // Duplicate notification for the witnessed turn is harmless. A different id must never
-        // overwrite the authority already pinned to this Ntwine-owned session.
+        // overwrite the authority already pinned to this ntwine-owned session.
         return
       }
       // No local `turn/start` pending means the app-server opened this turn BY ITSELF — a thread goal
       // (`thread/goal/set`, which the worker can arm through codex's own `create_goal` tool) makes it
-      // start a continuation turn the instant the previous one completes, on the very connection Ntwine
+      // start a continuation turn the instant the previous one completes, on the very connection ntwine
       // holds. Those turns used to be ignored here, so `current_turn_id` stayed null for their whole
       // life and everything downstream read them as an OUTSIDE writer: the board saw rollout activity
       // with no bridge turn, followUp refused the operator's steer as "running in your terminal", and
       // an approval raised inside one was rejected as unwitnessed (live 2026-09-10, a goal-driven
-      // research thread the operator could not steer). A turn the app-server starts on Ntwine's own
-      // connection is Ntwine's turn: adopt it, and `turn/completed` retires it like any other.
+      // research thread the operator could not steer). A turn the app-server starts on ntwine's own
+      // connection is ntwine's turn: adopt it, and `turn/completed` retires it like any other.
       this.providerErrors.delete(binding.ntwine_session_id)
       this.scope.prepare(`
         UPDATE codex_app_server_session SET current_turn_id = ?, updated_at = ?

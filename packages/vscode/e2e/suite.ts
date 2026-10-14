@@ -1,12 +1,12 @@
 // THE END-TO-END SUITE — runs INSIDE a real VS Code (scripts/e2e.ts launches it as
 // `--extensionTestsPath`), against the extension under development, and drives both directions:
-// Ntwine → editor (an `open` landing at its line, the status bar's count) and editor → Ntwine (ask, send
-// to thread, add to prompt), plus a dropped connection coming back. Then the Ntwine sidebar (fake mode
+// ntwine → editor (an `open` landing at its line, the status bar's count) and editor → ntwine (ask, send
+// to thread, add to prompt), plus a dropped connection coming back. Then the ntwine sidebar (fake mode
 // only): its frame of a fake page that speaks the embed contract (fake-ntwine.ts), the same three
 // commands landing in that page instead, and what the page can ask of the editor.
 //
 // FAKE mode (default) talks to e2e/fake-ntwine.ts through its /__e2e control surface and asserts on the
-// exact frames and RPC calls it received. REAL mode points the extension at a real Ntwine
+// exact frames and RPC calls it received. REAL mode points the extension at a real ntwine
 // (NTWINE_E2E_ORIGIN, with NTWINE_E2E_PROJECT_DIR as the opened folder, which must be a registered
 // project) and asserts through the server's own RPCs instead; the steps that would start a real agent
 // run only with NTWINE_E2E_DISPATCH=1; Send to thread follows up NTWINE_E2E_THREAD, or else the thread
@@ -321,7 +321,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "a file link from Ntwine opens at its line and column, and a range selects its whole lines",
+    name: "a file link from ntwine opens at its line and column, and a range selects its whole lines",
     modes: ["fake", "real"],
     async run({ project, rpc }) {
       await vscode.commands.executeCommand("workbench.action.closeAllEditors")
@@ -360,7 +360,7 @@ const steps: Step[] = [
     async run() {
       // `workbench.action.focusWindow` arrived in VS Code 1.128: on the oldest VS Code the manifest
       // admits (NTWINE_E2E_VSCODE=oldest), and in Cursor and Windsurf, raising the window throws. A focus
-      // request is only the raise, so there it answers that it could not, and Ntwine falls back to the
+      // request is only the raise, so there it answers that it could not, and ntwine falls back to the
       // editor's command line; an open has already happened by then, so it is ok on every version.
       const canRaise = (await vscode.commands.getCommands(true)).includes("workbench.action.focusWindow")
       const focused = await fake<{ ok: boolean; error?: string }>("/__e2e/focus", { path: workspace })
@@ -378,19 +378,19 @@ const steps: Step[] = [
     modes: ["fake", "real"],
     async run({ api, project }) {
       if (mode === "real") {
-        assert.match(api.statusBar().text, /^Ntwine/)
+        assert.match(api.statusBar().text, /^ntwine/)
         return
       }
       await fake("/__e2e/projects", { projects: [{ ...project, ready: 3, working: 1 }] })
-      await until("Ntwine · 3 ready", () => api.statusBar().text === "Ntwine · 3 ready")
+      await until("ntwine · 3 ready", () => api.statusBar().text === "ntwine · 3 ready")
       assert.match(api.statusBar().tooltip, /3 ready · 1 working/)
       assert.equal(api.statusBar().command, "ntwine.sidebar.focus", "a click shows the sidebar")
       await fake("/__e2e/projects", { projects: [{ ...project, ready: 0, working: 1 }] })
-      await until("a bare Ntwine", () => api.statusBar().text === "Ntwine")
+      await until("a bare ntwine", () => api.statusBar().text === "ntwine")
     },
   },
   {
-    name: "Ntwine's agents can read the editor: the file in front, the selection and its text, the tabs, the problems — nothing with sharing off",
+    name: "ntwine's agents can read the editor: the file in front, the selection and its text, the tabs, the problems — nothing with sharing off",
     modes: ["fake"],
     async run() {
       const { editor, other, problems } = await agentScene()
@@ -472,7 +472,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "Ask Ntwine dispatches the selection as the page's chip, with the saved backend, model and effort",
+    name: "Ask ntwine dispatches the selection as the page's chip, with the saved backend, model and effort",
     modes: ["fake", "real"],
     async run({ project, rpc }) {
       if (mode === "real" && process.env.NTWINE_E2E_DISPATCH !== "1") return skip("starts a real agent; set NTWINE_E2E_DISPATCH=1")
@@ -504,7 +504,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "Send to Ntwine thread follows up the named thread, once, with an idempotent delivery id",
+    name: "Send to ntwine thread follows up the named thread, once, with an idempotent delivery id",
     modes: ["fake", "real"],
     async run({ project }) {
       const realThread = process.env.NTWINE_E2E_THREAD || askedThread
@@ -527,7 +527,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "Send to Ntwine thread refuses a selection in an untitled buffer rather than sending the message without it",
+    name: "Send to ntwine thread refuses a selection in an untitled buffer rather than sending the message without it",
     modes: ["fake"],
     async run() {
       await vscode.commands.executeCommand("workbench.action.closeAllEditors")
@@ -541,7 +541,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "with the sidebar off, Add to Ntwine prompt hands the selection to Ntwine for the page's prompt box",
+    name: "with the sidebar off, Add to ntwine prompt hands the selection to ntwine for the page's prompt box",
     modes: ["fake", "real"],
     async run({ project, rpc }) {
       const editor = await openSample([1, 0, 2])
@@ -562,7 +562,7 @@ const steps: Step[] = [
         assert.equal(compose.id, composed!.id)
         assert.deepEqual(compose.item, expected)
       } else if (process.env.NTWINE_E2E_PAGE_CLAIMS === "1") {
-        // A real page is open on this Ntwine and claims it itself; the harness beside it asserts the chip.
+        // A real page is open on this ntwine and claims it itself; the harness beside it asserts the chip.
         return
       } else {
         const { item } = await rpc.mutation(project.id, "composeTake", {})
@@ -572,7 +572,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "turning off Open file links tells Ntwine at once",
+    name: "turning off Open file links tells ntwine at once",
     modes: ["fake", "real"],
     async run({ project, rpc }) {
       const config = vscode.workspace.getConfiguration("ntwine")
@@ -600,10 +600,10 @@ const steps: Step[] = [
   },
 
   // ── the sidebar ────────────────────────────────────────────────────────────────────────────────────
-  // Every step above ran with the sidebar never opened: Add to Ntwine prompt with the setting off, and Ask
+  // Every step above ran with the sidebar never opened: Add to ntwine prompt with the setting off, and Ask
   // and Send passing their text, which is sent directly whatever the sidebar does.
   {
-    name: "Add to Ntwine prompt opens the sidebar in a window that never had it, framing Ntwine's page with the embed params, and lands there with the caret",
+    name: "Add to ntwine prompt opens the sidebar in a window that never had it, framing ntwine's page with the embed params, and lands there with the caret",
     modes: ["fake"],
     async run({ api, project }) {
       assert.equal(api.sidebar().opened, false, "nothing has opened it yet")
@@ -622,7 +622,7 @@ const steps: Step[] = [
       const query = embedQuery(project)
       assert.equal(api.sidebar().url, `${control}/${query}`)
       const log = await fakeLog()
-      assert.deepEqual(log.page.loads, [`/${query}`], "Ntwine served the page once, with those params")
+      assert.deepEqual(log.page.loads, [`/${query}`], "ntwine served the page once, with those params")
       // Whatever the page reads from its URL, the theme follows once it is ready.
       await until("the theme posted", async () => (await pageReceived("ntwine:theme")).length > 0)
       assert.ok(log.page.received.every((entry) => entry.origin.startsWith("vscode-webview://")), "everything reached the page from the sidebar's own document")
@@ -639,7 +639,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "Add to Ntwine prompt puts the selection into the prompt box the sidebar shows, with the caret, not through Ntwine",
+    name: "Add to ntwine prompt puts the selection into the prompt box the sidebar shows, with the caret, not through ntwine",
     modes: ["fake"],
     async run({ api, project }) {
       const editor = await openSample([1, 0, 2])
@@ -653,17 +653,17 @@ const steps: Step[] = [
         // The very item the server path carries (the step above), so the page writes the same chip.
         item: { projectId: project.id, path: sample, text: sampleLines(editor.document, 2, 3), startLine: 2, endLine: 3, app: vscode.env.appName },
         target: "front",
-        // The caret goes after the chip, as Cursor's Cmd+L and Ntwine's own ⌘I put it.
+        // The caret goes after the chip, as Cursor's Cmd+L and ntwine's own ⌘I put it.
         focus: true,
       }])
-      assert.equal((await fakeLog()).frames.filter((frame) => frame.t === "compose").length, before.frames.filter((frame) => frame.t === "compose").length, "nothing went to Ntwine to hold")
+      assert.equal((await fakeLog()).frames.filter((frame) => frame.t === "compose").length, before.frames.filter((frame) => frame.t === "compose").length, "nothing went to ntwine to hold")
       assert.equal(api.sidebar().visible, true)
       // Focus is in the sidebar now; the editor in front is still the one the selection came from.
       assert.equal(vscode.window.activeTextEditor?.document.uri.fsPath, sample)
     },
   },
   {
-    name: "Ask Ntwine… opens the sidebar's new-thread box with the selection, and starts nothing itself",
+    name: "Ask ntwine… opens the sidebar's new-thread box with the selection, and starts nothing itself",
     modes: ["fake"],
     async run({ project }) {
       const editor = await openSample([1, 0, 3])
@@ -681,7 +681,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "Send to Ntwine thread… opens the picked thread in the sidebar with the selection in its reply box",
+    name: "Send to ntwine thread… opens the picked thread in the sidebar with the selection in its reply box",
     modes: ["fake"],
     async run({ project }) {
       const editor = await openSample([2, 0, 2])
@@ -721,7 +721,7 @@ const steps: Step[] = [
       // The keys' own records, read by type: an earlier step's open can record its outcome after these.
       const keys = () => api.sidebar().events.filter((event) => event.type === "ntwine:key").map((event) => event.outcome)
       let from = keys().length
-      // Ctrl+Shift+E (⌘⇧E): the Explorer takes the side bar, so the Ntwine view is no longer visible.
+      // Ctrl+Shift+E (⌘⇧E): the Explorer takes the side bar, so the ntwine view is no longer visible.
       await pagePosts({ type: "ntwine:key", key: "E", code: "KeyE", ctrl: !mac, meta: mac, shift: true, alt: false })
       await until("the explorer shown", () => !api.sidebar().visible)
       assert.deepEqual(keys().slice(from), ["workbench.view.explorer"])
@@ -1065,7 +1065,7 @@ const steps: Step[] = [
         focus: true,
       }])
 
-      // A caret only: the whole file, not the caret's line (which the palette's Add to Ntwine prompt adds).
+      // A caret only: the whole file, not the caret's line (which the palette's Add to ntwine prompt adds).
       const caret = await openSample()
       caret.selection = new vscode.Selection(3, 1, 3, 1)
       await sleep(500)
@@ -1082,14 +1082,14 @@ const steps: Step[] = [
     },
   },
   {
-    name: "a selection made by hand gets the hint `Ctrl+L to add to Ntwine` once it settles; none when it empties, for one an extension set, a select-all, a diff, one just added, or with the setting off",
+    name: "a selection made by hand gets the hint `Ctrl+L to add to ntwine` once it settles; none when it empties, for one an extension set, a select-all, a diff, one just added, or with the setting off",
     modes: ["fake"],
     async run({ api }) {
       const mod = process.platform === "darwin" ? "meta" : "ctrl"
-      const words = `${process.platform === "darwin" ? "⌘L" : "Ctrl+L"} to add to Ntwine`
+      const words = `${process.platform === "darwin" ? "⌘L" : "Ctrl+L"} to add to ntwine`
       // What the editor DRAWS: VS Code renders an `after` decoration as a CSS ::after on a span of the line.
       const drawn = () => workbench<string[]>(`[...document.querySelectorAll(".part.editor .view-lines span")]
-        .map((span) => getComputedStyle(span, "::after").content).filter((content) => content.includes("add to Ntwine"))`)
+        .map((span) => getComputedStyle(span, "::after").content).filter((content) => content.includes("add to ntwine"))`)
       const none = async (why: string) => {
         await sleep(800)
         assert.equal(api.selectionHint(), undefined, why)
@@ -1112,7 +1112,7 @@ const steps: Step[] = [
       assert.deepEqual(await drawn(), [JSON.stringify(words)])
       // Drawn on the selection's last line, after its text.
       const onLine = await workbench<string | null>(`(() => {
-        const span = [...document.querySelectorAll(".part.editor .view-lines span")].find((s) => getComputedStyle(s, "::after").content.includes("add to Ntwine"))
+        const span = [...document.querySelectorAll(".part.editor .view-lines span")].find((s) => getComputedStyle(s, "::after").content.includes("add to ntwine"))
         return span?.closest(".view-line")?.textContent?.replace(/\u00a0/g, " ") ?? null
       })()`)
       assert.equal(onLine?.trimEnd(), editor.document.lineAt(2).text.trimEnd(), "after line 3's own text")
@@ -1130,7 +1130,7 @@ const steps: Step[] = [
       await press("shift+up")
       await until("the hint, upward", () => api.selectionHint()?.line === 4)
 
-      // A selection an extension set — as Ntwine's own file links select their lines — gets none.
+      // A selection an extension set — as ntwine's own file links select their lines — gets none.
       editor.selection = new vscode.Selection(1, 0, 3, 4)
       await none("a selection an extension set")
 
@@ -1184,7 +1184,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "a problem's quick fix asks Ntwine to fix it: its lines in the prompt and the problem written after the chip",
+    name: "a problem's quick fix asks ntwine to fix it: its lines in the prompt and the problem written after the chip",
     modes: ["fake"],
     async run({ project }) {
       const diagnostics = vscode.languages.createDiagnosticCollection("ntwine-e2e")
@@ -1198,11 +1198,11 @@ const steps: Step[] = [
         diagnostics.set(uri, [problem])
         const fixes = async () => {
           const actions = (await vscode.commands.executeCommand<vscode.CodeAction[]>("vscode.executeCodeActionProvider", uri, new vscode.Range(3, 6, 3, 6))) ?? []
-          return actions.filter((action) => action.title.startsWith("Ask Ntwine to fix"))
+          return actions.filter((action) => action.title.startsWith("Ask ntwine to fix"))
         }
         let offered: vscode.CodeAction[] = []
         await until("the fix offered", async () => (offered = await fixes()).length === 1)
-        assert.equal(offered[0]!.title, "Ask Ntwine to fix")
+        assert.equal(offered[0]!.title, "Ask ntwine to fix")
         assert.equal(offered[0]!.kind?.value, vscode.CodeActionKind.QuickFix.value)
         const from = await received()
         const command = offered[0]!.command!
@@ -1223,7 +1223,7 @@ const steps: Step[] = [
         lint.code = { value: "no-sum", target: vscode.Uri.parse("https://eslint.org/docs/rules/no-sum") }
         diagnostics.set(uri, [problem, lint])
         await until("two fixes", async () => (offered = await fixes()).length === 2)
-        assert.deepEqual(offered.map((action) => action.title).sort(), ["Ask Ntwine to fix: Assignment to a loop's sum.", "Ask Ntwine to fix: Cannot find name 'total'."])
+        assert.deepEqual(offered.map((action) => action.title).sort(), ["Ask ntwine to fix: Assignment to a loop's sum.", "Ask ntwine to fix: Cannot find name 'total'."])
 
         // The sidebar off: nowhere for the problem's words to go, so nothing is offered.
         await ntwine.update("useSidebar", false, vscode.ConfigurationTarget.Global)
@@ -1306,7 +1306,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "where the page is picks the title row's buttons and its counts ride the badge; the row itself still reads Ntwine",
+    name: "where the page is picks the title row's buttons and its counts ride the badge; the row itself still reads ntwine",
     modes: ["fake"],
     async run({ api, project }) {
       await vscode.commands.executeCommand("ntwine.sidebar.focus")
@@ -1316,7 +1316,7 @@ const steps: Step[] = [
       await until("the thread's view and counts", () => api.sidebar().view === "thread" && api.sidebar().badgeTooltip === "Waiting on you")
       let row = await titleRow()
       await until("the thread's buttons", async () => (row = await titleRow()).buttons.includes("Back to queue"))
-      // VS Code re-cases a view's title ("Ntwine: Fake-Thread"), so the page's names stay in the page.
+      // VS Code re-cases a view's title ("ntwine: Fake-Thread"), so the page's names stay in the page.
       assert.doesNotMatch(row.heading, /fake-thread/iu)
       assert.deepEqual(row.buttons.filter((label) => !/More Actions/u.test(label)), ["Back to queue", "Jump to a thread", "Settings"])
 
@@ -1370,7 +1370,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "a page that doesn't answer leaves Add to Ntwine prompt to Ntwine, and so does turning the setting off",
+    name: "a page that doesn't answer leaves Add to ntwine prompt to ntwine, and so does turning the setting off",
     modes: ["fake"],
     async run() {
       await openSample([1, 0, 1])
@@ -1380,7 +1380,7 @@ const steps: Step[] = [
         const before = await composes()
         const composed = await vscode.commands.executeCommand<EditorComposed | undefined>("ntwine.addToPrompt")
         assert.equal(composed?.ok, true, JSON.stringify(composed))
-        assert.equal(await composes(), before + 1, "after the page's silence, Ntwine holds it for a page to claim")
+        assert.equal(await composes(), before + 1, "after the page's silence, ntwine holds it for a page to claim")
       } finally {
         await fake("/__e2e/page-answer", { answer: "ok" })
       }
@@ -1400,11 +1400,11 @@ const steps: Step[] = [
     },
   },
   {
-    name: "review: Ntwine's push (a browser's Review changes) opens a worktree's branch as one multi-file diff and says this window can",
+    name: "review: ntwine's push (a browser's Review changes) opens a worktree's branch as one multi-file diff and says this window can",
     modes: ["fake"],
     async run({ api }) {
       const repo = reviewRepo()
-      // The window told this Ntwine it can review — only because its welcome named the feature.
+      // The window told this ntwine it can review — only because its welcome named the feature.
       const features = (await fakeLog()).frames.filter((frame) => frame.t === "features")
       assert.deepEqual(features.at(-1), { t: "features", features: ["review"] })
       await vscode.commands.executeCommand("workbench.action.closeAllEditors")
@@ -1415,7 +1415,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "review: the sidebar's page names a thread (ntwine:review), and the extension asks Ntwine what it changed",
+    name: "review: the sidebar's page names a thread (ntwine:review), and the extension asks ntwine what it changed",
     modes: ["fake"],
     async run({ api, project }) {
       const repo = reviewRepo()
@@ -1428,7 +1428,7 @@ const steps: Step[] = [
       assert.deepEqual(api.sidebar().events.slice(events).filter((event) => event.type === "ntwine:review"), [{ type: "ntwine:review", outcome: "opened" }])
       assert.deepEqual((await fakeLog()).rpc.slice(asked).filter((call) => call.procedure === "reviewTarget").map((call) => ({ projectId: call.projectId, input: call.input })), [
         { projectId: project.id, input: { slug: "fake-thread", title: "Tidy the loop from the sidebar" } },
-      ], "the page named the thread, Ntwine named the folder")
+      ], "the page named the thread, ntwine named the folder")
       await assertReviewInFront(api, repo, "Tidy the loop from the sidebar")
       // A page message naming a folder instead of a thread is not a review.
       const before = api.sidebar().events.length
@@ -1460,7 +1460,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "review: a thread that worked in a worktree — Ntwine reads its edits there, and Review changes opens them here",
+    name: "review: a thread that worked in a worktree — ntwine reads its edits there, and Review changes opens them here",
     modes: ["real"],
     async run({ api, project, rpc }) {
       const raw = process.env.NTWINE_E2E_REVIEW
@@ -1487,7 +1487,7 @@ const steps: Step[] = [
       assert.match(api.build, /^\d+\.\d+\.\d+\+[0-9a-f]{8}(-dirty)?$/u)
       const hello = (await fakeLog()).frames.find((frame) => frame.t === "hello")
       assert.equal(hello?.t === "hello" ? hello.extensionVersion : undefined, api.build)
-      assert.ok(api.statusBar().tooltip.includes(`Ntwine extension ${api.build}`), api.statusBar().tooltip)
+      assert.ok(api.statusBar().tooltip.includes(`ntwine extension ${api.build}`), api.statusBar().tooltip)
       // The same build reinstalled in place (`--install-extension --force`) is a new id under the folder
       // this window loaded from; the window offers to reload into it.
       const file = join(vscode.extensions.getExtension("ssalbdivad.ntwine-vscode")!.extensionPath, "dist", "build.json")
@@ -1505,7 +1505,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "an Ntwine from before the sidebar is named as the cause at once, not after the 20s wait",
+    name: "an ntwine from before the sidebar is named as the cause at once, not after the 20s wait",
     modes: ["fake"],
     async run({ api }) {
       const hellos = async () => (await fakeLog()).frames.filter((frame) => frame.t === "hello").length
@@ -1520,7 +1520,7 @@ const steps: Step[] = [
         await reconnect()
         const started = Date.now()
         await vscode.commands.executeCommand("ntwine.sidebar.reload")
-        await until("the bar naming an old Ntwine", () => api.sidebar().hint === HINT_OLD_NTWINE, 8_000)
+        await until("the bar naming an old ntwine", () => api.sidebar().hint === HINT_OLD_NTWINE, 8_000)
         assert.ok(Date.now() - started < 8_000)
         assert.equal(api.sidebar().ready, false)
       } finally {
@@ -1653,7 +1653,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "a thread opens in an editor tab beside the code, on its own address; asked again it comes forward; Ctrl+L goes to the Ntwine used last and back",
+    name: "a thread opens in an editor tab beside the code, on its own address; asked again it comes forward; Ctrl+L goes to the ntwine used last and back",
     modes: ["fake"],
     async run({ api, project }) {
       // The title row's ⋯ offers it while the sidebar shows a thread, first in the menu.
@@ -1728,7 +1728,7 @@ const steps: Step[] = [
     },
   },
   {
-    name: "Ntwine on a new port re-frames the sidebar there; a page that never loads offers Reload; no Ntwine at all says so",
+    name: "ntwine on a new port re-frames the sidebar there; a page that never loads offers Reload; no ntwine at all says so",
     modes: ["fake"],
     async run({ api, project }) {
       const ntwine = vscode.workspace.getConfiguration("ntwine")
@@ -1743,7 +1743,7 @@ const steps: Step[] = [
         await ntwine.update("serverUrl", "http://127.0.0.1:1", vscode.ConfigurationTarget.Global)
         await until("the frame on port 1", () => api.sidebar().url === `http://127.0.0.1:1/${embedQuery(project)}`)
         assert.equal(api.sidebar().ready, false)
-        // The view waits 20s for a page to say it is ready (src/sidebar.ts READY_HINT_MS; 10s until an Ntwine
+        // The view waits 20s for a page to say it is ready (src/sidebar.ts READY_HINT_MS; 10s until an ntwine
         // run from source took 13s and 42s to load on a busy machine), so the hint comes after that.
         await until("the hint", () => api.sidebar().hinted, 30_000)
 
@@ -1754,12 +1754,12 @@ const steps: Step[] = [
         await new Promise((resolve) => setTimeout(resolve, 500))
         assert.equal(api.sidebar().url, `http://127.0.0.1:1/${embedQuery(project)}`)
         await vscode.commands.executeCommand("ntwine.sidebar.reload")
-        // Reload looks again first ("Looking for Ntwine…"), then says what it found.
-        await until("a message instead of the page", () => api.sidebar().url === undefined && api.sidebar().message === "Ntwine isn't running.")
+        // Reload looks again first ("Looking for ntwine…"), then says what it found.
+        await until("a message instead of the page", () => api.sidebar().url === undefined && api.sidebar().message === "ntwine isn't running.")
       } finally {
         await ntwine.update("serverUrl", control, vscode.ConfigurationTarget.Global)
       }
-      await until("the frame back on the first Ntwine, ready", () => api.sidebar().url === `${control}/${embedQuery(project)}` && api.sidebar().ready, 30_000)
+      await until("the frame back on the first ntwine, ready", () => api.sidebar().url === `${control}/${embedQuery(project)}` && api.sidebar().ready, 30_000)
       assert.equal(api.sidebar().hinted, false)
     },
   },
@@ -1775,14 +1775,14 @@ export async function run(): Promise<void> {
   const extension = vscode.extensions.getExtension<NtwineExtensionApi>("ssalbdivad.ntwine-vscode")
   assert.ok(extension, "the extension under development is installed")
   const api = await extension.activate()
-  await until("the connection to Ntwine", () => api.status().kind === "connected", 30_000)
+  await until("the connection to ntwine", () => api.status().kind === "connected", 30_000)
   const origin = api.origin()!
   await until("the projects push", () => api.projects().length > 0)
   const project = projectForPath(workspace, api.projects())?.project
   assert.ok(project, `a project holds ${workspace}: ${JSON.stringify(api.projects())}`)
   const rpc = new NtwineRpc(origin)
 
-  // REAL mode: file links reach an editor only when Ntwine's Local file links setting is VS Code.
+  // REAL mode: file links reach an editor only when ntwine's Local file links setting is VS Code.
   let restoreSettings: (() => Promise<unknown>) | undefined
   if (mode === "real" && process.env.NTWINE_E2E_SET_OPENER === "1") {
     const settings = await rpc.query(project.id, "settingsGet")

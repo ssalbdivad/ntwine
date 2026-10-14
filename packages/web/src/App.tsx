@@ -101,7 +101,7 @@ export function App() {
   // The public supervisor survives replacement of the app child. It is consequently the only
   // trustworthy transition signal: an old child can still say ready while the next artifact builds.
   // The READ is shared — api/supervisorStatus.ts owns the one poll (gentle at rest, prompt across a
-  // handoff) that this board, the Restart Ntwine button and the dev-build probe all observe; this effect
+  // handoff) that this board, the Restart ntwine button and the dev-build probe all observe; this effect
   // is only what the BOARD does with each answer. Writes are gated in rpc.ts but drafts remain
   // session-backed and editable throughout.
   const { data: supervisorStatus, dataUpdatedAt: supervisorAnsweredAt } = useSupervisorStatus()
@@ -291,7 +291,7 @@ export function App() {
   useEffect(() => { resolveRoutedThread() }, [board, snap.routeThreadSlug])
 
   // The window title is set by what is showing: the page names its view (AllQueues.tsx), StandaloneThreadPage
-  // its thread, and index.html's "Ntwine" stands elsewhere. No effect here — it would run after the page's on
+  // its thread, and index.html's "ntwine" stands elsewhere. No effect here — it would run after the page's on
   // mount and overwrite it.
 
   return (

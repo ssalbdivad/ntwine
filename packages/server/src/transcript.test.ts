@@ -474,7 +474,7 @@ test("a shell-backgrounded Bash attempt is visible immediately and remains ident
         type: "tool_result",
         tool_use_id: "bash-shell-job",
         is_error: true,
-        content: "Ntwine blocked an untracked shell background job (`&`). Remove `&` and use Bash run_in_background:true.",
+        content: "ntwine blocked an untracked shell background job (`&`). Remove `&` and use Bash run_in_background:true.",
       }],
     },
   })
@@ -623,7 +623,7 @@ test("the latest window reaches back past its cap to keep the human's last messa
   assert.equal(messages.length - start, 321)
 })
 
-test("Ntwine and sub-agents' own user records are not the human, so the window reaches past every one", () => {
+test("ntwine and sub-agents' own user records are not the human, so the window reaches past every one", () => {
   // The exact shape of the card that provoked this: the tail is full of `wake` records (PR-watcher
   // pings, the sign-off reminder, "Keep going" stop-hook prompts) and one undelivered queued send.
   const noise = [
@@ -1131,7 +1131,7 @@ test("SendMessage → SendMessageCard fields captured (to/summary/body/type)", (
   assert.equal(call.detail, "Steer to UTM path")
 })
 
-test("a message to another Ntwine thread rides the send fields, with its handle and wait", () => {
+test("a message to another ntwine thread rides the send fields, with its handle and wait", () => {
   const call = parseTranscript(toolLine("mcp__ntwine__message_thread", { handle: "@port-the-parser", message: "Are keys normalized?", await_reply: true })).at(0)!.tools[0]
   assert.equal(call.sendTo, "@port-the-parser")
   assert.equal(call.sendBody, "Are keys normalized?")

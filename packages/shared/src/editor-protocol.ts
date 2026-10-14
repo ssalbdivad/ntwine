@@ -1,4 +1,4 @@
-// THE EDITOR BRIDGE — the wire between Ntwine and an editor extension (packages/vscode) running in a
+// THE EDITOR BRIDGE — the wire between ntwine and an editor extension (packages/vscode) running in a
 // VS Code, Cursor or Windsurf window. Design and rationale: ARCHITECTURE.md § VS Code extension.
 //
 // One WebSocket per editor WINDOW, opened BY the extension to the one machine-wide endpoint
@@ -31,7 +31,7 @@ export const EDITOR_COMPOSE_MAX_TEXT = 64 * 1024
 /**
  * What a server can do beyond v1, named in its `welcome` (`features`). The protocol stays v1 and grows by
  * these instead: the server closes a socket on ANY frame it does not know (4401), so an extension that
- * sent a new frame to an Ntwine from before it would be refused on every redial, forever. A new extension
+ * sent a new frame to an ntwine from before it would be refused on every redial, forever. A new extension
  * sends a new frame only to a server that named it; an old extension ignores the field.
  */
 export const EDITOR_FEATURES = {
@@ -47,7 +47,7 @@ export const EDITOR_FEATURES = {
   /**
    * The page this server serves can live in an editor's sidebar (`?embed=vscode`, packages/web lib/
    * embed.ts). A server without it serves a page that never says `ntwine:ready` there, and the sidebar
-   * says to update Ntwine rather than that it is still loading. `editor-state` came after embed mode, so
+   * says to update ntwine rather than that it is still loading. `editor-state` came after embed mode, so
    * a server naming only that one has it too.
    */
   sidebar: "sidebar",
@@ -86,7 +86,7 @@ export const EDITOR_STATE_MAX_BYTES = 56 * 1024
 
 /** Close codes the server uses beyond the standard ones, so the extension can say why it was dropped. */
 export const EDITOR_CLOSE = {
-  /** The hello's `v` is not one this server speaks. The extension should say "update Ntwine or the extension". */
+  /** The hello's `v` is not one this server speaks. The extension should say "update ntwine or the extension". */
   unsupportedVersion: 4400,
   /** A frame failed validation. */
   invalidMessage: 4401,
@@ -105,7 +105,7 @@ export function editorKindOf(appName: string): EditorKind {
   return "other"
 }
 
-/** A selection (or a whole file) the human sends to Ntwine's prompt box from the editor. */
+/** A selection (or a whole file) the human sends to ntwine's prompt box from the editor. */
 export interface EditorComposeInput {
   /** The project the file belongs to, as the extension matched it; the page's fallback target. */
   projectId?: string
@@ -117,7 +117,7 @@ export interface EditorComposeInput {
   endLine?: number
 }
 
-/** A compose input the server is holding until an Ntwine page claims it (`composeTake`). */
+/** A compose input the server is holding until an ntwine page claims it (`composeTake`). */
 export interface EditorComposeItem extends EditorComposeInput {
   id: string
   /** The sending window's app name, for copy ("From VS Code"). */
@@ -143,11 +143,11 @@ export interface EditorHello {
   focused: boolean
   /**
    * How long ago this window last had focus, when it does not have it now. A reconnect (every window
-   * redials after an Ntwine restart, while the human is in the browser) would otherwise erase which
+   * redials after an ntwine restart, while the human is in the browser) would otherwise erase which
    * window was used last, and an open no folder claims would go to whichever window redialled last.
    */
   focusedAgoMs?: number
-  /** Whether this window takes file opens from Ntwine (the extension's `ntwine.openFileLinks` setting). */
+  /** Whether this window takes file opens from ntwine (the extension's `ntwine.openFileLinks` setting). */
   acceptsOpens: boolean
   /** `os.homedir()` and `process.platform` of the extension host — how the server tells a window that shares its filesystem. */
   home: string
@@ -309,8 +309,8 @@ export interface EditorFocus {
 
 // ── a thread's changes, as VS Code's multi-file diff (`review`) ──────────────────────────────────────
 //
-// Claude Code and Cursor show an agent's edits as native diffs. An Ntwine worker edits files directly, often
-// in a worktree of its own, so the Ntwine form is to open everything a thread changed as one multi-file
+// Claude Code and Cursor show an agent's edits as native diffs. An ntwine worker edits files directly, often
+// in a worktree of its own, so the ntwine form is to open everything a thread changed as one multi-file
 // diff against where it started. The SERVER names what to show — the checkouts the thread's edits are in,
 // read off its transcript (review-target.ts) — and the EXTENSION, which runs where the files are, asks git
 // for the base and the changed files and opens the diff (packages/vscode review.ts). The same target
@@ -334,7 +334,7 @@ export interface EditorReviewCheckout {
 export interface EditorReviewTarget {
   /** The thread's title, for the diff's tab: "Changes in <title>". */
   title: string
-  /** The checkout the thread edited in last first. Empty: it has edited nothing Ntwine can see. */
+  /** The checkout the thread edited in last first. Empty: it has edited nothing ntwine can see. */
   checkouts: EditorReviewCheckout[]
 }
 
@@ -351,7 +351,7 @@ export interface EditorComposed {
   error?: string
 }
 
-/** One Ntwine project, for the extension to map files to and to show counts for. */
+/** One ntwine project, for the extension to map files to and to show counts for. */
 export interface EditorProject {
   id: string
   slug: string
@@ -381,7 +381,7 @@ export type EditorAttentionNeeds = "terminal" | "approval" | "question" | "stopp
  * A thread of a project this window has open came to rest needing the human — it entered the queue
  * (board.ts notifyNeedsYou's `needs-decision`, the edge the page's own notifications use). Sent to ONE
  * window: of those that said `listen {attention: true}` and have the project open, the one the human was
- * in last. The extension shows it unless the Ntwine sidebar is in sight (it shows the card already).
+ * in last. The extension shows it unless the ntwine sidebar is in sight (it shows the card already).
  */
 export interface EditorAttention {
   t: "attention"
@@ -407,7 +407,7 @@ export interface EditorAttentionThread {
 
 export type EditorServerMessage = EditorWelcome | EditorOpen | EditorFocus | EditorReview | EditorComposed | EditorProjects | EditorHeartbeat | EditorAttention
 
-/** What an Ntwine page knows about connected editor windows (`editorWindows`, and the `editors` event). */
+/** What an ntwine page knows about connected editor windows (`editorWindows`, and the `editors` event). */
 export interface EditorWindowSummary {
   app: string
   kind: EditorKind
@@ -415,7 +415,7 @@ export interface EditorWindowSummary {
   acceptsOpens: boolean
   /** The window can show a thread's changes (`review`); absent from an extension from before it. */
   reviews?: true
-  /** The Ntwine extension's build in that window (its hello's `extensionVersion`: `0.1.0+1a2b3c4d`). */
+  /** The ntwine extension's build in that window (its hello's `extensionVersion`: `0.1.0+1a2b3c4d`). */
   extensionVersion?: string
 }
 
@@ -482,7 +482,7 @@ export interface EditorStateCheckout {
 export interface EditorStateResult {
   windows: EditorStateWindow[]
   /**
-   * Every editor window connected to Ntwine, these included. The others are counted and NOT described: their
+   * Every editor window connected to ntwine, these included. The others are counted and NOT described: their
    * folders are other projects, which a worker of this one has no business learning (until 2026-10-02 they
    * were listed, folders and all, to any worker of any project).
    */

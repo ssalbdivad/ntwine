@@ -24,7 +24,7 @@ import {
 const response = (body: string, status = 200, contentType = "application/json") => new Response(body, { status, headers: { "content-type": contentType } })
 
 test("restart controls negotiate an explicit JSON protocol and reject SPA HTML fallbacks", async () => {
-  const html = async () => response("<!doctype html><title>Ntwine</title>", 200, "text/html")
+  const html = async () => response("<!doctype html><title>ntwine</title>", 200, "text/html")
   assert.equal(await getNtwineSupervisorStatus(html as typeof fetch), null)
   await assert.rejects(requestNtwineUpdateRestart(html as typeof fetch), /unavailable/)
 })
@@ -92,7 +92,7 @@ test("an accepted update transition is not misreported as a restart failure", as
 })
 
 // The two conditions behind the Update-vs-Restart label. Conflating them shipped: production reported
-// only the CAPABILITY, so a fully current Ntwine still offered "Update Ntwine" and a click reinstalled its
+// only the CAPABILITY, so a fully current ntwine still offered "Update ntwine" and a click reinstalled its
 // own version and restarted the app for nothing.
 test("the update label needs the verb wired AND a newer artifact to actually exist", () => {
   const status = (over: Record<string, unknown>) =>
@@ -123,7 +123,7 @@ test("a development build is only ever what the supervisor explicitly reports", 
   assert.equal(isDevNtwineBuild(status({ dev: true })), true, "ntwine-dev / pnpm dev")
   assert.equal(
     isDevNtwineBuild(status({})), false,
-    "a published Ntwine, and any supervisor predating the field, must never show a dev-only verb",
+    "a published ntwine, and any supervisor predating the field, must never show a dev-only verb",
   )
   assert.equal(
     isDevNtwineBuild(status({ updateRestart: true })), false,
@@ -204,14 +204,14 @@ test("a failed answer naming the version we clicked on means the old launcher ga
   assert.deepEqual(restartFailureOutcome("0.4.2", {}), { kind: "successor-failed", version: undefined }, "a different answerer that names nothing is still not the one we clicked on")
 
   const kept = restartFailureCopy({ kind: "previous-kept" })
-  assert.equal(kept.detail, "Ntwine kept running the previous version, and your threads are unaffected.")
-  assert.equal(kept.summary, "Ntwine kept running the previous version")
+  assert.equal(kept.detail, "ntwine kept running the previous version, and your threads are unaffected.")
+  assert.equal(kept.summary, "ntwine kept running the previous version")
   const successor = restartFailureCopy({ kind: "successor-failed", version: "0.5.0" })
-  assert.equal(successor.summary, "Ntwine 0.5.0 failed to start")
-  assert.match(successor.detail, /^Ntwine 0\.5\.0 came up but could not start its board, and the previous version is gone\./)
+  assert.equal(successor.summary, "ntwine 0.5.0 failed to start")
+  assert.match(successor.detail, /^ntwine 0\.5\.0 came up but could not start its board, and the previous version is gone\./)
   assert.match(successor.detail, /npx ntwine/)
   assert.doesNotMatch(successor.detail, /kept running/)
-  assert.match(restartFailureCopy({ kind: "successor-failed" }).summary, /^The new version of Ntwine failed to start$/)
+  assert.match(restartFailureCopy({ kind: "successor-failed" }).summary, /^The new version of ntwine failed to start$/)
 })
 
 // ── pullfrog on #35 (2026-09-11): only an answer requested after the ack can settle an attempt ──────

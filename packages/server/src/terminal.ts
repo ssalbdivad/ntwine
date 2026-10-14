@@ -428,7 +428,7 @@ export function createTerminalServer(deps: TerminalServerDeps = {}): TerminalSer
         }
       } catch {
         // A valid message can still race a dead/detached PTY. Contain that failure to this viewer;
-        // the Ntwine control plane and every running agent worker must survive.
+        // the ntwine control plane and every running agent worker must survive.
         beginClose(1011, "terminal unavailable")
       }
     })

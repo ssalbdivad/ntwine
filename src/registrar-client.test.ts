@@ -133,7 +133,7 @@ test("a registrar that is DOWN is distinguished from one that refused", async ()
     claimName({ name: "dana", port: 9393, identity, origin: "http://127.0.0.1:1" }),
     (error: ClaimError) => {
       assert.equal(error.code, "unreachable");
-      assert.match(error.message, /could not reach the Ntwine registrar/);
+      assert.match(error.message, /could not reach the ntwine registrar/);
       return true;
     },
   );

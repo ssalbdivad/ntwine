@@ -31,7 +31,7 @@ import { acpModelPreset, acpModelSlug, type AcpAgentModels } from "@ntwine/share
 //     resolves it and CANCELLED (fail closed) when the turn ends, the session is released or nobody can
 //     answer — the Claude bridge's contract, because a card nothing terminalizes never leaves the queue.
 //
-// The agent runs inside a DETACHED DAEMON (acp-daemon.ts, attached through acp-host.ts), so an Ntwine
+// The agent runs inside a DETACHED DAEMON (acp-daemon.ts, attached through acp-host.ts), so an ntwine
 // restart or crash only drops the socket: the agent, its running turn and every sub-agent inside it keep
 // going, and `warmUp()` reattaches at the next boot — adopting the in-flight `session/prompt` as the live
 // turn and raising afresh any permission card the dead runtime was holding. Until 2026-09-24 the agent
@@ -212,7 +212,7 @@ function toolResultText(tc: AcpToolCallUpdate): string {
   return ""
 }
 
-/** An ACP permission request as an Ntwine card. The card's decision ids are the CANONICAL ones the web
+/** An ACP permission request as an ntwine card. The card's decision ids are the CANONICAL ones the web
  *  renders buttons for (typedInteractions.ts `specFor`); the agent's own optionIds are kept beside the
  *  pending entry and echoed back verbatim on the answer. */
 export function buildAcpPermissionInteraction(
@@ -269,7 +269,7 @@ export function buildAcpPermissionInteraction(
 
 export class AcpBridge {
   private readonly sessions = new Map<string, LiveSession>()
-  // Opens in flight, by Ntwine session id. See `openOnce`.
+  // Opens in flight, by ntwine session id. See `openOnce`.
   private readonly opening = new Map<string, ReturnType<AcpBridge["open"]>>()
   private readonly unsubscribe: (() => void) | undefined
   private closed = false
@@ -320,7 +320,7 @@ export class AcpBridge {
     const agent = this.resolveAgent(input.agentId)
     // An ACP agent is one detached daemon PER THREAD (acp-host.ts), so its environment can say who is
     // calling — which is all `ntwinectl`, run from the agent's own shell, needs. Applied when the daemon
-    // is forked; one that survived an Ntwine restart keeps the environment it was born with.
+    // is forked; one that survived an ntwine restart keeps the environment it was born with.
     const cli = this.options.ntwineCli
     const inherited = inheritWorkerEnvironment(this.options.env ?? process.env)
     const env = cli ? withNtwineCliOnPath({ ...inherited, ...ntwineCliEnv(cli, slug) }, cli) : inherited
@@ -329,7 +329,7 @@ export class AcpBridge {
     const writer = new AcpTranscriptWriter(acpTranscriptPath(this.options.stateDir, sessionId))
     let live: LiveSession | undefined
     // Traffic from the agent that arrives before the session is READY is held, not dropped or refused.
-    // On a reattach the daemon replays everything the agent said while Ntwine was away — the running
+    // On a reattach the daemon replays everything the agent said while ntwine was away — the running
     // turn's chunks, and any permission request it re-sends — the instant the socket opens, before
     // `initialize` has even been answered. Refusing a request then ("session not ready") would be taken
     // by the daemon as THE answer, and a dropped chunk is a hole in the transcript. `ready()` flips at
@@ -377,9 +377,9 @@ export class AcpBridge {
     // as it would have had nothing happened.
     if (attachment.reattached && attachment.hello.acpSessionId) {
       live.acpSessionId = attachment.hello.acpSessionId
-      writer.append({ kind: "acp-note", at: this.now(), text: `Reattached to the running ${agent.label} session after an Ntwine restart.` })
+      writer.append({ kind: "acp-note", at: this.now(), text: `Reattached to the running ${agent.label} session after an ntwine restart.` })
       if (attachment.hello.droppedWhileDetached > 0) {
-        writer.append({ kind: "acp-note", at: this.now(), text: `${attachment.hello.droppedWhileDetached} message(s) from the agent were lost while Ntwine was away; the transcript may have gaps.` })
+        writer.append({ kind: "acp-note", at: this.now(), text: `${attachment.hello.droppedWhileDetached} message(s) from the agent were lost while ntwine was away; the transcript may have gaps.` })
       }
       this.sessions.set(sessionId, live)
       const prompt = attachment.hello.outstanding.find((o) => o.method === "session/prompt")

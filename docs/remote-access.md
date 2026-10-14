@@ -1,8 +1,8 @@
 # Remote access
 
-Ntwine binds `127.0.0.1` and has no login of its own. To reach a board from a phone or another machine, something in front of it carries the traffic, and Ntwine gates the first visit with a single-use sign-in link.
+ntwine binds `127.0.0.1` and has no login of its own. To reach a board from a phone or another machine, something in front of it carries the traffic, and ntwine gates the first visit with a single-use sign-in link.
 
-Press **R** in the terminal running Ntwine. A walkthrough offers five ways to reach the board, checks what each needs, prints the commands, and remembers your choice — a plain `npx ntwine` serves it from then on. **Off** in the same place goes back to loopback only.
+Press **R** in the terminal running ntwine. A walkthrough offers five ways to reach the board, checks what each needs, prints the commands, and remembers your choice — a plain `npx ntwine` serves it from then on. **Off** in the same place goes back to loopback only.
 
 ```
   Reach this board from anywhere
@@ -11,7 +11,7 @@ Press **R** in the terminal running Ntwine. A walkthrough offers five ways to re
     Custom name         <name>.ntwine.app of your choosing; needs a GitHub account
     Cloudflare Tunnel   a domain you own on Cloudflare; cloudflared on this machine
     Tailscale           your tailnet; tailscale serve does the TLS
-    Something else      any proxy or tunnel you run — tell Ntwine its address
+    Something else      any proxy or tunnel you run — tell ntwine its address
     Off                 loopback only  (current)
 ```
 
@@ -27,7 +27,7 @@ A device can sign itself out: **Sign out this device** in Settings ends that bro
 
 ## Try it without touching your board
 
-A second Ntwine that shares nothing with the one you run: a throwaway home and project, its own port, deleted when you press ctrl-c.
+A second ntwine that shares nothing with the one you run: a throwaway home and project, its own port, deleted when you press ctrl-c.
 
 ```sh
 npx ntwine --sandbox
@@ -37,7 +37,7 @@ Press **R** in it and walk through any setup. Credentials come along (`gh`, clou
 
 ## A private name on ntwine.app
 
-The default, and the shortest path there is: pick it and you are done. Ntwine mints an unguessable name — 20 random characters, so nobody can find it by guessing — claims it with this machine's own key, and serves the board at it. No account, no sign-in, no domain, no port forwarding, no extra binary.
+The default, and the shortest path there is: pick it and you are done. ntwine mints an unguessable name — 20 random characters, so nobody can find it by guessing — claims it with this machine's own key, and serves the board at it. No account, no sign-in, no domain, no port forwarding, no extra binary.
 
 ```
   Serving https://mk7w2qp9x4n3f6tbz5vh.ntwine.app (ntwine.app).
@@ -49,7 +49,7 @@ The done screen shows that link as a QR code. The name is the address, not the l
 
 ## A custom name on ntwine.app
 
-The same transport with a name you choose. Pick a word and Ntwine claims `<name>.ntwine.app`:
+The same transport with a name you choose. Pick a word and ntwine claims `<name>.ntwine.app`:
 
 ```
   Confirm your GitHub account to claim ada.ntwine.app
@@ -58,9 +58,9 @@ The same transport with a name you choose. Pick a word and Ntwine claims `<name>
   Enter     WDJB-MJHT
 ```
 
-Requires a GitHub account. Chosen names can be squatted, so they cost an identity where random ones do not. Ntwine shows a code; enter it at [github.com/login/device](https://github.com/login/device) in any browser, on any device. The sign-in grants Ntwine no permissions: the token it yields can read only your public profile. The registrar exchanges it for your account id, discards it, and binds the name to that account. Renewals afterwards need neither, because your machine's key proves ownership, so the name keeps working whether or not GitHub does.
+Requires a GitHub account. Chosen names can be squatted, so they cost an identity where random ones do not. ntwine shows a code; enter it at [github.com/login/device](https://github.com/login/device) in any browser, on any device. The sign-in grants ntwine no permissions: the token it yields can read only your public profile. The registrar exchanges it for your account id, discards it, and binds the name to that account. Renewals afterwards need neither, because your machine's key proves ownership, so the name keeps working whether or not GitHub does.
 
-Ntwine never reads the GitHub CLI's token, and the registrar refuses any token that carries a permission.
+ntwine never reads the GitHub CLI's token, and the registrar refuses any token that carries a permission.
 
 A name claimed before 2026-10-13 was on the old domain, which no longer serves. The **R** menu offers a new one in its place.
 
@@ -73,9 +73,9 @@ Your board stays on loopback and **dials out** to `ntwine.app`, which is what re
 ### What you are agreeing to
 
 - **One name per machine key, and one custom name per GitHub account.** Accounts less than 30 days old cannot claim a custom name.
-- **The name is a lease, not property.** It lapses after 30 days unused, and Ntwine can reclaim any name at any time — that is the only enforcement there is, so it has to exist.
+- **The name is a lease, not property.** It lapses after 30 days unused, and ntwine can reclaim any name at any time — that is the only enforcement there is, so it has to exist.
 - **No warranty.** This is a free convenience on a domain someone else owns. Anything you cannot afford to lose access to belongs on a domain you control; every other section here shows how.
-- **Your traffic passes through us.** A name on ntwine.app is served by a relay we run: every request and every keystroke goes through it. Ntwine's own access gate still runs on your machine, so a visitor meets it whether or not the relay is honest — but if you would rather no third party carried the bytes, use a domain you control.
+- **Your traffic passes through us.** A name on ntwine.app is served by a relay we run: every request and every keystroke goes through it. ntwine's own access gate still runs on your machine, so a visitor meets it whether or not the relay is honest — but if you would rather no third party carried the bytes, use a domain you control.
 
 ## Cloudflare Tunnel
 
@@ -87,7 +87,7 @@ cloudflared tunnel create my-board
 cloudflared tunnel route dns my-board board.example.com
 ```
 
-Point the tunnel at the board in `~/.cloudflared/ntwine.yml`, which Ntwine looks for by name. Keep it out of `config.yml`, whose catch-all shadows other tunnels:
+Point the tunnel at the board in `~/.cloudflared/ntwine.yml`, which ntwine looks for by name. Keep it out of `config.yml`, whose catch-all shadows other tunnels:
 
 ```yaml
 tunnel: my-board
@@ -105,21 +105,21 @@ Then pick **Cloudflare Tunnel** and name them:
   Tunnel     my-board
 ```
 
-Ntwine runs the tunnel beside the board, so the two share a lifetime: a tunnel that outlives its board serves Cloudflare error 1033, and a board that outlives its tunnel is unreachable with nothing to say why.
+ntwine runs the tunnel beside the board, so the two share a lifetime: a tunnel that outlives its board serves Cloudflare error 1033, and a board that outlives its tunnel is unreachable with nothing to say why.
 
 ## Tailscale
 
 Tailscale gives the machine a stable HTTPS name on your tailnet and terminates TLS itself, so only your devices can reach it. Run once, in another terminal:
 
 ```sh
-tailscale serve --bg 9393     # Ntwine's port
+tailscale serve --bg 9393     # ntwine's port
 ```
 
-Then pick **Tailscale**. Ntwine reads this machine's MagicDNS name from the daemon and offers it as the origin; enter accepts it.
+Then pick **Tailscale**. ntwine reads this machine's MagicDNS name from the daemon and offers it as the origin; enter accepts it.
 
 ## Something else
 
-The rule is the same for Caddy, nginx, ngrok or anything else: terminate TLS wherever you like, proxy to `http://127.0.0.1:9393`, and give Ntwine the exact origin a browser will show — scheme and host, no path. Ntwine answers only to that `Host` and prints its sign-in link for it.
+The rule is the same for Caddy, nginx, ngrok or anything else: terminate TLS wherever you like, proxy to `http://127.0.0.1:9393`, and give ntwine the exact origin a browser will show — scheme and host, no path. ntwine answers only to that `Host` and prints its sign-in link for it.
 
 ## Headless machines
 
@@ -129,11 +129,11 @@ A machine nobody watches still mints links on demand — sign in over SSH and as
 ssh you@box npx ntwine --link
 ```
 
-The link prints as a QR and a URL, is single-use, and expires in five minutes. The setup itself is made once from an interactive terminal; the saved choice (`cloud.json`, next to Ntwine's registry — `~/Library/Application Support/Ntwine` on macOS, `~/.ntwine` on an install that already has one) is what a headless launch serves.
+The link prints as a QR and a URL, is single-use, and expires in five minutes. The setup itself is made once from an interactive terminal; the saved choice (`cloud.json`, next to ntwine's registry — `~/Library/Application Support/ntwine` on macOS, `~/.ntwine` on an install that already has one) is what a headless launch serves.
 
 ## SSH port forwarding
 
-Needs no setup at all. The forwarded port is loopback on both ends, so Ntwine treats it as local:
+Needs no setup at all. The forwarded port is loopback on both ends, so ntwine treats it as local:
 
 ```sh
 ssh -L 9393:127.0.0.1:9393 you@your-machine

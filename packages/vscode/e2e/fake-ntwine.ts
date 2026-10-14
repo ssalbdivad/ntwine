@@ -31,14 +31,14 @@
 //   POST /__e2e/click     {selector}         click an element of the workbench with a real mouse
 //   POST /__e2e/shot      {path}             save a screenshot of the whole workbench to `path`
 //   POST /__e2e/features  {features, ready}  what the next welcome names, and whether the page says it is
-//                                            ready — `[]` and false is an Ntwine from before the sidebar
+//                                            ready — `[]` and false is an ntwine from before the sidebar
 //
 // and two the fake page itself calls: POST /__e2e/page-event (what it received, recorded in `page`) and
 // GET /__e2e/page-next (the messages it was told to post).
 //
 // It is a stand-in for the seams the extension touches, not for the server: the REAL mode of
-// scripts/e2e.ts runs the same suite against a real Ntwine. What it does take from the server is the
-// judgement of a frame — the server's own schema and ceilings — so a frame Ntwine would refuse is
+// scripts/e2e.ts runs the same suite against a real ntwine. What it does take from the server is the
+// judgement of a frame — the server's own schema and ceilings — so a frame ntwine would refuse is
 // refused here too (closed 4401) and listed in `refused`.
 
 import { randomUUID } from "node:crypto"
@@ -81,8 +81,8 @@ export interface FakeLog {
  * own origin, which is the proof the relay posted it there.
  */
 const FAKE_PAGE = `<!doctype html>
-<html><head><meta charset="utf-8"><title>Fake Ntwine</title></head>
-<body><p>Fake Ntwine page</p>
+<html><head><meta charset="utf-8"><title>Fake ntwine</title></head>
+<body><p>Fake ntwine page</p>
 <script>
   const event = (body) => fetch("/__e2e/page-event", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, page: location.pathname }) }).then((r) => r.json())
   window.addEventListener("message", async (message) => {

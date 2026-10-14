@@ -10,7 +10,7 @@ import { TooltipProvider } from "./Tooltip.tsx"
 // Where a click would lead. Nothing here clicks; the prop is required because every real row has one.
 const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 
-// An EXTERNAL row (the human's own `claude`/`codex` session) once wore a `terminal` pill. In Ntwine
+// An EXTERNAL row (the human's own `claude`/`codex` session) once wore a `terminal` pill. In ntwine
 // "terminal" names a live pty the human opened on a thread (thread-terminals.ts), so the pill claimed
 // something the row is not. The External band's header already says where the row came from, so the
 // row carries no tag of its own.

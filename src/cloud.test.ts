@@ -76,7 +76,7 @@ function tempHome() {
 
 test("a pasted URL, a trailing slash or a stray dot all resolve to the same hostname", () => {
   // People paste the address bar. Refusing that would be a pointless second question.
-  for (const raw of ["dana.ntwine.app", "https://dana.ntwine.app", "https://dana.ntwine.app/", "DANA.Ntwine.APP", "dana.ntwine.app."]) {
+  for (const raw of ["dana.ntwine.app", "https://dana.ntwine.app", "https://dana.ntwine.app/", "DANA.ntwine.APP", "dana.ntwine.app."]) {
     assert.equal(normalizeHostname(raw), "dana.ntwine.app", raw);
   }
   assert.equal(normalizeHostname("  https://dana.ntwine.app/board  "), "dana.ntwine.app");
@@ -246,7 +246,7 @@ test("a launch renews the lease, and falls back to the cached token when the reg
     const offline = await resolveRunToken(config, 9393, home, (m) => warnings.push(m), "http://127.0.0.1:1");
     assert.equal(offline, "run-token", "the cached token carries the launch");
     assert.equal(warnings.length, 1);
-    assert.match(warnings[0]!, /could not reach the Ntwine registrar/);
+    assert.match(warnings[0]!, /could not reach the ntwine registrar/);
   } finally {
     await server.close();
     rmSync(home, { recursive: true, force: true });
@@ -298,7 +298,7 @@ test("a first claim that cannot reach the registrar points at the path that work
   try {
     await assert.rejects(
       establishCloudConfig("dana", 9393, home, "http://127.0.0.1:1", fakeGithub),
-      /could not reach the Ntwine registrar[\s\S]*tunnel of your own/,
+      /could not reach the ntwine registrar[\s\S]*tunnel of your own/,
     );
   } finally {
     rmSync(home, { recursive: true, force: true });
@@ -366,7 +366,7 @@ test("a hostname inside the zone stands for exactly one claim label", () => {
 });
 
 // 2026-08-25: `ntwine up` ran the hand-made tunnel for dana.ntwine.app faithfully, and the phone that
-// scanned the QR read "No Ntwine board has claimed this name." — the relay's wildcard route had taken
+// scanned the QR read "No ntwine board has claimed this name." — the relay's wildcard route had taken
 // the zone, and nothing in `up` would ever have claimed the name. Claiming is part of `up`.
 test("up claims a zone hostname that was saved as a hand-made tunnel, and serves it by relay", async () => {
   const home = tempHome();

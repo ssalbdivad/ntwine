@@ -56,6 +56,6 @@ export const WORKER_PLUGIN_REQUIRED_FILES = [
 export function assertWorkerPluginClosure(root: string): void {
   for (const file of WORKER_PLUGIN_REQUIRED_FILES) {
     if (!existsSync(join(root, file)))
-      throw new Error(`Ntwine worker plugin closure is missing ${file}`);
+      throw new Error(`ntwine worker plugin closure is missing ${file}`);
   }
 }

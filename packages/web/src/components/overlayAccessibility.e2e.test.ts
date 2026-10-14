@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { MOBILE_MAX_PX } from "../lib/mobile.ts"
 
-// Opt-in because this drives a real Ntwine server and Chrome. Normal unit runs record the regression
+// Opt-in because this drives a real ntwine server and Chrome. Normal unit runs record the regression
 // without requiring a listener; local/live verification supplies a disposable URL and session rows.
 //
 // NTWINE_OVERLAY_E2E_URL is a PROJECT's board, not the server root: one server serves every project,

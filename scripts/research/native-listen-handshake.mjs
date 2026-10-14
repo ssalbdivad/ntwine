@@ -98,7 +98,7 @@ const main = async () => {
   ws.on("message", (d) => console.log("[recv]", d.toString().slice(0, 600)))
   ws.send(JSON.stringify({
     jsonrpc: "2.0", id: 1, method: "initialize",
-    params: { clientInfo: { name: "ntwine-probe", title: "Ntwine probe", version: "0.0.1" }, capabilities: { experimentalApi: true } },
+    params: { clientInfo: { name: "ntwine-probe", title: "ntwine probe", version: "0.0.1" }, capabilities: { experimentalApi: true } },
   }))
   await new Promise((r) => setTimeout(r, 4000))
   ws.close()

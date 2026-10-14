@@ -1,7 +1,7 @@
 {
   "name": "ntwine-vscode",
-  "displayName": "Ntwine",
-  "description": "Ask Ntwine about the code in front of you, and open Ntwine's file links in this window",
+  "displayName": "ntwine",
+  "description": "Ask ntwine about the code in front of you, and open ntwine's file links in this window",
   "version": "0.1.0",
   "private": true,
   "publisher": "ssalbdivad",
@@ -46,123 +46,123 @@
     "commands": [
       {
         "command": "ntwine.ask",
-        "title": "Ask Ntwine…",
-        "category": "Ntwine"
+        "title": "Ask ntwine…",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.sendToThread",
-        "title": "Send to Ntwine thread…",
-        "category": "Ntwine"
+        "title": "Send to ntwine thread…",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.addToPrompt",
-        "title": "Add to Ntwine prompt",
-        "category": "Ntwine"
+        "title": "Add to ntwine prompt",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.addFileToPrompt",
-        "title": "Add file to Ntwine prompt",
-        "category": "Ntwine"
+        "title": "Add file to ntwine prompt",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.addSelectionOrFile",
-        "title": "Add selection or file to Ntwine prompt",
-        "category": "Ntwine"
+        "title": "Add selection or file to ntwine prompt",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.focusPrompt",
         "title": "Go to the prompt box",
-        "category": "Ntwine"
+        "category": "ntwine"
       },
       {
         "command": "ntwine.addTerminalSelection",
-        "title": "Add to Ntwine prompt",
-        "category": "Ntwine"
+        "title": "Add to ntwine prompt",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.addProblems",
-        "title": "Add problems in this file to Ntwine prompt",
-        "category": "Ntwine"
+        "title": "Add problems in this file to ntwine prompt",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.addTerminalOutput",
-        "title": "Add last terminal command to Ntwine prompt",
-        "category": "Ntwine"
+        "title": "Add last terminal command to ntwine prompt",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.askToFix",
-        "title": "Ask Ntwine to fix",
-        "category": "Ntwine"
+        "title": "Ask ntwine to fix",
+        "category": "ntwine"
       },
       {
         "command": "ntwine.reviewThread",
         "title": "Review a thread's changes…",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(diff-multiple)"
       },
       {
         "command": "ntwine.openThreadInTab",
         "title": "Open thread in editor tab",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(window)"
       },
       {
         "command": "ntwine.sidebar.queue",
         "title": "Back to queue",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(arrow-left)"
       },
       {
         "command": "ntwine.sidebar.newThread",
         "title": "New thread",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(add)"
       },
       {
         "command": "ntwine.sidebar.jump",
         "title": "Jump to a thread",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(search)"
       },
       {
         "command": "ntwine.sidebar.settings",
         "title": "Settings",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(gear)"
       },
       {
         "command": "ntwine.sidebar.shortcuts",
         "title": "Keyboard shortcuts",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(keyboard)"
       },
       {
         "command": "ntwine.open",
         "title": "Open in browser",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(link-external)"
       },
       {
         "command": "ntwine.sidebar.reload",
         "title": "Reload sidebar",
-        "category": "Ntwine",
+        "category": "ntwine",
         "icon": "$(refresh)"
       },
       {
         "command": "ntwine.showLog",
         "title": "Show log",
-        "category": "Ntwine"
+        "category": "ntwine"
       },
       {
         "command": "ntwine.reconnect",
         "title": "Reconnect",
-        "category": "Ntwine"
+        "category": "ntwine"
       }
     ],
     "submenus": [
       {
         "id": "ntwine.editor",
-        "label": "Ntwine"
+        "label": "ntwine"
       }
     ],
     "menus": {
@@ -318,37 +318,37 @@
       }
     ],
     "configuration": {
-      "title": "Ntwine",
+      "title": "ntwine",
       "properties": {
         "ntwine.serverUrl": {
           "type": "string",
           "default": "",
-          "markdownDescription": "The Ntwine server's address, such as `http://127.0.0.1:9393`. Leave empty to find the Ntwine running on this machine."
+          "markdownDescription": "The ntwine server's address, such as `http://127.0.0.1:9393`. Leave empty to find the ntwine running on this machine."
         },
         "ntwine.openFileLinks": {
           "type": "boolean",
           "default": true,
-          "description": "Open file links from Ntwine in this window"
+          "description": "Open file links from ntwine in this window"
         },
         "ntwine.shareEditorState": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Share what you have in front of you in this editor with Ntwine: the file you are in and what you have selected, with its text, goes with every message you send from the Ntwine sidebar, and Ntwine's agents can read it — with your open tabs and the editor's errors and warnings — when they need it. So you can ask about \"this\" without pasting it. The eye on the sidebar's prompt box is this setting. Turn it off to keep the editor to yourself: only what you add to a prompt goes. Text from files that may hold secrets (`.env`, keys, credentials) is never sent on its own."
+          "markdownDescription": "Share what you have in front of you in this editor with ntwine: the file you are in and what you have selected, with its text, goes with every message you send from the ntwine sidebar, and ntwine's agents can read it — with your open tabs and the editor's errors and warnings — when they need it. So you can ask about \"this\" without pasting it. The eye on the sidebar's prompt box is this setting. Turn it off to keep the editor to yourself: only what you add to a prompt goes. Text from files that may hold secrets (`.env`, keys, credentials) is never sent on its own."
         },
         "ntwine.matchEditorTheme": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show Ntwine in your color theme's colors, so the sidebar, and a thread you open in an editor tab, match the rest of the editor. Turn it off to see Ntwine's own colors. Either way, Ntwine follows your theme between light and dark."
+          "markdownDescription": "Show ntwine in your color theme's colors, so the sidebar, and a thread you open in an editor tab, match the rest of the editor. Turn it off to see ntwine's own colors. Either way, ntwine follows your theme between light and dark."
         },
         "ntwine.selectionHint": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show a quiet hint at the end of what you select in the editor, `Ctrl+L to add to Ntwine` (`⌘L` on macOS), while Ntwine is running. Not in diffs, and not for a select-all. The chord works either way."
+          "markdownDescription": "Show a quiet hint at the end of what you select in the editor, `Ctrl+L to add to ntwine` (`⌘L` on macOS), while ntwine is running. Not in diffs, and not for a select-all. The chord works either way."
         },
         "ntwine.useSidebar": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Put what you add from the editor — **Add to Ntwine prompt** (`Ctrl+L`), a file, a problem's **Ask Ntwine to fix**, a terminal selection — and **Ask Ntwine…** and **Send to Ntwine thread…** into the Ntwine sidebar's prompt box, to write the rest there. Turn it off to send selections and files to Ntwine in your browser, and to type Ask and Send messages in an input box."
+          "markdownDescription": "Put what you add from the editor — **Add to ntwine prompt** (`Ctrl+L`), a file, a problem's **Ask ntwine to fix**, a terminal selection — and **Ask ntwine…** and **Send to ntwine thread…** into the ntwine sidebar's prompt box, to write the rest there. Turn it off to send selections and files to ntwine in your browser, and to type Ask and Send messages in an input box."
         }
       }
     },
@@ -356,7 +356,7 @@
       "activitybar": [
         {
           "id": "ntwine",
-          "title": "Ntwine",
+          "title": "ntwine",
           "icon": "media/ntwine.svg"
         }
       ]
@@ -366,7 +366,7 @@
         {
           "type": "webview",
           "id": "ntwine.sidebar",
-          "name": "Ntwine"
+          "name": "ntwine"
         }
       ]
     }

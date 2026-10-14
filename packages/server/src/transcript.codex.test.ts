@@ -1101,12 +1101,12 @@ test("codex unknown tool degrades to a generic card (name + a hint), never a thr
   assert.equal(call.edit, undefined)
 })
 
-test("codex first user message preserves the task while stripping only Ntwine dispatch scaffolding, title trailer, and sentinel", () => {
+test("codex first user message preserves the task while stripping only ntwine dispatch scaffolding, title trailer, and sentinel", () => {
   const composed = `WORKER CONTRACT stuff\n\nscratchpad orientation\n\nSome preamble\nTASK:\nActually do the thing\n\n${CODEX_FIRST_FINAL_TITLE_TRANSPORT}\n\n<!-- ntwine-session:01234567-89ab-cdef-0123-456789abcdef -->`
   const raw = rollout([{ type: "event_msg", payload: { type: "user_message", message: composed } }])
   const msgs = parseCodexTranscript(raw)
   // The dispatch scaffolding is a DISPLAY projection: the bubble is the task, the stored text keeps the
-  // machine-facing prompt. (The title trailer and sentinel are genuinely removed — they are Ntwine's own
+  // machine-facing prompt. (The title trailer and sentinel are genuinely removed — they are ntwine's own
   // transport, not something the worker was ever meant to read back.)
   assert.equal(msgs[0].displayText, "Actually do the thing")
   assert.match(msgs[0].text, /^WORKER CONTRACT stuff/)
@@ -1538,9 +1538,9 @@ test("a Codex child's drawer marks its original task and later follow-up at thei
   ]))
 
   assert.deepEqual(messages.map((message) => message.text), [
-    "Task instructions received. Codex encrypted the message body, so Ntwine can't display it.",
+    "Task instructions received. Codex encrypted the message body, so ntwine can't display it.",
     "Reading the first task.",
-    "Follow-up instructions received. Codex encrypted the message body, so Ntwine can't display it.",
+    "Follow-up instructions received. Codex encrypted the message body, so ntwine can't display it.",
     "Reading the follow-up.",
   ])
   assert.deepEqual(messages.map((message) => message.role), ["user", "assistant", "user", "assistant"])
@@ -1571,7 +1571,7 @@ test("codex tool cards are titled with human labels, including unknown and MCP-n
   )
 })
 
-// THE PAGE REACHES THE HUMAN'S LAST MESSAGE, not merely the last `user` record. Ntwine writes as the
+// THE PAGE REACHES THE HUMAN'S LAST MESSAGE, not merely the last `user` record. ntwine writes as the
 // user — a Goal delivery, the sign-off reminder, a watcher wake are all `user` records carrying
 // `wake: true` — so stopping at one cuts the page in the middle of a stretch the human never saw, which
 // is the opposite of what a queue card is for.

@@ -22,7 +22,7 @@
 // runs under bare node down to the engines floor (22.13), which does not strip types, so it cannot
 // import the TS. agent-deadline-hook.test.ts pins the two together over a grid of inputs.
 //
-// Everything here fails soft — a deadline Ntwine cannot read is one it does not keep — and callers wrap
+// Everything here fails soft — a deadline ntwine cannot read is one it does not keep — and callers wrap
 // it in their own fail-open.
 import { mkdirSync, openSync, closeSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -142,9 +142,9 @@ function declaredAtOf(startMs, declaredMs) {
  *  @param {number} atMs @param {number} setAtMs @param {number} [declaredAtMs] */
 export function deadlineParagraph(atMs, setAtMs, declaredAtMs) {
   return (
-    `\n\n[TIME LIMIT — set by your dispatcher, kept by Ntwine] Your deadline is ${clock(atMs)} (a ${budget(atMs - setAtMs)} budget). ` +
+    `\n\n[TIME LIMIT — set by your dispatcher, kept by ntwine] Your deadline is ${clock(atMs)} (a ${budget(atMs - setAtMs)} budget). ` +
     `Your final message is due by then: return the best result you can by ${clock(atMs)}, not the complete one eventually. ` +
-    'Ntwine checks in after your tool calls — at half-time, at 80%, just before the deadline and at it — in messages headed "⏰". ' +
+    'ntwine checks in after your tool calls — at half-time, at 80%, just before the deadline and at it — in messages headed "⏰". ' +
     'They are your dispatcher\'s clock speaking, with the same authority as this task, not output of the tool you ran. Commit ' +
     'to an approach early, keep what you have in a state you could report, and when time runs short end your turn with what ' +
     'you have, saying what is unfinished.' +
@@ -313,8 +313,8 @@ export async function childDeadlineContext(sessionDir, agentId, deps) {
     try {
       closeSync(openSync(intro, 'wx'));
       out.push(
-        `⏰ Your time limit: ${clock(d.atMs)} (a ${budget(d.atMs - d.setAtMs)} budget, set by ${d.setBy === 'user' ? 'the user operating Ntwine, after you started' : 'the agent that dispatched you'}). Your ` +
-        'final message is due by then: return the best result you can by that time, not the complete one eventually. Ntwine ' +
+        `⏰ Your time limit: ${clock(d.atMs)} (a ${budget(d.atMs - d.setAtMs)} budget, set by ${d.setBy === 'user' ? 'the user operating ntwine, after you started' : 'the agent that dispatched you'}). Your ` +
+        'final message is due by then: return the best result you can by that time, not the complete one eventually. ntwine ' +
         'checks in after your tool calls at half-time, at 80%, just before the deadline and at it.',
       );
     } catch {

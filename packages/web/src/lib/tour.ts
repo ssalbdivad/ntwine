@@ -76,13 +76,3 @@ function subscribe(listener: () => void): () => void {
 export function useTourStep(): number | null {
   return useSyncExternalStore(subscribe, () => step, () => null)
 }
-
-/** The tour's step that holds the project switcher's menu open, so its arrows have the menu to point at.
- *  Last before the closing card (components/Onboarding.tsx STEPS): All projects is where a new browser
- *  lands, so the tour teaches it before the menu that leaves it. */
-export const SWITCHER_STEP = 3
-
-/** Whether the tour is holding the project switcher's menu open right now. */
-export function useTourHoldsSwitcher(): boolean {
-  return useTourStep() === SWITCHER_STEP
-}

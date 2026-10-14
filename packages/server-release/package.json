@@ -2,7 +2,7 @@
   "name": "ntwine-server",
   "version": "0.15.24",
   "private": false,
-  "description": "Replaceable Ntwine server runtime",
+  "description": "Replaceable ntwine server runtime",
   "license": "MIT",
   "repository": {
     "type": "git",

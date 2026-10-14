@@ -122,7 +122,7 @@ function scratch(): string {
 
 // --- the pins ---------------------------------------------------------------------------------------
 
-test("the Claude pin is the SDK Ntwine bundles, and the CLI that SDK was built against", () => {
+test("the Claude pin is the SDK ntwine bundles, and the CLI that SDK was built against", () => {
   // The runtime package names the SDK version; the SDK's own package.json names its Claude Code.
   // Both are pinned here so a bump of one without the other fails instead of drifting.
   const runtimePkg = JSON.parse(readFileSync(new URL("../../claude-agent-sdk-runtime/package.json", import.meta.url), "utf8")) as { dependencies: Record<string, string> }

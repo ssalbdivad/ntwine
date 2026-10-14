@@ -24,7 +24,7 @@ import { join } from "node:path"
 import { CODEX_APP_SERVER_SUPPORTED_VERSION } from "./codex-app-server.ts"
 import { provisionedBinary, runtimesRoot } from "../runtimes.ts"
 
-// The binary Ntwine actually runs: its own provisioned pin when this machine has one (runtimes.ts),
+// The binary ntwine actually runs: its own provisioned pin when this machine has one (runtimes.ts),
 // else whatever PATH offers. The pin IS the audited version by construction, so on a provisioned
 // machine this test no longer skips merely because the operator's own `codex` has moved on.
 const codexBin = provisionedBinary("codex", runtimesRoot(), CODEX_APP_SERVER_SUPPORTED_VERSION) ?? "codex"

@@ -20,7 +20,7 @@ const rpcResult = (result: unknown) => new Response(JSON.stringify({ result }), 
   headers: { "content-type": "application/json", "x-ntwine-boot": "settings-fixture" },
 })
 
-const rpcRetryableError = () => new Response(JSON.stringify({ error: "Ntwine is updating and restarting.", retryable: true }), {
+const rpcRetryableError = () => new Response(JSON.stringify({ error: "ntwine is updating and restarting.", retryable: true }), {
   status: 503,
   headers: { "content-type": "application/json", "x-ntwine-boot": "settings-fixture" },
 })

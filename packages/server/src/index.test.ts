@@ -2,10 +2,10 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { registeredTenantHealth, splitTenantRequest, unknownProjectPage } from "./index.ts"
 
-// A project slug and one of Ntwine's own route names occupy the same position, so `/_ntwine/rpc/board`
+// A project slug and one of ntwine's own route names occupy the same position, so `/_ntwine/rpc/board`
 // and `/_ntwine/nub/rpc/board` are indistinguishable until you know which slugs exist. The registry
 // settles it — and cannot be ambiguous, because it refuses to mint a slug that shadows a route name.
-test("splitTenantRequest tells a project slug from one of Ntwine's own routes", () => {
+test("splitTenantRequest tells a project slug from one of ntwine's own routes", () => {
   const known = (s: string) => ["nub", "ntwine", "pullfrog-app"].includes(s)
 
   assert.deepEqual(splitTenantRequest("/_ntwine/nub/rpc/board", known), {
@@ -36,10 +36,10 @@ test("splitTenantRequest tells a project slug from one of Ntwine's own routes", 
   assert.equal(splitTenantRequest("/", known), undefined)
 })
 
-// THE POINT: a launcher asking "is the Ntwine on this machine serving my project" must be answered out
+// THE POINT: a launcher asking "is the ntwine on this machine serving my project" must be answered out
 // of the registry, never by opening the project. Routing that question through routeToTenant made it
 // cost a tenant activation — 34.5s against a live server on 2026-08-12 — and the launcher, which gives
-// up long before that, then started a SECOND Ntwine for a project the first one was already serving.
+// up long before that, then started a SECOND ntwine for a project the first one was already serving.
 test("registeredTenantHealth answers the join probe for a registered project without opening it", () => {
   const registry: Record<string, { id: string; path: string }> = {
     nub: { id: "50577e5e-802f-4567-bd0e-cf7cbf3d2ed5", path: "/Users/x/projects/nub" },

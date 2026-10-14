@@ -14,11 +14,11 @@
  *
  * HOW. A keypair of its own claims a private name from the production registrar — the call `ntwine`
  * makes when the name prompt is answered with enter — and a TOY board on loopback dials the live relay
- * with it: canned strings, no Ntwine, nothing worth reading. Then a visitor asks for everything the
+ * with it: canned strings, no ntwine, nothing worth reading. Then a visitor asks for everything the
  * frame protocol carries. Every request is on a deadline, because half of the failures this has to
  * catch are a response that never finishes rather than a wrong status.
  *
- * THE PROBE KEEPS ITS NAME. Key and name are saved in Ntwine's state root (`relay-live-probe.json`), so
+ * THE PROBE KEEPS ITS NAME. Key and name are saved in ntwine's state root (`relay-live-probe.json`), so
  * a second run RENEWS: the registrar charges a per-address budget for each NEW private name and has no
  * call to release one, and a fresh keypair per run would leave a row behind every time. It is never
  * the board's own `identity.key` — the registrar allows one live name per key, and that key's name is

@@ -100,7 +100,7 @@ function lineReader(onLine: (line: string) => void, onOverflow: () => void): (ch
 
 function main(): void {
   const config = readConfig()
-  // Tell a sweeping Ntwine (runtimes.ts) that this daemon still runs out of that version directory:
+  // Tell a sweeping ntwine (runtimes.ts) that this daemon still runs out of that version directory:
   // the app-server spawns helpers (codex-code-mode-host) from beside its own binary long after boot,
   // so a retired directory breaks a daemon that looked perfectly alive.
   const releaseRuntimeLease = leaseRuntime(config.codexBin, "codex-app-server")

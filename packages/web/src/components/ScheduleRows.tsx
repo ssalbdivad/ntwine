@@ -21,7 +21,7 @@ const INDICATOR_SLOT = "flex h-[19px] w-4 shrink-0 items-center justify-center"
  * A row is the thread row's anatomy (Sidebar.tsx ThreadRow) so the band reads as more of the same list: the
  * repeat glyph in the indicator column, the title, the rule inline in grey after it the way a working
  * thread's status sits, and the next run in the rest-time column — `in 3h`, or `Paused` / `Proposed` when it
- * will not run on its own, warning-toned when that is Ntwine's doing or a proposal's. A click opens the
+ * will not run on its own, warning-toned when that is ntwine's doing or a proposal's. A click opens the
  * schedule's drawer.
  */
 export function ScheduleRows({ project, count, attention }: { project: QueuesProject; count: number; attention: boolean }) {

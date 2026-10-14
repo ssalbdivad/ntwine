@@ -3,15 +3,15 @@
 // development and e2e/suite.ts as its test runner, and drives both directions of the editor bridge.
 //
 //   nub packages/vscode/scripts/e2e.ts
-//       FAKE mode: an in-process fake Ntwine (e2e/fake-ntwine.ts) the suite asserts against frame by frame.
+//       FAKE mode: an in-process fake ntwine (e2e/fake-ntwine.ts) the suite asserts against frame by frame.
 //       NTWINE_E2E_VSCODE=oldest runs it on the oldest VS Code the manifest's `engines.vscode` admits,
 //       which is how an API newer than that floor gets caught (focusWindow, 1.128, was one).
 //
 //   nub packages/vscode/scripts/e2e.ts --stack
-//       STACK mode: boots a disposable two-project Ntwine itself (scripts/adhoc-stack.mjs: a sandbox HOME,
+//       STACK mode: boots a disposable two-project ntwine itself (scripts/adhoc-stack.mjs: a sandbox HOME,
 //       a free port, two throwaway git repos), runs REAL mode against the TENANT project — the one the
 //       server did not launch from — with a headless page open on it (e2e/page-claim.ts) that must
-//       receive "Add to Ntwine prompt" as a chip in its new-thread box. Every file opener the server
+//       receive "Add to ntwine prompt" as a chip in its new-thread box. Every file opener the server
 //       could spawn is a stub on its PATH, and the run fails if one was spawned: the opens must all go
 //       over the editor connection. A worker's `editor` tool (the real cc-worker/bin/ntwine-mcp.mjs, pointed
 //       at the stack) must read this window's selection and a problem. Everything it started is torn
@@ -20,15 +20,15 @@
 //
 //   NTWINE_E2E_ORIGIN=http://127.0.0.1:<port> NTWINE_E2E_PROJECT_DIR=<a registered project's folder> \
 //     nub packages/vscode/scripts/e2e.ts
-//       REAL mode against an Ntwine you started — a disposable one, since it writes a sample file into the
+//       REAL mode against an ntwine you started — a disposable one, since it writes a sample file into the
 //       project folder and, with NTWINE_E2E_SET_OPENER=1, sets Local file links to VS Code for the run.
 //       NTWINE_E2E_DISPATCH=1 (+ NTWINE_E2E_THREAD=<slug>) also runs the steps that start or message a
 //       real agent. NTWINE_E2E_PAGE_CLAIMS=1 leaves the prompt-box insert for a real page open on that
-//       Ntwine to claim, instead of taking it itself.
+//       ntwine to claim, instead of taking it itself.
 //
 //   nub packages/vscode/scripts/e2e.ts --sidebar [--out=<dir>] [--dev] [--only=c1,c4]
 //       SIDEBAR mode: hands the run to scripts/e2e-sidebar.ts — the extension as its .vsix ships, the REAL
-//       Ntwine page framed in the sidebar of a real VS Code, over a disposable two-project Ntwine with a
+//       ntwine page framed in the sidebar of a real VS Code, over a disposable two-project ntwine with a
 //       simulated worker, every seam crossed with trusted mouse and keyboard input, and screenshots of
 //       each state. Its header lists the checks and its flags.
 //
@@ -80,7 +80,7 @@ if (process.platform === "linux" && (!process.env.DISPLAY || process.env.DISPLAY
 
 const stackMode = process.argv.includes("--stack")
 if (stackMode && process.env.NTWINE_E2E_ORIGIN) {
-  console.error("--stack boots its own Ntwine; unset NTWINE_E2E_ORIGIN.")
+  console.error("--stack boots its own ntwine; unset NTWINE_E2E_ORIGIN.")
   process.exit(1)
 }
 const dispatch = process.env.NTWINE_E2E_DISPATCH === "1"
@@ -99,14 +99,14 @@ if (build.status !== 0) process.exit(build.status ?? 1)
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-vscode-e2e-")))
 const log = (line: string) => console.log(`ntwine e2e: ${line}`)
 
-// ── STACK mode: a disposable two-project Ntwine (e2e/stack.ts), run against its TENANT ─────────────────
+// ── STACK mode: a disposable two-project ntwine (e2e/stack.ts), run against its TENANT ─────────────────
 
 interface Stack {
   origin: string
   /** The sandbox HOME the server runs with: its database, and the transcripts its tailer reads. */
   home: string
   tenant: StackProject
-  /** The server's lock file, which a worker's MCP server finds Ntwine by. */
+  /** The server's lock file, which a worker's MCP server finds ntwine by. */
   serverLock: string
   /** Every opener the server spawned; empty when every open went over the editor connection. */
   openers(): string
@@ -124,7 +124,7 @@ let stack: Stack | undefined
 /** The stack's teardown, set as soon as it is spawned; idempotent, so the boot's own failure path and the run's may both call it. */
 let stackTeardown: (() => Promise<void>) | undefined
 let fake: FakeNtwine | undefined
-/** A second fake on another port, which the sidebar's suite moves the window to, as an Ntwine restarting elsewhere would. */
+/** A second fake on another port, which the sidebar's suite moves the window to, as an ntwine restarting elsewhere would. */
 let fakeElsewhere: FakeNtwine | undefined
 let exitCode = 1
 let pageClaim: Promise<PageClaimResult> | undefined
@@ -170,7 +170,7 @@ try {
   const realOrigin = stack?.origin ?? process.env.NTWINE_E2E_ORIGIN
   const mode = realOrigin ? "real" : "fake"
   const projectDir = stack?.tenant.dir ?? process.env.NTWINE_E2E_PROJECT_DIR
-  if (mode === "real" && !projectDir) throw new Error("REAL mode needs NTWINE_E2E_PROJECT_DIR: a folder registered as a project in that Ntwine.")
+  if (mode === "real" && !projectDir) throw new Error("REAL mode needs NTWINE_E2E_PROJECT_DIR: a folder registered as a project in that ntwine.")
 
   const workspace = mode === "real" ? realpathSync(projectDir!) : join(scratch, "workspace")
   sample = join(workspace, "src", "sample.ts")
@@ -215,7 +215,7 @@ try {
 
   const pageClaims = stack ? true : process.env.NTWINE_E2E_PAGE_CLAIMS === "1"
   if (stack) {
-    // "Add to Ntwine prompt" selects the sample's lines 2-3; the page must show that chip.
+    // "Add to ntwine prompt" selects the sample's lines 2-3; the page must show that chip.
     pageClaim = watchPageClaim({
       origin,
       project: stack.tenant.slug,

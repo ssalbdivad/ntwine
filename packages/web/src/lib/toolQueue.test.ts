@@ -43,7 +43,7 @@ test("an unsafe call runs alone: what follows it waits, and so does it, behind a
     { name: "Read", status: "pending" },
   ]
   assert.deepEqual(toolSchedule(mixed), [{}, { queued: true }, { queued: true }])
-  // Ntwine's own MCP tools carry no readOnlyHint, so they run one at a time too.
+  // ntwine's own MCP tools carry no readOnlyHint, so they run one at a time too.
   assert.deepEqual(toolSchedule([{ name: "mcp__ntwine__title", status: "pending" }, { name: "mcp__ntwine__done", status: "pending" }]), [{}, { queued: true }])
 })
 

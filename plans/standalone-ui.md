@@ -1,10 +1,10 @@
-# Ntwine — standalone orchestration surface
+# ntwine — standalone orchestration surface
 
 A workspace-scoped UI layer over ntwine: a sidebar of agent threads on the left, an embedded live Claude Code terminal on the right. No AI or intelligence of its own — ntwine-the-methodology and Claude Code do all the thinking; this is a dumb, fast window onto them. "Superpowered `claude agents`."
 
 ## What we learned from recon
 
-**Ntwine side** (`board/`): the data layer already exists and is UI-ready.
+**ntwine side** (`board/`): the data layer already exists and is UI-ready.
 
 - `ntwine --json` (`board/index.mjs:547`) emits `{ config, threads[], errors[], warnings[] }`; each thread carries `id, title, status, status_text, mechanism (human|threads|timer), humanBlocked, ready, dependsOn, owner, revalidate, agents[], blockers[]`. This is the read model, done.
 - The modules are pure, dependency-free Node `.mjs` — a server can `import` them directly instead of shelling out. `config.mjs` is the schema authority (status vocab, block-mechanism derivation, staleness math).
@@ -59,7 +59,7 @@ tmux -L ntwine new-session -d -s ntwine-<slug> -x 220 -y 50 \
 
 Core insight: **the `.ntwine/<slug>.md` file is the primary status channel** — the worker is already contractually required to keep it updated. The JSONL log and process state are secondary telemetry. Combined:
 
-1. **Ntwine board** — watch `.ntwine/` (`@parcel/watcher`, already a GENT dep), re-derive board via imported ntwine modules on change, diff, publish to SSE bus. Gives: `status` (planning/planned/active/blocked/done/dismissed), `mechanism` (human/threads/timer), `status_text`, deps. `blocked` + `mechanism: human` **is** the needs-decision state — surface loud (yellow, top of sidebar, matching ntwine's own "⚖ awaiting you" queue).
+1. **ntwine board** — watch `.ntwine/` (`@parcel/watcher`, already a GENT dep), re-derive board via imported ntwine modules on change, diff, publish to SSE bus. Gives: `status` (planning/planned/active/blocked/done/dismissed), `mechanism` (human/threads/timer), `status_text`, deps. `blocked` + `mechanism: human` **is** the needs-decision state — surface loud (yellow, top of sidebar, matching ntwine's own "⚖ awaiting you" queue).
 2. **Session JSONL tail** — incremental tail of `~/.claude/projects/<cwd-slug>/<session-id>.jsonl` (we pinned the ID). Gives: agent alive-and-thinking vs idle (last record type/age), last assistant text for sidebar previews, token/turn counts. Treat as best-effort: parse defensively, degrade to "unknown" on schema drift, never make correctness depend on it.
 3. **Process state** — tmux session exists + pane PID alive → running; gone → exited.
 
@@ -135,7 +135,7 @@ Sidebar groups mirror ntwine's own board ordering (awaiting-you first, then runn
 
 **M0 — kill the risk (≈2–3 days).** Throwaway spike: tmux(-L ntwine) → node-pty attach → WebSocket → xterm.js in a `chrome --app` window, running real interactive `claude`. Acceptance: TUI renders correctly (colors, spinner, ink redraws), keyboard is complete (arrows, Enter, Esc, paste, Ctrl-C), resize reflows, permission prompt is answerable, feels < 50ms local. **This gate decides Option A vs B before anything else is built.**
 
-**M1 — core loop (≈1–1.5 wks).** Scaffold `ui/` from GENT (rpc, SSE bus, Vite/React shell, SQLite, lock/launch). Ntwine-board watcher → SSE. Sidebar + terminal pane. New-thread dispatch with pinned session IDs. Sessions registry table.
+**M1 — core loop (≈1–1.5 wks).** Scaffold `ui/` from GENT (rpc, SSE bus, Vite/React shell, SQLite, lock/launch). ntwine-board watcher → SSE. Sidebar + terminal pane. New-thread dispatch with pinned session IDs. Sessions registry table.
 
 **M2 — lifecycle (≈1 wk).** Unread badges + mark-complete/dismiss wired to `ntwine-update`. Follow-up box (PTY inject / `-r` resume). Needs-decision surfacing with `status_text`. JSONL tailer for liveness + last-message previews. Server-restart recovery: rebind existing tmux sessions from the registry.
 

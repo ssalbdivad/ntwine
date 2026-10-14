@@ -24,7 +24,7 @@ import {
   type DeliveryLedgerItem,
 } from "./delivery-ledger.ts"
 
-// HELD: a message the operator sent TO THE QUEUE — Ntwine keeps it until the agent rests, and until then
+// HELD: a message the operator sent TO THE QUEUE — ntwine keeps it until the agent rests, and until then
 // no transport has been handed anything. Everything else in the ledger is a claim about a send some
 // provider has; these pin that a held one is inert to all the machinery built for those claims, because
 // each of them, applied here, would either lose the only copy of the words or deliver them early.
@@ -115,7 +115,7 @@ test("a run of ordinary sends never evicts a held one", () => {
     id: `d-${i}`, text: `send ${i}`, state: "enqueued", at: iso(T0 + 1_000 + i), updatedAt: iso(T0 + 1_000 + i),
   }))
   const trimmed = trimLedger([held(), ...live])
-  assert.ok(trimmed.some((i) => i.id === "d-held"), "Ntwine is the only place its words exist")
+  assert.ok(trimmed.some((i) => i.id === "d-held"), "ntwine is the only place its words exist")
 })
 
 test("a held send always projects its own gray bubble, never adopting one with the same words", () => {

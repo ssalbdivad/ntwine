@@ -21,7 +21,7 @@ function values(args: string[]): string[] {
 test("codexMcpConfigArgs: with no ntwine descriptor, ntwine mounts NOTHING", () => {
   const vals = values(codexMcpConfigArgs(undefined, "/abs/node"))
   // A `chrome-devtools` override rode every app-server until 2026-08-26 — a browser nobody had asked
-  // for, whose tool schemas cost ~6,400 prefix tokens per worker. Ntwine now injects the `ntwine` server
+  // for, whose tool schemas cost ~6,400 prefix tokens per worker. ntwine now injects the `ntwine` server
   // and nothing else, on BOTH backends; a project or operator that wants a browser configures it in
   // `~/.codex/config.toml` themselves, and these overrides layer on top of that rather than replacing it.
   assert.ok(!vals.some((v) => v.startsWith("mcp_servers.")), `ntwine must mount no server: ${vals.join(" ")}`)

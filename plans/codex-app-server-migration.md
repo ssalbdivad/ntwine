@@ -58,7 +58,7 @@ Interface members + fate under app-server:
   `thread/start`; no jsonl to locate, no post-spawn id race).
 - `parseLine`/`foldLine` → **reuse the NormalizedEvent vocabulary + `applyEvent` verbatim**; only the
   input changes (v2 notification → NormalizedEvent instead of rollout line). Reuse `parseToolArguments`,
-  `stringifyOutput`, the Ntwine-title extraction, `codexSandbox`/`codexEffort` value maps.
+  `stringifyOutput`, the ntwine-title extraction, `codexSandbox`/`codexEffort` value maps.
 - `matchesPermPrompt`/`detectNativeInput` (pane-scraping TUI modals) → **omit both**; replaced by a live
   **approval callback** answering ExecCommandApproval/ApplyPatchApproval/Permissions/ToolRequestUserInput
   JSON-RPC requests (→ InteractionStore). Kills the stuck-modal + `ensureCwdTrusted` trust-gate classes.

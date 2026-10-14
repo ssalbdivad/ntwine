@@ -23,7 +23,7 @@ process.on("exit", () => { try { child.kill("SIGKILL") } catch {} })
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
-const INIT = { clientInfo: { name: "ntwine", title: "Ntwine", version: "0.0.1" }, capabilities: { experimentalApi: true } }
+const INIT = { clientInfo: { name: "ntwine", title: "ntwine", version: "0.0.1" }, capabilities: { experimentalApi: true } }
 
 class Conn {
   constructor(tag) { this.tag = tag; this.msgs = []; this.next = 1; this.pending = new Map() }

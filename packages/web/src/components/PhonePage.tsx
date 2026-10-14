@@ -465,7 +465,7 @@ export function BandTabs({ tab, onTab, asks, queue, snoozed, schedules }: {
         <BandTab band="done" label="Done" active={tab === "done"} onClick={() => onTab("done")} />
         {/* SCHEDULES, after the bands, only while the view has any (or the tab is open, so deleting the
             last one does not pull the tab out from under the reader). Its count turns warning-toned
-            when one was paused by Ntwine or a proposal waits — the desktop project row's fourth count. */}
+            when one was paused by ntwine or a proposal waits — the desktop project row's fourth count. */}
         {schedules ? (
           <>
             {gap}
@@ -561,7 +561,7 @@ export function PhonePage(props: PhonePageProps) {
  * At `/` it is the page: choosing a view pushes it, so Back returns to the list. Over a view, the header's
  * Projects button pushes the page's own address with a state flag (nothing in the URL: the view is the
  * path's, and a list is not a view); choosing replaces that entry with the view chosen, so Back from there
- * returns to the view before the list, as the desktop switcher's Back does.
+ * returns to the view before the list, as the desktop dock's Back does.
  */
 function useProjectsListing() {
   const location = useLocation()
@@ -782,7 +782,7 @@ function useViewSchedules(shown: QueuesProject[], viewed: QueuesProject | undefi
 /**
  * One schedule, in the thread row's anatomy so the tab reads as more of the same list: the repeat glyph in
  * the mark column, the title with its next run at the right — `in 3h`, or `Paused` / `Proposed` when it will
- * not run on its own, warning-toned when that is Ntwine's doing or a proposal waiting — and the rule under it,
+ * not run on its own, warning-toned when that is ntwine's doing or a proposal waiting — and the rule under it,
  * after its project in All projects. Dimmed like a Snoozed row when it will not run on its own, unless that
  * wants the human. A tap opens its sheet.
  */
@@ -856,12 +856,12 @@ function PhoneNewThread({ onClose, children }: { onClose: () => void; children: 
 
 /**
  * THE PHONE'S PROJECTS — a plain list, the way to change the view (upstream's projects page on a phone,
- * 39db08a6, here the switcher's menu as a page). All projects first, as the one view that is not a
+ * 39db08a6, here the dock as a page). All projects first, as the one view that is not a
  * project; then each project with its square, its name, its path, and at the right its ASKS in the
  * accent (lib/phonePage.ts phoneProjects: the "N need you" its own header shows) and its spinning band
  * in muted; Home last. The view showing now wears a check.
  *
- * Choosing NAVIGATES, as the switcher does, replacing the list's history entry; choosing the view it was
+ * Choosing NAVIGATES, as the dock does, replacing the list's history entry; choosing the view it was
  * opened from goes Back. At `/` (`home`) the list is the page and was opened over no view, so nothing
  * wears the check and every choice pushes. No add, rename or remove here: they stay on the desktop.
  */
@@ -946,7 +946,7 @@ function PhoneProjects({ projects, focusedSlug: viewSlug, hidden, homeDir, onAll
 /** The squares' size: upstream's card icon, legible as a mark. */
 const PROJECT_SQUARE = 34
 
-/** All projects' square: the switcher's layers glyph on Home's neutral tile — the views that are Ntwine's, not a project's. */
+/** All projects' square: the layers glyph on Home's neutral tile — the views that are ntwine's, not a project's. */
 function AllProjectsSquare({ size }: { size: number }) {
   return (
     <span

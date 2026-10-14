@@ -1,4 +1,4 @@
-// The durable launcher owns the browser-facing port.  A disposable Ntwine control-plane child binds
+// The durable launcher owns the browser-facing port.  A disposable ntwine control-plane child binds
 // only a private loopback port, which means a browser can still ask the owner to recover it after a
 // crash.  This intentionally contains no source-watch logic: stable and legacy launchers can share it.
 import { request as requestHttp, createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http"
@@ -87,7 +87,7 @@ export interface RestartResult {
 }
 
 export interface RestartSupervisorProxyOptions {
-  /** Public Ntwine port held for the supervisor's whole lifetime. */
+  /** Public ntwine port held for the supervisor's whole lifetime. */
   port: number
   /** Bind address for the public port. Defaults to loopback; `--host` moves it onto the network. */
   host?: string
@@ -124,7 +124,7 @@ export interface RestartSupervisorProxyOptions {
   /**
    * Is a NEWER artifact actually available right now? Distinct from `updateRestart`, which only says
    * the verb is WIRED — a distinction the UI needs and could not previously make, so a fully current
-   * production Ntwine still advertised "Update Ntwine" and reinstalled its own version on click.
+   * production ntwine still advertised "Update ntwine" and reinstalled its own version on click.
    *
    * Must be a CHEAP cached read: this runs on every status poll, so it may never touch the network.
    * Omitting it means "assume available", which keeps ntwine-dev (where an update rebuilds from source
@@ -149,7 +149,7 @@ export interface RestartSupervisorProxyOptions {
    */
   updateVersion?: () => string | undefined
   /**
-   * Is this Ntwine a DEVELOPMENT build — launched from a source checkout by `ntwine-dev` (src/index.ts)
+   * Is this ntwine a DEVELOPMENT build — launched from a source checkout by `ntwine-dev` (src/index.ts)
    * or `pnpm dev` (server/src/dev.ts), rather than the published `ntwine` bin (src/production.ts)?
    *
    * It exists because the web client cannot answer this for itself. `import.meta.env.DEV` is a Vite
@@ -185,7 +185,7 @@ function proxyHeaders(
   // Who called, as judged HERE — the child cannot tell once Host and Origin are rewritten below. Any
   // copy the client sent is replaced, never forwarded, so a visitor cannot forge their own attribution.
   headers[CALLER_HEADER] = callerStamp
-  // The child retains Ntwine's strict local-origin policy. Translate public browser authority to the
+  // The child retains ntwine's strict local-origin policy. Translate public browser authority to the
   // private child authority; no external proxy authority is ever trusted.
   headers.host = `127.0.0.1:${childPort}`
   if (typeof headers.origin === "string") headers.origin = `http://127.0.0.1:${childPort}`
@@ -262,7 +262,7 @@ function isLocalImageRequest(req: IncomingMessage): boolean {
   const { pathname } = new URL(req.url ?? "/", "http://ntwine.invalid")
   return LOCAL_IMAGE_PATH.test(pathname)
 }
-// Anchored on the reserved namespace, so only Ntwine's own route matches — never some project file
+// Anchored on the reserved namespace, so only ntwine's own route matches — never some project file
 // that happens to end in the same segment.
 const LOCAL_IMAGE_PATH = new RegExp(`^${NTWINE_ROUTE_PREFIX}(?:/[^/]+)?/local-image$`)
 
@@ -403,7 +403,7 @@ export class RestartSupervisorProxy {
    * Is this an Origin-less request that only LOOKS suspicious because the browser could not send
    * Fetch Metadata to a non-loopback authority? See authoritySendsFetchMetadata.
    *
-   * Ntwine's missing-Origin rules ask for `Sec-Fetch-Site: same-origin`, which Chrome never sends over
+   * ntwine's missing-Origin rules ask for `Sec-Fetch-Site: same-origin`, which Chrome never sends over
    * plain HTTP to a LAN address — so without this, `--host` serves the shell and then 403s every RPC
    * the app makes. Narrow on purpose: the Host must already be an authority this proxy accepts, there
    * must be no Origin at all (a present one still has to match, and is rejected above if it does not),
@@ -416,7 +416,7 @@ export class RestartSupervisorProxy {
    *
    * What this gives up, stated plainly: on an exposed board a cross-site GET carries no Origin and no
    * Fetch Metadata, so it is indistinguishable from the app's own read and is allowed. The response is
-   * still opaque to the caller (no CORS), Ntwine's GET procedures are reads, and every mutation is a POST
+   * still opaque to the caller (no CORS), ntwine's GET procedures are reads, and every mutation is a POST
    * — which a browser always stamps with an Origin, and which is therefore still refused.
    */
   private vouchesSameOrigin(req: IncomingMessage): boolean {
@@ -433,7 +433,7 @@ export class RestartSupervisorProxy {
       server.close((error) => error ? rejectClose(error) : resolveClose())
       server.closeAllConnections()
       // An upgraded socket is DETACHED from the http server, so closeAllConnections() cannot see it
-      // and server.close() waits on it forever. Ntwine always has live WebSockets (the board socket and
+      // and server.close() waits on it forever. ntwine always has live WebSockets (the board socket and
       // every open terminal), so without this the proxy never finishes closing once a browser has
       // connected. Measured: close() hung indefinitely after a single forwarded upgrade.
       for (const socket of this.upgradedSockets) socket.destroy()
@@ -467,7 +467,7 @@ export class RestartSupervisorProxy {
       ...(delegated ?? {}),
       ...reported,
       // Never infer this from the generic protocol: legacy/static supervisors can recover a child
-      // but cannot build and promote the canonical Ntwine artifact.
+      // but cannot build and promote the canonical ntwine artifact.
       updateRestart: typeof this.options.updateRestart === "function",
       // Sent ONLY when the launcher can actually answer it, so an older client — and ntwine-dev, which
       // has no notion of "already current" — keeps today's behaviour on its absence.
@@ -477,7 +477,7 @@ export class RestartSupervisorProxy {
       ...(version ? { version } : {}),
       ...(this.options.launcherVersion ? { launcherVersion: this.options.launcherVersion } : {}),
       ...(updateVersion ? { updateVersion } : {}),
-      // Sent only when TRUE, so a published Ntwine's payload is byte-identical to what it sends today
+      // Sent only when TRUE, so a published ntwine's payload is byte-identical to what it sends today
       // and an older client is unaffected. Absent therefore means "not a development build".
       ...(this.options.dev ? { dev: true } : {}),
     }
@@ -676,7 +676,7 @@ export class RestartSupervisorProxy {
       return
     }
     if (pathname === SUPERVISOR_UPDATE_RESTART_PATH && !this.options.updateRestart) {
-      responseJson(res, 409, { protocol: SUPERVISOR_CONTROL_PROTOCOL, state: "failed", message: "Update & Restart is available only for a stable immutable Ntwine artifact" })
+      responseJson(res, 409, { protocol: SUPERVISOR_CONTROL_PROTOCOL, state: "failed", message: "Update & Restart is available only for a stable immutable ntwine artifact" })
       return
     }
     if (pathname === SUPERVISOR_UPDATE_RESTART_PATH) {

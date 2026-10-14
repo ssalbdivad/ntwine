@@ -208,7 +208,7 @@ const RECOVERY_SCRIPT = `
     if(!status||status.state===told)return
     told=status.state
     if(status.state==="failed"){
-      heading.textContent="Ntwine did not restart"
+      heading.textContent="ntwine did not restart"
       // Not a second copy of the note below it — a lead-in to the log, which is the next thing down.
       detail.textContent="The launcher could not bring the application server back, and reported this:"
       showLog(status.message||"The launcher gave no reason.")
@@ -217,7 +217,7 @@ const RECOVERY_SCRIPT = `
     }
     showLog("")
     if(status.state==="restarting"){
-      heading.textContent="Ntwine is restarting"
+      heading.textContent="ntwine is restarting"
       detail.textContent="The application server is coming back up."
     }
   }
@@ -227,13 +227,13 @@ const RECOVERY_SCRIPT = `
     // A hidden tab neither polls nor spends its budget; visibilitychange starts the loop again.
     if(document.hidden)return
     alive().then(function(up){
-      if(up){say("Ntwine is back. Reloading.",true);location.replace(target);return}
+      if(up){say("ntwine is back. Reloading.",true);location.replace(target);return}
       return readStatus().then(function(status){
         narrate(status)
         if(stopped)return
         if(Date.now()>deadline){halt("No answer after 2m. This page stopped checking.",false);return}
         delay=Math.min(MAX,delay*GROWTH)
-        say("Waiting for Ntwine",true)
+        say("Waiting for ntwine",true)
         timer=setTimeout(tick,delay)
       })
     })
@@ -248,14 +248,14 @@ const RECOVERY_SCRIPT = `
     if(busy)return
     busy=true;stopped=false;told="";clearTimeout(timer)
     restart.disabled=true;restart.textContent="Restarting"
-    dot.removeAttribute("data-state");showLog("");say("Restarting Ntwine",true)
+    dot.removeAttribute("data-state");showLog("");say("Restarting ntwine",true)
     fetch("/_ntwine/control/restart",{method:"POST",headers:{"cache-control":"no-store"}})
       .then(function(r){return r.json().catch(function(){return null}).then(function(b){return{ok:r.ok,status:r.status,body:b}})})
       .catch(function(){return{ok:false,status:0,body:null}})
       .then(function(r){
-        restart.disabled=false;restart.textContent="Restart Ntwine";busy=false
+        restart.disabled=false;restart.textContent="Restart ntwine";busy=false
         if(!r.ok){
-          heading.textContent="Ntwine did not restart"
+          heading.textContent="ntwine did not restart"
           detail.textContent="The launcher could not bring the application server back, and reported this:"
           showLog((r.body&&r.body.message)||("The launcher refused the restart ("+(r.status||"no response")+")."))
           halt("",true)
@@ -266,7 +266,7 @@ const RECOVERY_SCRIPT = `
       })
   })
 
-  say("Waiting for Ntwine",true)
+  say("Waiting for ntwine",true)
   tick()
 })()
 `.trim()
@@ -304,13 +304,13 @@ export type RecoveryVariant = "starting" | "unreachable"
 
 const RECOVERY_COPY: Record<RecoveryVariant, { title: string; heading: string; detail: string }> = {
   starting: {
-    title: "Restarting | Ntwine",
-    heading: "Ntwine is restarting",
+    title: "Restarting | ntwine",
+    heading: "ntwine is restarting",
     detail: "The application server is not listening yet. This page reloads as soon as it answers.",
   },
   unreachable: {
-    title: "Not responding | Ntwine",
-    heading: "Ntwine is not responding",
+    title: "Not responding | ntwine",
+    heading: "ntwine is not responding",
     detail: "The application server accepted this request and then dropped it. Restarting it usually clears this.",
   },
 }
@@ -318,7 +318,7 @@ const RECOVERY_COPY: Record<RecoveryVariant, { title: string; heading: string; d
 // The one fact an operator staring at this page actually wants, and the reason is worth stating: a
 // worker is a daemon in its OWN process group, so nothing here — a restart, a crash, a ctrl-C on the
 // launcher — reaches it. Its events queue while nothing is attached and replay when the board is back.
-const THREADS_NOTE = "Threads already running are not affected. Each runs as its own detached process, and Ntwine reattaches to it on restart."
+const THREADS_NOTE = "Threads already running are not affected. Each runs as its own detached process, and ntwine reattaches to it on restart."
 
 export function recoveryPage(url: string, variant: RecoveryVariant = "starting"): string {
   const copy = RECOVERY_COPY[variant]
@@ -337,7 +337,7 @@ export function recoveryPage(url: string, variant: RecoveryVariant = "starting")
       + `<p class="note">${THREADS_NOTE}</p>`
       + `<div class="actions">`
       + `<a class="btn" href="${target}">Try again</a>`
-      + `<button class="btn" type="button" id="restart">Restart Ntwine</button>`
+      + `<button class="btn" type="button" id="restart">Restart ntwine</button>`
       + `</div>`
       + `<p class="probe" id="probe" aria-live="polite"></p>`,
     script: RECOVERY_SCRIPT,
@@ -391,7 +391,7 @@ export function unauthorizedPage(reason?: "unknown" | "expired" | "already-used"
 
 /**
  * The refusal an operator sees after opening an exposed board by a name `--allowed-host` does not
- * list. Unlike unauthorizedPage this SAYS what Ntwine is: the board is already open to this network by
+ * list. Unlike unauthorizedPage this SAYS what ntwine is: the board is already open to this network by
  * IP with no gate at all, so naming the flag costs nothing and saves the guess. The name is escaped
  * even though the Host parser already refuses every character that could break markup.
  */
@@ -401,7 +401,7 @@ export function unlistedHostPage(name: string): string {
     title: "Not served by this name",
     appearance: true,
     body: `<h1>Not served by this name</h1>`
-      + `<p class="detail">Ntwine does not answer to <code>${shown}</code>. A name a browser has to resolve is how DNS rebinding makes another site's page count as this board, so an exposed board accepts only its own hostname and the names its operator lists.</p>`
+      + `<p class="detail">ntwine does not answer to <code>${shown}</code>. A name a browser has to resolve is how DNS rebinding makes another site's page count as this board, so an exposed board accepts only its own hostname and the names its operator lists.</p>`
       + `<p class="note">Open the board by its IP address, or relaunch with <code>--allowed-host ${shown}</code> (or <code>NTWINE_ALLOWED_HOSTS=${shown}</code>) to accept this one.</p>`,
   })
 }

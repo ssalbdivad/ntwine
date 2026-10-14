@@ -70,8 +70,8 @@ test("a queued message reaches the agent after its next tool call, once, in orde
   const out = JSON.parse(runHook(postToolUse(s.transcript, AGENT)))
   assert.equal(out.hookSpecificOutput.hookEventName, "PostToolUse")
   const ctx: string = out.hookSpecificOutput.additionalContext
-  assert.match(ctx, /⟦Ntwine mailbox: message from the user operating Ntwine⟧ first/)
-  assert.match(ctx, /⟦Ntwine mailbox: message from the agent that dispatched you⟧ second/)
+  assert.match(ctx, /⟦ntwine mailbox: message from the user operating ntwine⟧ first/)
+  assert.match(ctx, /⟦ntwine mailbox: message from the agent that dispatched you⟧ second/)
   assert.ok(ctx.indexOf("first") < ctx.indexOf("second"), "oldest first")
 
   assert.equal(runHook(postToolUse(s.transcript, AGENT)), "", "a delivered message is not delivered again")
@@ -83,7 +83,7 @@ test("nothing waiting, the main thread, or a non-worker session: the hook says n
   assert.equal(runHook(postToolUse(s.transcript, AGENT)), "")
   postToAgentInbox(s.sessionDir, AGENT, { from: "parent", text: "hello" })
   assert.equal(runHook(postToolUse(s.transcript)), "", "the main thread never reads a sub-agent's mail")
-  assert.equal(runHook(postToolUse(s.transcript, AGENT), { NTWINE_THREAD: "" }), "", "inert outside an Ntwine worker")
+  assert.equal(runHook(postToolUse(s.transcript, AGENT), { NTWINE_THREAD: "" }), "", "inert outside an ntwine worker")
   assert.equal(runHook(postToolUse(s.transcript, "a-different-agent")), "", "another agent's mail is not this one's")
 })
 
@@ -95,11 +95,11 @@ test("every sub-agent is told about its mailbox before it runs anything", () => 
   const start = (agentType: string) => ({ hook_event_name: "SubagentStart", transcript_path: s.transcript, agent_id: AGENT, agent_type: agentType })
   const out = JSON.parse(runHook(start("workflow-subagent")))
   assert.equal(out.hookSpecificOutput.hookEventName, "SubagentStart")
-  assert.match(out.hookSpecificOutput.additionalContext, /⟦Ntwine mailbox⟧/)
+  assert.match(out.hookSpecificOutput.additionalContext, /⟦ntwine mailbox⟧/)
   assert.match(out.hookSpecificOutput.additionalContext, /not part of that tool's output/)
   // A plain sub-agent too (2026-10-08): the server now posts to any running child — a time limit's note, a
   // drawer steer, a message_thread to @thread.child — so it needs the same introduction.
-  assert.match(JSON.parse(runHook(start("general-purpose"))).hookSpecificOutput.additionalContext, /⟦Ntwine mailbox⟧/)
+  assert.match(JSON.parse(runHook(start("general-purpose"))).hookSpecificOutput.additionalContext, /⟦ntwine mailbox⟧/)
 })
 
 test("an agent about to finish is held for a waiting message, and only then", () => {
@@ -109,7 +109,7 @@ test("an agent about to finish is held for a waiting message, and only then", ()
   postToAgentInbox(s.sessionDir, AGENT, { from: "parent", text: "one more thing" })
   const out = JSON.parse(runHook(stop))
   assert.equal(out.decision, "block")
-  assert.match(out.reason, /⟦Ntwine mailbox: message from the agent that dispatched you⟧ one more thing/)
+  assert.match(out.reason, /⟦ntwine mailbox: message from the agent that dispatched you⟧ one more thing/)
   assert.equal(runHook({ ...stop, stop_hook_active: true }), "", "the message was taken, so the next stop goes through")
 })
 
@@ -117,16 +117,16 @@ test("SendMessage to a running Workflow agent is diverted into its mailbox and r
   const s = newSession([{ id: AGENT, label: "impl:errors" }])
   const out = JSON.parse(runHook(sendMessage(s.transcript, AGENT)))
   assert.equal(out.hookSpecificOutput.permissionDecision, "deny", "the native SendMessage would start a second copy")
-  assert.match(out.hookSpecificOutput.permissionDecisionReason, /^Delivered by Ntwine\./)
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /^Delivered by ntwine\./)
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /do not resend/)
 
   const delivered = JSON.parse(runHook(postToolUse(s.transcript, AGENT))).hookSpecificOutput.additionalContext
-  assert.match(delivered, /⟦Ntwine mailbox: message from the agent that dispatched you⟧ switch to the parser fix/)
+  assert.match(delivered, /⟦ntwine mailbox: message from the agent that dispatched you⟧ switch to the parser fix/)
 })
 
 test("SendMessage finds a running Workflow agent by its label when exactly one carries it", () => {
   const s = newSession([{ id: AGENT, label: "impl:errors" }, { id: "b1", label: "review" }, { id: "b2", label: "review" }])
-  assert.match(runHook(sendMessage(s.transcript, "impl:errors")), /Delivered by Ntwine/)
+  assert.match(runHook(sendMessage(s.transcript, "impl:errors")), /Delivered by ntwine/)
   assert.equal(runHook(sendMessage(s.transcript, "review")), "", "an ambiguous label is left to SendMessage's own resolution")
   assert.equal(existsSync(join(s.sessionDir, INBOX_DIRNAME, "b1")), false)
 })
@@ -142,7 +142,7 @@ test("SendMessage passes through untouched for anything that is not a RUNNING Wo
   assert.equal(runHook(sendMessage(live.transcript, "main")), "", "a message to the main thread is SendMessage's own")
   assert.equal(runHook(sendMessage(live.transcript, "some-plain-subagent")), "", "a plain sub-agent takes SendMessage natively")
   assert.equal(runHook(sendMessage(live.transcript, AGENT, { type: "shutdown_request" })), "", "a structured message is not text to deliver")
-  assert.match(runHook(sendMessage(live.transcript, AGENT)), /Delivered by Ntwine/, "a run still marked running is live")
+  assert.match(runHook(sendMessage(live.transcript, AGENT)), /Delivered by ntwine/, "a run still marked running is live")
 })
 
 test("a malformed agent id is refused rather than written outside the mailbox", () => {
@@ -150,11 +150,11 @@ test("a malformed agent id is refused rather than written outside the mailbox", 
   assert.throws(() => postToAgentInbox(s.sessionDir, "../escape", { from: "operator", text: "x" }), /not an agent id/)
 })
 
-test("a message from another Ntwine thread is signed with that thread's handle", () => {
+test("a message from another ntwine thread is signed with that thread's handle", () => {
   const s = newSession([{ id: AGENT }])
   postToAgentInbox(s.sessionDir, AGENT, { from: "@shell-budgets", text: "the cache key moved to src/keys.ts" })
   const ctx: string = JSON.parse(runHook(postToolUse(s.transcript, AGENT))).hookSpecificOutput.additionalContext
-  assert.match(ctx, /⟦Ntwine mailbox: message from the Ntwine thread @shell-budgets⟧ the cache key moved/)
+  assert.match(ctx, /⟦ntwine mailbox: message from the ntwine thread @shell-budgets⟧ the cache key moved/)
 })
 
 // ---- a running child's time limit, rewritten by the server (agent-inbox.ts setChildDeadline) ----
@@ -183,7 +183,7 @@ test("a child that cached no limit picks up the one the user set later, introduc
   const now = Date.now()
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, now + 10 * 60_000, now), "moved")
   const intro = childSays(s.transcript)
-  assert.match(intro, /⏰ Your time limit: .* set by the user operating Ntwine, after you started/)
+  assert.match(intro, /⏰ Your time limit: .* set by the user operating ntwine, after you started/)
   assert.equal(childSays(s.transcript), "", "introduced once")
 
   // Past the deadline already: the next tool call brings the `over` check-in.
@@ -200,7 +200,7 @@ test("a share of the thread's limit follows it: extended later, and lifted when 
   writeFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.over`), "")
 
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, now + 30 * 60_000, now), "moved", "the thread was extended: so is its share")
-  assert.match(childSays(s.transcript), /⏰ Your time limit: .* set by the user operating Ntwine/, "a new generation, introduced")
+  assert.match(childSays(s.transcript), /⏰ Your time limit: .* set by the user operating ntwine/, "a new generation, introduced")
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, now + 30 * 60_000 + 400, now + 400), false, "the same ceiling a beat later is no change")
 
   assert.equal(setChildDeadline(s.sessionDir, PLAIN, null, now), "lifted")

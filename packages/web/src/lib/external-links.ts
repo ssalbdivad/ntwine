@@ -1,4 +1,4 @@
-// Ntwine normally runs in an ordinary browser tab. External http(s) anchors should therefore stay in
+// ntwine normally runs in an ordinary browser tab. External http(s) anchors should therefore stay in
 // the browser's native click path: target=_blank opens a normal tab synchronously from the user
 // gesture, preserves modifier-key behavior, and cannot be stranded behind an async RPC. Internal
 // links and non-http schemes are left untouched so local navigation remains local.
@@ -94,7 +94,7 @@ export type EmbedLinkAction = { kind: "navigate"; path: string } | { kind: "exte
  *   any other in-app page (`/`, `/project/…`) here, in the frame — the tab it would have opened
  *
  * A plain click on a thread's address is not here: lib/thread-links.ts opens its drawer. Same-origin
- * paths under `/_ntwine/` are Ntwine's API, not the app, and are left alone, as is everything cross-origin
+ * paths under `/_ntwine/` are ntwine's API, not the app, and are left alone, as is everything cross-origin
  * (createExternalLinkClickHandler). Null when the click is not one of these. Pure, for its test.
  */
 export function embedLinkAction(

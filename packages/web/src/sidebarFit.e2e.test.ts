@@ -13,7 +13,7 @@ import type { Browser } from "puppeteer"
 // SIDEBAR FIT — the gate on "the list never scrolls, and never loses a thread" (plans/all-projects-first.md).
 //
 // Opt-in, and unlike every other *.e2e.test.ts here it needs NOTHING running: it boots its own disposable
-// Ntwine stacks (`scripts/adhoc-stack.mjs`, sandbox HOME, throwaway port), seeds each, renders it in its own
+// ntwine stacks (`scripts/adhoc-stack.mjs`, sandbox HOME, throwaway port), seeds each, renders it in its own
 // headless Chrome and tears all of it down, pass or fail. One command runs it end to end:
 //   NTWINE_SIDEBAR_FIT_E2E=1 nub run test packages/web/src/sidebarFit.e2e.test.ts
 // Set NTWINE_SIDEBAR_FIT_E2E_SHOTS=/abs/dir to also keep a screenshot of every measurement. It is listed in

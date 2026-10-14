@@ -33,7 +33,7 @@ import type { WorkerMcpServers } from "./project-mcp-servers.ts"
 type BrokerMcpServers = NonNullable<ClaudeBrokerConfig["mcpServers"]>
 
 // Stamp the calling thread's slug into the ntwine MCP server's env, leaving any other mounted server
-// untouched. Ntwine injects only the ntwine server today (it mounted chrome-devtools alongside it until
+// untouched. ntwine injects only the ntwine server today (it mounted chrome-devtools alongside it until
 // 2026-08-26), so the map is usually a single entry — but the copy stays general, because a project's
 // own servers may reach this map through a future path. Returns the input unchanged when there is no
 // ntwine mount, so a project whose plugin dir did not resolve behaves exactly as before.

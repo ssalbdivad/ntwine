@@ -59,7 +59,7 @@ store.board = { threads, projectSlug: "ntwine" } as unknown as BoardSnapshot
 setMentionIndex("ntwine", threads)
 const projectCard = (slug: string, name: string, stale = false) =>
   ({ id: `id-${slug}`, slug, name, path: `/home/u/${slug}`, lastOpenedAt: "", stale, iconStatus: "unknown" }) as ProjectCard
-setProjectMentions([projectCard("ntwine", "Ntwine"), projectCard("home", "Home"), projectCard("arktype", "ArkType"), projectCard("beanemachine", "Beane machine"), projectCard("gone", "Gone", true)])
+setProjectMentions([projectCard("ntwine", "ntwine"), projectCard("home", "Home"), projectCard("arktype", "ArkType"), projectCard("beanemachine", "Beane machine"), projectCard("gone", "Gone", true)])
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 const DIRECTORY = {

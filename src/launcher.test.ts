@@ -68,7 +68,7 @@ import { claimIdentityFingerprint, claimIdentityPath, loadOrCreateClaimIdentity 
 import { DEFAULT_PORT, DEFAULT_DEV_PORT } from "@ntwine/shared";
 import { listProjects, registerProject } from "@ntwine/server/project-registry";
 
-test("artifact re-exec keeps the original canonical Ntwine source directory", () => {
+test("artifact re-exec keeps the original canonical ntwine source directory", () => {
   const source = mkdtempSync(join(tmpdir(), "ntwine-canonical-source-"));
   const artifactRuntime = join(tmpdir(), "ntwine-builds", "digest", "runtime", "src");
   assert.equal(
@@ -505,7 +505,7 @@ test("workspace identity canonicalizes a symlink and survives spaces", () => {
   }
 });
 
-test("main and linked worktrees concurrently resolve to three stable isolated Ntwine instances", async () => {
+test("main and linked worktrees concurrently resolve to three stable isolated ntwine instances", async () => {
   const base = mkdtempSync(join(tmpdir(), "ntwine linked worktree race "));
   const main = join(base, "main repo with spaces");
   const linkedOne = join(base, "linked worktree one");
@@ -636,7 +636,7 @@ test("main and linked worktrees concurrently resolve to three stable isolated Nt
           ["config", "--local", "--get", "extensions.worktreeConfig"],
           { cwd: main, stdio: "ignore" }
         ),
-      "Ntwine does not mutate the repository-wide worktreeConfig extension"
+      "ntwine does not mutate the repository-wide worktreeConfig extension"
     );
   } finally {
     rmSync(base, { recursive: true, force: true });
@@ -1076,7 +1076,7 @@ test("an existing id stays lock-free for a source supervisor child", async () =>
   }
 });
 
-test("health probes accept only the expected Ntwine workspace identity", async () => {
+test("health probes accept only the expected ntwine workspace identity", async () => {
   const fetcher = async () =>
     new Response(
       JSON.stringify({
@@ -1260,7 +1260,7 @@ test(
       const result = await runRealCli(repo, home, ["--stop", "--no-app"]);
       assert.equal(result.code, 0, result.stderr);
       assert.equal(result.signal, null);
-      assert.match(result.stdout, /stopped Ntwine/u);
+      assert.match(result.stdout, /stopped ntwine/u);
       assert.equal(readProjectLaunchOwner(target.stateDir), null);
     } finally {
       await stopDisposableChild(owner.child);
@@ -1453,7 +1453,7 @@ test(
       await ownerExit;
       const result = await runRealCli(repo, home, ["--stop", "--no-app"]);
       assert.equal(result.code, 0, result.stderr);
-      assert.match(result.stdout, /stopped Ntwine/u);
+      assert.match(result.stdout, /stopped ntwine/u);
       assert.equal(readProjectLaunchOwner(target.stateDir), null);
       assert.equal(existsSync(statusPath), false);
       await stopDisposableChild(delegate.child);
@@ -1652,7 +1652,7 @@ test("a health probe can name the project it is asking about", async () => {
 // THE REGRESSION: the join probe ran on the same 1s budget as "is the server I just started up yet",
 // against a route that could take seconds. Two runs of `ntwine dev` in one directory seven minutes
 // apart, 2026-08-12: the first answered in 943ms and joined, the second took 1052ms and started a
-// second Ntwine on a second port. Whether the machine ends up with one scheduler or two must not be
+// second ntwine on a second port. Whether the machine ends up with one scheduler or two must not be
 // decided by a coin flip, so the join gets a budget sized for a server that is genuinely busy.
 test("the join probe outwaits a busy server instead of starting a rival one", async () => {
   const healthy = { ok: true, projectId: "beta-id", projectDir: "/repos/beta", bootId: "b1" };
@@ -2066,7 +2066,7 @@ test("installer manages only an executable source-backed immutable ntwine-dev sh
     );
     assert.match(body, shimEntry);
     assert.match(body, /\bnub\b/);
-    assert.match(runShim(shim, ["--help"]), /Ntwine source launcher/);
+    assert.match(runShim(shim, ["--help"]), /ntwine source launcher/);
     assert.match(
       execFileSync(process.execPath, [script, "--help"], { encoding: "utf8" }),
       /ntwine-dev:install/
@@ -2075,7 +2075,7 @@ test("installer manages only an executable source-backed immutable ntwine-dev sh
       execFileSync(process.execPath, [script, "--check", `--bin-dir=${dir}`], {
         encoding: "utf8",
       }),
-      /installed Ntwine development source launcher/
+      /installed ntwine development source launcher/
     );
     execFileSync(process.execPath, [script, `--bin-dir=${dir}`], {
       encoding: "utf8",
@@ -2141,7 +2141,7 @@ test("installer upgrades its OWN current-marker shim when the checkout path move
   // Moving the checkout — or moving the CLI inside it, as the root-package layout did — changes the
   // path embedded in the shim. Ownership is the MARKER, so this is an upgrade, not a foreign file:
   // comparing the whole body made the installer refuse to replace a launcher it had written itself,
-  // reporting "is not the Ntwine source launcher" about a file whose first comment line is that marker.
+  // reporting "is not the ntwine source launcher" about a file whose first comment line is that marker.
   const dir = mkdtempSync(join(tmpdir(), "ntwine-global-bin-moved-"));
   const script = join(import.meta.dirname, "..", "scripts", "install-global-cli.mjs");
   const shim = join(dir, shimName);
@@ -2345,7 +2345,7 @@ test("waitForWorkspace: with no state dir the historical flat deadline is unchan
  * Untested until 2026-08-11, and the gap showed: running it in a fresh checkout opened the LAST
  * project instead of that checkout. Each case below is one directory the operator can be standing in.
  */
-test("launch intent: a directory Ntwine already knows opens its own board", () => {
+test("launch intent: a directory ntwine already knows opens its own board", () => {
   const base = mkdtempSync(join(tmpdir(), "ntwine launch intent known "));
   const home = join(base, "home");
   const other = join(base, "other repo");
@@ -2384,9 +2384,9 @@ test("launch intent: a directory Ntwine already knows opens its own board", () =
   }
 });
 
-// Maintainer 2026-10-10: "If the folder that you run it in is not a pre-existing Ntwine project, it
+// Maintainer 2026-10-10: "If the folder that you run it in is not a pre-existing ntwine project, it
 // should just bring you to the root of the dashboard." A repository was adopted on sight until then.
-test("launch intent: a repository Ntwine has not seen lands on the dashboard, offered and unadopted", () => {
+test("launch intent: a repository ntwine has not seen lands on the dashboard, offered and unadopted", () => {
   const base = mkdtempSync(join(tmpdir(), "ntwine launch intent repo "));
   const home = join(base, "home");
   const host = join(base, "host repo");
@@ -2456,7 +2456,7 @@ test("launch intent: with no project at all, every directory still reaches the d
     assert.ok(fromRepo.kind === "offer");
     assert.equal(fromRepo.directory, realpathSync(repo));
 
-    // ONE stand-in host, Ntwine's own folder, the same on every launch — and never a project: no
+    // ONE stand-in host, ntwine's own folder, the same on every launch — and never a project: no
     // directory the operator was standing in is written to, and the registry stays empty.
     const host = hostWorkspace(home);
     assert.equal(host.root, realpathSync(launchHostDir(home)));
@@ -2580,7 +2580,7 @@ test("--sandbox parses, refuses the running-board queries, and prepares a dispos
     assert.equal(env.HOME, sandbox.home);
     assert.equal(env.USERPROFILE, sandbox.home);
     assert.equal(process.cwd(), realpathSync(sandbox.project));
-    // The throwaway project is one Ntwine already knows, so the launch opens its board rather than
+    // The throwaway project is one ntwine already knows, so the launch opens its board rather than
     // the dashboard — and a repository, so a worker there has somewhere to commit.
     assert.ok(existsSync(join(sandbox.project, ".git")));
     assert.equal(resolveLaunchIntent(sandbox.project, sandbox.home, env).kind, "open");

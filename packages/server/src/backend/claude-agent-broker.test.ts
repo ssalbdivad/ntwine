@@ -506,7 +506,7 @@ test("a plugin that changed while the session was idle is reloaded BEFORE the ne
 // The other half of the closure: what the OPERATOR adds. A live session does not notice a new project
 // skill by itself (measured against real claude), so this reaches it the same way the plugin does.
 test("a skill added to the project while the session was idle is picked up before the next input", { timeout: 20_000 }, async () => {
-  const b = startBroker("basic") // no Ntwine plugin at all: the closure is still worth keeping current
+  const b = startBroker("basic") // no ntwine plugin at all: the closure is still worth keeping current
   try {
     const c = clientWith(b.socketPath)
     await c.waitEvent((e) => e.kind === "init")

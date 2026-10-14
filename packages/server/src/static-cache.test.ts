@@ -12,7 +12,7 @@ import { serveStatic } from "./index.ts"
 // behaviour a fake req/res cannot show: which validator the browser gets back, whether a conditional
 // request is answered 304 with no body, and whether a rebuilt index.html is picked up rather than
 // served from the client's cache. The regression this pins is the one that hurts most — an
-// immutably-cached shell would leave a user on the old build after Ntwine promotes a new artifact and
+// immutably-cached shell would leave a user on the old build after ntwine promotes a new artifact and
 // restarts, with no way out but a manual cache clear.
 
 let dist: string

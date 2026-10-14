@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process"
 import { join } from "node:path"
 import test from "node:test"
 
-// Opt-in like the other *.e2e.test.ts here. Needs a REAL Ntwine serving at least two projects, which
+// Opt-in like the other *.e2e.test.ts here. Needs a REAL ntwine serving at least two projects, which
 // `scripts/adhoc-stack.mjs` builds in one command:
 //   nub scripts/adhoc-stack.mjs --port=45781 --project=/abs/a --also-project=/abs/b > /tmp/stack.log 2>&1 &
 //   NTWINE_PROJECT_SWITCH_E2E_URL=http://127.0.0.1:45781 nub --test --test-force-exit \
@@ -23,12 +23,12 @@ const sandboxHome = process.env.NTWINE_PROJECT_SWITCH_E2E_HOME
 // project's threads under another project's URL, and nothing but a document load recovered it
 // (reported 2026-08-11). The rebind now asks the feed itself (routes.tsx useProjectBinding).
 //
-// The page has TWO client-side switches, and both rebind: the page title's switcher moves the page to a
+// The page has TWO client-side switches, and both rebind: the dock moves the page to a
 // project's board, `/project/<slug>` (a navigation within the one mounted page — routes.tsx PageRoute), and
 // in All projects the prompt box's project picker re-binds the page to its pick without any navigation.
 // Until 2026-09-28 the switch was a project row's ⋯ → Open board, a client-side navigation to
 // `/project/<slug>`; from then until focus mode (2026-09-29) the picker was the only one, and from then
-// until 2026-10-06 the switcher's board was the query `/?project=<slug>`.
+// until 2026-10-06 the board was the query `/?project=<slug>`.
 //
 // So this asserts the socket URL, not the render: it is the one artifact that says which project the
 // page's live data is actually coming from, and it is recorded from `evaluateOnNewDocument` so the
@@ -63,7 +63,7 @@ test("switching the page to another project re-points the live feed at that proj
     })
     // The page, focused on the LAST of them and bound to it, so every switch below moves the feed.
     await page.goto(`${baseUrl}/project/${slugs.at(-1)}`, { waitUntil: "networkidle2" })
-    await page.waitForSelector('[data-status-row] [data-xq-switcher="project"]', { timeout: 15_000 })
+    await page.waitForSelector("[data-xq-page-title]", { timeout: 15_000 })
     // A document load would rebind the feed and hide the bug, so the page must be this one throughout.
     await page.evaluate(() => { (window as unknown as { __sameDocument: boolean }).__sameDocument = true })
 
@@ -110,13 +110,13 @@ test("switching the page to another project re-points the live feed at that proj
     }
 
     for (const slug of slugs.slice(0, 2)) {
-      await choose("[data-status-row] [data-xq-switcher]", slug)
+      await page.click(`[data-xq-dock-square="${slug}"]`)
       await page.waitForFunction((s) => location.pathname === `/project/${s}`, { timeout: 15_000 }, slug)
-      await feedFollows(slug, `the switcher, to ${slug}`)
+      await feedFollows(slug, `the dock, to ${slug}`)
     }
 
     // All projects keeps the project just left as the page's (the pick); the picker then moves it.
-    await choose("[data-status-row] [data-xq-switcher]", "all-projects")
+    await page.click('[data-tour="dock-all"] [data-xq-lens="All"]')
     await page.waitForFunction(() => location.pathname === "/" && location.search === "", { timeout: 15_000 })
     const other = slugs[0]!
     await choose("[data-xq-project-picker]", other)

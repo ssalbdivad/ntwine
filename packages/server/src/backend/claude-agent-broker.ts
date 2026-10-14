@@ -237,7 +237,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
     ? createClaudeBrokerExitWriter(config.diagnosticLogPath, { daemonPid: process.pid, generation })
     : undefined
 
-  // Tell a sweeping Ntwine (runtimes.ts) that this daemon still runs out of that version directory.
+  // Tell a sweeping ntwine (runtimes.ts) that this daemon still runs out of that version directory.
   // A daemon outlives the server that forked it, so the server's own lease is not enough.
   const releaseRuntimeLease = leaseRuntime(config.executablePath, "claude-broker")
   const factory = createClaudeQueryFactory({ enabled: true, executablePath: config.executablePath })
@@ -246,7 +246,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
   // top — which is also what gives them THIS thread's values instead of the server's.
   const env = { ...inheritWorkerEnvironment(config.env), ...(config.workerEnv ?? {}) }
   // Keeps this session on its plugin closure as it is on disk, re-reading it between turns when it
-  // moves (see claude-plugin-sync.ts): Ntwine's plugin, and the project's and the operator's own
+  // moves (see claude-plugin-sync.ts): ntwine's plugin, and the project's and the operator's own
   // skills, agents, commands and installed plugins. Built BEFORE the session starts, because the
   // fingerprint it takes now is its record of what the session is about to load. PERSISTED ONLY, like
   // `input received` below: a reload is forensics, not something the operator's thread should narrate.
@@ -352,7 +352,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
       })
     },
     // The account's plan windows, as every API response reports them to this session. Written by THIS
-    // process because it is the one that sees the stream and it outlives the Ntwine server; the server
+    // process because it is the one that sees the stream and it outlives the ntwine server; the server
     // only reads the file (claude-quota-observed.ts). Fire-and-forget: the recorder never rejects.
     onRateLimit: (info: unknown) => {
       void recordObservedClaudeQuota(info, { cacheDir: join(ntwineRoots().cache, "quota-cache"), configDir: closure.configDir })
@@ -576,7 +576,7 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
         }
         else if (msg.t === "rename") {
           // NO CURRENT SERVER SENDS THIS. It was the on-demand re-title's frame (the SDK equivalent of
-          // typing `/rename`); the re-title moved to Ntwine's own namer, and its button went on
+          // typing `/rename`); the re-title moved to ntwine's own namer, and its button went on
           // 2026-10-14. Still answered, and the capability still advertised, for an OLDER server a
           // downgrade attaches to this daemon, exactly as reload-plugins below. Same request/response
           // discipline as the other control actions: a silent drop would read as a wedged daemon.

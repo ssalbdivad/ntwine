@@ -11,14 +11,14 @@ import { PROVIDER_LABEL } from "./signIn.ts"
 
 type Pause = NonNullable<ThreadView["limitPause"]>
 
-/** "Paused by the Claude session limit". Only Claude and Codex report a window Ntwine can read; an ACP
+/** "Paused by the Claude session limit". Only Claude and Codex report a window ntwine can read; an ACP
  *  agent's limits stay inside its own CLI, so its pause is named without a provider. */
 export function limitPauseTitle(pause: Pause): string {
   const which = pause.window === "weekly" ? "weekly limit" : pause.window === "session" ? "session limit" : "usage limit"
   return pause.backend === "acp" ? `Paused by the agent's ${which}` : `Paused by the ${PROVIDER_LABEL[pause.backend]} ${which}`
 }
 
-/** What Ntwine will do about it. The auto-resume promise is the server's word (board.resolveLimitPause
+/** What ntwine will do about it. The auto-resume promise is the server's word (board.resolveLimitPause
  *  keeps it truthful — an unknown window has no wake), so a promised wake names its clock and an
  *  unpromised one says plainly that continuing is the human's. */
 export function limitPauseResume(pause: Pause): string {

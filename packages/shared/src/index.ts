@@ -16,9 +16,9 @@ import type { TranscriptPatchOp } from "./transcript-delta.ts"
 // unzip/tar for an archive, and pandoc or LibreOffice (often already on the machine) for most of the
 // rest. Office, columnar and archive formats were REFUSED until 2026-08-27 on the theory that they'd
 // reach the agent as opaque zip/XML garbage; that underrates the agent, and the cost of the refusal
-// landed on the person, who had to convert the file by hand before Ntwine would take it. A dropped file
+// landed on the person, who had to convert the file by hand before ntwine would take it. A dropped file
 // lands on disk and its absolute path — inserted as plain text into the message — is what the worker
-// opens; nothing here is parsed, rendered or extracted by Ntwine itself.
+// opens; nothing here is parsed, rendered or extracted by ntwine itself.
 //
 // Widening this list widens NOTHING else. /local-image serves only its own content-type map (which
 // mirrors ATTACHMENT_IMAGE_EXTENSIONS), and the desktop-open action gates on trusted ROOTS rather than
@@ -48,7 +48,7 @@ export const ATTACHMENT_DATA_EXTENSIONS = [
   "parquet", "avro", "orc", "arrow", "feather", "ipynb", "db", "sqlite", "sqlite3",
 ] as const
 // Archives. `unzip` and `tar` are on every machine an agent runs on, and refusing a .zip while
-// accepting .docx — which IS a zip — was never coherent. Ntwine never extracts one: the file sits on
+// accepting .docx — which IS a zip — was never coherent. ntwine never extracts one: the file sits on
 // disk and the worker unpacks it deliberately, or does not.
 export const ATTACHMENT_ARCHIVE_EXTENSIONS = ["zip", "tar", "gz", "tgz", "bz2", "xz", "zst", "7z"] as const
 // Everything that is NOT rendered inline as an image: the chip set, and the alternation behind the
@@ -80,7 +80,7 @@ export function isAllowedAttachmentName(name: string): boolean {
 // The <input accept> value for the file picker: every allowed extension as `.ext`.
 export const ATTACHMENT_ACCEPT = ATTACHMENT_EXTENSIONS.map((e) => `.${e}`).join(",")
 
-// ---- Ntwine board vocabulary (mirrors board/config.mjs) ----
+// ---- ntwine board vocabulary (mirrors board/config.mjs) ----
 
 // Declaration order IS the lifecycle order (STATUS_ORDER = NtwineStatus.options), consumed by the
 // status pickers and the roadmap-count ordering. `needs-human` is a FIRST-CLASS status — the declared
@@ -134,7 +134,7 @@ export const CodexModel = z.object({
 export type CodexModel = z.infer<typeof CodexModel>
 
 // One selectable Claude Code model, as the pinned Claude runtime RESOLVES it (the claudeModels RPC).
-// `alias` is the `claude --model` word Ntwine dispatches with and keys every preference on ("opus");
+// `alias` is the `claude --model` word ntwine dispatches with and keys every preference on ("opus");
 // `label` is the resolved edition the operator should read in the picker ("Opus 5.5"), derived from
 // the runtime's own `supportedModels()` so the picker names the model the alias will actually run —
 // the same reason the Codex column reads "GPT-6 Astra" and not "gpt". `resolvedModel` is the canonical
@@ -150,7 +150,7 @@ export const ClaudeModel = z.object({
 })
 export type ClaudeModel = z.infer<typeof ClaudeModel>
 
-// The DEGRADED catalogue used while Ntwine's pinned Codex runtime has not written a compatible
+// The DEGRADED catalogue used while ntwine's pinned Codex runtime has not written a compatible
 // `models_cache.json` yet. This is deliberately one shared mirror: the server used to fall back to
 // GPT-5.5 alone while the browser's fallback included the current generation, so an older Codex app
 // rewriting the machine-wide cache made a model visible in one tab and unavailable in another.
@@ -170,7 +170,7 @@ export const CODEX_MODELS_FALLBACK: CodexModel[] = [
   { slug: "gpt-5.6-luna", displayName: "GPT-5.6 Luna", defaultEffort: "medium", efforts: ["low", "medium", "high", "xhigh", "max"] },
 ]
 
-// An Agent Client Protocol agent Ntwine can launch (server/backend/acp-agents.ts). `available` means
+// An Agent Client Protocol agent ntwine can launch (server/backend/acp-agents.ts). `available` means
 // its executable was found on the server's PATH; the composer lists only those, as `acp:<id>` models.
 export const AcpAgent = z.object({
   id: z.string(),
@@ -214,9 +214,9 @@ export interface AcpModelPreset {
   efforts: readonly string[]
 }
 
-// Meta's Muse Wonder models through OpenCode's OpenRouter provider (OPENROUTER_API_KEY in Ntwine's
+// Meta's Muse Wonder models through OpenCode's OpenRouter provider (OPENROUTER_API_KEY in ntwine's
 // environment, or `opencode auth login`). OpenCode offers minimal…max for Muse Wonder; the ladder here is
-// the part of it Ntwine's effort vocabulary already has.
+// the part of it ntwine's effort vocabulary already has.
 const MUSE_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
   // Verified live 2026-10-13 (opencode 1.19.0): low and high reach OpenRouter as `reasoning.effort`.
@@ -240,7 +240,7 @@ export type AcpAgentModel = z.infer<typeof AcpAgentModel>
 export const AcpAgentModels = z.object({
   agentId: z.string(),
   models: z.array(AcpAgentModel),
-  /** The model the agent opens a session on when Ntwine asks for none. */
+  /** The model the agent opens a session on when ntwine asks for none. */
   current: z.string().optional(),
   /** Why the list is empty, when the probe could not open a session (not installed, not logged in…). */
   error: z.string().optional(),
@@ -406,7 +406,7 @@ export function isDirectSubAgent(agent: { depth?: number }): boolean {
 // draws anything for the main checkout, so the readout appears only when it says something.
 //   kind "worktree" — the folder's `.git` is a FILE: a linked worktree (`git worktree add`, EnterWorktree).
 //   kind "folder"   — anything else off the root: another repository's own checkout, or a plain folder.
-// Ntwine takes no position on worktrees; this INFORMS where a terminal will open and never prescribes.
+// ntwine takes no position on worktrees; this INFORMS where a terminal will open and never prescribes.
 export const WorkCheckout = z.object({ dir: z.string(), kind: z.enum(["worktree", "folder"]) }).strict()
 export type WorkCheckout = z.infer<typeof WorkCheckout>
 
@@ -439,7 +439,7 @@ export const BgShellView = z.object({
   // `Query.stopTask` ends it (verified end-to-end in backend/_live_shell_stop.mts: the OS process is
   // gone inside a second).
   stoppable: z.boolean().optional(),
-  // Ntwine cannot read this shell's output, so the row must NOT offer a drill-in. True only for a CODEX
+  // ntwine cannot read this shell's output, so the row must NOT offer a drill-in. True only for a CODEX
   // background exec: codex keeps a yielded command's output inside its own session and hands it back
   // only when the model polls, so there is no file for ntwine to tail — unlike a Claude shell, whose
   // output file ntwine reads directly. Absent ⇒ readable, which is every row that predates codex shells.
@@ -545,7 +545,7 @@ export const BackgroundShellOutputResult = z.object({
   // cleanup removed after the shell ended.
   missing: z.boolean().optional(),
   // A CODEX background exec: Codex keeps its output inside its own session and hands it to the model when
-  // it polls, so Ntwine holds no file to read. The command, the folder and Stop still work.
+  // it polls, so ntwine holds no file to read. The command, the folder and Stop still work.
   outputUnavailable: z.boolean().optional(),
   // Where it runs (BgShellView.cwd) and that folder's checkout when it is off the project root — kept
   // with the retired shell, so an open drawer keeps its subtitle after the shell ends.
@@ -964,7 +964,7 @@ export function splitAwaitingFrontmatter(raw: string): { body: string; hints: Aw
   // what keeps a retired `pr:` with its list underneath from orphaning a bare sequence into the parser.
   // `inTitle` and `inSteps` are the same rule for the two keys that are prose: their lines follow them
   // verbatim.
-  // `threads:` names another Ntwine thread this one asked with `ntwinectl message-thread` and
+  // `threads:` names another ntwine thread this one asked with `ntwinectl message-thread` and
   // `await_reply: true`, by its `@handle` — and `@` is a character YAML reserves, so `threads: [@x]` is a
   // parse error that would cost the fence every lookup beside it. So its values are read verbatim too,
   // as a flow list or `- ` items, with any quotes a worker added taken off.
@@ -1441,7 +1441,7 @@ export function formatGoalFor(seconds: number): string {
   return `${seconds}s`
 }
 
-/** What ntwine delivers ONCE when a Goal disarms itself at a limit (scheduler `evalGoalLimits`). Ntwine is
+/** What ntwine delivers ONCE when a Goal disarms itself at a limit (scheduler `evalGoalLimits`). ntwine is
  *  the author, so this is the news and not an operator prompt: which limit, and how many runs landed.
  *
  *  It tells the worker NOT to re-arm around the limit. The limit is the loop's terminating condition —
@@ -1454,7 +1454,7 @@ export function goalLimitMessage(o: { reason: "runs" | "time"; runs: number; max
     ? `Your Goal reached its run limit and stopped: ${o.runs} of ${o.maxRuns ?? o.runs} runs delivered.`
     : `Your Goal reached its time limit${o.forSeconds ? ` (${formatGoalFor(o.forSeconds)})` : ""} and stopped after ${runs}.`
   return (
-    `${head} Ntwine will not send it again.\n\n` +
+    `${head} ntwine will not send it again.\n\n` +
     "(The loop is over by design. Wrap up what it was doing and say where the work stands. Its text is" +
     " kept in the thread footer, so it can be re-armed — but do not re-arm it yourself just to keep going" +
     " past the limit that ended it.)"
@@ -1482,7 +1482,7 @@ export function goalLimitMessage(o: { reason: "runs" | "time"; runs: number; max
 // loop by itself.
 
 // Claude Code narrates its OWN control action into the transcript: every turn cut short leaves a bare
-// `[Request interrupted by user]` user record. Ntwine cuts turns short as a feature — "send now" (⌘⏎ and
+// `[Request interrupted by user]` user record. ntwine cuts turns short as a feature — "send now" (⌘⏎ and
 // the queue's push-through button) interrupts the running turn so the worker reads the queue at once —
 // so the marker landed as a human bubble directly above the very message that caused it, saying nothing
 // the reader did not just do (maintainer 2026-08-14). The broker's own shutdown writes the same record,
@@ -1646,7 +1646,7 @@ const RECURRING_TRAILER =
   /\n\n\((?:Goal|Recurring prompt|Stop hook|Heartbeat) — (?:sent (?:(each time you come to rest)|every ([^.)]+))|(your context was just compacted))\. [^)]*\)$/
 export function parseRecurringPrompt(text: string | undefined): RecurringPrompt | undefined {
   if (typeof text !== "string") return undefined
-  // Ntwine's built-in sign-off reminder (scheduler SOURCE 9). It carries no trailer — it is not the
+  // ntwine's built-in sign-off reminder (scheduler SOURCE 9). It carries no trailer — it is not the
   // operator's text with a note attached, it IS ntwine's text — so it is matched on its own opening
   // marker and collapsed like any other repeating ntwine delivery. Left as a card it dominated the queue
   // item it was complaining about (maintainer 2026-08-12, with a screenshot of exactly that).
@@ -1722,7 +1722,7 @@ export const PR_WATCH_SPENT_TRAILER = "(This watcher is spent — there is nothi
 export const PR_WATCH_ARMED_TRAILER = "(Registered PR watcher — STILL ARMED. It reports again on the next CI change, review,"
   + " comment, label, conflict or review request. Drop it with `ntwinectl watch-pr drop <id>` when it stops"
   + " mattering.)"
-export const SHELL_DONE_TRAILER = "(Ntwine sends this because it finished after you came to rest, where your runtime's own completion"
+export const SHELL_DONE_TRAILER = "(ntwine sends this because it finished after you came to rest, where your runtime's own completion"
   + " notification does not reach you. Read its output if you still need it.)"
 export const ISSUE_WATCH_SPENT_TRAILER = "(This watcher is spent — there is nothing further to report on a closed issue.)"
 // A worker can no longer register an issue watcher (removed 2026-10-14); this trailer ends the wakes of
@@ -1991,7 +1991,7 @@ export function isInterruptEndedWake(text: string): boolean {
  *  — ntwine writes this string and ntwine reads it, both from this file. */
 export const SIGNOFF_NUDGE_MARKER = "**This message is from ntwine, not from the user.**"
 
-/** Ntwine's worker-facing vocabulary said "the human" until 2026-10-08 and says "the user" now (a worker
+/** ntwine's worker-facing vocabulary said "the human" until 2026-10-08 and says "the user" now (a worker
  *  leaking the contract's noun into its prose reads less oddly that way). Text ntwine wrote BEFORE the
  *  change is still in every open thread's transcript, so each recognizer that matches one of these
  *  constants also accepts its old spelling, rebuilt from the new one so the two cannot drift. */
@@ -2195,11 +2195,11 @@ export function signoffNudgeMessage(ops?: SignoffLiveOps, needsInput = false): s
     lines.push("", "An ```awaiting fence names only what you are ACTUALLY waiting on, one such list per kind, plus")
     if (needsInput) {
       lines.push("a required `for:` duration (`30s`/`15m`/`2h`/`3d`) and a required `status:` (`working`, `watching`")
-      lines.push("or `needs_input`), then a `---` line and whatever prose the user needs. Ntwine checks every id:")
+      lines.push("or `needs_input`), then a `---` line and whatever prose the user needs. ntwine checks every id:")
       lines.push("name something that is not running and you are bumped rather than parked.")
     } else {
       lines.push("a required `for:` duration (`30s`/`15m`/`2h`/`3d`), then a `---` line and whatever prose you want")
-      lines.push("(optional). Ntwine checks every id: name something that is not running and you are bumped")
+      lines.push("(optional). ntwine checks every id: name something that is not running and you are bumped")
       lines.push("rather than parked.")
     }
   }
@@ -2312,14 +2312,14 @@ function signoffNudgeText(needsInput: boolean): string {
   "  deliverable, each opening with a **bolded verb phrase**. A card is read at a glance: keep it short.",
   ...signoffNudgeAwaitingLines(needsInput),
   "",
-  "  Ntwine CHECKS every line: name something that is not running and you are bumped rather than parked.",
+  "  ntwine CHECKS every line: name something that is not running and you are bumped rather than parked.",
   "  A fence that names NOTHING is not a park at all — if you are not waiting on anything, you are not",
   "  awaiting, you are done. Register a PR with `ntwinectl watch-pr add` and a timer with",
   "  `ntwinectl timer set`; `ntwinectl activity` reads back everything you have running, with its id.",
   "- `` ```awaiting `` with `steps:` — the user must PERFORM something you cannot: sign in, approve,",
   "  merge, press a button you may not. List each step as a `- ` line under `steps:`, written to be",
   "  followed cold: a real Markdown link to every page and file it names, every command in a code span,",
-  "  every value the act needs written in. Ntwine reads them verbatim. Steps name the USER as the wait,",
+  "  every value the act needs written in. ntwine reads them verbatim. Steps name the USER as the wait,",
   "  so the fence needs no other name and no `for:`, and the thread goes into their queue. Their Done",
   "  comes back to you as their reply; anything else they need to say comes as a message of their own.",
   "- `` ```awaiting `` with `questions:` — a question you registered at an EARLIER rest is still open and",
@@ -2368,7 +2368,7 @@ export function carriedQuestionsNudgeMessage(questions: readonly { id: string; q
     "",
     ...questions.map((q) => `- \`${q.id}\` — ${q.question}`),
     "",
-    "Ntwine does not draw an earlier rest's question under your newest handoff: its card stays where you",
+    "ntwine does not draw an earlier rest's question under your newest handoff: its card stays where you",
     `asked it. So say where ${one ? "it stands" : "each one stands"}:`,
     "",
     "- STILL NEED THE ANSWER → end with an ```awaiting fence naming it, `questions: [qst_…]`. A fence on",
@@ -2382,7 +2382,7 @@ export function carriedQuestionsNudgeMessage(questions: readonly { id: string; q
 }
 
 // ---- THE FENCE CORRECTIONS (scheduler SOURCE 12) -------------------------------------------------
-// Ntwine refusing a park and telling the worker why: a fence naming something that is not running, a
+// ntwine refusing a park and telling the worker why: a fence naming something that is not running, a
 // fence naming nothing at all, a fence written in a line kind that no longer exists.
 //
 // THEY ARE INVISIBLE IN THE CHAT, and that is the whole reason these two strings live here. A
@@ -2475,7 +2475,7 @@ export function parseSpinoffRequest(text: string): { id: string; instructions: s
 }
 
 /** The new thread's first prompt when it does not fork the parent: the human's words and where they came
- *  from, then the context Ntwine assembled from the parent (spinoffContext). Written by the SERVER, so the
+ *  from, then the context ntwine assembled from the parent (spinoffContext). Written by the SERVER, so the
  *  human's instructions reach the child verbatim, and the child can find its way back.
  *
  *  The parent is named by its `@handle` when it has one — what `read_thread` resolves and what the
@@ -2504,14 +2504,14 @@ function spinoffParentRef(input: { parentSlug: string; parentTitle: string; pare
 }
 
 /** The CONTEXT a spinoff child starts with when it does not fork its parent (David 2026-10-07): a Codex
- *  or ACP parent, a cross-project spinoff, or a Claude parent with no transcript yet. Ntwine assembles it
+ *  or ACP parent, a cross-project spinoff, or a Claude parent with no transcript yet. ntwine assembles it
  *  from what it already stores — the parent's original request, its latest handoff (a registered done's
  *  body, else its last resting message) and, across projects, where the parent lives — and points the
  *  child at `read_thread` for the rest. No model writes it and nothing reaches the parent, so a spinoff
  *  never touches the thread it came from.
  *
  *  The request and the handoff lead, so the text the child is NAMED from (spinoffNameSource) is about the
- *  work rather than Ntwine's own orientation. Each is quoted, being another thread's words. `readAs` is
+ *  work rather than ntwine's own orientation. Each is quoted, being another thread's words. `readAs` is
  *  what `read_thread` resolves the parent by: its handle, or its slug when it has none. */
 export function spinoffContext(input: {
   parentSlug: string
@@ -2573,7 +2573,7 @@ export function spinoffNameSource(origin: { instructions: string; brief: string 
 // first turn, like the request's parser.
 const SPINOFF_CHILD_PROMPT = /^A spinoff of (?:@[\p{L}\p{N}_.-]+|\[[^\]\n]*\]\(\/thread\/[^)\s]+\)), at the (?:user|human)'s request\. Their instructions:\n\n((?:>[^\n]*(?:\n|$))+)\n(?:Context from (?:@[\p{L}\p{N}_.-]+|that thread)|The context (?:@[\p{L}\p{N}_.-]+|that thread) gathered for you):\n\n([\s\S]*)$/u
 
-// A FORKED child's prompt (spinoffForkPrompt): the same opening and quote, then Ntwine's orientation —
+// A FORKED child's prompt (spinoffForkPrompt): the same opening and quote, then ntwine's orientation —
 // which is not a brief, so it projects as none.
 const SPINOFF_FORK_PROMPT = new RegExp(
   String.raw`^A spinoff of (?:@[\p{L}\p{N}_.-]+|\[[^\]\n]*\]\(\/thread\/[^)\s]+\)), at the (?:user|human)'s request\. Their instructions:\n\n((?:>[^\n]*(?:\n|$))+)\n` +
@@ -2615,7 +2615,7 @@ export function limitResumeSteer(window: LimitWindow): string {
 /** The message a worker receives when ntwine answered a MODEL-SCOPED cap by moving the thread down a rung.
  *
  *  The provider's own line says it outright — "Switch to another model … to continue" — so the account
- *  is not out of capacity, this MODEL is, and waiting out a weekly window is the wrong answer. Ntwine
+ *  is not out of capacity, this MODEL is, and waiting out a weekly window is the wrong answer. ntwine
  *  takes the provider's advice on the thread's behalf and restarts it on the next model down (see
  *  claudeFallbackModel), which is why this wake says nothing has reset: the cap is still standing.
  *
@@ -2649,7 +2649,7 @@ export function parseLimitResumeWake(text: string): { window: LimitWindow } | nu
 // ntwine composes ITSELF is a hairline, because it is one line of news about something outside the turn,
 // and the instructions under that line are addressed to the WORKER — its own registrations, its own
 // fence grammar, the tools it should call. Left in the server package a formatter has no parser the chat
-// can reach, so it fell through `NtwineWake`'s legacy fallback and printed VERBATIM: a bordered "Ntwine"
+// can reach, so it fell through `NtwineWake`'s legacy fallback and printed VERBATIM: a bordered "ntwine"
 // card of agent-contract prose, in the human's transcript (maintainer 2026-08-24, on a card reading
 // "THE ONLY LINE KINDS NOW SUPPORTED": "ntwine cards that seem to be exposing internals").
 //
@@ -3289,7 +3289,7 @@ function commandRunClause(run: Pick<CommandWatchRun, "outcome" | "exitCode">): s
 
 const COMMAND_WATCH_PASSED_HEAD = /^✅ Your command watch `(cmw_[a-z0-9]+)` PASSED\b/
 const COMMAND_WATCH_EXPIRED_HEAD = /^⏰ Your command watch `(cmw_[a-z0-9]+)` has expired and is no longer armed\b/
-const COMMAND_WATCH_CANCELLED_HEAD = /^⚠️ Ntwine cancelled your command watch `(cmw_[a-z0-9]+)`/
+const COMMAND_WATCH_CANCELLED_HEAD = /^⚠️ ntwine cancelled your command watch `(cmw_[a-z0-9]+)`/
 
 /** The wake a command watch sends when a check exits 0 — the one piece of news it exists to deliver. */
 export function commandWatchPassedWakeMessage(input: { id: string; command: string; output: string; runs: number; armedMs: number }): string {
@@ -3325,11 +3325,11 @@ export function commandWatchExpiredWakeMessage(input: { id: string; command: str
   ].join("\n")
 }
 
-/** The wake a command watch sends when Ntwine stops it before it passed or expired — the thread's
+/** The wake a command watch sends when ntwine stops it before it passed or expired — the thread's
  *  permission mode or sandbox changed under it, so the server may no longer run the command for it. */
 export function commandWatchCancelledWakeMessage(input: { id: string; command: string; reason: string }): string {
   return [
-    `⚠️ Ntwine cancelled your command watch \`${input.id}\` and will not run it again: ${input.reason}`,
+    `⚠️ ntwine cancelled your command watch \`${input.id}\` and will not run it again: ${input.reason}`,
     "",
     codeBlock(input.command, "sh"),
     "",
@@ -3452,7 +3452,7 @@ export interface AskedOption {
    *  this" (maintainer 2026-10-10: "weird that there's a recommended chip on only a single item"). */
   recommended?: boolean
   /** Taking this option acts OUTSIDE this machine — files an issue, posts a comment, merges, pushes,
-   *  publishes, spends — usually under the human's name. Ntwine's unanswered-question default never takes
+   *  publishes, spends — usually under the human's name. ntwine's unanswered-question default never takes
    *  such an option (recommendedDefaultAnswer): the David, 2026-10-06, after a TS 7 migration
    *  thread asked whether to file an upstream issue under their account and the 10m default was on
    *  course to file it — "an issue shouldn't be opened from me unless I actually answer". */
@@ -3478,7 +3478,7 @@ export interface AskedQuestion {
    *  not consent for something irreversible; declining is an OPTION inside the question. */
   danger?: boolean
   /** The worker's mark that this decision shapes the work built on it — a library's architecture, a
-   *  public API, a data model — so a guessed answer would be redone, not tweaked. Ntwine's
+   *  public API, a data model — so a guessed answer would be redone, not tweaked. ntwine's
    *  unanswered-question default never answers it (recommendedDefaultAnswer); the recommendation still
    *  shows. David, 2026-10-08, after a 3.0 precompile design thread had its architecture questions
    *  answered by the 10m default: "fundamental architectural decisions like this … should wait for my
@@ -3610,7 +3610,7 @@ export const RegisteredQuestionView = z.object({
   id: z.string(),
   spec: AskedQuestionSchema,
   askedAt: z.string(),
-  /** When Ntwine will take the recommended option for the human (questionDefaultAtMs). Absent when it
+  /** When ntwine will take the recommended option for the human (questionDefaultAtMs). Absent when it
    *  will not: the thread is still working, the question has nothing to take, it was typed past, or the
    *  human turned the default off with the countdown's ×. The card counts down to it. */
   defaultsAt: z.string().optional(),
@@ -3629,7 +3629,7 @@ export type RegisteredQuestionView = z.infer<typeof RegisteredQuestionView>
  *  and neither does a delivery of answers). An unknown clock reads as "no".
  *
  *  It changes nothing about the question's lifecycle: a question stays open, and owed, until the human
- *  answers or dismisses it or the worker withdraws it with `unask`. The one reader is Ntwine's default
+ *  answers or dismisses it or the worker withdraws it with `unask`. The one reader is ntwine's default
  *  answer (scheduler evalQuestionDefaults, and the board's countdown), which never takes an option on a
  *  question the human has typed past: that one waits for the human, or for the worker's `unask`. */
 export function questionRepliedPast(q: { asked_at: number }, lastHumanAt: string | undefined): boolean {
@@ -3681,15 +3681,15 @@ export const HoldQuestionDefaultResult = z.object({ held: z.boolean() }).strict(
 export type HoldQuestionDefaultResult = z.infer<typeof HoldQuestionDefaultResult>
 
 /** The `text` an automatic answer carries beside its picked label — read by the worker in the answers
- *  wake and by the human on the settled card, so neither mistakes Ntwine's default for the human's pick. */
-export const DEFAULTED_ANSWER_NOTE = `No reply in ${QUESTION_DEFAULT_AFTER_MS / 60_000}m, so Ntwine took the recommended option`
+ *  wake and by the human on the settled card, so neither mistakes ntwine's default for the human's pick. */
+export const DEFAULTED_ANSWER_NOTE = `No reply in ${QUESTION_DEFAULT_AFTER_MS / 60_000}m, so ntwine took the recommended option`
 
 /** The `text` when the recommended option acts outside this machine, so the default took the first
  *  option that does not. The worker reads it as "the human never approved the external act" — the
  *  recommendation is still theirs to put to the human later, never something to do anyway. */
-export const DEFAULTED_FALLBACK_NOTE = `No reply in ${QUESTION_DEFAULT_AFTER_MS / 60_000}m. The recommended option acts outside this machine, so Ntwine took the first option that does not; the user has not approved the recommended one`
+export const DEFAULTED_FALLBACK_NOTE = `No reply in ${QUESTION_DEFAULT_AFTER_MS / 60_000}m. The recommended option acts outside this machine, so ntwine took the first option that does not; the user has not approved the recommended one`
 
-/** The option Ntwine's default takes on one question node, or undefined when it takes none: the
+/** The option ntwine's default takes on one question node, or undefined when it takes none: the
  *  recommended option when it stays on this machine, else the FIRST option that does — the worker
  *  orders options by preference, so that is the least-blocking safe one. No recommendation, or every
  *  option `external`, takes nothing. */
@@ -3702,7 +3702,7 @@ function defaultOption(node: AskedQuestion): { option: AskedOption; fallback: bo
   return safe ? { option: safe, fallback: true } : undefined
 }
 
-/** The answer Ntwine gives an unanswered question on the human's behalf, or undefined when it has none to
+/** The answer ntwine gives an unanswered question on the human's behalf, or undefined when it has none to
  *  give: a free-text or `multi` question (no single pick to take), one with no option marked
  *  `recommended`, a `danger` question — the irreversible call stays the human's however long it
  *  waits — one the worker did not mark `mayDefault` (follow-ups ride on the root's mark), and one whose every option is `external`. A recommendation marked `external` is never taken:
@@ -3988,7 +3988,7 @@ export function questionAnswerMessage(answers: readonly QuestionAnswer[], dismis
   // NO ANSWERS AT ALL is its own message, not the answers one with an empty list. It reaches exactly one
   // thread: an AUTONOMOUS one, whose questions were cancelled wholesale when its Goal was armed and
   // which has no next steer for them to ride (scheduler.evalQuestionAnswers). Wording it as "answers"
-  // would tell that worker the human replied, when the whole point is that nobody is going to. Ntwine is
+  // would tell that worker the human replied, when the whole point is that nobody is going to. ntwine is
   // speaking here rather than the human, so the chat draws it as a hairline — see questionsCancelledWake.
   if (answers.length === 0) return questionsCancelledWakeMessage(dismissed.length)
   const rows: string[] = []
@@ -4207,7 +4207,7 @@ export type DropOwnLinkResult = z.infer<typeof DropOwnLinkResult>
 // agent works in (server thread-terminals.ts). It is not a thread: it has no row and no card of its own,
 // and rides its parent's `ThreadView.terminals`. `id` is its /term/<id> handle. `runId` counts starts, so
 // a restart is a NEW terminal to the browser (a fresh pty, a fresh screen) rather than more output on the
-// old one. An exited run with no `exitCode` is one the server went away under (an Ntwine restart takes its
+// old one. An exited run with no `exitCode` is one the server went away under (an ntwine restart takes its
 // children with it) — shown as interrupted, never as a success.
 export const ThreadTerminal = z.object({
   id: ThreadSlug,
@@ -5198,7 +5198,7 @@ export const BoardSnapshot = z.object({
   // The server's home directory — the expansion of a `~` a worker wrote in prose. Agents reference
   // files that way constantly (`~/.claude/CLAUDE.md`), and the browser has no way to derive it, so a
   // `~`-anchored Markdown link had no absolute path to become and stayed a same-origin anchor that
-  // navigated out of Ntwine. The client only ever uses it to build a path it then hands BACK to the
+  // navigated out of ntwine. The client only ever uses it to build a path it then hands BACK to the
   // server, which realpath-gates it exactly as it gates one the author typed in full. Optional so a
   // pre-restart server keeps working; absent means `~` links stay unresolved, i.e. the old behaviour.
   homeDir: z.string().optional(),
@@ -5270,8 +5270,8 @@ export const AuthSnapshot = z.object({
   codex: ProviderAuth,
   emails: AccountEmails,
 })
-// The backends that HAVE an account Ntwine can read and act on. An ACP agent's credentials belong to the
-// agent's own CLI (plans/acp-backend.md, decision 5): Ntwine never reads, refreshes or revokes them.
+// The backends that HAVE an account ntwine can read and act on. An ACP agent's credentials belong to the
+// agent's own CLI (plans/acp-backend.md, decision 5): ntwine never reads, refreshes or revokes them.
 export const AccountBackend = z.enum(["claude", "codex"])
 export type AccountBackend = z.infer<typeof AccountBackend>
 export const AccountLogoutInput = z.object({ backend: AccountBackend }).strict()
@@ -5296,7 +5296,7 @@ export type PermissionMode = z.infer<typeof PermissionMode>
 
 // Where a vetted local artifact link opens. This is intentionally a server-owned setting: the
 // browser never gets permission to navigate to file:// or choose an arbitrary executable. `editor` is
-// the SERVER's own `$VISUAL`/`$EDITOR`, read from the environment Ntwine was started in — the browser
+// the SERVER's own `$VISUAL`/`$EDITOR`, read from the environment ntwine was started in — the browser
 // still names no executable, it only picks "whatever this machine's shell already says".
 export const LocalFileOpener = z.enum(["system", "cursor", "vscode", "editor", "finder", "copy"])
 export type LocalFileOpener = z.infer<typeof LocalFileOpener>
@@ -5324,7 +5324,7 @@ export const Settings = z.object({
   // orchestration". It travels the wire as an effort because that is how Claude Code's own `/effort`
   // presents it; resolveClaudeEffort (server/backend/claude-effort.ts) translates it at the spawn edge.
   //
-  // "auto" is not a level either: it asks Ntwine to pick one per dispatch from the prompt (a short Haiku
+  // "auto" is not a level either: it asks ntwine to pick one per dispatch from the prompt (a short Haiku
   // call, server/effort-chooser.ts) before anything launches. It is a DISPATCH value only — a started
   // thread's row records the concrete level that call chose, so no runtime ever sees "auto".
   effort: z.enum(["auto", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"]).optional(),
@@ -5333,7 +5333,7 @@ export const Settings = z.object({
   // and before 2026-09-30; a stored value is stripped on parse, this being non-strict.)
   // (No `homeFolder`: the Home workspace's agents run in the operator's home folder, always. It was a
   // setting from 2026-09-28 to 2026-10-07; a stored value is stripped on parse, this being non-strict.)
-  // (No `worktreeDir` / `removeWorktreesOnDone`: Ntwine mandates no worktree folder and removes no
+  // (No `worktreeDir` / `removeWorktreesOnDone`: ntwine mandates no worktree folder and removes no
   // worktree on done, as upstream. Settings from 2026-09-30 to 2026-10-07; stripped on parse.)
   /**
    * Remove a linked git worktree under a registered project's `<main checkout>/.ntwine/worktrees` once it
@@ -5360,7 +5360,7 @@ export const Settings = z.object({
    * model. Machine-level, because quota is the account's, not a project's.
    */
   fableFallback: z.boolean().optional(),
-  // There is no `backgroundSummaries` key any more: Ntwine's own model calls were a Settings switch until
+  // There is no `backgroundSummaries` key any more: ntwine's own model calls were a Settings switch until
   // 2026-10-07, and are on now (NTWINE_*=0 still turns one off). A stored key is stripped on parse.
   // There is no `font` key any more. The interface rendered in one of two type families as a machine
   // setting until 2026-09-19 (maintainer: "let's drop monospace as an option"); every surface is sans
@@ -5369,10 +5369,10 @@ export const Settings = z.object({
   // Default action for a vetted non-image local path in agent markdown. Image clicks always use the
   // OS default viewer so screenshots retain their expected behavior.
   localFileOpener: LocalFileOpener.optional(),
-  // The token count at which a NEW Claude worker auto-compacts its conversation. Ntwine requests the
+  // The token count at which a NEW Claude worker auto-compacts its conversation. ntwine requests the
   // 1M context window on every dispatch (resolveClaudeLaunchModel), so without this a worker grows
   // toward 1M before it ever compacts — and every turn past 200K re-sends up to 5x the conversation a
-  // 200K TUI session would, which is the single largest reason an Ntwine thread spends quota faster than
+  // 200K TUI session would, which is the single largest reason an ntwine thread spends quota faster than
   // the TUI (measured 2026-08-26). Reaches the worker as CLAUDE_CODE_AUTO_COMPACT_WINDOW, which Claude
   // Code caps to the model's real window. Optional so an old blob parses; defaultSettings pins 500_000
   // (maintainer 2026-08-26: "a default compaction window of 500k by default").
@@ -5448,7 +5448,7 @@ export const SetDispatchPreferenceInput = z.discriminatedUnion("field", [
     backend: Backend,
     model: z.string().trim().min(1).max(200),
     // Optional ONLY for an ACP profile, which runs with whatever model and effort its own CLI is
-    // configured for — Ntwine has no effort axis to offer there. A Claude/Codex profile without an
+    // configured for — ntwine has no effort axis to offer there. A Claude/Codex profile without an
     // effort is refused below rather than silently stored as "default".
     effort: Settings.shape.effort,
   }),
@@ -5487,7 +5487,7 @@ export const DispatchInput = z.object({
   // spawned thread starts with none and its own worker may set it with `ntwinectl deadline`.
   deadline: z.string().refine((v) => Number.isFinite(Date.parse(v)), "deadline must be an ISO-8601 instant").optional(),
   // `spawn_thread`'s choice of project (router spawnTarget, server spawn-project.ts): a slug, name, id or
-  // checkout path of a project Ntwine has open. Omitted ⇒ the project this dispatch was addressed to.
+  // checkout path of a project ntwine has open. Omitted ⇒ the project this dispatch was addressed to.
   project: z.string().min(1).optional(),
   // The thread calling `spawn_thread`, from the shim's own identity. Its presence marks a WORKER's
   // dispatch, whose prompt is checked for another project's checkout when `project` is omitted; the
@@ -5533,7 +5533,7 @@ export type StartHeldThreadInput = z.infer<typeof StartHeldThreadInput>
 // current thread supplying the context. It is not a sub-agent (nothing returns to the parent) and not a
 // bare dispatch (the new thread does not start cold). On a Claude thread the new thread is a FORK of the
 // parent's session and starts with its whole conversation (2026-09-30, spinoffForkPrompt, server
-// router.ts forkSpinoff). Everywhere else it starts fresh on context Ntwine assembles from the parent
+// router.ts forkSpinoff). Everywhere else it starts fresh on context ntwine assembles from the parent
 // (2026-10-07, spinoffContext). Either way the parent is sent nothing. Both threads then carry the edge:
 // the parent's timeline shows the request as a card linking forward, and the child's header links back.
 // "Spinoff" is one word, verb and noun alike (maintainer 2026-09-29); it is asked of the whole thread,
@@ -5588,7 +5588,7 @@ export const FollowUpInput = z.object({
   // follow-up rather than the scheduler's answer wake so the pair arrives together, in the order the
   // human wrote it, and as fast as a steer does.
   answers: z.array(QuestionAnswerSchema).optional(),
-  // SEND TO THE QUEUE: while the agent is mid-turn, Ntwine keeps this message and delivers it when the
+  // SEND TO THE QUEUE: while the agent is mid-turn, ntwine keeps this message and delivers it when the
   // thread comes to rest, so it opens the next turn instead of steering this one. At rest it is an
   // ordinary send — there is nothing to wait for. See `held` in the server's delivery-ledger.ts.
   hold: z.boolean().optional(),
@@ -5666,7 +5666,7 @@ export const DeliverQueuedNowInput = z.object({
   slug: ThreadSlug,
   // Same staleness guard as unqueueFollowUp: a stale tab must not preempt a re-dispatched session.
   sessionId: z.string().min(1),
-  // Hand over what Ntwine is HOLDING for the agent's rest ("Send to queue") and stop there — no
+  // Hand over what ntwine is HOLDING for the agent's rest ("Send to queue") and stop there — no
   // interrupt. The "Send now" under a held bubble: the operator changed their mind about waiting, not
   // about interrupting, so the message goes in as the steer it would have been.
   releaseOnly: z.boolean().optional(),
@@ -5679,7 +5679,7 @@ export type DeliverQueuedNowInput = z.infer<typeof DeliverQueuedNowInput>
 export const DeliverQueuedNowResult = z.object({
   interrupted: z.boolean(),
   reason: z.string().optional(),
-  // How many messages Ntwine was HOLDING for the agent's rest ("Send to queue") and has now handed over.
+  // How many messages ntwine was HOLDING for the agent's rest ("Send to queue") and has now handed over.
   // Those were never in a provider queue, so on a runtime that cannot be interrupted this is the whole
   // of what "send now" did — and it is a success the surface must not report as a refusal.
   released: z.number().int().nonnegative().optional(),
@@ -5698,7 +5698,7 @@ export const CompactThreadInput = z.object({
 }).strict()
 export type CompactThreadInput = z.infer<typeof CompactThreadInput>
 
-/** Whether the thread's runtime gives Ntwine a way to request a compaction at all — the gate the
+/** Whether the thread's runtime gives ntwine a way to request a compaction at all — the gate the
  *  server enforces and the context meter's panel reads to decide whether to offer the button. */
 export function threadCanCompact(thread: { backend?: string; claudeRuntime?: string; foreign?: boolean }): boolean {
   if (thread.foreign) return false
@@ -6027,7 +6027,7 @@ export type ReadThreadResult = z.infer<typeof ReadThreadResult>
 // (the `subAgentDirectory` RPC). The board's `subAgents` is the LIVE list only; a child that has returned
 // leaves it, but its name, its transcript and its place in the tree stay on disk in the session's own
 // `subagents/` dir (Claude's `agent-<id>.meta.json` sidecars, and each Workflow run's journal), so the
-// directory is read from there rather than kept by Ntwine. It is what `@thread.` completes against in the
+// directory is read from there rather than kept by ntwine. It is what `@thread.` completes against in the
 // prompt box, and what a `@thread.subAgent` mention opens — after the child has returned as well as while
 // it runs (shared thread-handle.ts for the address itself).
 export const SubAgentDirectoryEntry = z.object({
@@ -6131,7 +6131,7 @@ export const ThreadProfileOptionsResult = z.object({
 })
 export type ThreadProfileOptionsResult = z.infer<typeof ThreadProfileOptionsResult>
 
-// The thread's invocable skills — and, on Claude, the built-in slash commands an Ntwine thread can run —
+// The thread's invocable skills — and, on Claude, the built-in slash commands an ntwine thread can run —
 // for the composer's `/` typeahead. Always the HARNESS's own list —
 // Claude's `supportedCommands()` through the broker, Codex's `skills/list` through the app-server —
 // never an ntwine-side scan of skill directories, which could only drift from what the session actually
@@ -6142,7 +6142,7 @@ export type ThreadProfileOptionsResult = z.infer<typeof ThreadProfileOptionsResu
 // renders "project" the same whether Claude called it `projectSettings` or Codex called it `repo`. It
 // is OPTIONAL, and deliberately so: the promise is "show it if we know it", and a harness that reports
 // a scope ntwine has no mapping for must degrade to an unlabelled row rather than to a wrong label.
-// `ntwine` is never a harness's answer: it labels a USER COMMAND written in Ntwine's own editor, which the
+// `ntwine` is never a harness's answer: it labels a USER COMMAND written in ntwine's own editor, which the
 // composer offers in the same menu (UserCommand below).
 export const ThreadSkillSource = z.enum(["project", "user", "builtin", "plugin", "ntwine"])
 export type ThreadSkillSource = z.infer<typeof ThreadSkillSource>
@@ -6165,9 +6165,9 @@ export type ThreadSkillsResult = z.infer<typeof ThreadSkillsResult>
 // USER SLASH COMMANDS — a markdown file whose body is a prompt, invoked by its file name (`commit.md` is
 // `/commit`). The same format Claude Code and Cursor read: an optional frontmatter block carrying
 // `description` and `argument-hint`, then the prompt, where `$ARGUMENTS` stands for whatever was typed
-// after the name. Ntwine reads them from three places, first match winning:
+// after the name. ntwine reads them from three places, first match winning:
 //
-// - `ntwine` — `<Ntwine data home>/commands/`, the ones written in Ntwine's own editor. The only kind it edits.
+// - `ntwine` — `<ntwine data home>/commands/`, the ones written in ntwine's own editor. The only kind it edits.
 // - `project` — `<project>/.agents/commands/`, a repo's own, checked in beside its skills.
 // - `global` — `~/.agents/commands/`, the agent-neutral home every agent tool on the machine can share.
 //
@@ -6188,7 +6188,7 @@ export const UserCommand = z.object({
 export type UserCommand = z.infer<typeof UserCommand>
 export const UserCommandsResult = z.object({
   commands: z.array(UserCommand).max(1024),
-  // Where a new Ntwine command is written, for the editor to say.
+  // Where a new ntwine command is written, for the editor to say.
   ntwineDir: z.string(),
 }).strict()
 export type UserCommandsResult = z.infer<typeof UserCommandsResult>
@@ -6204,7 +6204,7 @@ export type SaveUserCommandInput = z.infer<typeof SaveUserCommandInput>
 export const DeleteUserCommandInput = z.object({ name: UserCommandName }).strict()
 export type DeleteUserCommandInput = z.infer<typeof DeleteUserCommandInput>
 
-// The text a user command is DELIVERED as. Not a `<ntwine-…>` tag: that prefix marks Ntwine's own
+// The text a user command is DELIVERED as. Not a `<ntwine-…>` tag: that prefix marks ntwine's own
 // plumbing, which every transcript drops (NOISE_PREFIXES), and this is the human's message. The prompt goes to the agent wrapped in a tag naming the
 // command and what was typed after it, so any surface that reads the message back — the transcript, a
 // queued bubble, a retry — can show `/commit fix the tests` instead of the whole expanded prompt.
@@ -6338,7 +6338,7 @@ export const GITHUB_DISPATCH_UI_BOUNDARY = "<!-- ntwine:github-dispatch-ui-bound
 // minutes. ELAPSED is the number that teaches it: "you last spoke 3h 12m ago" is the feedback that makes
 // the next `for:` an actual judgement.
 //
-// Ntwine cannot fix the runtime's env block, but every wake IT sends lands in the worker's context, so
+// ntwine cannot fix the runtime's env block, but every wake IT sends lands in the worker's context, so
 // this rides along on all of them — one line, at the point every delivery passes through.
 export function formatElapsed(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return "an unknown time"
@@ -6357,7 +6357,7 @@ export function formatElapsed(ms: number): string {
  *  than guessed.
  *
  *  A THREAD WITH A TIME LIMIT (deadline.ts) also hears what is left of it — `· 42m left`, `· over by 8m`
- *  — so the worker sees its clock on every turn Ntwine starts, not only at the check-ins. */
+ *  — so the worker sees its clock on every turn ntwine starts, not only at the check-ins. */
 export function wakeTimeHeader(nowMs: number, lastAssistantAt?: string | null, deadlineMs?: number | null): string {
   const d = new Date(nowMs)
   const p2 = (n: number) => String(n).padStart(2, "0")
@@ -6427,7 +6427,7 @@ export function stripWakeTrailer(text: string): string {
  *  Below the floor it returns undefined — a live back-and-forth needs no stamp on every turn, and a note
  *  on each one is noise that teaches nothing.
  *
- *  ATTRIBUTED, because the message it rides on is the human's and this line is not. Ntwine names itself
+ *  ATTRIBUTED, because the message it rides on is the human's and this line is not. ntwine names itself
  *  here for the same reason SIGNOFF_NUDGE_MARKER does. */
 export const HUMAN_GAP_FLOOR_MS = 20 * 60_000
 
@@ -6437,7 +6437,7 @@ export function humanGapNote(nowMs: number, lastAssistantAt?: string | null): st
   const d = new Date(nowMs)
   const p2 = (n: number) => String(n).padStart(2, "0")
   const stamp = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`
-  return `⏱ Ntwine: the message above arrived ${formatElapsed(nowMs - since)} after your last one. It is now ${stamp}.`
+  return `⏱ ntwine: the message above arrived ${formatElapsed(nowMs - since)} after your last one. It is now ${stamp}.`
 }
 
 // PRODUCER AND STRIPPER LIVE TOGETHER, for the reason the wake token's pair does — except this one is
@@ -6453,7 +6453,7 @@ export function humanGapNote(nowMs: number, lastAssistantAt?: string | null): st
 // wall clock, so a message that merely quotes one — a bug report pasting the line, this comment's own
 // wording — is left in the bubble intact. The round-trip test over humanGapNote is what keeps a wording
 // change on the producer from silently putting the note back in front of the human.
-const HUMAN_GAP_NOTE_TAIL = /\n+⏱ Ntwine: the message above arrived [^\n]* after your last one\. It is now \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.[ \t]*$/
+const HUMAN_GAP_NOTE_TAIL = /\n+⏱ ntwine: the message above arrived [^\n]* after your last one\. It is now \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.[ \t]*$/
 
 /** Display projection: the human's message without the clock note ntwine appended for the worker. */
 export function stripHumanGapNote(text: string): string {
@@ -6464,7 +6464,7 @@ export function stripHumanGapNote(text: string): string {
  *  to the copy handed to the worker, exactly as humanGapNote is, and to that copy ONLY.
  *
  *  THE MESSAGE CHANGES NOTHING ABOUT THEM: each stays open until the human answers or dismisses it or the
- *  worker withdraws it. Ntwine cannot tell a pivot from a side question; the worker can, so the note tells
+ *  worker withdraws it. ntwine cannot tell a pivot from a side question; the worker can, so the note tells
  *  it to `unask` at once any the message moved past, and to name the rest under `questions:` when it
  *  rests — the rule the park-integrity check and the carried-questions nudge then hold it to.
  *
@@ -6478,7 +6478,7 @@ export function openQuestionsNote(open: readonly { id: string; question: string 
     return `“${text.length > 100 ? `${text.slice(0, 99)}…` : text}” (${q.id})`
   })
   const count = open.length === 1 ? "1 question you registered is" : `${open.length} questions you registered are`
-  return `❓ Ntwine: ${count} still open: ${named.join(", ")}.${OPEN_QUESTIONS_NOTE_TAIL}`
+  return `❓ ntwine: ${count} still open: ${named.join(", ")}.${OPEN_QUESTIONS_NOTE_TAIL}`
 }
 
 const OPEN_QUESTIONS_NOTE_TAIL =
@@ -6517,7 +6517,7 @@ const OPEN_QUESTIONS_NOTE_TAIL_2026_09_29 =
 // its own and to the note's fixed opening AND closing words, so a message that quotes one keeps it.
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 const OPEN_QUESTIONS_NOTE_LINE = new RegExp(
-  `\\n+❓ Ntwine: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_13)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
+  `\\n+❓ ntwine: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_13)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
 )
 
 /** Display projection: the human's message without the open-questions note ntwine appended for the
@@ -6618,10 +6618,10 @@ export function splitWakeDeliveries(text: string): string[] {
 // the envelope had no parser and fell through `NtwineWake` to the verbatim card — both wakes' agent-facing
 // bodies, in a bordered box, in the human's transcript. It is not a rare shape: a park ending and the
 // shell whose exit ended it are caused by one event, so they are queued together and merged every time
-// (maintainer 2026-10-11, on exactly that pair: "I'm so tired of these unformatted shitty Ntwine blocks
+// (maintainer 2026-10-11, on exactly that pair: "I'm so tired of these unformatted shitty ntwine blocks
 // showing up"). Same rule as every formatter above — the parser has to sit beside it, and only this
 // package is reachable from both sides.
-const MERGED_WAKE_LEAD = /^Ntwine held (\d+) wakes for this thread and is delivering them together, oldest first\. Each is under its own heading; read all of them before acting on any\.(?=\n|$)/
+const MERGED_WAKE_LEAD = /^[Nn]twine held (\d+) wakes for this thread and is delivering them together, oldest first\. Each is under its own heading; read all of them before acting on any\.(?=\n|$)/
 // A section heading, with the blank line the composer always puts on both sides of it.
 const MERGED_WAKE_HEADING = /\n\n### (\d+)\. [^\n]*?(?: — (\d+) identical events)?\n\n/g
 
@@ -6640,7 +6640,7 @@ export function mergedWakeMessage(frame: readonly { reason: string; message: str
     if (same) same.count++
     else sections.push({ reason: part.reason, body, count: 1 })
   }
-  const lead = `Ntwine held ${frame.length} wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.`
+  const lead = `ntwine held ${frame.length} wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.`
   const body = sections.map((s, i) => `### ${i + 1}. ${s.reason}${s.count > 1 ? ` — ${s.count} identical events` : ""}\n\n${s.body}`)
   return `${lead}\n\n${body.join("\n\n")}\n\n${wakeTimeHeader(nowMs, lastAssistantAt, deadlineMs)}`
 }
@@ -6756,7 +6756,7 @@ export function parseAgentMessage(text: string): { from: string; body: string } 
 //
 // Left alone it renders as the operator's own bubble with the XML showing. `from` is the sender's
 // messaging socket, `from-name` its Claude Code session name (`<cwd basename>-<2 hex>`, which is not a
-// Ntwine thread name and is not unique). The server turns the socket into the sending THREAD (see
+// ntwine thread name and is not unique). The server turns the socket into the sending THREAD (see
 // session-peer.ts); this parser only takes the wrapper apart. Anchored at both ends, so prose that quotes
 // a wrapper stays prose.
 const CROSS_SESSION_PREAMBLE = /^Another Claude session sent a message(?: while you were working)?:\n/
@@ -6806,7 +6806,7 @@ export function threadMessageBody(input: { fromHandle: string; message: string; 
     : `Answer with \`ntwinectl message-thread ${from} --message-file -\` only if it asks you something; it reaches that ` +
       "thread, not the user. Do not reply just to acknowledge."
   return [
-    `Message from @${from}, another Ntwine thread ${where}${input.answersWait ? THREAD_MESSAGE_ANSWERS : ""}:`,
+    `Message from @${from}, another ntwine thread ${where}${input.answersWait ? THREAD_MESSAGE_ANSWERS : ""}:`,
     "",
     input.message,
     "",
@@ -6817,7 +6817,7 @@ export function threadMessageBody(input: { fromHandle: string; message: string; 
 }
 
 const THREAD_MESSAGE_ANSWERS = " — this answers the message you were waiting on"
-const THREAD_MESSAGE_HEAD = /^Message from @([^\s,]+), another Ntwine thread (?:in this project|in the (.+?) project)( — this answers the message you were waiting on)?:\n\n/
+const THREAD_MESSAGE_HEAD = /^Message from @([^\s,]+), another [Nn]twine thread (?:in this project|in the (.+?) project)( — this answers the message you were waiting on)?:\n\n/
 // The instructions open on one of exactly two sentences, so a `---` the SENDER wrote inside its message
 // is never mistaken for the trailer. `mcp__ntwine__message_thread` is how they named the reply until
 // 2026-10-12, and every message already in a transcript still ends that way.
@@ -6950,7 +6950,7 @@ export function formatGithubWakeSteer({ ref, items, omitted }: GithubWakeSteer, 
     return `${icon} New GitHub ${item.label} on ${ref} from @${item.actor}${item.at ? ` at ${item.at}` : ""}. Read that exact ${item.label} — ${WAKE_SCOPE} — and continue${url}${reviewTail}`
   }
   const more = omitted > 0 ? `\n- …and ${omitted} more not listed — check ${ref} for the rest` : ""
-  // The blank line separates the instruction from the items. Ntwine's transcript renders a delivered
+  // The blank line separates the instruction from the items. ntwine's transcript renders a delivered
   // wake as PLAIN TEXT with line breaks preserved, so this buys a paragraph break rather than an <li>,
   // and it keeps the two readable as distinct parts in a terminal composer too.
   // Each line carries its OWN 🤖/👤. A burst routinely mixes a maintainer's comment with a review
@@ -7649,7 +7649,7 @@ export const TranscriptMessage = z.object({
   // the server's from the instant it arrives. "failed": the transport threw, or never answered — the
   // text is kept until the operator retries, edits or dismisses it, and nothing retries it on its own.
   // Additive + optional: an older client renders both as a plain bubble (gray for "sending").
-  // "held": the operator sent it TO THE QUEUE — Ntwine has it and no transport does, until the agent rests.
+  // "held": the operator sent it TO THE QUEUE — ntwine has it and no transport does, until the agent rests.
   deliveryState: z.enum(["sending", "pending", "enqueued", "delivered", "unconfirmed", "failed", "held"]).optional(),
   // Why a "failed" send failed, verbatim from the transport. Set only alongside deliveryState "failed".
   deliveryError: z.string().optional(),
@@ -7729,9 +7729,9 @@ export const TranscriptMessage = z.object({
   // it. Not the human, and not a sub-agent either: the chat draws it as an expandable hairline naming
   // the sending thread, with the body one click away. `displayText` carries the unwrapped body.
   //
-  // `name` is the sender's Claude Code session name, the fallback label. `thread` is the Ntwine thread
+  // `name` is the sender's Claude Code session name, the fallback label. `thread` is the ntwine thread
   // behind it, filled in by the server from the sender's socket (session-peer.ts) — absent when the
-  // sender is not an Ntwine thread or is gone without having been resolved, and then the line names the
+  // sender is not an ntwine thread or is gone without having been resolved, and then the line names the
   // session without a link. `project` is the URL slug of the sender's project.
   sessionPeer: z.object({
     name: z.string().optional(),
@@ -7752,7 +7752,7 @@ export const TranscriptMessage = z.object({
   // 2026-10-07 — the user turn that delivered the request to the worker (parseSpinoffRequest). The chat
   // draws it as a spinoff card: the human's instructions and a link to the new thread. Additive + optional.
   spinoff: z.object({ id: z.string(), instructions: z.string() }).optional(),
-  // A SPINOFF CHILD'S FIRST TURN: the prompt Ntwine composed from the human's instructions and the
+  // A SPINOFF CHILD'S FIRST TURN: the prompt ntwine composed from the human's instructions and the
   // parent's context (spinoffChildPrompt), read back into its parts. The chat draws it as the thread's
   // spinoff header — the instructions as the human's request, the context folded beneath them — never as
   // one user bubble, since the context is not the human's words. `displayText` carries the instructions alone, so everything that quotes a thread's request
@@ -7931,7 +7931,7 @@ export const ProjectCard = z.object({
   /**
    * The built-in HOME workspace rather than a registered project: the prompt box's target for work
    * that belongs to no project, run in the operator's home folder. `path` is
-   * that folder. It cannot be renamed, given an icon or removed — it is not a folder Ntwine adopted, so
+   * that folder. It cannot be renamed, given an icon or removed — it is not a folder ntwine adopted, so
    * there is nothing to forget — and it draws a house instead of a monogram.
    */
   home: z.literal(true).optional(),
@@ -8049,7 +8049,7 @@ export const ProjectQueue = z.object({
    *  All projects `@` typeahead offers after the open ones (web lib/threadMentions.ts). Never drawn as
    *  rows: this page's Done band is still `doneCount`. */
   recentDone: z.array(ThreadView).optional(),
-  /** The project's schedules — the row's fourth count, warning-toned when one was paused by Ntwine or is
+  /** The project's schedules — the row's fourth count, warning-toned when one was paused by ntwine or is
    *  a proposal waiting for Turn on. Absent when the project has none. */
   schedules: ProjectSchedules.optional(),
 })
@@ -8076,7 +8076,7 @@ export type ProjectThreadEntry = z.infer<typeof ProjectThreadEntry>
  * and means "rested strictly before this". The cursor carries a tie-break (project id, thread id) beside
  * the instant, so two threads that rested in the same millisecond are neither repeated nor skipped
  * across a page boundary. `projectIds` is the lens (absent = every project); `external` adds the
- * project's foreign sessions (ones Ntwine did not start) that are at rest.
+ * project's foreign sessions (ones ntwine did not start) that are at rest.
  */
 export const ProjectsDoneInput = z.object({
   before: z.string().min(1).optional(),
@@ -8126,7 +8126,7 @@ export const ThreadLocation = z.object({ projectSlug: z.string(), projectName: z
 export type ThreadLocation = z.infer<typeof ThreadLocation>
 
 /**
- * Everything Ntwine itself serves lives under this prefix, so the top level stays free for the project
+ * Everything ntwine itself serves lives under this prefix, so the top level stays free for the project
  * routes (`/project/<slug>`) and for the SPA's own route names. Without a reserved namespace the
  * deny-list is a growing list of route names that breaks the day someone clones a repo called
  * `settings`.

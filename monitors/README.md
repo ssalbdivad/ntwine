@@ -1,6 +1,6 @@
 # Portable GitHub monitors
 
-`monitors/` is Ntwine's canonical, dependency-free Node.js implementation of active GitHub CI and
+`monitors/` is ntwine's canonical, dependency-free Node.js implementation of active GitHub CI and
 human-review waits. It requires only Node.js and a logged-in `gh`; it never reads or prints a token.
 The shipped copies in `cc-worker/skills/gh/scripts/` are generated from this directory by
 `node scripts/sync-portable-monitors.mjs`. Verify them without writing with

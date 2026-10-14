@@ -21,7 +21,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "./ui/Popover.tsx"
 // alias until its own turn ends and names one.)
 //
 // THE DENOMINATOR IS THE ROOM THIS THREAD HAS, NOT THE MODEL'S SIZE, and on a Claude thread those are
-// routinely different numbers. Ntwine dispatches at the 1M window and then caps the worker at Settings'
+// routinely different numbers. ntwine dispatches at the 1M window and then caps the worker at Settings'
 // compaction window (500K by default), and Claude Code's effective window is the `min` of the two — so
 // this dial read "253,862 of 1,000,000 tokens · 25% full" for a session that had used half its room and
 // was heading for a summary (maintainer 2026-09-01: "it's showing this even though the auto-compaction

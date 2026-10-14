@@ -56,7 +56,7 @@ test("a second live server is refused a project the first has open, by its pid",
   assert.throws(
     () => claimProjectServing(target, { adapter: dev }),
     (error: unknown) => error instanceof ProjectServedElsewhereError && error.pid === 100
-      && /^kirby is already being served by another Ntwine \(pid 100\)\. Stop that one first/.test(error.message),
+      && /^kirby is already being served by another ntwine \(pid 100\)\. Stop that one first/.test(error.message),
   )
   assert.equal(projectServedElsewhere(target.stateDir, target.projectId, dev), 100)
   assert.equal(projectServedElsewhere(target.stateDir, target.projectId, installed), undefined, "a server is not another server to itself")
@@ -128,7 +128,7 @@ test("a real server will not boot on a project another live process has open, an
     port: 65_124,
     project: { id: target.projectId, dir: target.projectDir, stateDir: target.stateDir, name: "kirby", label: "kirby", cwdSlug: "-kirby" },
   })
-  await assert.rejects(boot(), new RegExp(`kirby is already being served by another Ntwine \\(pid ${holder.pid}\\)`))
+  await assert.rejects(boot(), new RegExp(`kirby is already being served by another ntwine \\(pid ${holder.pid}\\)`))
   assert.equal(existsSync(join(target.stateDir, "ui.db")), false, "refused before it opened the board")
 
   // Once that process is gone its record is a dead one, and nothing is left to clean up by hand.

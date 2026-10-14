@@ -26,7 +26,7 @@
 //   nub run test:e2e -- --url=http://…   against a vite you already have running
 //   nub run test:e2e -- <file> <file>    just these, still serial, still against a fresh vite
 //
-// NOT EVERY e2e FILE IS HERE. `lib/projectSwitch.e2e.test.ts` needs a real multi-project Ntwine rather
+// NOT EVERY e2e FILE IS HERE. `lib/projectSwitch.e2e.test.ts` needs a real multi-project ntwine rather
 // than a plain vite over the fixtures — see its own header for the `adhoc-stack.mjs` invocation. It is
 // excluded by name below rather than silently missing, so the exclusion is a decision you can find.
 import { spawn } from "node:child_process";
@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(here);
 
-// NOT EVERY e2e FILE BELONGS HERE. Several drive the REAL APP at `/` — a running Ntwine with a
+// NOT EVERY e2e FILE BELONGS HERE. Several drive the REAL APP at `/` — a running ntwine with a
 // board, a project and a seeded thread behind it — rather than a fixture page, and a plain vite serves
 // them an app with no server to talk to. Each documents its own `adhoc-stack.mjs` invocation in its
 // header; two also want a thread slug this script has no way to invent.

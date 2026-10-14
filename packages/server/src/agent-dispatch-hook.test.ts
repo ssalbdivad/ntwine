@@ -97,7 +97,7 @@ test("Agent dispatch hook keeps the handoff, scratch-file and upward-channel coo
   assert.doesNotMatch(prompt, /merge your own scoped progress/, "the merge mandate is gone, not reworded")
   // The delegated-authority carve-out lives HERE now, not in the worker contract: a child told
   // "write only <path>" must not read that as forbidding its own coordination file.
-  assert.match(prompt, /Ntwine coordination state, not a project deliverable or source edit/)
+  assert.match(prompt, /ntwine coordination state, not a project deliverable or source edit/)
   assert.match(prompt, /write only <path>/)
   assert.match(prompt, /location alone neither permits nor forbids editing/)
   assert.match(prompt, /SendMessage\(\{to: "main"/)
@@ -105,7 +105,7 @@ test("Agent dispatch hook keeps the handoff, scratch-file and upward-channel coo
   // 2026-10-09 on Claude Code 2.1.295: a child's SendMessage to a running sibling's id is delivered at
   // its next tool round, and to a finished sibling's id resumes it.
   assert.match(prompt, /reaches a SIBLING sub-agent by the full agent id/)
-  assert.match(prompt, /`ntwinectl message-thread @<handle> --message-file <file\|->`, run from your shell, reaches another Ntwine THREAD by its @handle/)
+  assert.match(prompt, /`ntwinectl message-thread @<handle> --message-file <file\|->`, run from your shell, reaches another ntwine THREAD by its @handle/)
 })
 
 // A child cannot be re-invoked: Claude notifies the DISPATCHER when a helper "stops with no live

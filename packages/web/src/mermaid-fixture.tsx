@@ -39,7 +39,7 @@ const fence = (lines: string[], info = "mermaid") => ["```" + info, ...lines, "`
 const FLOW = fence(["flowchart LR", "  A[Prompt] --> B{Queue}", "  B -->|rested| C[Card]", "  B -->|active| D[Worker]"])
 const WIDE = fence(["flowchart LR", "  A[Read the prompt] --> B[Split the fences] --> C[Render the Markdown] --> D[Sanitize the HTML] --> E[Swap the islands] --> F[Draw the diagram]"])
 const TALL = fence(["flowchart TD", "  A[Dispatch] --> B[Spawn the broker]", "  B --> C[Attach the bridge]", "  C --> D[Stream the turn]", "  D --> E[Parse the fence]", "  E --> F[Rest the thread]", "  F --> G[Queue the card]", "  G --> H[Wake on answer]"])
-const SEQUENCE = fence(["sequenceDiagram", "  participant W as Worker", "  participant F as Ntwine", "  participant H as Human", "  W->>F: ask(question)", "  F->>H: question card", "  H-->>F: answer", "  F-->>W: wake"])
+const SEQUENCE = fence(["sequenceDiagram", "  participant W as Worker", "  participant F as ntwine", "  participant H as Human", "  W->>F: ask(question)", "  F->>H: question card", "  H-->>F: answer", "  F-->>W: wake"])
 const INVALID = fence(["flowchart LR", "  A --> --> ]["])
 // A fence being SHOWN, not drawn: nested in a longer fence it is that block's text.
 const QUOTED = ["````markdown", "```mermaid", "flowchart LR", "  Q --> R", "```", "````"].join("\n")

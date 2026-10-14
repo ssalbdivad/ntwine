@@ -1,9 +1,10 @@
 import { useState, type CSSProperties } from "react"
 import { House } from "lucide-react"
 import type { ProjectCard } from "@ntwine/shared"
+import { useMonogram } from "../lib/monograms.ts"
 
 // A PROJECT'S SQUARE — its icon, its monogram, or Home's house — at any size, wherever a project is
-// named by picture: the switcher, the project list, the All projects cards, the prompt box's picker.
+// named by picture: the dock, the project list, the All projects cards, the prompt box's picker.
 
 /**
  * A stable hue per project, from its id.
@@ -17,19 +18,6 @@ function monogramHue(id: string): number {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % 360
   return hash
-}
-
-/**
- * One or two letters, from word boundaries rather than the first two characters.
- *
- * `standard-schema` reads as SS and `fray` as F. Two letters is the ceiling: three stops being a
- * monogram and starts being unreadable text at 40px.
- */
-export function monogram(name: string): string {
-  const words = name.split(/[\s\-_./]+/u).filter(Boolean)
-  if (words.length === 0) return "?"
-  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase()
-  return (words[0]![0]! + words[1]![0]!).toUpperCase()
 }
 
 /** The icon URL for a project, versioned so a replaced icon is a different URL. See ProjectCard. */
@@ -47,7 +35,7 @@ export function ProjectSquare({ project, size }: { project: ProjectCard; size: n
  * The Home workspace's square — a house, on the monogram's own tile with the hue taken out.
  *
  * Home has no folder of its own to find an icon in and no name worth two letters, and it is the one
- * square that is Ntwine's rather than the operator's, so it is the one without a colour. The glyph is
+ * square that is ntwine's rather than the operator's, so it is the one without a colour. The glyph is
  * 60% of the tile where a monogram's letters are 40%: a house's ink is a thin outline in a square box,
  * and at 40% it read as a speck beside the letters. Its stroke is set in PIXELS (`absoluteStrokeWidth`)
  * so the outline holds its weight from a 40px square down to the picker's 12px one.
@@ -116,6 +104,7 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
   const [loaded, setLoaded] = useState(known !== undefined && known !== "failed")
   const [fills, setFills] = useState(known !== undefined && known !== "failed" && known.fills)
   const hue = monogramHue(project.id)
+  const letters = useMonogram(project)
   // Draw the image unless we KNOW there is nothing to draw. Skipping it for a project that has simply
   // never been scanned deadlocks the feature — the image request is what triggers the lazy scan, so
   // no request means no scan means never any icon. `iconVersion` cannot decide this on its own: it is
@@ -162,7 +151,7 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
             box is used as before, which is the ≤1px placement this replaced rather than a broken one.
           */}
           <span style={{ textBox: "trim-both cap alphabetic" } as CSSProperties}>
-            {monogram(project.name)}
+            {letters}
           </span>
         </span>
       )}

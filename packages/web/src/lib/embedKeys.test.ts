@@ -34,7 +34,7 @@ test("caps in each platform's order", () => {
 })
 
 // Sentence case, with the proper nouns a hint may name.
-const sentenceCase = (text: string) => /^[A-Z][^A-Z]*$/u.test(text.replace(/\b(VS Code|Ntwine)\b/gu, "x"))
+const sentenceCase = (text: string) => /^[A-Z][^A-Z]*$/u.test(text.replace(/\b(VS Code|ntwine)\b/gu, "x"))
 
 test("the sheet's sidebar hints and names are for real shortcuts, short, in sentence case", () => {
   const ids = new Set(ACTIONS.map((action) => action.id))

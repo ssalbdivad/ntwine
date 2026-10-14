@@ -7,7 +7,7 @@ import { existingProjectId } from "./project-root.ts"
 
 // THE MACHINE'S LIST OF PROJECTS.
 //
-// One Ntwine per machine needs something no per-project server ever did: a list of every project, to
+// One ntwine per machine needs something no per-project server ever did: a list of every project, to
 // draw a grid of them and to route `/<slug>` at one of them. That list did not exist — the mapping
 // only ever ran repo → id, with no reverse index, and 38 of this machine's 46 state directories have
 // no on-disk record of which repo they belong to at all.
@@ -111,7 +111,7 @@ const GENERIC = new Set([
 ])
 
 /**
- * Segments a project may never take, because Ntwine itself answers on them. `_ntwine` is the formal
+ * Segments a project may never take, because ntwine itself answers on them. `_ntwine` is the formal
  * namespace; the rest are today's hardcoded routes and static assets, kept until they move under it.
  */
 const RESERVED = new Set([
@@ -148,7 +148,7 @@ export function readRegistry(home = homedir()): Registry {
     // A malformed entry is dropped rather than poisoning the whole list — this is an index, and the
     // cost of forgetting one card is that opening that project re-registers it.
     const forgotten = Array.isArray(parsed.forgotten) ? parsed.forgotten.filter((id) => typeof id === "string") : []
-    // Ntwine's own launch folder is never a project (registerProject refuses it), but a server older
+    // ntwine's own launch folder is never a project (registerProject refuses it), but a server older
     // than 0.15.21 had no such refusal and its boot backfill registered the folder as "host" whenever
     // a newer launcher hosted it there. Dropped HERE so no reader ever sees that entry — the list, the
     // slug lookup, the rail — and the next write of any kind takes it out of the file.
@@ -341,13 +341,13 @@ export function registerProject(
  * Seed the registry from state directories that predate it.
  *
  * WHY THIS EXISTS. The registry only learns about a project when something opens it, so a machine
- * that has been running Ntwine for months arrives at its first project list with one project — and the operator's
+ * that has been running ntwine for months arrives at its first project list with one project — and the operator's
  * only way to fill it is to visit every repository in a terminal, which is precisely the chore one
  * server for the machine was supposed to end. Everything needed is already on disk: each state dir is
  * named for its project id and records the directory it was opened from.
  *
  * CONSERVATIVE ON PURPOSE. A state dir is adopted only when the project STILL CLAIMS THAT ID. It may
- * claim it either way Ntwine has ever stored one: `.ntwine/.id`, or the older `git config ntwine.id`.
+ * claim it either way ntwine has ever stored one: `.ntwine/.id`, or the older `git config ntwine.id`.
  * Checking only the file was a real bug — boron and pullfrog/app both predate the gitless change and
  * had never been reopened since, so they carried a git-config id and no file, and the backfill
  * silently skipped two of the four projects actually in use (2026-08-06). A checkout that has since been re-identified (copied,
@@ -410,7 +410,7 @@ export function backfillRegistry(
  * boron and pullfrog/app, both stopped, stayed invisible even after the identity fix that was supposed
  * to find them (2026-08-06). `serving.json` leads: every server that opens the project writes it and
  * keeps the folder when it closes (project-serving.ts), where `launcher.json` is written only for the
- * folder a launcher ran the server on, which since the server moved onto Ntwine's own folder is none.
+ * folder a launcher ran the server on, which since the server moved onto ntwine's own folder is none.
  */
 function recordedProjectDir(stateDir: string): string | undefined {
   // `serving.json` is PROJECT_SERVING_FILE, spelled out rather than imported so the registry does not
@@ -478,7 +478,7 @@ export function reorderProjects(ids: readonly string[], home = homedir()): Regis
   return registry.projects
 }
 
-/** The entry for a directory Ntwine already knows, if it knows it. */
+/** The entry for a directory ntwine already knows, if it knows it. */
 export function findByPath(path: string, home = homedir()): RegistryEntry | undefined {
   // Canonical on both sides, or a caller passing the symlinked spelling misses its own entry.
   const canonical = canonicalPath(path)
@@ -534,7 +534,7 @@ export const ICON_SCAN_VERSION = 4
 /**
  * How long one scan's answer stands — a miss or a pick — before the next icon request scans again.
  *
- * Minutes, not hours, because a project's icon is a file somebody adds WHILE Ntwine is running, and a
+ * Minutes, not hours, because a project's icon is a file somebody adds WHILE ntwine is running, and a
  * scan is cheap: ~2ms warm per project, 23ms for a whole 12-project registry and 10ms for the largest
  * repo in it (measured 2026-10-11). It was 12 hours for a miss and forever for a pick until then, and
  * keyward, ccbroker and macwatch each committed a `logo.svg` hours after a scan had found nothing there;
@@ -687,7 +687,7 @@ export function renameProject(
   if (!entry) return undefined
   if (update.slug !== undefined) {
     const slug = slugifyProject(update.slug)
-    if (RESERVED.has(slug)) throw new Error(`"${slug}" is reserved by Ntwine itself`)
+    if (RESERVED.has(slug)) throw new Error(`"${slug}" is reserved by ntwine itself`)
     if (registry.projects.some((p) => p.id !== id && p.slug === slug)) {
       throw new Error(`another project already uses "${slug}"`)
     }
@@ -704,9 +704,9 @@ export function renameProject(
  * Rename a project's DIRECTORY to a sibling basename, and re-register it there.
  *
  * The one first-party way to change the folder itself. The id travels with the tree, so this is the
- * "moved" case `registerProject` already reconciles — the difference is that Ntwine did the move and
+ * "moved" case `registerProject` already reconciles — the difference is that ntwine did the move and
  * knows about it at once, rather than learning at the next `ntwine` run. Off by default in the rename
- * dialog: a folder is the operator's, and renaming Ntwine's card must never rename it uninvited.
+ * dialog: a folder is the operator's, and renaming ntwine's card must never rename it uninvited.
  *
  * A basename only — no separators, no `.`/`..` — so this can rename a folder and cannot move one
  * somewhere else. The target must not exist: `rename(2)` onto a directory either fails or, on some

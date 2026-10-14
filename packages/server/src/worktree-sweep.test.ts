@@ -71,7 +71,7 @@ test("only dependency and build output counts as regenerable", () => {
   }
 })
 
-test("a .ntwine folder is regenerable only when it holds nothing but Ntwine's markers", () => {
+test("a .ntwine folder is regenerable only when it holds nothing but ntwine's markers", () => {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-wt-markers-"))
   try {
     mkdirSync(join(dir, ".ntwine"))
@@ -166,7 +166,7 @@ test("the real sweep removes only the idle, clean, unused worktree, and keeps it
     writeFileSync(join(main, "a.ts"), "export {}\n")
     sh(main, ["add", "-A"])
     sh(main, ["commit", "-q", "-m", "init"], { GIT_COMMITTER_DATE: oldDate, GIT_AUTHOR_DATE: oldDate })
-    // Ntwine's own marker folder, ignored by its own .gitignore as in every Ntwine project.
+    // ntwine's own marker folder, ignored by its own .gitignore as in every ntwine project.
     mkdirSync(join(main, ".ntwine", "worktrees"), { recursive: true })
     writeFileSync(join(main, ".ntwine", ".gitignore"), "*\n")
     writeFileSync(join(main, ".ntwine", ".id"), "id\n")

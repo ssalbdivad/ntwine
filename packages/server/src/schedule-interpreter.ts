@@ -16,7 +16,7 @@ import { cleanThreadName, threadNameProblem } from "./thread-names.ts"
 
 // THE SCHEDULE INTERPRETER (ARCHITECTURE.md § Scheduled threads): ONE short model call that decides whether what
 // the human typed into the prompt box asks for its task to REPEAT on a schedule, and if it does, finds the
-// schedule in it. The model INTERPRETS; Ntwine COMPUTES — it returns an RRULE and a local start, and
+// schedule in it. The model INTERPRETS; ntwine COMPUTES — it returns an RRULE and a local start, and
 // everything the human then sees (the echo, the next runs) is built from that rule by schedule-rule.ts, so
 // a mistranslated "9am" shows before it ever runs.
 //
@@ -30,7 +30,7 @@ import { cleanThreadName, threadNameProblem } from "./thread-names.ts"
 // there the whole text is a WHEN by construction.
 //
 // It does NOT rewrite the prompt. It names the exact phrase it read as the schedule, and the saved prompt
-// is the typed text with that phrase cut out, otherwise verbatim: Ntwine prompts are often long and careful,
+// is the typed text with that phrase cut out, otherwise verbatim: ntwine prompts are often long and careful,
 // and a model "distilling" one paraphrases, drops constraints or truncates (critique-ux §4).
 //
 // The SYSTEM PROMPT IS STATIC; the clock and the zone ride in the user message. That is what lets the
@@ -84,7 +84,7 @@ export function interpreterClock(nowMs: number, tz: string): string {
 }
 
 export function interpreterSystemPrompt(): string {
-  return `You read a prompt someone typed into Ntwine, which starts AI agent threads, and decide whether it asks for its task to RUN ON A REPEATING SCHEDULE. Almost every prompt is a task to start now. A schedule is a prompt asking for its task to be done again and again at times on the clock or calendar — "every Monday at 9am triage new issues" — and Ntwine then starts a fresh thread with the task at each of those times. You never do the task.
+  return `You read a prompt someone typed into ntwine, which starts AI agent threads, and decide whether it asks for its task to RUN ON A REPEATING SCHEDULE. Almost every prompt is a task to start now. A schedule is a prompt asking for its task to be done again and again at times on the clock or calendar — "every Monday at 9am triage new issues" — and ntwine then starts a fresh thread with the task at each of those times. You never do the task.
 
 Answer with exactly ONE JSON object and nothing else: no prose, no code fence.
 
@@ -101,7 +101,7 @@ DECIDE FIRST. Words of time never make a schedule by themselves; only a request 
 - name one later time and no repetition: "Friday at 3pm deploy the release"
 - tie the repeat to an event instead of the clock: "every time CI fails, fix it", "after each deploy, run the smoke tests"
 - sit inside quotes or code.
-Answer "presence" when WHEN depends on the person being at their computer, working or online ("while I'm working", "when I'm at my desk"): Ntwine cannot tell that.
+Answer "presence" when WHEN depends on the person being at their computer, working or online ("while I'm working", "when I'm at my desk"): ntwine cannot tell that.
 
 When it IS a schedule:
 
@@ -186,7 +186,7 @@ export function createScheduleInterpreter(deps: { complete?: ClaudeOneShot; now?
   return {
     async interpret({ text, tz, existing, viewerTz }) {
       if (!deps.complete) return { ok: false, error: SCHEDULE_READING_OFF_COPY }
-      if (!isValidTimeZone(tz)) return { ok: false, error: `"${tz}" is not a time zone Ntwine knows.` }
+      if (!isValidTimeZone(tz)) return { ok: false, error: `"${tz}" is not a time zone ntwine knows.` }
       const nowMs = now()
       const system = interpreterSystemPrompt()
       const clock = interpreterClock(nowMs, tz)

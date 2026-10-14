@@ -7,7 +7,7 @@ import { discoverProjectRoot, hasProjectMarker, isExistingProjectRoot, isHomeDir
 /**
  * WHERE A LAUNCH LANDS — the rules about folders, kept where a server release can change them.
  *
- * `ntwine` typed in a folder is a question: is this a project Ntwine knows, one to offer, or neither?
+ * `ntwine` typed in a folder is a question: is this a project ntwine knows, one to offer, or neither?
  * The launcher answered it itself until this module, from its own bundled copy of the registry and
  * project-root code, so every change to the answer needed a `ntwine` shell release — four of the
  * seven between 2026-10-01 and 2026-10-11, at hours each in npm's review — while the same rule in a
@@ -22,7 +22,7 @@ export const LAUNCH_ROUTE_PROTOCOL = 1
 /** Under `/_ntwine`. `control` is already reserved as a project name, so no project can take it. */
 export const LAUNCH_ROUTE_PATH = "/control/launch"
 
-/** A capability only the OS user who started Ntwine can read: the same header `/control/stop` takes. */
+/** A capability only the OS user who started ntwine can read: the same header `/control/stop` takes. */
 export const LAUNCH_TOKEN_HEADER = "x-ntwine-launch-token"
 
 export interface LaunchRouteRequest {
@@ -43,7 +43,7 @@ export interface LaunchRoute {
 }
 
 export type LaunchKind =
-  /** A folder Ntwine already knows: it opens as itself. */
+  /** A folder ntwine already knows: it opens as itself. */
   | { kind: "open"; root: string }
   /** A folder that looks like a project and is not one yet: the dashboard asks before adopting it. */
   | { kind: "offer"; directory: string }
@@ -53,7 +53,7 @@ export type LaunchKind =
 /**
  * What a launch in `dir` is about. Pure: it reads the folder and the registry and writes nothing.
  *
- * A directory Ntwine already knows opens as itself — including one it knows only from the registry,
+ * A directory ntwine already knows opens as itself — including one it knows only from the registry,
  * so forgetting to commit `.ntwine/.id` never costs someone their board. Running the command never
  * ADOPTS the folder it was run in, and $HOME is never a project however many markers it carries.
  */
@@ -72,7 +72,7 @@ export function offerPath(directory: string): string {
 }
 
 /**
- * Answer a launch: classify the folder, and for one Ntwine knows, open it — which registers it.
+ * Answer a launch: classify the folder, and for one ntwine knows, open it — which registers it.
  *
  * `open` is the server's own project resolver (project.ts resolveProject): the Git top level, a
  * linked worktree's own identity, the id file, the registry entry, and the re-mint for a copied
@@ -99,7 +99,7 @@ export function routeLaunch(
     return { path: "/", notice: `Could not open ${launch.root}: ${error instanceof Error ? error.message : String(error)}` }
   }
   // The registry is an index, and a project it could not record still has a board — but no name to
-  // address it by, and under a server hosted on Ntwine's own folder nothing else leads to it.
+  // address it by, and under a server hosted on ntwine's own folder nothing else leads to it.
   const slug = findById(project.id, home)?.slug
   if (!slug) return { path: "/", notice: `Could not add ${project.dir} to the project list.` }
   // This IS a launch — `ntwine` run in this project — so it stamps lastLaunchedAt: the project All

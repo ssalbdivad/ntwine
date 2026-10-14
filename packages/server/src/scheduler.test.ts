@@ -333,7 +333,7 @@ test("question: the first rest after a typed message withdraws nothing, and a ba
   const s = h.make()
   h.tele.set("t", { ...tele(), lastHumanAt: iso(humanAt), lastUserAt: iso(humanAt), lastAssistantAt: iso(humanAt + 2_000) })
   await s.tick()
-  assert.equal(h.storage.getThreadQuestion("qst_plain")?.state, "open", "Ntwine never withdraws it")
+  assert.equal(h.storage.getThreadQuestion("qst_plain")?.state, "open", "ntwine never withdraws it")
   assert.equal(h.resumes.length, 1)
   assert.match(h.resumes[0].message, /qst_plain/)
   assert.match(h.resumes[0].message, /questions:/)
@@ -460,7 +460,7 @@ test("question: a rested thread's unanswered question takes its recommended opti
   for (const id of ["qst_free", "qst_none", "qst_multi"]) assert.equal(h.storage.getThreadQuestion(id)?.state, "open", id)
   assert.equal(h.resumes.length, 1, "delivered in the same tick")
   // The pick and the note travel as upstream's checked-list answer (shared answerPicksText).
-  assert.match(h.resumes[0].message, /^1\. “Narrow the error rule\?” → - \[x\] Narrow\n {2}\n {2}No reply in 10m, so Ntwine took the recommended option$/m)
+  assert.match(h.resumes[0].message, /^1\. “Narrow the error rule\?” → - \[x\] Narrow\n {2}\n {2}No reply in 10m, so ntwine took the recommended option$/m)
   assert.match(h.resumes[0].message, /“Rewrite the brief\?” → Yes$/m)
   h.storage.close()
 })

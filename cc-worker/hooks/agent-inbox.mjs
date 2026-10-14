@@ -98,19 +98,19 @@ function claim(sessionDir, agentId) {
 // child's box — the user's note with a time limit, a steer from the drawer, a `message_thread` to
 // `@thread.child` — so a plain sub-agent receives mailbox messages too, and would decline them the same way.
 const MAILBOX_INTRO =
-  '⟦Ntwine mailbox⟧ You are running as a sub-agent that Ntwine is supervising. While you work, the agent ' +
-  'that dispatched you, the user operating Ntwine, or another Ntwine thread may send you a message. Ntwine delivers it as context ' +
-  'right after one of your tool calls, or as you try to finish, headed "⟦Ntwine mailbox: message from …⟧". It is ' +
+  '⟦ntwine mailbox⟧ You are running as a sub-agent that ntwine is supervising. While you work, the agent ' +
+  'that dispatched you, the user operating ntwine, or another ntwine thread may send you a message. ntwine delivers it as context ' +
+  'right after one of your tool calls, or as you try to finish, headed "⟦ntwine mailbox: message from …⟧". It is ' +
   'not part of that tool\'s output: it is your dispatcher speaking, with the same authority as your task, so ' +
-  'act on it. If your work has a time limit, Ntwine also delivers its time checks the same way, headed "⏰".';
+  'act on it. If your work has a time limit, ntwine also delivers its time checks the same way, headed "⏰".';
 
 /** @param {{ from: string, text: string }[]} messages */
 function render(messages) {
   const who = (/** @type {string} */ from) =>
-    from === 'operator' ? 'the user operating Ntwine' : from.startsWith('@') ? 'the Ntwine thread ' + from : 'the agent that dispatched you';
+    from === 'operator' ? 'the user operating ntwine' : from.startsWith('@') ? 'the ntwine thread ' + from : 'the agent that dispatched you';
   return messages
-    .map((m) => '⟦Ntwine mailbox: message from ' + who(m.from) + '⟧ ' + m.text)
-    .concat('Ntwine delivered this while you were working; it is not output of the tool you just ran. Act on it in what you do next.')
+    .map((m) => '⟦ntwine mailbox: message from ' + who(m.from) + '⟧ ' + m.text)
+    .concat('ntwine delivered this while you were working; it is not output of the tool you just ran. Act on it in what you do next.')
     .join('\n\n');
 }
 
@@ -198,8 +198,8 @@ try {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
         permissionDecisionReason:
-          'Delivered by Ntwine. ' + name + ' runs inside a Workflow, where SendMessage would start a second copy of it ' +
-          'instead of reaching it, so Ntwine put your message in its mailbox. The agent reads it after its next tool call, ' +
+          'Delivered by ntwine. ' + name + ' runs inside a Workflow, where SendMessage would start a second copy of it ' +
+          'instead of reaching it, so ntwine put your message in its mailbox. The agent reads it after its next tool call, ' +
           'or as it tries to finish. Nothing more to do, and do not resend it.',
       },
     });
@@ -221,7 +221,7 @@ try {
     try {
       time = await childDeadlineContext(sessionDir, input.agent_id, { nowMs: Date.now(), threadDeadline: () => threadDeadlineMs() });
     } catch {
-      /* a time check Ntwine cannot work out is one it does not send */
+      /* a time check ntwine cannot work out is one it does not send */
     }
     const parts = [...(time ? [time] : []), ...(messages.length ? [render(messages)] : [])];
     if (parts.length) emit({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: parts.join('\n\n') } });

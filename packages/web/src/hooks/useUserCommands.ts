@@ -38,7 +38,7 @@ export function invalidateUserCommands(qc: QueryClient): Promise<void> {
 
 const MENU_SOURCE: Record<UserCommandSource, ThreadSkillSource> = { ntwine: "ntwine", project: "project", global: "user" }
 
-/** User commands as menu rows. Not built-in COMMANDS in the menu's sense: Ntwine expands a user command at
+/** User commands as menu rows. Not built-in COMMANDS in the menu's sense: ntwine expands a user command at
  *  any word boundary (expandUserCommandDraft), so like a skill it is offered and tinted anywhere. */
 export function userCommandItems(commands: readonly UserCommand[]): ThreadSkill[] {
   return commands.map((c) => ({ name: c.name, description: c.description, source: MENU_SOURCE[c.source] }))

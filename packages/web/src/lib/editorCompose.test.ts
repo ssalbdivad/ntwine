@@ -44,11 +44,11 @@ test("an item with no project goes to the page's own box", () => {
   assert.equal(composeTarget({ item: {}, pageSlug: undefined, view: "all", projects: [] }).kind, "refused")
 })
 
-test("a project this server has not open, or one Ntwine does not know, is refused with the reason", () => {
+test("a project this server has not open, or one ntwine does not know, is refused with the reason", () => {
   assert.deepEqual(composeTarget({ item: { projectId: "p-gone" }, board, pageSlug: "alpha", view: "all", projects }),
     { kind: "refused", reason: "Gone isn't open on this server." })
   assert.deepEqual(composeTarget({ item: { projectId: "p-nobody" }, board, pageSlug: "alpha", view: "all", projects }),
-    { kind: "refused", reason: "Its project isn't in Ntwine." })
+    { kind: "refused", reason: "Its project isn't in ntwine." })
 })
 
 test("composeProjectsOf: open means a board is open AND the folder is there", () => {
@@ -116,7 +116,7 @@ test("the inserted chip sends as the ⌘I serialization the transcript parses ba
   })
 })
 
-// "Ask Ntwine to fix" sends the problem's own message as `note` (embed-protocol.ts): the box reads as a
+// "Ask ntwine to fix" sends the problem's own message as `note` (embed-protocol.ts): the box reads as a
 // request rather than a bare reference, and the human types straight on after it.
 test("a note goes right after the chip, one space either side, and the caret after it", () => {
   const fix = composeEdit({ value: "", staged: [], item: { ...selection, startLine: 12, endLine: 12 }, projectDir: "/work/alpha", note: "Fix: Cannot find name 'foo'. ts(2304)" })

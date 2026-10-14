@@ -65,7 +65,7 @@ export function isSessionRoot(command: string): boolean {
 }
 
 /**
- * Ntwine has not spawned tmux since 2026-08-02 (commit 3dc5bb1d, which deleted the last two modules
+ * ntwine has not spawned tmux since 2026-08-02 (commit 3dc5bb1d, which deleted the last two modules
  * that did), but this guard OUTLIVES the strip on purpose: upgrading from a pre-cutover ntwine can
  * leave a tmux server holding panes the operator may still be reading, and it inherits the first
  * thread's NTWINE_THREAD in env — which is exactly what makes it look reapable. Killing it would take

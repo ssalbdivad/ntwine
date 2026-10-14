@@ -60,7 +60,7 @@ export function liveActivity(messages: readonly TranscriptMessage[]): { request:
     if (m.boundary || m.queued) continue
     if (m.role === "user") {
       // A wake or a child's report can redirect the work as surely as the operator can.
-      if (m.wake || m.peerFrom) lines.push(`[${m.peerFrom ? "sub-agent report" : "Ntwine"}] ${clip(m.displayText ?? m.text, ACTIVITY_LINE_CHARS)}`)
+      if (m.wake || m.peerFrom) lines.push(`[${m.peerFrom ? "sub-agent report" : "ntwine"}] ${clip(m.displayText ?? m.text, ACTIVITY_LINE_CHARS)}`)
       continue
     }
     if (m.kind) continue

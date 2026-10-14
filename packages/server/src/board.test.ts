@@ -2049,7 +2049,7 @@ test("a worker scratch write triggers no board rebuild, while a top-level .md st
       join(dir, ".ntwine", "worktrees"),
     ])
 
-    // NEGATIVE: the scratch directory Ntwine hands every worker, the CLI's sentinel dir, and a worker's
+    // NEGATIVE: the scratch directory ntwine hands every worker, the CLI's sentinel dir, and a worker's
     // git worktree — a whole checkout, whose own top-level `.md` files are not this board's threads.
     fire([
       join(dir, ".ntwine", "threads", "2f0a", "scratch.md"),

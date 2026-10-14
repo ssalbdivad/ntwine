@@ -268,7 +268,7 @@ export function inspectOwnedNtwineShim(appPath, {
   const expectedProfile = join(browserProfile, "-", "Web Applications", `_crx_${appId}`)
   if (
     bundleName !== expectedBundleName ||
-    !/^Ntwine(?: [1-9]\d*)?$/.test(bundleName) ||
+    !/^ntwine(?: [1-9]\d*)?$/.test(bundleName) ||
     info.CFBundleExecutable !== "app_mode_loader" ||
     !appId ||
     shortcutUrl.protocol !== "http:" ||
@@ -330,7 +330,7 @@ export function discoverOwnedNtwineShims({ appsDir, projectsRoot, parsePlist = s
   const canonicalAppsDir = realpathSync(appsDir)
   const shims = []
   for (const entry of readdirSync(canonicalAppsDir, { withFileTypes: true })) {
-    if (!/^Ntwine(?: [1-9]\d*)?\.app$/.test(entry.name)) continue
+    if (!/^ntwine(?: [1-9]\d*)?\.app$/.test(entry.name)) continue
     if (entry.isSymbolicLink() || !entry.isDirectory()) {
       throw new Error(`${entry.name} must be a direct, non-symlink app bundle`)
     }
@@ -397,7 +397,7 @@ export function refreshInstalledAppIcons({
 } = {}) {
   if (!appsDir || !projectsRoot || !icnsPath) throw new Error("appsDir, projectsRoot, and icnsPath are required")
   const shims = discoverOwnedNtwineShims({ appsDir, projectsRoot, parsePlist })
-  if (shims.length === 0) throw new Error(`no positively identified Ntwine app shims found in ${appsDir}`)
+  if (shims.length === 0) throw new Error(`no positively identified ntwine app shims found in ${appsDir}`)
   for (const { path: appPath, owned } of shims) {
     const webAppsSuffix = `${sep}-${sep}Web Applications${sep}`
     const profile = owned.info.CrAppModeUserDataDir
@@ -431,7 +431,7 @@ export function refreshInstalledAppIcons({
         expectedBundleName: owned.info.CFBundleName,
         parsePlist,
       })
-      if (!staged) throw new Error(`${basename(appPath)} lost its Ntwine ownership metadata while staging`)
+      if (!staged) throw new Error(`${basename(appPath)} lost its ntwine ownership metadata while staging`)
       writeStableRegularFile(staged.iconPath, staged.resources, icnsBytes, { mode: originalMode })
       signBundle(stagePath)
       verifyBundle(stagePath)
@@ -441,7 +441,7 @@ export function refreshInstalledAppIcons({
         expectedBundleName: owned.info.CFBundleName,
         parsePlist,
       })
-      if (!verifiedStage) throw new Error(`${basename(appPath)} lost its Ntwine ownership metadata after signing`)
+      if (!verifiedStage) throw new Error(`${basename(appPath)} lost its ntwine ownership metadata after signing`)
       if (!readStableRegularFile(verifiedStage.plistPath, dirname(verifiedStage.plistPath)).equals(originalPlist)) {
         throw new Error(`${basename(appPath)} metadata changed while staging`)
       }
@@ -474,7 +474,7 @@ export function refreshInstalledAppIcons({
         expectedBundleName: transaction.owned.info.CFBundleName,
         parsePlist,
       })
-      if (!installed) throw new Error(`${basename(transaction.appPath)} lost its installed Ntwine ownership metadata`)
+      if (!installed) throw new Error(`${basename(transaction.appPath)} lost its installed ntwine ownership metadata`)
       if (!readStableRegularFile(installed.plistPath, dirname(installed.plistPath)).equals(transaction.originalPlist)) {
         throw new Error(`${basename(transaction.appPath)} installed metadata differs from its original metadata`)
       }
@@ -495,7 +495,7 @@ export function refreshInstalledAppIcons({
     for (const transaction of transactions) {
       log(`refreshed ${basename(transaction.appPath)} (${transaction.owned.info.CrAppModeShortcutURL})`)
     }
-    log(`refreshed ${transactions.length} positively identified Ntwine app shim icon${transactions.length === 1 ? "" : "s"}`)
+    log(`refreshed ${transactions.length} positively identified ntwine app shim icon${transactions.length === 1 ? "" : "s"}`)
     return transactions.map(({ appPath }) => appPath)
   } catch (error) {
     if (committed) {
@@ -532,7 +532,7 @@ export function refreshInstalledAppIcons({
 
 function buildIcns(workDir) {
   if (process.platform !== "darwin") throw new Error("--refresh-app-icons is supported only on macOS")
-  const iconset = join(workDir, "Ntwine.iconset")
+  const iconset = join(workDir, "ntwine.iconset")
   mkdirSync(iconset)
   const sizes = [
     ["icon_16x16.png", 16],

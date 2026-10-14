@@ -6,7 +6,7 @@ import { proxy, useSnapshot } from "valtio"
 //
 //   steer — the message is handed to the agent now and read at its next step. The default, and what
 //           every send was before the menu existed.
-//   queue — Ntwine keeps the message until the agent comes to rest, then delivers it as the next turn.
+//   queue — ntwine keeps the message until the agent comes to rest, then delivers it as the next turn.
 //
 // A third way, the FORCED send that interrupts the turn, is deliberately not a row: it stays on
 // ⌘/Ctrl-Enter and on the ↑ beside a waiting bubble.

@@ -48,7 +48,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
 
   // The API is a local control plane, not a public CORS service. Validate Host and require every present
   // Origin to name that SAME canonical loopback hostname + actual port, so an unrelated service on another
-  // loopback family cannot borrow Ntwine's browser authority. Reject all forwarded authority (Ntwine does not
+  // loopback family cannot borrow ntwine's browser authority. Reject all forwarded authority (ntwine does not
   // run behind a trusted proxy) and every non-local/mismatched Origin. Missing Origin is allowed
   // only for the read-only CLI health probe or a browser-forbidden `Sec-Fetch-Site: same-origin` request
   // (same-origin GET/fetch requests may omit Origin). Browser WebSockets use the stricter mandatory
@@ -171,7 +171,7 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
   // Where a `ntwine` typed in some folder lands (launch-routing.ts). A launcher asks instead of
   // deciding, so the rule about folders changes with a server release. Token-bound like the stop
   // channel, because answering can register the folder as a project: only the OS user who started
-  // Ntwine can read either token, and that user's launcher did exactly this itself until now.
+  // ntwine can read either token, and that user's launcher did exactly this itself until now.
   app.post(ntwineRoute(LAUNCH_ROUTE_PATH), async (c) => {
     const supplied = c.req.header(LAUNCH_TOKEN_HEADER)
     const held = [options.controlToken, options.machineToken].filter((token): token is string => !!token)

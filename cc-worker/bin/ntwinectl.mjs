@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * ntwinectl — the Ntwine command line a worker runs from its own shell. THE worker surface: every
- * capability Ntwine hands a worker is a command here, and none of them is a tool in the model's registry.
+ * ntwinectl — the ntwine command line a worker runs from its own shell. THE worker surface: every
+ * capability ntwine hands a worker is a command here, and none of them is a tool in the model's registry.
  *
  * WHY A COMMAND LINE AND NOT TOOLS (maintainer 2026-10-11). Sixteen MCP tools cost about 12k tokens of
  * schema that each provider loads its own way, could not be composed with anything, and had to be
@@ -270,7 +270,7 @@ function topHelp() {
     return rows.length ? `${group}\n${rows.join("\n")}` : ""
   }).filter(Boolean)
   return [
-    `${NAME} — the Ntwine command line for the worker of one thread.`,
+    `${NAME} — the ntwine command line for the worker of one thread.`,
     "Every command acts on the thread whose worker runs it; there is no way to name another.",
     "",
     "Usage:",

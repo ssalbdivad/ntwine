@@ -18,7 +18,7 @@ import "./styles.css"
 
 // ONE STRIP, TWO OWNERS — every state a terminal row can be in, side by side, for the states a live stack
 // cannot reach on demand: a finished and a failed run of yours, an agent shell over its budget or quiet,
-// a Codex exec whose output Ntwine cannot read, a monitor — once as the drawer draws them (every row) and once
+// a Codex exec whose output ntwine cannot read, a monitor — once as the drawer draws them (every row) and once
 // as a queue card does (the live rows only). A row names its folder only when it is not where the header
 // token says the agent is (`?here=`); a row the server could not place names nothing.
 // `?mode=codex` / `?mode=gone` show the agent drawer's two empty states, `?mode=agent` a streaming one with a

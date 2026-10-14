@@ -108,7 +108,7 @@ async function harness(target?: string) {
   const at = new Date(Date.now() - 60_000).toISOString()
   writeFileSync(transcript, launchRecords(at) + parkRecord(at, target))
   const storage = createStorage(join(dir, "ui.db"), "p")
-  // Ntwine's own sign-off nudge fires on a FENCELESS rest; every rest here carries a fence, so it cannot
+  // ntwine's own sign-off nudge fires on a FENCELESS rest; every rest here carries a fence, so it cannot
   // fire — but silence it anyway so a delivery count is unambiguous about what produced it.
   storage.setSetting("signoffNudge", "off")
   storage.upsertSession({
@@ -611,7 +611,7 @@ test("a watcher that runs out of time tells its worker so", async () => {
 
 // ---- THE STALL THAT SURFACED BOTH BUGS, REPLAYED THROUGH THE REAL FOLD ---------------------------
 // The maintainer's own thread, 2026-08-18: a worker signed off with `timer: none` — the WORD, not a
-// registered row — plus `for: 15m`. Ntwine refused the park (correctly: nothing named there can wake
+// registered row — plus `for: 15m`. ntwine refused the park (correctly: nothing named there can wake
 // anything), queued the correction (correctly), and then dropped it on the floor. The thread sat in the
 // queue for three hours with nothing able to reach it, and the maintainer asked why.
 //

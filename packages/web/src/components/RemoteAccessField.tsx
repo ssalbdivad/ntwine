@@ -52,7 +52,7 @@ export function RemoteAccessField() {
     return (
       <SettingsField label="Remote access" help={SETTINGS_HELP.remoteAccess}>
         <p className={HINT}>
-          This launch serves this machine only. Start Ntwine with <code>npx ntwine</code> (or <code>ntwine-dev</code> from a
+          This launch serves this machine only. Start ntwine with <code>npx ntwine</code> (or <code>ntwine-dev</code> from a
           checkout) to set up remote access.
         </p>
       </SettingsField>
@@ -188,7 +188,7 @@ function KindDetails({
   if (kind === "ntwine") {
     return (
       <>
-        <p className={HINT}>Claiming asks you to confirm a GitHub account with a one-time code. Ntwine gets no GitHub permissions. One name per account.</p>
+        <p className={HINT}>Claiming asks you to confirm a GitHub account with a one-time code. ntwine gets no GitHub permissions. One name per account.</p>
         <input
           aria-label="Name"
           className={INPUT}

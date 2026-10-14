@@ -1,4 +1,4 @@
-# Where Ntwine's global state lives
+# Where ntwine's global state lives
 
 Spec, 2026-08-01. `~/.ntwine` is not idiomatic; honor XDG where it is defined, write to the right place
 on Windows, and fall back to `~/.ntwine`. Downstream of [`gitless-projects.md`](gitless-projects.md)
@@ -13,7 +13,7 @@ take the first that already exists on disk:
 
 1. `~/.ntwine` — the legacy location, and the one an upgrading user's live state is actually in.
 2. `$XDG_DATA_HOME/ntwine`, when that variable is set.
-3. `%LOCALAPPDATA%\Ntwine` on Windows.
+3. `%LOCALAPPDATA%\ntwine` on Windows.
 4. The OS-native default for the platform (`~/.local/share/ntwine`, and see §macOS).
 
 Whichever is found is used verbatim, unchanged, forever. Probing several places costs a few `stat`
@@ -22,15 +22,15 @@ moved their state by hand. If more than one exists, the order above decides, and
 which root it picked so a split installation is diagnosable rather than mysterious.
 
 **Phase 2 — a fresh install picks the idiomatic location.** Only when *no* candidate exists does
-Ntwine create one, and then it uses the most idiomatic place available:
+ntwine create one, and then it uses the most idiomatic place available:
 
 1. **The XDG variables, each honored individually when SET** — `$XDG_DATA_HOME`, `$XDG_STATE_HOME`,
    `$XDG_CACHE_HOME`, `$XDG_RUNTIME_DIR`, each `+ /ntwine`. A user who defines only `XDG_CACHE_HOME`
    gets the cache relocated and nothing else.
-2. **`%LOCALAPPDATA%\Ntwine` on Windows** — see below. Windows never falls through to a dotfile.
+2. **`%LOCALAPPDATA%\ntwine` on Windows** — see below. Windows never falls through to a dotfile.
 3. **`~/.ntwine`** otherwise, with today's layout unchanged.
 
-So the only user who ever sees a new path is one who has never run Ntwine, which is exactly the
+So the only user who ever sees a new path is one who has never run ntwine, which is exactly the
 population for whom no compatibility is owed.
 
 ## Why split at all: the sizes make the case
@@ -73,19 +73,19 @@ Never Roaming — a 1.8 GB build cache must not follow a user between machines, 
 choke on exactly this.
 
 ```
-data     %LOCALAPPDATA%\Ntwine\Data
-state    %LOCALAPPDATA%\Ntwine\State        (or \Logs for the log subtree, matching convention)
-cache    %LOCALAPPDATA%\Ntwine\Cache
+data     %LOCALAPPDATA%\ntwine\Data
+state    %LOCALAPPDATA%\ntwine\State        (or \Logs for the log subtree, matching convention)
+cache    %LOCALAPPDATA%\ntwine\Cache
 runtime  named pipes — already correct (claude-broker-host.ts:31)
 ```
 
 `%APPDATA%` (Roaming) gets nothing. If `%LOCALAPPDATA%` is somehow unset, fall back to
-`%USERPROFILE%\AppData\Local\Ntwine`, and only then to `~/.ntwine`. There is precedent for reading it:
+`%USERPROFILE%\AppData\Local\ntwine`, and only then to `~/.ntwine`. There is precedent for reading it:
 `src/browser.ts:131` already resolves Chrome through `LOCALAPPDATA`.
 
 ### macOS
 
-The strictly idiomatic answer is `~/Library/Application Support/Ntwine` and `~/Library/Caches/Ntwine`.
+The strictly idiomatic answer is `~/Library/Application Support/ntwine` and `~/Library/Caches/ntwine`.
 This spec deliberately does **not** use it: the rule is XDG-if-set, then `~/.ntwine`, and that matches
 what every tool in this product's neighbourhood does — `~/.claude`, `~/.codex`, `~/.gitconfig`. A
 macOS user who has set `XDG_*` (many developers do) gets XDG; everyone else keeps `~/.ntwine`.
@@ -107,7 +107,7 @@ unrecoverable. The 27.8 MB of real data has no backup anywhere else. And a parti
 by a laptop lid) leaves a project whose database and logs are on opposite sides of the boundary.
 
 So: new installs get the new layout; existing installs never move. A user who wants to migrate can do
-it themselves while Ntwine is stopped — `mv ~/.ntwine ~/.local/share/ntwine` and so on — and rule 1 stops
+it themselves while ntwine is stopped — `mv ~/.ntwine ~/.local/share/ntwine` and so on — and rule 1 stops
 applying the moment `~/.ntwine` is gone. Document that in the FAQ; do not automate it.
 
 The cost is that existing users never benefit, which is acceptable because the benefit is

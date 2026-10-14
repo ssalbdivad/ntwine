@@ -39,7 +39,7 @@ type TitleFields = Pick<ThreadView, "title" | "aiTitle" | "id" | "titleAuto" | "
 // want the displayed names to also be camelCase so its obvious how to refer to them and that they
 // represent ids"; kebab-case since 2026-09-30). Everything that is NOT a name renders as it always did: the "Spinning up…" and
 // "Untitled thread" placeholders, a legacy row's bare id, an external terminal session's resolved
-// title (Ntwine holds no registry name for it, so there is nothing to address), and a name too long to
+// title (ntwine holds no registry name for it, so there is nothing to address), and a name too long to
 // be a handle (a legacy sentence-length title — threadHandle declines past five words).
 //
 // One place so every render site (sidebar, palette, header, drawer, tab title) agrees. The narrow Pick
@@ -128,7 +128,7 @@ function titleSource(t: TitleFields): { text: string; name: boolean } {
   // Only a persisted name is a NAME (shown as a handle): with `titleNamed` false, aiTitle is Claude's live
   // session title, which moves — and a handle never changes once shown — so it reads as plain text.
   if (t.aiTitle?.trim() && !titleIsHumanOwned(t)) return { text: readableMachineTitle(t.aiTitle), name: t.titleNamed !== false }
-  // Codex's TUI has no native automatic naming event. Ntwine asks the first finalized response for a
+  // Codex's TUI has no native automatic naming event. ntwine asks the first finalized response for a
   // hidden title signal; omission or malformed syntax must stay neutral rather than exposing either
   // the stored legacy prompt heuristic or a provider-recorded raw initial prompt.
   if (t.backend === "codex" && t.titleAuto === true && !t.aiTitle?.trim()) return { text: UNTITLED_THREAD_TITLE, name: false }
@@ -845,7 +845,7 @@ export function partitionActive(active: readonly ThreadView[]): { running: Threa
 
 // THE BAND A THREAD'S STATE PUTS IT IN, by the names the rail's headers print rather than the section
 // keys above: READY is the cue (it has a queue card), WORKING the band below the rule, then SNOOZED,
-// DONE, and EXTERNAL for a terminal session Ntwine does not own. The same derivation the rail's bands
+// DONE, and EXTERNAL for a terminal session ntwine does not own. The same derivation the rail's bands
 // run, so a surface that names the band — the drawer header's stamp — can never disagree with the band
 // the row actually sits in.
 //

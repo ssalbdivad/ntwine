@@ -4,7 +4,7 @@ import { resolveClaudeExecutableAbsolute } from "./claude-broker-host.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
 import { log as ntwineLog } from "../logging.ts"
 
-// ONE SHORT COMPLETION with a system prompt Ntwine writes — the thread NAMER and the thread STATUS line
+// ONE SHORT COMPLETION with a system prompt ntwine writes — the thread NAMER and the thread STATUS line
 // (thread-names.ts) are its callers.
 //
 // Why not the SDK's own `generateSessionTitle`, which every thread already reaches through its broker

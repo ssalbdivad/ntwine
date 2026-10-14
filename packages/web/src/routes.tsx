@@ -250,7 +250,7 @@ type PageResolution =
  *    sends the operator here to say yes. It opens the one add-project dialog, pre-filled.
  *  - `?unknown=<slug>` is the SERVER saying it sent a page here rather than let it hang: a board or a
  *    drawer for a project nobody has would render the app, 404 every call and sit on its boot spinner
- *    forever (index.ts `unknownProjectPage`). A URL that silently became the home page reads as Ntwine
+ *    forever (index.ts `unknownProjectPage`). A URL that silently became the home page reads as ntwine
  *    having swallowed it.
  */
 function usePageResolution(routeSlug: string | undefined): PageResolution {

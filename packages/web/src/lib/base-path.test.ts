@@ -57,7 +57,7 @@ test("nothing else under /project/ is a page", () => {
 })
 
 // A bare `/status/<s>` was the launching project's status list before the singleton; it is still an
-// address Ntwine minted, so a link to one is in-app (markdownTargets.ts isNtwineRoute) and is left exactly as
+// address ntwine minted, so a link to one is in-app (markdownTargets.ts isNtwineRoute) and is left exactly as
 // written: re-pointed under a drawer's prefix it would name a route that never existed there, and it lands
 // on the page either way.
 test("a retired address is recognised, and never re-pointed", () => {
@@ -83,7 +83,7 @@ test("inner and outer paths round-trip", () => {
   assert.equal(outerPath("/", "/"), "/")
 })
 
-// THE POINT of moving projects under a segment of their own: the root namespace stays Ntwine's.
+// THE POINT of moving projects under a segment of their own: the root namespace stays ntwine's.
 test("only /all/<slug> and /project/<slug> name a project, so the root is free for other pages", () => {
   assert.equal(basePath("/thread/nub"), "", "a thread called `nub` is not a project")
   assert.equal(basePath("/status/blocked"), "")

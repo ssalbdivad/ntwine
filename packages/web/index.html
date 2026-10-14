@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Pre-hydration only: App.tsx replaces this with "owner/repo | Ntwine" once the board arrives. -->
-    <title>Ntwine</title>
+    <!-- Pre-hydration only: App.tsx replaces this with "owner/repo | ntwine" once the board arrives. -->
+    <title>ntwine</title>
     <!-- Own Dock/tab identity. The SVG favicon is preferred by modern browsers; the PNGs are the
          fallback + the source Chrome rasterizes into the macOS app icon when the app is installed
          ("Install ntwine…" / Create Shortcut → Open as window), which is the only way a Chrome-hosted
@@ -20,8 +20,8 @@
          own origin. Over the tunnel every request without a session gets the 401 page, so Chrome read
          that page as the manifest and could only offer a bookmark, never "Install app". -->
     <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
-    <!-- iOS names a Home Screen app after the page title, which App.tsx sets to "owner/repo | Ntwine". -->
-    <meta name="apple-mobile-web-app-title" content="Ntwine" />
+    <!-- iOS names a Home Screen app after the page title, which App.tsx sets to "owner/repo | ntwine". -->
+    <meta name="apple-mobile-web-app-title" content="ntwine" />
     <meta name="theme-color" content="#0d0e10" />
     <!-- FLASH GUARD, and it is about NAVIGATION rather than first run. Switching projects was once
          a real document load (each board binds its own socket, board store and API base to

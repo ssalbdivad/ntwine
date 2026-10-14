@@ -95,7 +95,7 @@ test("public restart supervisor preserves routes, does not restart initial/subre
     await proxy.listen()
     assert.equal((await get(port, "/thread/demo?tab=terminal")).body, "one:/thread/demo?tab=terminal")
     assert.equal((await get(port, "/assets/app.css")).body, "one:/assets/app.css")
-    assert.equal(restarts, 0, "ordinary initial and subresource requests never restart Ntwine")
+    assert.equal(restarts, 0, "ordinary initial and subresource requests never restart ntwine")
 
     assert.equal((await get(port, SUPERVISOR_RESTART_PATH, "POST")).status, 202)
     assert.equal((await get(port, "/thread/demo?tab=terminal")).body, "generation-2:/thread/demo?tab=terminal")
@@ -226,7 +226,7 @@ test("update-and-restart is explicit and never falls through to an ordinary rest
     await proxy.listen()
     const response = await get(port, SUPERVISOR_UPDATE_RESTART_PATH, "POST")
     assert.equal(response.status, 409)
-    assert.match(response.body, /immutable Ntwine artifact/)
+    assert.match(response.body, /immutable ntwine artifact/)
     assert.equal(ordinary, 0)
     assert.match((await get(port, SUPERVISOR_STATUS_PATH)).body, /"updateRestart":false/)
   } finally {
@@ -256,7 +256,7 @@ test("status advertises Update & Restart only when the durable supervisor owns t
 // The launcher is the ONLY thing that can answer "is this a development build". The client used to
 // guess with `import.meta.env.DEV`, which is false in every artifact ntwine-dev builds — so the dev-only
 // Restart-worker verb was compiled out of the build its author ran all day. Absent must keep meaning
-// "no", so a published Ntwine never grows a dev affordance.
+// "no", so a published ntwine never grows a dev affordance.
 test("status reports a development build only when the launcher says so", async () => {
   for (const [name, dev, expected] of [
     ["ntwine-dev / pnpm dev", true, /"dev":true/],
@@ -497,7 +497,7 @@ test("--host: a non-loopback bind accepts IP-literal authorities, and loopback s
 
 test("an exposed board supplies the Sec-Fetch stamp a LAN browser cannot send", async () => {
   // Chrome sends Sec-Fetch-* only to a potentially-trustworthy origin, which http://192.168.1.5 is
-  // not. Ntwine's missing-Origin rules ask for `sec-fetch-site: same-origin`, so without the proxy
+  // not. ntwine's missing-Origin rules ask for `sec-fetch-site: same-origin`, so without the proxy
   // vouching, --host served the shell and then 403'd every /rpc read the app made. Measured in
   // Chrome 151: the LAN request carried neither an origin nor a sec-fetch-site header.
   const seen: Array<Record<string, string | string[] | undefined>> = []
@@ -599,7 +599,7 @@ async function upgrade(port: number, headers: Record<string, string>): Promise<"
 
 test("a WebSocket upgrade is gated at the proxy, where a browser Origin is mandatory", async () => {
   // The child requires an Origin on every upgrade, but proxyHeaders manufactures one, so the child
-  // can never enforce that itself. The terminal socket is the most privileged surface Ntwine has.
+  // can never enforce that itself. The terminal socket is the most privileged surface ntwine has.
   const upstream = await listen((_req, res) => res.end())
   // An upgraded socket is DETACHED from the http server, so closeAllConnections() cannot reach it and
   // the server never emits 'close'. Hold them here and destroy them explicitly, or teardown hangs.
@@ -624,7 +624,7 @@ test("a WebSocket upgrade is gated at the proxy, where a browser Origin is manda
     assert.equal(await upgrade(port, { host: `evil.example:${port}`, origin: `http://evil.example:${port}` }), "refused")
 
     // Regression: an upgraded socket is detached from the http server, so closeAllConnections() never
-    // reaches it and close() waited on it forever. Ntwine always has live WebSockets once a browser is
+    // reaches it and close() waited on it forever. ntwine always has live WebSockets once a browser is
     // open, so this hung every shutdown that followed a real page load.
     await assert.doesNotReject(
       Promise.race([
@@ -754,7 +754,7 @@ async function upgradeStatus(port: number, headers: Record<string, string>): Pro
 }
 
 test("--public-origin without a session is not a reachable state: the gate covers page and socket", async () => {
-  // Ntwine has no accounts, so on a tunnelled board a session minted from a single-use code IS the
+  // ntwine has no accounts, so on a tunnelled board a session minted from a single-use code IS the
   // authorization. What must hold: loopback is never challenged, the public origin always is, and the
   // board socket is gated too — a shell reachable over ws:// without a session would make the page
   // gate theatre.

@@ -54,7 +54,7 @@ export function seedReviewRepo(dir: string, branch = "tidy-the-loop"): ReviewRep
     git(dir, "add", ".")
     git(dir, "commit", "-qm", "init")
   }
-  // The project ignores its own `.ntwine/`, as every Ntwine project does — which is exactly what made a
+  // The project ignores its own `.ntwine/`, as every ntwine project does — which is exactly what made a
   // worktree's files read as ignored from the project root.
   write(join(dir, ".gitignore"), ".ntwine/\nnode_modules/\n")
   write(join(dir, "src", "loop.ts"), LOOP_BEFORE)

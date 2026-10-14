@@ -68,7 +68,7 @@ export function openFullscreen(slug: string, from: HTMLElement | null, href = st
 // item in the menu below until 2026-09-29, when the maintainer asked for the header to keep only the
 // fullscreen door, the terminal and close: the terminal came up to an icon, LEADING the strip so the ⋯
 // menu stays beside close, and the verbs that had held icon space there (copy terminal command, Reload
-// plugins, Restart worker, the Ntwine document) went down into the menu.
+// plugins, Restart worker, the ntwine document) went down into the menu.
 //
 // One press opens a SHELL there, with nothing to fill in. It opened a folder + command dialog until
 // 2026-09-29 (maintainer: "it should open shell by default, don't ask what command to run"): the server
@@ -218,7 +218,7 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
       <MenuContent align="end">
         {onDoc && (
           <MenuItem value="doc" onSelect={onDoc} icon={<FileText size={12} aria-hidden />}>
-            Ntwine document
+            ntwine document
           </MenuItem>
         )}
         {ownSession && (
@@ -375,7 +375,7 @@ function DeleteThreadDialog({ thread, onClose }: { thread: ThreadView; onClose: 
     >
       <div className="flex flex-col gap-3 p-4 text-[12.5px] leading-relaxed text-muted">
         <p>
-          {working ? "Its agent is stopped mid-turn, and the thread is" : "The thread is"} removed from Ntwine with its notes and
+          {working ? "Its agent is stopped mid-turn, and the thread is" : "The thread is"} removed from ntwine with its notes and
           terminals. Its name is free for a new thread. This cannot be undone.
         </p>
         {error ? <p className="text-[11.5px] text-danger">{error}</p> : null}

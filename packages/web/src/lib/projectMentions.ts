@@ -20,7 +20,7 @@ export interface ProjectMentionCandidate {
   name: string
 }
 
-/** The projects a `#` can name, in the project list's own order (the switcher's): every registered
+/** The projects a `#` can name, in the project list's own order (the dock's): every registered
  *  project whose directory still exists. */
 export function projectMentionCandidates(cards: readonly ProjectCard[] | null | undefined): ProjectMentionCandidate[] {
   return (cards ?? []).filter((card) => !card.stale).map((card) => ({ slug: card.slug, name: card.name }))

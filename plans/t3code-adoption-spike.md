@@ -56,7 +56,7 @@ conversation; you do not resume the work that was mid-flight. That is fine for t
 are foreground and interactive. It is *not* fine for ntwine, whose threads are unattended multi-hour
 dispatches and where an ntwine restart during a dev cycle is routine.
 
-Ntwine's broker already solves this, and its own header says so
+ntwine's broker already solves this, and its own header says so
 (`packages/server/src/backend/claude-agent-broker.ts`): *"the session OUTLIVES ntwine, so ntwine
 reconnects to the LIVE session after a restart instead of cold resume-from-disk, while keeping
 structured TYPED control (no TUI scraping, no tmux, no PTY — stream-json is pipes)."* It is a detached
@@ -130,14 +130,14 @@ heuristic for permission prompts, and the poll-tick latency floor.
 `packages/contracts/src/providerRuntime.ts` — 47 event types plus `CanonicalItemType` (14 item kinds)
 and `CanonicalRequestType` (9 approval kinds): turn lifecycle, item lifecycle, content deltas,
 approvals, structured user-input requests, sub-tasks, hooks, token usage, rate limits, MCP status,
-model reroutes. Ntwine's `NormalizedEvent` (`packages/server/src/backend/types.ts:42`) has 10 kinds
+model reroutes. ntwine's `NormalizedEvent` (`packages/server/src/backend/types.ts:42`) has 10 kinds
 and its own comment admits Claude bypasses it — so it is a lowest-common-denominator view only Codex
 drives, and a third agent means a third private fold.
 
 **3. The adapter contract as a control plane, not a parser.**
 `apps/server/src/provider/Services/ProviderAdapter.ts`: `startSession` / `sendTurn` / `interruptTurn` /
 `respondToRequest` / `respondToUserInput` / `stopSession` / `readThread` / `rollbackThread` /
-`streamEvents` / `capabilities`. Ntwine's `AgentBackend` is `buildSpawn(argv)` / `transcriptPath` /
+`streamEvents` / `capabilities`. ntwine's `AgentBackend` is `buildSpawn(argv)` / `transcriptPath` /
 `foldLine` / `matchesPermPrompt(pane)` — an interface shaped around scraping a TUI. The broker already
 implements most of the control-plane verbs; they just don't live in the interface.
 
@@ -147,7 +147,7 @@ provider — queue a `TestTurnResponse` with canned canonical events plus an opt
 hook. `OrchestrationEngineHarness.integration.ts` (560 lines) boots the entire server graph against a
 real temp git repo. `orchestrationEngine.integration.test.ts` (1,441 lines) asserts the full chain —
 send turn → events → projections → checkpoint captured → diff finalized → revert — deterministically,
-no LLM, no browser. Ntwine's only gate for orchestration logic today is "launch a promoted artifact,
+no LLM, no browser. ntwine's only gate for orchestration logic today is "launch a promoted artifact,
 drive real Chrome, screenshot", which is right for UI and ruinously expensive for everything else.
 
 **5. `DrainableWorker` + `RuntimeReceiptBus` — the primitives that make #4 deterministic.**
@@ -175,13 +175,13 @@ race, where a concurrent agent's `git add` sweeps their file into your commit.
 `apps/server/src/provider/ProviderDriver.ts` — every provider is instantiated N times with its own
 `instanceId`, typed config, env, and `continuationIdentity`; threads pin to an identity so they can only
 resume on a compatible instance. The UX in `docs/providers/claude.md` is "Claude Work" / "Claude
-Personal" / "Claude OpenRouter" as separate providers. Ntwine is single-account by construction, but
+Personal" / "Claude OpenRouter" as separate providers. ntwine is single-account by construction, but
 already tracks Claude quota per account.
 
 **8. Generate the Codex protocol instead of hand-auditing it.**
 `packages/effect-codex-app-server` is 42,860 generated lines + ~1,200 hand-written, from
 `openai/codex` → `codex-rs/app-server-protocol/schema/json` at a pinned commit. That path exists on
-`main` upstream and publishes both `schema/json/` and `schema/typescript/`. Ntwine hand-wrote 3,490 lines
+`main` upstream and publishes both `schema/json/` and `schema/typescript/`. ntwine hand-wrote 3,490 lines
 in `packages/server/src/backend/codex-app-server.ts`, audited against Rust at tag `rust-v0.144.1`,
 behind a gate accepting exactly 0.144.1 — so every Codex bump is a fresh manual audit.
 
@@ -191,7 +191,7 @@ behind a gate accepting exactly 0.144.1 — so every Codex bump is a fresh manua
   human-only and never persisted; completed spans go to NDJSON with `traceId`/`durationMs`/
   `attributes`/`exit`. A log line only persists if emitted inside a span.
 - **Repo-local lint plugin for house invariants.** `oxlint-plugin-t3code` — e.g.
-  `no-global-process-runtime` bans `process.platform`/`process.arch` outside one file. Ntwine encodes its
+  `no-global-process-runtime` bans `process.platform`/`process.arch` outside one file. ntwine encodes its
   invariants as prose in CLAUDE.md and keeps getting bitten by env/path resolution in promoted
   artifacts (the absolute-`executablePath` broker bug). A lint rule enforces what a doc only asks for.
 - **In-app preview + project scripts.** `apps/server/src/preview/Manager.ts` — tabbed browser preview
@@ -205,7 +205,7 @@ behind a gate accepting exactly 0.144.1 — so every Codex bump is a fresh manua
    `UserInputQuestion[]` (options, labels), blocked on a Deferred, answered by returning
    `{behavior:"allow", updatedInput:{questions, answers}}`. Abort-aware: interrupting the turn resolves
    it empty and denies. This is the direct replacement for ntwine's ` ```question ` fence convention,
-   which exists only because the tmux era had no channel. Ntwine's `ARCHITECTURE.md` records two prior
+   which exists only because the tmux era had no channel. ntwine's `ARCHITECTURE.md` records two prior
    designs (blocking MCP tool; `ntwine-ask` CLI + sidecars) built and rejected as fragile — `canUseTool`
    interception is a third option with none of those failure modes: no timeout, no sidecar state, no
    markdown parsing, and structurally impossible for the agent to "forget the format."
@@ -222,7 +222,7 @@ behind a gate accepting exactly 0.144.1 — so every Codex bump is a fresh manua
    back to the shared home, keeping only `auth.json` and `models_cache.json` private, with typed errors
    for every conflict case. Multiple accounts, one corpus.
 5. **`settingSources: ["user","project","local"]`.** They deliberately load the user's own CLAUDE.md and
-   settings rather than running a hermetic agent. Ntwine should make this an explicit posture either way.
+   settings rather than running a hermetic agent. ntwine should make this an explicit posture either way.
 6. **Skills discovered by filesystem scan, not the handshake.** `Drivers/ClaudeSkills.ts`: "The Agent SDK
    init handshake surfaces skills only as slash commands without their filesystem paths," so they scan
    `<config dir>/skills` and `<cwd>/.claude/skills` for `SKILL.md` frontmatter directly.
@@ -231,7 +231,7 @@ behind a gate accepting exactly 0.144.1 — so every Codex bump is a fresh manua
    know instantly whether the provider, the adapter's normalization, or the projector broke it.
 8. **Sub-agents and hooks as first-class canonical events.** `task_started` / `task_progress` /
    `task_completed` and `hook_started` / `hook_completed` come straight off the SDK's `system` messages
-   (`ClaudeAdapter.ts:2642-2727`). Ntwine reconstructs sub-agents with two bespoke trackers for what the
+   (`ClaudeAdapter.ts:2642-2727`). ntwine reconstructs sub-agents with two bespoke trackers for what the
    runtime already reports.
 9. **Runtime mode as a two-value switch mapped per provider.** `docs/architecture/runtime-modes.md`:
    full-access = `approvalPolicy: never` + `sandboxMode: danger-full-access`; supervised = `on-request`
@@ -244,7 +244,7 @@ behind a gate accepting exactly 0.144.1 — so every Codex bump is a fresh manua
 
 - **Effect-TS.** The layer/service/typed-error discipline is good, but adopting it is a rewrite of 73k
   lines of server, and every pattern above works fine in plain TS.
-- **Full event sourcing with SQL projections.** Ntwine's `.ntwine/` markdown-as-source-of-truth is
+- **Full event sourcing with SQL projections.** ntwine's `.ntwine/` markdown-as-source-of-truth is
   deliberate — the files are user-editable and `ntwine-update` is a real CLI surface. Take the *shape*
   (validated commands → events → projections) only where ntwine already owns a DB: `ui.db`.
 - **Relay / Tailscale / SSH / mobile / cloud auth.** That is a product decision about whether ntwine stops

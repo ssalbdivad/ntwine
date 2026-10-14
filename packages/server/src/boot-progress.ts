@@ -5,7 +5,7 @@ import { basename, dirname, join } from "node:path"
 // A launcher spawns the control plane DETACHED and then waits for /health. Until this existed the wait
 // was a flat 30s deadline against a process it could not see inside: a boot that was working fine but
 // slow (a first-ever boot of a large board, or any boot on a loaded machine) hit the deadline, the
-// launcher printed "Ntwine did not become healthy", and the child carried on booting and bound the port —
+// launcher printed "ntwine did not become healthy", and the child carried on booting and bound the port —
 // so the operator got an error AND a stray control plane contending with their next attempt.
 //
 // The child now names what it is doing, as it does it. That converts the launcher's question from

@@ -49,7 +49,7 @@ export async function prepareWindowsElectron(): Promise<WindowsElectron> {
   // The `electron` package pins the version and carries the checksums; its downloader is its own dependency.
   const electronRequire = createRequire(createRequire(import.meta.url).resolve("electron/package.json"))
   const { version } = electronRequire("./package.json") as { version: string }
-  const root = join(toLinuxPath(windowsVariable("LOCALAPPDATA")), "Ntwine", "desktop-dev")
+  const root = join(toLinuxPath(windowsVariable("LOCALAPPDATA")), "ntwine", "desktop-dev")
   const binaryDir = join(root, `electron-v${version}-win32-x64`)
   const exe = join(binaryDir, "electron.exe")
   if (!existsSync(exe)) {
@@ -80,7 +80,7 @@ export async function prepareWindowsElectron(): Promise<WindowsElectron> {
   const pidFiles = new Map<ChildProcess, string>()
   let launches = 0
   mkdirSync(appDir, { recursive: true })
-  writeFileSync(join(appDir, "package.json"), JSON.stringify({ name: "ntwine-desktop-dev", productName: "Ntwine", main: "main.mjs" }))
+  writeFileSync(join(appDir, "package.json"), JSON.stringify({ name: "ntwine-desktop-dev", productName: "ntwine", main: "main.mjs" }))
 
   return {
     root,

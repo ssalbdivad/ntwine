@@ -26,7 +26,7 @@
 export const THREAD_HANDLE_MAX_CHARS = 20
 
 /** Past this many words a stored title is not a name but a sentence (a legacy row, a long human rename),
- *  and a hyphenated run of it would be unreadable; it stays as written and has no handle. Ntwine mints one
+ *  and a hyphenated run of it would be unreadable; it stays as written and has no handle. ntwine mints one
  *  or two words, but the name SHOWN can be Claude's own session title until then, and that runs to four
  *  or five ("Test fixture secret word" — seen on a real dispatch, 2026-09-29); those still need a handle
  *  that matches what the board shows. */

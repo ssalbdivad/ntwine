@@ -11,7 +11,7 @@
 // mid-turn (`crashed`) — is not a rest at all, and its card points at the header's Retry.
 //
 // THE COPY SAYS WHAT THE HUMAN CAN DO, NOT HOW NTWINE WORKS. The bare card once read "The worker stopped
-// without a done card, a question or a registered wait. Ntwine nudges it for one; a reply here also
+// without a done card, a question or a registered wait. ntwine nudges it for one; a reply here also
 // wakes it." — the worker contract's vocabulary and the nudge machinery, recited to the operator
 // (David 2026-09-29: "ensure we don't leak explanations of internal behaviors"). The nudge still
 // runs; the reader does not need to know it exists to act on the card. Nor does "handoff" belong on

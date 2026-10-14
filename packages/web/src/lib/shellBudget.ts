@@ -13,7 +13,7 @@ import { formatCompactElapsed } from "./durationLabels.ts"
 // default to show, and "no budget" on every dev-server row would be a column of noise. Its age, beside
 // it on the row, is what makes a forgotten one visible.
 //
-// PAST TIMEOUT is its own reading, not "times out in 0s": past the instant the agent has been warned and Ntwine
+// PAST TIMEOUT is its own reading, not "times out in 0s": past the instant the agent has been warned and ntwine
 // stops the shell ten minutes later unless it is extended — a state the operator may want to act on.
 export function shellBudgetLabel(budgetEndsAt: string | undefined, nowMs: number): string | undefined {
   const ends = Date.parse(budgetEndsAt ?? "")
@@ -32,8 +32,8 @@ export function shellBudgetTitle(budgetEndsAt: string | undefined, nowMs: number
   if (!Number.isFinite(ends)) return undefined
   const at = new Date(ends).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
   return ends <= nowMs
-    ? `Past its runtime budget (ended ${at}). The agent was warned; Ntwine stops it 10m after that unless it is extended.`
-    : `Runtime budget ends ${at}. Ntwine then warns the agent, and stops the shell 10m later unless it is extended.`
+    ? `Past its runtime budget (ended ${at}). The agent was warned; ntwine stops it 10m after that unless it is extended.`
+    : `Runtime budget ends ${at}. ntwine then warns the agent, and stops the shell 10m later unless it is extended.`
 }
 
 /** True once the budget has run out — the one reading that earns the row's danger tone. */

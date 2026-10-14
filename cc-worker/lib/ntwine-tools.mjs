@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * ntwine-tools — every capability Ntwine hands its own WORKERS, as ONE registry: the definition of each
+ * ntwine-tools — every capability ntwine hands its own WORKERS, as ONE registry: the definition of each
  * command (name, summary, description, input schema, how its arguments are spelled on a command line)
  * and the handler that performs it. Dependency-free, and transport-free: a front-end imports TOOLS and
  * HANDLERS and decides how a call arrives and how its answer leaves.
@@ -10,13 +10,13 @@
  *
  * A new worker-facing capability joins the TOOLS registry below rather than growing a second surface.
  *
- * Every handler is a thin wrapper over one of Ntwine's own RPCs: it reads the running server's port from
+ * Every handler is a thin wrapper over one of ntwine's own RPCs: it reads the running server's port from
  * a server.lock and POSTs `/_ntwine/<project>/rpc/<procedure>`. That surface has no token auth — only a
  * loopback-origin CSRF gate — so a headerless local POST with `sec-fetch-site: same-origin` (undici
  * sends no Origin) satisfies it.
  *
  * NOTHING HERE DEPENDS ON THE ENVIRONMENT STAYING TRUE. A worker lives inside a DETACHED daemon that
- * outlives Ntwine restart after restart, so anything frozen into it at spawn is a bug waiting for the
+ * outlives ntwine restart after restart, so anything frozen into it at spawn is a bug waiting for the
  * next "Update & Restart" to move the port. Both facts we need are therefore resolved PER CALL, from
  * files: the server's address (serverLockPort — the env hint, then the machine-wide
  * `<ntwine root>/server.lock`, then any live project lock, skipping any whose pid is gone) and our own
@@ -585,7 +585,7 @@ function questionSchema(depth) {
       mayDefault: {
         type: "boolean",
         description:
-          "Lets Ntwine answer this question with your recommendation if the user has not after 10 minutes. " +
+          "Lets ntwine answer this question with your recommendation if the user has not after 10 minutes. " +
           "Without it the question waits for the user, however long. Set it only on a call you would " +
           "make yourself without them — never on the architecture of a library or a major version, a " +
           "public API, a data model, or the design a plan commits to.",
@@ -628,7 +628,7 @@ const ASK = {
     "depend on the answer FIRST, then ask, then stop. If what is left is substantial work you would do " +
     "on your recommended option anyway, the call was yours: take it, say which way you went, and do not " +
     "ask at all.\n\n" +
-    "AND WHEN YOU DO STOP, THE QUESTION IS THAT REST'S SIGN-OFF — rest normally. Ntwine draws its card " +
+    "AND WHEN YOU DO STOP, THE QUESTION IS THAT REST'S SIGN-OFF — rest normally. ntwine draws its card " +
     "at the BOTTOM of that rest's handoff, below its last line, whether you mention it or not — so " +
     "nothing you write can hide one, and nothing you write comes after it. PUT EVERY WORD OF " +
     "EXPLANATION BEFORE IT: what you found, what the choice turns on, what each answer would set in " +
@@ -639,7 +639,7 @@ const ASK = {
     "handoff — it stays where you asked it. Name it under `questions:` in an ```awaiting fence while you " +
     "still need the answer (its card is then drawn at that rest), or withdraw it with `ntwinectl unask <id>`. A rest " +
     "that does neither is bumped, and so is any ```awaiting fence that leaves an open question out.\n\n" +
-    "A QUESTION MARKED `mayDefault` DOES NOT WAIT FOREVER. Ten minutes after you rest on it, Ntwine takes its " +
+    "A QUESTION MARKED `mayDefault` DOES NOT WAIT FOREVER. Ten minutes after you rest on it, ntwine takes its " +
     "`recommended` option for the user and delivers that as the answer, noting it was the default — " +
     "UNLESS that option is `external` (it files, posts, merges, pushes or publishes): then the default " +
     "takes the first option that is not `external`, and you must not do the external act anyway. Any other question — unmarked, `danger`, `multi` or " +
@@ -710,7 +710,7 @@ const SECRET = {
     "needs and you must never see. The user may be on a phone, far from this machine: this is how a " +
     "code reaches a command without anyone typing into a terminal here.\n\n" +
     "It registers a question like `ntwinectl ask`, drawn as a card with ONE MASKED BOX. What the user pastes is " +
-    "held in Ntwine's memory — never on disk — and served through a private named pipe whose path this " +
+    "held in ntwine's memory — never on disk — and served through a private named pipe whose path this " +
     "command prints NOW. It never enters the transcript, the database or your context: the answer you are " +
     "woken with names the path, not the value.\n\n" +
     "THE PATH CAN BE READ ONCE, within 15 minutes of the answer; then it is gone. So read it INSIDE the " +
@@ -746,7 +746,7 @@ const MCP_REQUEST = {
     "ASK THE USER FOR ONE OF THEIR MCP SERVERS — one your system prompt lists under MCP SERVERS ON REQUEST, " +
     "configured on their machine but not mounted in this thread. Only when it would materially help the task: " +
     "a desktop-control server for a screenshot of a native window, say.\n\n" +
-    "It registers a question like `ntwinectl ask`, worded by Ntwine: the user allows the server for this thread, " +
+    "It registers a question like `ntwinectl ask`, worded by ntwine: the user allows the server for this thread, " +
     "for every thread in this project, or not at all. Once allowed, its tools (`mcp__<name>__*`) are yours from " +
     "your next turn. Like a question, it is your rest's sign-off and gates `done` until answered; name it under " +
     "`questions:` at later rests, or withdraw it with `ntwinectl unask <id>`.",
@@ -758,7 +758,7 @@ const MCP_REQUEST = {
         type: "string",
         description:
           "One or two sentences the user reads on the card: what the server is for in THIS task. NO \"I\" AND NO " +
-          "\"you\": \"To screenshot the Ntwine desktop window and check the title bar renders.\"",
+          "\"you\": \"To screenshot the ntwine desktop window and check the title bar renders.\"",
       },
     },
     required: ["server", "reason"],
@@ -818,11 +818,11 @@ const DONE = {
 const TITLE = {
   name: "title",
   description:
-    "NAME THIS THREAD on the user's board — only if it has no name yet. Ntwine names every thread at " +
+    "NAME THIS THREAD on the user's board — only if it has no name yet. ntwine names every thread at " +
     "dispatch, and that name is the thread's @handle: the user reads it on the board and types it to " +
-    "point other threads at this one, so it NEVER changes once shown. Ntwine refuses this command on a " +
+    "point other threads at this one, so it NEVER changes once shown. ntwine refuses this command on a " +
     "thread that already has a name and tells you the name; that is the normal answer, not a failure — " +
-    "do not retry it. It only lands on a thread Ntwine could not name.\n\n" +
+    "do not retry it. It only lands on a thread ntwine could not name.\n\n" +
     "NAME THE SUBJECT, NOT THE ACTION: one or two words — \"Shell budgets\", \"Focus mode\", \"ArkType " +
     "perf\" — never \"Fix the shell budget default\". Its kebab-case handle (\"Shell budgets\" is typed " +
     "@shell-budgets) must be at most 20 characters, and no other open thread may carry the same name.",
@@ -851,7 +851,7 @@ const READ_THREAD = {
   name: "read_thread",
   description:
     "READ ANOTHER THREAD by its handle — the kebab-case name the board shows it under (`shell-budgets`, " +
-    "`focus-mode`), in this project or, when no thread here carries it, in another project Ntwine has open. " +
+    "`focus-mode`), in this project or, when no thread here carries it, in another project ntwine has open. " +
     "The user writes these as `@shell-budgets`: \"ask @shell-budgets about " +
     "this\", \"reconcile with @focus-mode\". Write them the same way: wherever you mention another thread " +
     "or a sub-agent, name it by its `@` address, which the board links. Prints that thread's original request, its status line, " +
@@ -878,7 +878,7 @@ const MESSAGE_THREAD = {
   name: "message_thread",
   description:
     "SEND A MESSAGE TO ANOTHER OPEN THREAD by handle (`@shell-budgets`) — in this project, or another " +
-    "project Ntwine has open when no thread here carries the handle — to ask it a " +
+    "project ntwine has open when no thread here carries the handle — to ask it a " +
     "question, to tell it what you are doing and how, or to agree who changes what. It arrives in that " +
     "thread's conversation signed with THIS thread's handle, joining its current turn if it is working and " +
     "waking it if it is resting. Nothing reaches the user.\n\n" +
@@ -920,7 +920,7 @@ const SCHEDULE_MIN_SPACING_MINUTES = 15
 const SCHEDULE = {
   name: "schedule",
   description:
-    "PROPOSE A RECURRING THREAD: a saved prompt Ntwine starts as a FRESH thread of its own on a calendar rule — " +
+    "PROPOSE A RECURRING THREAD: a saved prompt ntwine starts as a FRESH thread of its own on a calendar rule — " +
     "\"every Monday at 9am triage new issues\". Use it when the user asks for something to happen " +
     "regularly (\"do this every Monday\", \"check this daily\"). It is not `ntwinectl goal` (which repeats in THIS " +
     "thread) and not `ntwinectl timer` (one instant, this thread): each run starts with no memory of this conversation, " +
@@ -935,7 +935,7 @@ const SCHEDULE = {
     "BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1. Runs must be at least " + SCHEDULE_MIN_SPACING_MINUTES + "m apart. " +
     "Put the user's own words for when in `--when`. Anything a rule cannot say (\"unless it's a holiday\", " +
     "\"the day after each release\") goes in `--condition`, a short clause each run checks first.\n\n" +
-    "EVERY ANSWER CARRIES AN ECHO built from the rule Ntwine will fire (\"Triage issues · every Monday at 9am\" " +
+    "EVERY ANSWER CARRIES AN ECHO built from the rule ntwine will fire (\"Triage issues · every Monday at 9am\" " +
     "and the next runs). RELAY IT TO THE USER VERBATIM — it is how a mistranslated time gets caught before it " +
     "runs. Use `dry-run` first when you are unsure; it saves nothing.\n\n" +
     "`--model` and `--effort` are REQUIRED, chosen for what ONE RUN must do, exactly as for `ntwinectl spawn-thread` — every " +
@@ -973,11 +973,11 @@ const SCHEDULE = {
   },
 }
 
-// THE HUMAN'S EDITOR, ON DEMAND. The Ntwine extension (packages/vscode) reports what each VS Code / Cursor /
+// THE HUMAN'S EDITOR, ON DEMAND. The ntwine extension (packages/vscode) reports what each VS Code / Cursor /
 // Windsurf window shows over its editor socket, whole, on every change; this reads the window that has
 // THIS project open (server: editor-bridge.ts `editorState`). It is the agent's half of what Claude Code's
 // IDE integration gives its own agent (getCurrentSelection, getOpenEditors, getDiagnostics): without it a
-// human in the Ntwine sidebar who asked "can you see the highlighted code?" was told no, because the only
+// human in the ntwine sidebar who asked "can you see the highlighted code?" was told no, because the only
 // way a selection reached a worker was as a chip the human added by hand. The description is written to
 // be REACHED FOR on the words humans actually use for code they have not pasted.
 const EDITOR = {
@@ -1023,7 +1023,7 @@ const LINK = {
   description: "Register a labeled URL or local file underneath this thread's prompt, alongside agents and shells. " +
     "Use for dev servers, working documents, reports, and downloads the user will need again. " +
     "The same label updates its existing row without duplicating or reordering it. " +
-    "HTTP(S) destinations render as Link; local files render as File and use Ntwine's existing file reader/opener. " +
+    "HTTP(S) destinations render as Link; local files render as File and use ntwine's existing file reader/opener. " +
     "Files must exist. Relative paths resolve from the project root; use absolute paths for worktrees. " +
     "Registration survives rests and restarts, but does not start, monitor, or verify a server. " +
     "It never blocks done or parks the thread. Read registrations with `ntwinectl activity`; remove one with `ntwinectl unlink <id>`.",
@@ -1082,7 +1082,7 @@ const DEADLINE = {
 const WATCH_COMMAND = {
   name: "watch_command",
   description:
-    "WAIT ON AN OUTSIDE CONDITION WITHOUT HOLDING A PROCESS. Give Ntwine a shell command that exits 0 once " +
+    "WAIT ON AN OUTSIDE CONDITION WITHOUT HOLDING A PROCESS. Give ntwine a shell command that exits 0 once " +
     "the thing you are waiting for is true — a package version npm serves, a release run that finished, a " +
     "URL that answers — and the SERVER runs it every `--every` until it does, then wakes you ONCE with " +
     "the command and the end of its output. Nothing of yours runs meanwhile, so your thread can be " +
@@ -1096,7 +1096,7 @@ const WATCH_COMMAND = {
     "functions. A first check runs at registration: exit 0 means the condition already holds and nothing " +
     "is armed, and a command the server cannot run at all (`command not found`) is refused.\n\n" +
     "ONLY ON A THREAD WITH NO PERMISSION CHECKS. The server runs the command with no permission prompt and " +
-    "outside any sandbox, so Ntwine refuses it unless this thread runs in `bypassPermissions` mode with " +
+    "outside any sandbox, so ntwine refuses it unless this thread runs in `bypassPermissions` mode with " +
     "Claude Code's sandbox off, and refuses it on Codex. The refusal says why; wait in a background shell " +
     "then.\n\n" +
     "ONE-SHOT: the first passing check settles it. When `--for` runs out it is cancelled and you are woken " +
@@ -1207,7 +1207,7 @@ async function deadline(args) {
   const leftMs = Date.parse(d.at) - Date.now()
   const left = leftMs > 0 ? `${budgetSpan(leftMs)} left` : `over by ${budgetSpan(-leftMs)}`
   const who = d.setBy === "human" ? "the user (only they can move or clear it)" : "you"
-  return `Deadline: ${d.at} — ${left}. Set ${d.setAt} by ${who}. Ntwine checks in at half-time, at 80%, shortly before it and at it.`
+  return `Deadline: ${d.at} — ${left}. Set ${d.setAt} by ${who}. ntwine checks in at half-time, at 80%, shortly before it and at it.`
 }
 
 /** A span in the house grammar (`42m`, `1h 12m`), for the deadline readout.
@@ -1259,7 +1259,7 @@ async function messageThread(args) {
   const awaitReply = args.await_reply === true || args.await_reply === "true"
   const body = { slug: threadSlug(), handle, message, ...(awaitReply ? { awaitReply: true } : {}) }
   const r = (await callRpc("messageThread", body))?.result
-  if (!r?.sent) return `Not sent — ${r?.refusal ?? "Ntwine did not accept it."}${knownLine(r?.known)}`
+  if (!r?.sent) return `Not sent — ${r?.refusal ?? "ntwine did not accept it."}${knownLine(r?.known)}`
   if (r.delivery === "mailbox") {
     return `Sent to the sub-agent @${r.handle}, signed @${r.from}. It reads it after its next tool call; its answer, if any, is in its report to its own thread.`
   }
@@ -1292,12 +1292,12 @@ async function extendShell(args) {
   const forValue = typeof args.for === "string" ? args.for.trim() : ""
   if (!forValue) throw new Error("`for` is required — a DURATION from now like `30m` or `2h` (max 24h)")
   const result = (await callRpc("extendOwnShell", { slug: threadSlug(), shell, for: forValue }))?.result
-  if (!result?.budgetEndsAt) throw new Error("Ntwine did not confirm the extension")
+  if (!result?.budgetEndsAt) throw new Error("ntwine did not confirm the extension")
   // A clamp is news for the same reason it is on `watch`: a worker told nothing believes it holds time it does not.
   const clamped = result.clampedFrom ? ` Your \`for: ${result.clampedFrom}\` was CAPPED at 24h.` : ""
   return (
     `\`${result.shell}\` (${result.label}): its budget now ends at ${result.budgetEndsAt}.${clamped} ` +
-    "Ntwine will not warn about or stop it before then. Extend again before then if it needs longer; stop it " +
+    "ntwine will not warn about or stop it before then. Extend again before then if it needs longer; stop it " +
     "when you no longer need it."
   )
 }
@@ -1309,7 +1309,7 @@ async function link(args) {
   if (!label || !target) throw new Error("`label` and `target` are required")
   const result = (await callRpc("upsertOwnLink", { slug: threadSlug(), label, target }))?.result
   const saved = result?.link
-  if (!saved?.id) throw new Error("Ntwine did not return a saved link")
+  if (!saved?.id) throw new Error("ntwine did not return a saved link")
   return `Registered ${saved.kind} ${saved.id}: ${saved.label}\n${saved.target}\n\nThis reference stays underneath the prompt. It does not assert a server is running or block completion. Remove it with \`ntwinectl unlink ${saved.id}\`.`
 }
 
@@ -1451,10 +1451,10 @@ async function editor() {
   try {
     result = (await callRpc("editorState", slug ? { slug } : {}))?.result
   } catch (err) {
-    // An Ntwine from before this command answers an unknown procedure with 404; a worker outlives
+    // An ntwine from before this command answers an unknown procedure with 404; a worker outlives
     // restarts, so it can hold this command while the server it talks to does not have it yet.
     if (/HTTP 404/.test(err instanceof Error ? err.message : String(err))) {
-      return `The running Ntwine cannot read the editor yet: it predates this command. Restart Ntwine to enable this. Until then: ${EDITOR_FALLBACK}`
+      return `The running ntwine cannot read the editor yet: it predates this command. Restart ntwine to enable this. Until then: ${EDITOR_FALLBACK}`
     }
     throw err
   }
@@ -1463,14 +1463,14 @@ async function editor() {
   if (!windows.length) {
     if (!connected) {
       return (
-        "No editor is connected to Ntwine, so there is nothing to read: the user is not running VS Code, " +
-        `Cursor or Windsurf with the Ntwine extension. ${EDITOR_FALLBACK}`
+        "No editor is connected to ntwine, so there is nothing to read: the user is not running VS Code, " +
+        `Cursor or Windsurf with the ntwine extension. ${EDITOR_FALLBACK}`
       )
     }
     // Which folders those windows have open is not this worker's to read — they are other projects — so
-    // Ntwine says only that they exist (editor-bridge.ts editorState).
+    // ntwine says only that they exist (editor-bridge.ts editorState).
     return (
-      `${connected} editor window${connected === 1 ? " is" : "s are"} connected to Ntwine, but none has this project open, ` +
+      `${connected} editor window${connected === 1 ? " is" : "s are"} connected to ntwine, but none has this project open, ` +
       `so what the user has in front of them is in another project. ${EDITOR_FALLBACK}`
     )
   }
@@ -1545,14 +1545,14 @@ function editorWindowReport(w, checkout) {
   const e = w.editor
   if (!e) {
     return (
-      `${head} has this project open, but it has not reported what it shows: its Ntwine extension predates ` +
-      `this, or it connected a moment ago. Updating the extension (\`nub run vscode:install\` in an Ntwine ` +
+      `${head} has this project open, but it has not reported what it shows: its ntwine extension predates ` +
+      `this, or it connected a moment ago. Updating the extension (\`nub run vscode:install\` in an ntwine ` +
       `checkout) enables it. ${EDITOR_FALLBACK}`
     )
   }
   if (!e.shared) {
     return (
-      `${head} has this project open, but the user turned off sharing their editor with Ntwine ` +
+      `${head} has this project open, but the user turned off sharing their editor with ntwine ` +
       `(the eye over the sidebar's prompt box, the \`ntwine.shareEditorState\` setting), so nothing of it is read. ${EDITOR_FALLBACK}`
     )
   }
@@ -1676,7 +1676,7 @@ function liveLock(path) {
   }
 }
 
-/** The caller's environment names no Ntwine at all — as opposed to naming one that is not answering. */
+/** The caller's environment names no ntwine at all — as opposed to naming one that is not answering. */
 class NoNtwineState extends Error {}
 
 /**
@@ -1684,7 +1684,7 @@ class NoNtwineState extends Error {}
  *
  * NTWINE_STATE_DIR is the explicit one. NTWINE_PERM_DIR is `<state dir>/perm-requests` (project.ts
  * `permDir`) and has been in every Claude worker's environment since long before the command line
- * existed — so a shell inside a worker forked by an OLDER Ntwine, which was never handed the state dir,
+ * existed — so a shell inside a worker forked by an OLDER ntwine, which was never handed the state dir,
  * still finds the server through it.
  */
 function projectStateDir() {
@@ -1740,9 +1740,9 @@ function serverLockPort() {
   }
   if (candidates.length === 0) {
     throw new NoNtwineState(
-      "cannot locate the Ntwine server: this environment names no Ntwine state (NTWINE_STATE_DIR, " +
-      "NTWINE_SERVER_LOCK and NTWINE_PERM_DIR are all unset). That is what a shell OUTSIDE an Ntwine worker " +
-      "looks like; inside one it is an Ntwine bug. NOTHING WAS SAVED — this command had no effect.",
+      "cannot locate the ntwine server: this environment names no ntwine state (NTWINE_STATE_DIR, " +
+      "NTWINE_SERVER_LOCK and NTWINE_PERM_DIR are all unset). That is what a shell OUTSIDE an ntwine worker " +
+      "looks like; inside one it is an ntwine bug. NOTHING WAS SAVED — this command had no effect.",
     )
   }
   // SAY THAT NOTHING WAS SAVED, and say to retry. A worker reads "is ntwine running?" as a fact about the
@@ -1783,7 +1783,7 @@ function rpcPath(procedure) {
  * from the tree we are standing in (`<root>/.ntwine/.id`, the same file project-root.ts treats as
  * identity). `spawn_thread`'s `project` argument does not change it either — the call still goes to OUR
  * project, which routes the dispatch to the named one (router spawnTarget), so the choice is checked
- * against the projects Ntwine actually has open rather than trusted from a path.
+ * against the projects ntwine actually has open rather than trusted from a path.
  *
  * The walk-up is what makes this work for a worker spawned by a server that predates the stamp, and it
  * is the honest source anyway: a worker's project is wherever its cwd is, and that cannot go stale.
@@ -1826,7 +1826,7 @@ async function spawnThread(args) {
   // The slug, because that is what this process knows; `message_thread` resolves a slug as it does a handle.
   const parent = process.env.NTWINE_THREAD_SLUG || process.env.NTWINE_THREAD
   const footer = parent
-    ? `\n\n---\nSpawned by the Ntwine thread \`${parent}\`. If this prompt asks for results back, or you find ` +
+    ? `\n\n---\nSpawned by the ntwine thread \`${parent}\`. If this prompt asks for results back, or you find ` +
       `something that thread must know, send it there with \`ntwinectl message-thread ${parent} --message-file <file|->\`.`
     : ""
   /** @type {Record<string, unknown>} */
@@ -1893,7 +1893,7 @@ async function serverLockPortWaiting(deadline = Date.now() + LOCK_RETRY_MS) {
     try {
       return serverLockPort()
     } catch (err) {
-      // No lock to wait FOR is not a restart window: nothing in this environment names an Ntwine, and
+      // No lock to wait FOR is not a restart window: nothing in this environment names an ntwine, and
       // six seconds of retrying would only delay saying so.
       if (err instanceof NoNtwineState || Date.now() >= deadline) throw err
       await new Promise((r) => setTimeout(r, LOCK_RETRY_INTERVAL_MS))
@@ -1928,8 +1928,8 @@ function causeCode(err) {
  * A codex thread narrowed to `workspace-write` or `read-only` cannot open a socket at all, loopback
  * included (measured on codex 0.161.0, `_live_codex_shell_identity.mts`: curl exit 7 against a TCP
  * listener and a unix socket alike), and codex says so in the shell's own environment. "fetch failed"
- * there reads as Ntwine being down, and a worker told that retries — forever, since nothing it can do
- * from inside changes it. Every thread Ntwine creates runs with full access, so this is a thread a human
+ * there reads as ntwine being down, and a worker told that retries — forever, since nothing it can do
+ * from inside changes it. Every thread ntwine creates runs with full access, so this is a thread a human
  * narrowed on purpose.
  */
 function sandboxedOffNetwork() {
@@ -1940,11 +1940,11 @@ function sandboxedOffNetwork() {
 function transportFailure(what, err) {
   if (sandboxedOffNetwork()) {
     return new Error(
-      `${what} could not reach Ntwine: this shell is sandboxed with network access off ` +
-      "(CODEX_SANDBOX_NETWORK_DISABLED=1), and that includes the Ntwine server on this machine. NOTHING " +
-      "WAS SAVED, and no Ntwine command can work from this thread while it stays sandboxed — do not " +
+      `${what} could not reach ntwine: this shell is sandboxed with network access off ` +
+      "(CODEX_SANDBOX_NETWORK_DISABLED=1), and that includes the ntwine server on this machine. NOTHING " +
+      "WAS SAVED, and no ntwine command can work from this thread while it stays sandboxed — do not " +
       "retry. Say what you needed in your final message, and say there that this thread needs full " +
-      "access before an Ntwine command can run.",
+      "access before an ntwine command can run.",
     )
   }
   if (causeCode(err) === "ECONNREFUSED") {
@@ -2040,8 +2040,8 @@ function threadSlug() {
     // which one the worker had actually called, and sent at least one worker off debugging the wrong
     // thing after `title` failed on a codex thread.
     throw new Error(
-      "Ntwine could not tell which thread is calling (neither NTWINE_THREAD_SLUG nor NTWINE_THREAD is in this environment), so it cannot " +
-      "act on the caller's own thread. Inside an Ntwine worker this is an Ntwine bug — report it rather than " +
+      "ntwine could not tell which thread is calling (neither NTWINE_THREAD_SLUG nor NTWINE_THREAD is in this environment), so it cannot " +
+      "act on the caller's own thread. Inside an ntwine worker this is an ntwine bug — report it rather than " +
       "working around it. Outside one there is no thread to act on.",
     )
   }
@@ -2428,7 +2428,7 @@ async function unwatch(args) {
   if (id.startsWith("cmw_")) {
     const dropped = (await callRpc("dropOwnCommandWatch", { slug, id }))?.result
     const head = dropped?.dropped
-      ? `Command watch ${id} dropped. Ntwine will not run it again, and it will not wake you.`
+      ? `Command watch ${id} dropped. ntwine will not run it again, and it will not wake you.`
       : `No ARMED command watch ${id} on this thread — it already passed, expired or was cancelled, or the id is not one of yours.`
     return `${head}\n\n${armedCommandWatchList(dropped)}`
   }
@@ -2499,7 +2499,7 @@ async function secret(args) {
   const result = (await callRpc("ask", { slug, questions: [{ question, kind: "question", secret: true, ...(header ? { header } : {}) }] }))?.result
   const registered = Array.isArray(result?.registered) ? result.registered[0] : undefined
   const path = typeof registered?.secretPath === "string" ? registered.secretPath : ""
-  if (!registered?.id || !path) throw new Error("Ntwine did not return the secret's file — this server predates `secret`; restart Ntwine and retry")
+  if (!registered?.id || !path) throw new Error("ntwine did not return the secret's file — this server predates `secret`; restart ntwine and retry")
   // Quoted, because the macOS state dir is `~/Library/Application Support/…` and an unquoted path
   // splits at the space.
   const quoted = `'${path.replace(/'/g, `'\\''`)}'`
@@ -2525,7 +2525,7 @@ async function mcpRequest(args) {
   if (!reason) throw new Error("`reason` is required — say what the server is for in this task")
   const result = (await callRpc("ask", { slug, questions: [{ question: reason, kind: "question", mcp: server }] }))?.result
   const registered = Array.isArray(result?.registered) ? result.registered[0] : undefined
-  if (!registered?.id) throw new Error("Ntwine did not register the request — this server predates `mcp-request`; restart Ntwine and retry")
+  if (!registered?.id) throw new Error("ntwine did not register the request — this server predates `mcp-request`; restart ntwine and retry")
   return (
     `Registered request ${registered.id} for the \`${server}\` MCP server. Rest now: the user's answer wakes you, and if ` +
     `they allow it, its tools (\`mcp__${server}__*\`) are in your registry on that turn.\n\n${openQuestionList(result)}`
@@ -2675,7 +2675,7 @@ async function watchPr(args) {
   const until = result?.expiresAt ? ` until ${result.expiresAt}` : ""
   const head = result?.alreadyArmed
     ? `Already watching ${ref} as ${id}${until} — nothing new was registered, its original expiry stands, and you will be woken once per event.`
-    : `Watching ${ref} as ${id}${until}. Ntwine wakes you when CI passes or fails and on every later ` +
+    : `Watching ${ref} as ${id}${until}. ntwine wakes you when CI passes or fails and on every later ` +
       "review or comment, and the registration survives your turn ending, a compaction and an ntwine restart."
   // A CLAMP IS NEWS. Silently handing back less coverage than was asked for is how a worker comes to
   // rest believing it is watched for a year when it is watched for one day.
@@ -2738,7 +2738,7 @@ async function watchCommand(args) {
     if (!id) throw new Error("`id` is required to drop a command watch — take it from `add` or from `list`")
     const result = (await callRpc("dropOwnCommandWatch", { slug, id }))?.result
     const head = result?.dropped
-      ? `Command watch ${id} dropped. Ntwine will not run it again, and it will not wake you.`
+      ? `Command watch ${id} dropped. ntwine will not run it again, and it will not wake you.`
       : `No ARMED command watch ${id} on this thread — it already passed, expired or was cancelled, or the id is not one of yours.`
     return `${head}\n\n${armedCommandWatchList(result)}`
   }
@@ -2771,16 +2771,16 @@ async function watchCommand(args) {
   }
   const first = result?.firstRun
     ? result.firstRun.outcome === "timeout"
-      ? "Its first check did not finish in time, so Ntwine runs it again now with the full 2m."
+      ? "Its first check did not finish in time, so ntwine runs it again now with the full 2m."
       : `Its first check ${commandRunClause(result.firstRun)}. ${outputTail(result.firstRun.output)}`
-    : "Ntwine runs its first check within the next minute."
+    : "ntwine runs its first check within the next minute."
   // A CLAMP IS NEWS, as on every other `for` — a worker told nothing rests on coverage it does not have.
   const clamps = []
   if (result?.clamped?.every) clamps.push(`\`--every ${result.clamped.every}\` was clamped to ${result.every}`)
   if (result?.clamped?.for) clamps.push(`\`--for ${result.clamped.for}\` was capped at the 7d ceiling`)
   const clamped = clamps.length ? `\n\nYOUR ${clamps.join(", and ")} — what is listed below is what you hold.` : ""
   return (
-    `Watching as ${id}: Ntwine runs it every ${result?.every} until it exits 0, or until ${result?.expiresAt}, and ` +
+    `Watching as ${id}: ntwine runs it every ${result?.every} until it exits 0, or until ${result?.expiresAt}, and ` +
     `then wakes you once with its output. Nothing of yours runs meanwhile.\n\n${first}${clamped}\n\n` +
     `NAME IT IN YOUR \`\`\`awaiting FENCE (\`commands: [${id}]\`, \`status: watching\`) and come to rest. DROP IT ` +
     `when it stops mattering (\`ntwinectl watch-command drop ${id}\`).\n\n${armedCommandWatchList(result)}`
@@ -2907,7 +2907,7 @@ const CLI = {
   },
   goal: {
     group: "Waiting",
-    summary: "Arm, read back or stop the text Ntwine re-sends this thread",
+    summary: "Arm, read back or stop the text ntwine re-sends this thread",
     positional: ["action"],
     examples: [
       "ntwinectl goal get",

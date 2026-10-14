@@ -40,13 +40,13 @@ const ADVICE: Record<string, string> = {
   "name-taken": "that name is already taken — try another",
   "github-required": "claiming a custom name needs a GitHub sign-in — try again and enter the code GitHub shows",
   "github-rejected": "GitHub did not recognise that sign-in — try again",
-  "github-token-scoped": "the registrar accepts only a GitHub sign-in that grants no permissions — update Ntwine and try again",
+  "github-token-scoped": "the registrar accepts only a GitHub sign-in that grants no permissions — update ntwine and try again",
   "github-too-new": "that GitHub account is too new to claim a name",
   "one-name-per-account": "that GitHub account already holds a name — release it first",
   "one-name-per-key": "this machine already holds a name — release it first",
   expired: "this machine's clock is behind the registrar; fix the clock and try again",
   "from-the-future": "this machine's clock is ahead of the registrar; fix the clock and try again",
-  "bad-version": "this version of Ntwine is too old to claim a name — upgrade and try again",
+  "bad-version": "this version of ntwine is too old to claim a name — upgrade and try again",
 };
 
 export class ClaimError extends Error {
@@ -106,7 +106,7 @@ export async function claimName(options: ClaimOptions): Promise<ClaimResult> {
     // A registrar that is down must not read as "your name was rejected" — one is temporary and the
     // other is not, and a person who confuses them goes and picks a different name for no reason.
     throw new ClaimError(
-      `could not reach the Ntwine registrar at ${origin}: ${error instanceof Error ? error.message : error}`,
+      `could not reach the ntwine registrar at ${origin}: ${error instanceof Error ? error.message : error}`,
       "unreachable",
     );
   }

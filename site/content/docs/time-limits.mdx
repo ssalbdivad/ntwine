@@ -3,7 +3,7 @@ title: Time limits
 description: Give a thread a deadline, and it plans for the best result it can hand over by then.
 ---
 
-A **time limit** tells a thread when it needs to be done, like "go until 3:30". Ntwine keeps track of it for you: the agent knows the deadline and plans around it, and the board shows how much time is left.
+A **time limit** tells a thread when it needs to be done, like "go until 3:30". ntwine keeps track of it for you: the agent knows the deadline and plans around it, and the board shows how much time is left.
 
 <Shot src="/img/time-limit.png" width={1600} height={688} alt="A queue card whose header shows a 43m left countdown, with the time-limit panel open: +15m, +30m and +1h, a field for a new limit, and Remove time limit." />
 
@@ -13,7 +13,7 @@ The stopwatch beside the model in the prompt box takes a duration or a clock tim
 
 ## What the agent does with it
 
-The agent is told the deadline and what it means: the job is the best deliverable it can produce by then, not the complete one eventually. It plans so it has something to hand over at any point, and Ntwine reminds it as time runs down, more firmly near the end.
+The agent is told the deadline and what it means: the job is the best deliverable it can produce by then, not the complete one eventually. It plans so it has something to hand over at any point, and ntwine reminds it as time runs down, more firmly near the end.
 
 A sub-agent it starts gets a share of the time that's left, ending before its parent's so the parent can fold the result in.
 

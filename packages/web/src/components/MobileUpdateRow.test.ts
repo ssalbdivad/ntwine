@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SUPERVISOR_STATUS_KEY } from "../api/supervisorStatus.ts"
 import { MobileUpdateRow } from "./SettingsDrawer.tsx"
 
-// The phone Settings page's "Update Ntwine" row, rendered over a seeded status query the way the page
+// The phone Settings page's "Update ntwine" row, rendered over a seeded status query the way the page
 // mounts it. The board gear's dot is the desktop badge rule (RestartNtwineButton.test.ts,
 // showsUpdateBadge); inside Settings the row offers, and dots, any OBSERVED newer version.
 const render = (status: Record<string, unknown> | null) => {
@@ -19,7 +19,7 @@ const row = (html: string) => html.match(/<button[^>]*data-mobile-update-row[^>]
 test("a newer release line or patch: a live row with the version step and a dot on the label", () => {
   for (const [updateVersion, step] of [["0.14.0", "0.13.8 → 0.14.0"], ["0.13.9", "0.13.8 → 0.13.9"]]) {
     const html = render({ updateRestart: true, updateAvailable: true, version: "0.13.8", updateVersion })
-    assert.match(html, />Update Ntwine</)
+    assert.match(html, />Update ntwine</)
     assert.match(html, new RegExp(`data-mobile-update-step[^>]*>${step}<`))
     assert.match(html, /data-mobile-update-row-notification/)
     assert.doesNotMatch(row(html), /disabled=""/)
@@ -33,7 +33,7 @@ test("a newer release line or patch: a live row with the version step and a dot 
 test("ntwine-dev and a registry probe that has not answered: live, but no step and no dot", () => {
   for (const status of [{ updateRestart: true, dev: true }, { updateRestart: true, version: "0.13.8" }]) {
     const html = render(status)
-    assert.match(html, />Update Ntwine</)
+    assert.match(html, />Update ntwine</)
     assert.doesNotMatch(row(html), /disabled=""/)
     assert.doesNotMatch(html, /data-mobile-update-step|data-mobile-update-row-notification/)
   }
@@ -42,9 +42,9 @@ test("ntwine-dev and a registry probe that has not answered: live, but no step a
 test("up to date: a muted, inert row that offers no verb", () => {
   for (const status of [{ updateRestart: true, updateAvailable: false, version: "0.14.0" }, {}]) {
     const html = render(status)
-    assert.match(html, />Ntwine is up to date</)
+    assert.match(html, />ntwine is up to date</)
     assert.match(row(html), /disabled=""/)
-    assert.doesNotMatch(html, /Update Ntwine|Restart Ntwine|data-mobile-update-row-notification|data-mobile-update-step/)
+    assert.doesNotMatch(html, /Update ntwine|Restart ntwine|data-mobile-update-row-notification|data-mobile-update-step/)
   }
 })
 

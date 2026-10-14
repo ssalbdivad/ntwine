@@ -226,7 +226,7 @@ export function registerExtrasFeed(api: Vscode, context: vscode.ExtensionContext
   return {
     problems() {
       const editor = fileEditor()
-      if (!editor) return { ok: false, why: "Open a file to add its problems to Ntwine's prompt box." }
+      if (!editor) return { ok: false, why: "Open a file to add its problems to ntwine's prompt box." }
       const uri = editor.document.uri
       const label = fileLabel(uri.fsPath, api.workspace.asRelativePath(uri, (api.workspace.workspaceFolders?.length ?? 0) > 1))
       const text = problemsText(label, fileProblems(uri))
@@ -238,7 +238,7 @@ export function registerExtrasFeed(api: Vscode, context: vscode.ExtensionContext
         ? { command: captured.command, output: captured.chunks.join(""), ...(captured.exitCode !== undefined ? { exitCode: captured.exitCode } : {}) }
         : api.window.activeTerminal ? await copiedLastCommand() : undefined
       const text = found ? terminalCommandText(found) : undefined
-      return text ? { ok: true, text } : { ok: false, why: "Run a command in VS Code's terminal to add it and its output to Ntwine's prompt box." }
+      return text ? { ok: true, text } : { ok: false, why: "Run a command in VS Code's terminal to add it and its output to ntwine's prompt box." }
     },
     last: () => lastMessage,
   }

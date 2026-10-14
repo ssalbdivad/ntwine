@@ -74,7 +74,7 @@ test("acp-rpc: a well-behaved agent — initialize, session/new with an MCP serv
     // Every update that arrived before the response is already in the list: the fake writes them to
     // stdout ahead of the reply and the reader is one ordered stream.
     assert.deepEqual(kinds(h), [
-      "unknown", // available_commands_update — not one Ntwine renders, classified rather than thrown
+      "unknown", // available_commands_update — not one ntwine renders, classified rather than thrown
       "agent_thought_chunk", "agent_thought_chunk",
       "tool_call", "tool_call_update",
       "agent_message_chunk", "agent_message_chunk",

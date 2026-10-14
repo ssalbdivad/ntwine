@@ -29,7 +29,7 @@ export const SAMPLE = [
   "",
 ].join("\n")
 
-/** The TypeScript error the run asks Ntwine to fix, at line 3 (1-based). */
+/** The TypeScript error the run asks ntwine to fix, at line 3 (1-based). */
 export const BROKEN = ["// A real type error for the quick fix.", "", 'export const count: number = "three"', ""].join("\n")
 
 export interface SeededThread {
@@ -142,7 +142,7 @@ export async function seedSidebarStack(options: { stack: Stack; workspace: Stack
 }
 
 /**
- * A thread working in its OWN git worktree of the workspace, at `.ntwine/worktrees/<slug>` as Ntwine's
+ * A thread working in its OWN git worktree of the workspace, at `.ntwine/worktrees/<slug>` as ntwine's
  * worktree hook makes one — for the run whose window is opened ON that worktree (e2e-sidebar.ts
  * `--worktree`, check c12). No worker: the transcript's `cwd` is the worktree, and that is what the REAL
  * tailer lifts into the thread's `checkout`, exactly as it does for a Claude worker that works there.

@@ -44,11 +44,11 @@ test("the recovery page escapes its target into both the link and the script's d
 test("each recovery variant states its own cause, and both offer the same two ways out", () => {
   const starting = recoveryPage("/")
   const unreachable = recoveryPage("/", "unreachable")
-  assert.match(starting, />Ntwine is restarting</)
-  assert.match(unreachable, />Ntwine is not responding</)
+  assert.match(starting, />ntwine is restarting</)
+  assert.match(unreachable, />ntwine is not responding</)
   for (const page of [starting, unreachable]) {
     assert.match(page, /Try again/)
-    assert.match(page, /Restart Ntwine/)
+    assert.match(page, /Restart ntwine/)
     // Threads outlive a restart because each is its own detached process; an operator staring at this
     // page should not have to guess.
     assert.match(page, /Threads already running are not affected/)

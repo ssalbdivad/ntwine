@@ -13,7 +13,7 @@ import { agentCompletionCall } from "./subAgentCompletion.ts"
 //     WorkingIndicator there; a rested one draws nothing (or the awaiting-background card). "The agent
 //     is not spinning" is therefore already on screen, and the hairline is a second copy of it.
 //   · ABOVE ANOTHER DIVIDER, it restates the divider. Nothing can WAKE an agent that had not come to
-//     rest, so "Agent rested" / "Ntwine asked for a sign-off" is one fact drawn twice — two hairlines
+//     rest, so "Agent rested" / "ntwine asked for a sign-off" is one fact drawn twice — two hairlines
 //     stacked with nothing between them (maintainer 2026-08-13: "we're just getting these back-to-back
 //     hairlines that are kind of unnecessary").
 //

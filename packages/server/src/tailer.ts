@@ -276,7 +276,7 @@ function readTranscriptTail(path: string, size: number, window: number): string 
 
 // IS A BACKGROUND SHELL STILL ALIVE? Asked of the OPERATING SYSTEM, not guessed from age or output.
 //
-// Ntwine spawns none of these processes — Claude/Codex does — and the runtime records no pid anywhere
+// ntwine spawns none of these processes — Claude/Codex does — and the runtime records no pid anywhere
 // ntwine can read (measured 2026-08-19: the task dir holds `<taskId>.output` and nothing else). So until
 // now the ONLY thing that retired a shell was its `<task-notification>`, and one whose process died
 // without emitting one stayed "running" forever: the maintainer's board showed `RUNNING · 2583 MIN` —
@@ -305,7 +305,7 @@ function readTranscriptTail(path: string, size: number, window: number): string 
 // there is no pid to ask about. (On POSIX lsof names its holders, and those pids ARE asked about
 // between probes — see shellProbeTtlMs.)
 //
-// The failure directions are the same as lsof's. A sharing violation is "held" (alive) — an Ntwine
+// The failure directions are the same as lsof's. A sharing violation is "held" (alive) — an ntwine
 // reader with the file open for the drawer momentarily reads as alive, which costs a TTL, never a
 // verdict; any other outcome is "unknown", which is never dead; and only a clean exclusive open of an
 // existing file is "free", i.e. gone. That last one is the only thing that ever demotes a shell.
@@ -350,7 +350,7 @@ const SHELL_PROBE_GRACE_MS = 60_000 // a just-launched shell is alive by constru
 // TTL is still for: a pid the OS has handed to some new process reads alive here, so a recycled pid
 // keeps a dead shell "running" until its full re-probe — the bound this pinning replaced, never worse.
 // A verdict that named no pid (win32's exclusive open, an unknown, a held file whose only holder is
-// Ntwine itself) has nothing to pin, and stands for its whole TTL exactly as before.
+// ntwine itself) has nothing to pin, and stands for its whole TTL exactly as before.
 const SHELL_PROBE_TTL_MAX_MS = 10 * 60_000
 const SHELL_PROBE_TTL_AGE_SHARE = 0.1
 export function shellProbeTtlMs(ageMs: number): number {
@@ -400,7 +400,7 @@ export async function probeShellsAlive(
 }
 
 /** A live verdict, carrying its pids when there are any. A process probing itself is never one of them:
- *  Ntwine holding a file open for the drawer proves nothing about the shell, so it may keep the file
+ *  ntwine holding a file open for the drawer proves nothing about the shell, so it may keep the file
  *  "held" but cannot pin the verdict. */
 function liveVerdict(pids: Iterable<number>): ShellVerdict {
   const own = [...new Set(pids)].filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid)
@@ -3323,7 +3323,7 @@ export interface TailerDeps {
   // The folder a CODEX session runs in (its app-server binding's `cwd`) — what a RELATIVE tool `workdir`
   // is relative to, since Codex resolves it against the turn's own folder. The router's fallback reading
   // (thread-cwd.ts resolveThreadWorkingDir) resolves against the same folder, so the two cannot name
-  // different places for one `workdir`. Absent ⇒ the project root, which is where Ntwine starts a session.
+  // different places for one `workdir`. Absent ⇒ the project root, which is where ntwine starts a session.
   codexSessionCwd?: (threadSlug: string, sessionId: string) => string | undefined
   // The model's context SIZE for a broker Claude session, as the SDK reported it on that session's
   // `result` message (backend/claude-runtime-ingest.ts). It is the only place Claude names the number:
@@ -3703,7 +3703,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // HEADLESS row (broker claude / app-server codex), plus, for a broker row, a probe of its daemon's
   // own pid.
   //
-  // HISTORY, because it is the whole reason the guard below exists. Ntwine used to run each worker in a
+  // HISTORY, because it is the whole reason the guard below exists. ntwine used to run each worker in a
   // terminal of its own and read that terminal's death as the answer. A headless row never had one, so
   // asking that question about one could only ever answer "dead" — the exact trap deriveRuntime
   // (board.ts) and reconcileSessions (context.ts) each refuse by name — and the tailer fell into it at
@@ -4487,7 +4487,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   // needed"). The board lists only LIVE children; this is what `@thread.subAgent` resolves against, in
   // the prompt box's completion and in `read_thread`, once a child has returned as well as while it runs.
   //
-  // Ntwine keeps NO history of its own for this, because the provider already does, durably: every
+  // ntwine keeps NO history of its own for this, because the provider already does, durably: every
   // Claude sub-agent at every depth writes a sidecar (name, dispatch id, parent) and its transcript into
   // the session's flat `subagents/` dir at spawn, and neither is ever deleted — so a child that returned
   // an hour, or a restart, ago is still on disk exactly as it ran, for as long as Claude keeps the
@@ -4878,7 +4878,7 @@ export function createTailer(deps: TailerDeps): Tailer {
   //
   // A RUNNING shell's reading is asked again once a minute. The folder is where its process is NOW — a `cd`
   // inside the command moves it, and the row's tooltip says "Runs in" — and it was taken once and kept for
-  // the shell's life, so a single bad sample (the shell mid-`cd`, or before the pid fix an Ntwine read holding
+  // the shell's life, so a single bad sample (the shell mid-`cd`, or before the pid fix an ntwine read holding
   // the log) could never be corrected. A shell with no answer at all is still asked only a few times.
   // Both maps are keyed by output path, one entry per background shell ever seen, so both are bounded
   // the way the line counter's scan cache is: insertion order, oldest out (a shell that finished long ago

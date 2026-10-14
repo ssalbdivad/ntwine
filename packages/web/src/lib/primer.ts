@@ -5,7 +5,7 @@
  *  vocabulary the reader arrives already fluent in — they have just come from github.com, and the same
  *  mark for the same fact is one less thing to translate. Re-spelling a merged PR in accent-yellow
  *  would make a familiar object unreadable. These references resolve through theme.css's dedicated
- *  Primer palettes: a merged PR stays purple in either appearance, never Ntwine accent-yellow.
+ *  Primer palettes: a merged PR stays purple in either appearance, never ntwine accent-yellow.
  *
  *  WHY IT IS ONE MODULE AND NOT A LITERAL PER CALL SITE. Because it was the latter, and it drifted —
  *  which is the whole bug this file was written for. The hovercard spelled its greens in Primer while

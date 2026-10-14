@@ -3,11 +3,11 @@ title: Remote access
 description: Open your board from a phone or another machine.
 ---
 
-Ntwine binds `127.0.0.1` and doesn't have a login of its own. To reach the board from a phone or another machine, you put something in front of it to carry the traffic. Ntwine then gates the first visit from every device with a single-use sign-in link.
+ntwine binds `127.0.0.1` and doesn't have a login of its own. To reach the board from a phone or another machine, you put something in front of it to carry the traffic. ntwine then gates the first visit from every device with a single-use sign-in link.
 
 ## Set it up
 
-Press <kbd>R</kbd> in the terminal running Ntwine, or open **Settings → Remote access** on that machine, and pick an option:
+Press <kbd>R</kbd> in the terminal running ntwine, or open **Settings → Remote access** on that machine, and pick an option:
 
 ```text
   Reach this board from anywhere
@@ -15,7 +15,7 @@ Press <kbd>R</kbd> in the terminal running Ntwine, or open **Settings → Remote
   ❯ Private name        an unguessable name on ntwine.app — no account, nothing to install
     Cloudflare Tunnel   a domain you own on Cloudflare; cloudflared on this machine
     Tailscale           your tailnet; tailscale serve does the TLS
-    Something else      any proxy or tunnel you run — tell Ntwine its address
+    Something else      any proxy or tunnel you run — tell ntwine its address
     Off                 loopback only  (current)
 ```
 
@@ -39,7 +39,7 @@ The walkthrough checks what each option needs before it accepts it. It also reme
   </Card>
 </Cards>
 
-## Ntwine does the authenticating
+## ntwine does the authenticating
 
 Whichever option you pick, the board stays on loopback. A tunnel or proxy only adds TLS and a hostname. Every request and every socket has to carry a session, and a device that hasn't redeemed a sign-in link is refused no matter what sits in front.
 
@@ -61,11 +61,11 @@ A device can also sign itself out from its own **Settings**. Signing out any oth
 
 ## Every project at once
 
-There's one Ntwine server per machine, so remote access exposes every project on it, not just the one you launched from.
+There's one ntwine server per machine, so remote access exposes every project on it, not just the one you launched from.
 
 ## Staying reachable
 
-While remote access is on and the machine is plugged in, Ntwine keeps it from idle-sleeping, so your board doesn't go dark overnight. Closing the lid or pressing sleep still works.
+While remote access is on and the machine is plugged in, ntwine keeps it from idle-sleeping, so your board doesn't go dark overnight. Closing the lid or pressing sleep still works.
 
 ## Try it without touching your board
 
@@ -73,4 +73,4 @@ While remote access is on and the machine is plugged in, Ntwine keeps it from id
 npx ntwine --sandbox
 ```
 
-This starts a second Ntwine that shares nothing with yours: a throwaway home and project on its own port, deleted on <kbd>Ctrl</kbd><kbd>C</kbd>. Press <kbd>R</kbd> in it and walk through any setup. Your credentials come along, so every screen sees what your real board sees.
+This starts a second ntwine that shares nothing with yours: a throwaway home and project on its own port, deleted on <kbd>Ctrl</kbd><kbd>C</kbd>. Press <kbd>R</kbd> in it and walk through any setup. Your credentials come along, so every screen sees what your real board sees.

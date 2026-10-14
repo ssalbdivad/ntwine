@@ -32,7 +32,7 @@ test("a poll that keeps failing before any reply says so", () => {
 
 test("gone and Codex take their own words", () => {
   assert.equal(agentTerminalEmpty({ state: "gone" }, false, 0), "This terminal is closed.")
-  assert.equal(agentTerminalEmpty({ state: "running", outputUnavailable: true }, false, 0), "Codex hands this command's output to the agent when it checks in, so Ntwine can't show it here.")
+  assert.equal(agentTerminalEmpty({ state: "running", outputUnavailable: true }, false, 0), "Codex hands this command's output to the agent when it checks in, so ntwine can't show it here.")
 })
 
 // ONE ORDER FOR ONE SHELL'S TWO NUMBERS, on every surface: the budget, then the age (the strip's and the
@@ -57,7 +57,7 @@ test("the reading's parts give way whole, and a narrow header drops a `running` 
   assert.match(html, /<span class="min-w-0 truncate @max-\[28rem\]:hidden ">running<\/span><span data-reading-part="true" class="shrink-0"><span class="whitespace-pre @max-\[28rem\]:hidden"> · <\/span>12m left/)
   // Every separator keeps its spaces: each opens a flex item, where a leading space is otherwise collapsed.
   assert.equal([...html.matchAll(/<span class="whitespace-pre[^"]*"> · <\/span>/g)].length, 2)
-  // No Stop (a finished run, a shell Ntwine cannot stop), or a state that is not `running`: the word stays.
+  // No Stop (a finished run, a shell ntwine cannot stop), or a state that is not `running`: the word stays.
   const done = renderToStaticMarkup(createElement(StateReading, { state: "exit 2", tone: "danger", attr: {} }))
   assert.doesNotMatch(done, /@max-\[28rem\]:hidden/)
   const asking = renderToStaticMarkup(createElement(StateReading, { state: "waiting for input", age: "6m", tone: "attention", stopShown: true, attr: {} }))

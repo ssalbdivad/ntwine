@@ -92,13 +92,13 @@ export function StandaloneThreadPage({ slug }: { slug: string }) {
     rpc.threadSeen({ slug }).catch(() => {})
   }, [atRest, slug, thread?.lastActivityAt])
 
-  // "<thread> · owner/repo — Ntwine". The thread title LEADS because a tab truncates from the end and
+  // "<thread> · owner/repo — ntwine". The thread title LEADS because a tab truncates from the end and
   // several of these are usually open on the same repo at once — the thread is what tells them apart.
-  // The workspace identity trails as "owner/repo — Ntwine", the same mark the installed app window uses.
+  // The workspace identity trails as "owner/repo — ntwine", the same mark the installed app window uses.
   useEffect(() => {
     const projectLabel = board?.projectLabel ?? board?.projectName
     const threadLabel = thread ? displayTitle(thread) : slug
-    document.title = projectLabel ? `${threadLabel} · ${projectLabel} — Ntwine` : `${threadLabel} · Ntwine`
+    document.title = projectLabel ? `${threadLabel} · ${projectLabel} — ntwine` : `${threadLabel} · ntwine`
     // An editor's sidebar names it in VS Code's title row instead (lib/embedRoute.ts); a no-op elsewhere.
     // The sidebar reaches this page only by a link to a thread's /full address (one in a transcript, or
     // a `ntwine:navigate`): its own fullscreen door opens the browser instead (ExpandThreadLink.tsx).

@@ -611,7 +611,7 @@
 }
 
 /* THE EDITOR'S COLOURS — the page framed by VS Code (html[data-embed]) wears the editor theme's own
-   colours rather than Ntwine's palette, so the sidebar reads as part of the editor instead of a foreign
+   colours rather than ntwine's palette, so the sidebar reads as part of the editor instead of a foreign
    panel set into it (David 2026-10-02: "match the theme as closely as possible"). The relay reads
    them off its webview document and the page sets each on its root under VS Code's own name
    (`--vscode-sideBar-background`; packages/shared embed-protocol.ts EMBED_THEME_COLORS, lib/theme.ts),
@@ -619,12 +619,12 @@
    attribute, and none of this applies.
 
    What is TAKEN from the theme: the surface (the side bar's background, or the editor's for an editor
-   tab), text, the secondary text, borders, the focus colour (Ntwine's accent IS its focus motif — the
+   tab), text, the secondary text, borders, the focus colour (ntwine's accent IS its focus motif — the
    composer's ring, focused borders, the nav chevron), filled buttons, links, hover, scrollbars. What is
    DERIVED, because themes rarely carry a usable step: the raised surfaces (panel, panel-2, elevated, the
    inset well) are lifted from the surface by a fixed mix — most built-in themes paint their widgets in
    the very colour of the side bar, and the user who asked runs one whose side bar and editor are the same
-   #080d17 — so Ntwine's contrast steps survive any theme. What is KEPT: the semantic status colours (ready,
+   #080d17 — so ntwine's contrast steps survive any theme. What is KEPT: the semantic status colours (ready,
    error, done, needs-you…), the syntax and terminal colours — they carry meaning, and a theme's own
    reds and greens are tuned for code, not for a status dot on its side bar.
 
@@ -685,7 +685,7 @@
 :root[data-embed][data-host-colors="editor"] {
   --host-bg: var(--vscode-editor-background);
 }
-/* Raised surfaces: toward white in both, as Ntwine's own are — a dark theme lifts a little, a light one
+/* Raised surfaces: toward white in both, as ntwine's own are — a dark theme lifts a little, a light one
    whitens (its panels are #fff over a #f7f7f7 page), and the inset well sinks. */
 :root[data-embed][data-host-colors][data-theme="dark"] {
   --ntwine-panel: color-mix(in oklab, var(--ntwine-bg), #ffffff 3%);

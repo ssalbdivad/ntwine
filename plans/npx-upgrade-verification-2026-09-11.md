@@ -7,7 +7,7 @@ The legacy upgrade failure is repaired on local `main` by `aadc92a3`. A real bro
 The published `0.12.10` launcher starts its successor with `--_ntwine-production-reexec --port <n> <projectDir>`. The `0.12.11` receiver rejects the positional directory and exits after the old launcher has drained its server. The previous worker reproduced the resulting permanent connection refusal. The fix removes legacy positionals only in the internal re-exec path; project identity comes from the existing tokenized environment.
 
 - Source: [`reexecArgv`](../src/production-update.ts), its integration in [`production.ts`](../src/production.ts), and [`production-update.test.ts`](../src/production-update.test.ts).
-- Direct negative control against the published `0.12.11` launcher returned exit `1` with “Ntwine takes no repository path” for the old argument shape.
+- Direct negative control against the published `0.12.11` launcher returned exit `1` with “ntwine takes no repository path” for the old argument shape.
 - At verification time, npm `latest` was still `0.12.11`, with `gitHead` `e330dbd174bb5c39720592ca897680e665141f51`. The repair is later than that release. No public package was published by this continuation.
 
 ## Real browser verification
@@ -16,7 +16,7 @@ The test used macOS, Node `26.7.0`, npm `11.19.0`, a disposable project and HOME
 
 | Check | Observed result |
 | --- | --- |
-| Real Update Ntwine button | Sent the update request; HTTP `202` |
+| Real Update ntwine button | Sent the update request; HTTP `202` |
 | Successor readiness | `5.0s` in the final warm-cache run; `7.5s` in the preceding successful run |
 | Browser recovery | Automatic reload onto the same project URL; popover displayed `0.12.12-rescue.1` |
 | Artifact identity | Running launcher's SHA-256 matched the tarball's launcher exactly |
@@ -54,17 +54,17 @@ The reported sequence was a directory change into `~/Documents/code`, followed b
 
 In fnm releases `v1.34.0` through `v1.38.1`, that source location is `std::env::current_dir().unwrap()`. The fnm zsh integration registers a `chpwd` hook that invokes `fnm use --silent-if-unchanged` after a directory change. The evidence therefore points to a post-`cd` child failing to resolve its working directory; it does not show that the shell builtin itself failed. See [fnm's source at the reported line](https://github.com/Schniz/fnm/blob/v1.38.1/src/commands/use.rs#L39-L46) and [its zsh hook](https://github.com/Schniz/fnm/blob/master/src/shell/zsh.rs#L32-L60).
 
-Ntwine's runtime, updater and dependency manifests contain no fnm integration. Ntwine's production updater invokes npm; development and verification use Nub. Replacing the user's fnm hook would not itself restore OS-level filesystem access.
+ntwine's runtime, updater and dependency manifests contain no fnm integration. ntwine's production updater invokes npm; development and verification use Nub. Replacing the user's fnm hook would not itself restore OS-level filesystem access.
 
 ### Ranked hypotheses
 
 1. **macOS privacy denial for Documents access.** The location and `EPERM` fit. Apple distinguishes this from ordinary BSD/ACL denials, which normally report `EACCES`, and documents TCC's dependence on the process responsible for an operation. This remains a hypothesis, not a verified permission revocation. See [Apple's filesystem-permissions explanation](https://developer.apple.com/forums/thread/678819) and [Documents-access policy](https://support.apple.com/guide/security/controlling-app-access-to-files-secddd1d86a6/web).
-2. **Changed permission attribution after the detached update.** The legacy updater demonstrably launches a detached successor. Apple explicitly identifies daemonization as a possible way to break responsible-app attribution. That could explain an upgraded Ntwine process losing protected-folder access. It does not, by itself, explain an independently opened terminal losing access, nor prove that any stored permission was changed.
+2. **Changed permission attribution after the detached update.** The legacy updater demonstrably launches a detached successor. Apple explicitly identifies daemonization as a possible way to break responsible-app attribution. That could explain an upgraded ntwine process losing protected-folder access. It does not, by itself, explain an independently opened terminal losing access, nor prove that any stored permission was changed.
 3. **Other filesystem policy or provider state.** Endpoint-security software can also return `EPERM`; directory relocation or provider problems need a direct check. The supplied message cannot distinguish these cases.
 
 The reviewed updater paths install a new npm cache entry, hand off process ownership, and restart the server. They do not edit shell startup files, invoke fnm, reset TCC, or recursively change Documents permissions. The native-helper permission repair adds executable bits only to node-pty's package-local `spawn-helper`. This source review does not exclude actions taken by other software or workers on the affected machine.
 
-An absent `NTWINE_THREAD_SLUG` in a shell is not sufficient evidence that a thread was lost: it is an identity supplied to the Ntwine MCP subprocess. Confirm an actual MCP error and backend/version before diagnosing it. Current mount code: [`dispatch.ts`](../packages/server/src/dispatch.ts), [`claude-agent-broker-bridge.ts`](../packages/server/src/backend/claude-agent-broker-bridge.ts), and [`codex-mcp.ts`](../packages/server/src/backend/codex-mcp.ts).
+An absent `NTWINE_THREAD_SLUG` in a shell is not sufficient evidence that a thread was lost: it is an identity supplied to the ntwine MCP subprocess. Confirm an actual MCP error and backend/version before diagnosing it. Current mount code: [`dispatch.ts`](../packages/server/src/dispatch.ts), [`claude-agent-broker-bridge.ts`](../packages/server/src/backend/claude-agent-broker-bridge.ts), and [`codex-mcp.ts`](../packages/server/src/backend/codex-mcp.ts).
 
 ### Read-only discriminating check
 

@@ -75,7 +75,7 @@ test("a mermaid fence is a diagram on a done card, in a question's context and o
     assert.equal(await options[2].$$eval(".md-mermaid", (els) => els.length), 0)
     // The info string is matched as the transcript matches it, whatever its case.
     assert.deepEqual(await labels(page, "[data-fixture-uppercase] .md-mermaid"), ["Upper", "Case"])
-    // The transcript's two Markdown asides: a wake Ntwine could not parse into a divider, and a message
+    // The transcript's two Markdown asides: a wake ntwine could not parse into a divider, and a message
     // from another session, whose body mounts when it is opened.
     assert.deepEqual(await labels(page, "[data-fixture-wake] .md-mermaid"), ["Prompt", "Queue", "Card", "Worker"])
     await page.click("[data-fixture-session] [data-session-message-toggle]")
@@ -84,7 +84,7 @@ test("a mermaid fence is a diagram on a done card, in a question's context and o
     // The `.md` reader (FileViewerPanel), where the fence sits between a paragraph and a real code block
     // that is still code.
     const reader = await labels(page, "[data-fixture-reader] .md-body > .md-mermaid")
-    assert.ok(["Worker", "Ntwine", "Human", "ask(question)", "wake"].every((word) => reader.includes(word)), reader.join(" | "))
+    assert.ok(["Worker", "ntwine", "Human", "ask(question)", "wake"].every((word) => reader.includes(word)), reader.join(" | "))
     assert.equal(await page.$eval("[data-fixture-reader] code.language-typescript", (el) => el.textContent), "await ask({ question })\n")
     // Its Rendered ⇄ Source toggle takes the rendered document out of the page and puts it back with the
     // very same markup, unscanned: the source view shows the fence as text, and the way back draws it again.

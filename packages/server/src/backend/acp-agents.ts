@@ -3,11 +3,11 @@ import { access, stat } from "node:fs/promises"
 import { delimiter, isAbsolute, join } from "node:path"
 import { ACP_MODEL_PREFIX, acpAgentIdFromModel, acpModelSlug } from "@ntwine/shared"
 
-// Which ACP agents Ntwine knows how to launch, and which of them this machine actually has.
+// Which ACP agents ntwine knows how to launch, and which of them this machine actually has.
 //
 // ACP agents are PATH-resolved, never provisioned (plans/acp-backend.md, decision 5): the operator
 // installs and logs into `opencode`, `gemini`, `copilot` … with the vendor's own installer and CLI, and
-// Ntwine only needs to know the executable and the argument that puts it into ACP mode. The registry at
+// ntwine only needs to know the executable and the argument that puts it into ACP mode. The registry at
 // github.com/agentclientprotocol/registry is the source for those launch shapes; the ones here are the
 // agents with measurable usage in 2026 (see plans/acp-backend.md) plus the ones that share a binary
 // family with them. Anything else rides `settings.acpAgents`, the same shape, and wins on id collision.
@@ -93,7 +93,7 @@ export function listAcpAgents(custom: readonly AcpAgentInput[] | undefined, env:
 // project switch, so opening another project's thread from the queue stalled `board` and `threadTranscript`
 // behind it — the drawer took ~5s to appear. So the RPC reads this instead: the same answer, found with
 // parallel async stats, memoized per PATH + agent list. A fresh entry is served as is; a stale one is still
-// served at once and re-walked in the background, so an agent installed while Ntwine runs shows up a call
+// served at once and re-walked in the background, so an agent installed while ntwine runs shows up a call
 // later rather than never. The dispatch path keeps the synchronous walk: it resolves ONE agent, once, and
 // needs the answer before it can spawn.
 const AGENT_LIST_TTL_MS = 60_000

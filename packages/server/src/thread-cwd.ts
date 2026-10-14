@@ -6,8 +6,8 @@ import { isDirectory } from "./path-probe.ts"
 
 // WHERE A THREAD IS WORKING NOW — the folder a terminal opened on it starts in (thread-terminals.ts).
 //
-// Ntwine records only where a thread was LAUNCHED (project.ts workDirOf), and that stops being the answer
-// the moment an agent moves: Ntwine deliberately stays out of the worktree decision, so an agent that
+// ntwine records only where a thread was LAUNCHED (project.ts workDirOf), and that stops being the answer
+// the moment an agent moves: ntwine deliberately stays out of the worktree decision, so an agent that
 // wants isolation makes its own worktree (`git worktree add .ntwine/worktrees/x`, Claude Code's
 // EnterWorktree) and works there. A terminal that opened in the project root then ran `npm test` against
 // the wrong checkout — upstream's objection to the standalone Terminal tab. So the terminal asks
@@ -33,7 +33,7 @@ import { isDirectory } from "./path-probe.ts"
 // human sees the result in the terminal dialog and can edit it before anything starts.
 
 // WHERE A SHELL STARTS when its command opens with a `cd`. The launch record's `cwd` is where the SESSION
-// was; `cd <the Ntwine checkout>/packages/web && nubx vite` runs the server somewhere else, and a worktree
+// was; `cd <the ntwine checkout>/packages/web && nubx vite` runs the server somewhere else, and a worktree
 // shell is very often exactly `cd .ntwine/worktrees/x && …`. Deliberately NARROW: one leading `cd` to a
 // literal path, then `&&` or `;`. A bare token with no `$`, backtick, glob or subshell character, or the
 // same wrapped in plain quotes; `~` is the home folder and a relative path resolves against `base`.

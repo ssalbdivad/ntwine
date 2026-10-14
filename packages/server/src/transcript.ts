@@ -192,11 +192,11 @@ export function ntwineDispatchDisplayText(text: string): string | undefined {
 
 // Where cc-worker/hooks/agent-dispatch.mjs's auto-appended helper epilogue begins in a SUB-AGENT's
 // dispatch prompt. The hook adds it to every Agent call a worker makes, so the child's first turn is the
-// worker's task and then two paragraphs of Ntwine's rules for helpers. A reader opening the child — its
+// worker's task and then two paragraphs of ntwine's rules for helpers. A reader opening the child — its
 // drawer, `read_thread thread.child` — wants what it was sent to do; the rules are the same every time.
 const SUBAGENT_EPILOGUE_MARK = "\n---\n[ORCHESTRATION EPILOGUE"
 
-/** The first turn of a sub-agent without Ntwine's helper epilogue, or undefined when it carries none. */
+/** The first turn of a sub-agent without ntwine's helper epilogue, or undefined when it carries none. */
 export function subAgentDispatchDisplayText(text: string): string | undefined {
   const cut = text.indexOf(SUBAGENT_EPILOGUE_MARK)
   return cut === -1 ? undefined : text.slice(0, cut).trimEnd()
@@ -260,7 +260,7 @@ function userProjection(text: string, first: boolean): { displayText?: string; s
   if (peer) return { displayText: peer.body, peerFrom: peer.from }
   const displayText = userDisplayText(text, first)
   // A SPINOFF REQUEST an older build delivered to the parent's worker (parseSpinoffRequest). It is the
-  // human's (they asked for it), but its text was Ntwine's errand for the worker, so the chat draws the
+  // human's (they asked for it), but its text was ntwine's errand for the worker, so the chat draws the
   // human's instructions as the same spinoff card a request drawn from its row gets (withSpinoffCards).
   const spinoff = parseSpinoffRequest(displayText ?? text)
   if (spinoff) return { displayText: spinoff.instructions, spinoff }
@@ -503,7 +503,7 @@ export function peerSessionQueuedKey(deliveredText: string, pendingKeys: Iterabl
 // Parse only the exact, anchored provider shapes and only when the record itself says isSidechain. An
 // ordinary user quoting either phrase remains ordinary text, and main-session isMeta plumbing stays
 // invisible. Returning the authored BODY (not the provider framing) also lets the drawer-steer journal
-// dedupe a future provider record against the exact text Ntwine sent.
+// dedupe a future provider record against the exact text ntwine sent.
 const CLAUDE_COORDINATOR_INSTRUCTION_PREFIX = "The coordinator sent a message while you were working:\n"
 const CLAUDE_COORDINATOR_INSTRUCTION_SUFFIX = "\n\nAddress this before completing your current task."
 const CLAUDE_PEER_INSTRUCTION_PREFIX = "Another Claude session sent a message while you were working:\n"
@@ -1200,7 +1200,7 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
           pushCommandOutput(sourceId, rec.timestamp, output)
           return
         }
-        // A command envelope nothing queued — a command in a session Ntwine did not deliver into, or one
+        // A command envelope nothing queued — a command in a session ntwine did not deliver into, or one
         // whose enqueue scrolled out of the window. Draw what the human TYPED, never the markup.
         if (isCommandEnvelopeOnly(text)) {
           pushUserRecord(out, sourceId, commandEnvelopeQueuedKey(text)!, rec.timestamp, dropCorrection, !drewEvents)
@@ -1910,7 +1910,7 @@ function toolCalls(block: any, turn: { turnModel?: string; turnEffort?: string }
         desc,
         // A background Bash result only acknowledges that the child was launched. Keep the card live
         // until its later task-notification; no launch result can truthfully mean "done".
-        // Shell job control is visible immediately, even though no lifecycle id exists. Current Ntwine
+        // Shell job control is visible immediately, even though no lifecycle id exists. Current ntwine
         // workers reject the attempt before execution; historical calls that escaped the guard remain
         // honestly UNKNOWN instead of folding into an opaque "Ran N tool calls" disclosure.
         backgroundState,
@@ -2729,7 +2729,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
   // Codex encrypts both payloads today, so sequence is the only honest distinction the projection can
   // make. The marker remains useful: it pins the arrival to the exact point in the child's timeline.
   let agentInstructionCount = 0
-  // Codex may omit Ntwine's requested first-final marker, then provide one on a later finalized
+  // Codex may omit ntwine's requested first-final marker, then provide one on a later finalized
   // response. Strip an exact first-line marker from every final so a valid recovery signal never
   // leaks into rendered prose. Ordinary examples remain literal unless they occupy that control slot.
 
@@ -2965,7 +2965,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           sawFinalAnswer = false
           let text = typeof ev.text === "string" ? normalizeNewlines(ev.text).trim() : ""
           // This must run before the general sentinel stripper: the strict complete suffix proves the
-          // title reminder was Ntwine's append, rather than similarly-worded task prose.
+          // title reminder was ntwine's append, rather than similarly-worded task prose.
           if (out.length === 0) text = stripCodexFirstPromptTitleTransport(text)
           text = stripCodexSentinel(text)
           if (!text || isAllInjectedNoise(text)) break
@@ -3031,7 +3031,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           turnReasoning = null
           const first = agentInstructionCount++ === 0
           const text = ev.text || (ev.encrypted
-            ? `${first ? "Task" : "Follow-up"} instructions received. Codex encrypted the message body, so Ntwine can't display it.`
+            ? `${first ? "Task" : "Follow-up"} instructions received. Codex encrypted the message body, so ntwine can't display it.`
             : `${first ? "Task" : "Follow-up"} instructions received.`)
           out.push({
             sourceId,
@@ -3143,10 +3143,10 @@ const MAX_PINNED_BACKGROUND_OPERATIONS = 128
 // boundary rule (pageProjectedTranscript); the latest reader was a blind `slice(-MAX_MESSAGES)`, so the
 // two disagreed about where a turn starts and only the paginated one was right.
 //
-// `role === "user"` alone is not the human — the same trap pageProjectedTranscript documents. Ntwine
+// `role === "user"` alone is not the human — the same trap pageProjectedTranscript documents. ntwine
 // writes as the user (Goal delivery, sign-off reminder, watcher wake), all carrying `wake`; a queued
 // send has not been delivered; `agentInstruction` is a coordinator/peer speaking into a CHILD's
-// user side; and `sessionPeer` is another thread messaging this one. The measured card had 14 user records in its window and 13 of them were Ntwine's own; the
+// user side; and `sessionPeer` is another thread messaging this one. The measured card had 14 user records in its window and 13 of them were ntwine's own; the
 // human's ask sat 13 messages above the head.
 //
 // THE REACH IS ALL-OR-NOTHING. A partial extension buys no anchor and still ships the extra megabyte, so
@@ -4022,9 +4022,9 @@ function stripCodexSentinel(text: string): string {
   return text.replace(/\n*<!--\s*ntwine-session:[^>]*-->\s*$/, "").replace(/\s+$/, "")
 }
 
-// The spawn path appends one of these exact contracts plus the Ntwine-owned discovery sentinel after the
+// The spawn path appends one of these exact contracts plus the ntwine-owned discovery sentinel after the
 // human's task. Strip only that complete suffix from the first projected prompt: similar ordinary prose,
-// or a title-transport sentence without the Ntwine sentinel, remains the user's text.
+// or a title-transport sentence without the ntwine sentinel, remains the user's text.
 function stripCodexFirstPromptTitleTransport(text: string): string {
   const markers = [CODEX_FIRST_FINAL_TITLE_TRANSPORT, CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT]
     .map((transport) => `\n\n${transport}\n\n<!-- ntwine-session:`)
@@ -4661,7 +4661,7 @@ export function pageProjectedTranscript(
   }
   // THE BOUNDARY IS THE HUMAN'S LAST MESSAGE, not merely the last `user` record.
   //
-  // Ntwine writes as the user — a Goal delivery, the sign-off reminder, a watcher wake are all `user`
+  // ntwine writes as the user — a Goal delivery, the sign-off reminder, a watcher wake are all `user`
   // records (`wake: true`, set by the server that composed them). Stopping at one cuts the page in the
   // middle of a stretch the human has never seen, which is the opposite of what this page is for: the
   // reader is opening a card cold and needs everything back to the last thing THEY said (maintainer
@@ -4732,7 +4732,7 @@ function emptyTranscriptPage(source?: TranscriptSourceBinding): TranscriptPage {
 }
 
 // A SPINOFF'S REQUEST, IN THE PARENT'S CHAT. A spinoff sends the parent NOTHING (router.ts `spinoff`):
-// the child is a fork of its session, or a fresh thread on context Ntwine assembled, and either way the
+// the child is a fork of its session, or a fresh thread on context ntwine assembled, and either way the
 // parent's transcript holds no trace of the request. So the card the human expects where they asked is
 // drawn from the spinoff row instead, placed at the instant the human asked, so SpinoffCard renders it
 // linked forward.

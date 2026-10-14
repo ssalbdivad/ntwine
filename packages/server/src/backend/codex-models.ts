@@ -6,7 +6,7 @@ import { defaultCodexHome } from "./codex.ts"
 export { CODEX_MODELS_FALLBACK } from "@ntwine/shared"
 
 // Read the Codex model catalogue + PER-MODEL reasoning-effort options from the local
-// ~/.codex/models_cache.json written by Ntwine's resolved runtime. Two live breakages proved a curated
+// ~/.codex/models_cache.json written by ntwine's resolved runtime. Two live breakages proved a curated
 // primary list untenable: (1) a bare `gpt-5.6` id → Codex 400s (the real ids are
 // gpt-5.6-sol/terra/luna); (2) the effort set is PER-MODEL (sol/terra → low..ultra, luna → …max,
 // 5.5 → …xhigh). `client_version` still has to match because every Codex install shares this one file.
@@ -14,7 +14,7 @@ export { CODEX_MODELS_FALLBACK } from "@ntwine/shared"
 // Schema (codex-cli 0.144.1): { fetched_at, etag, client_version, models: Model[] }. Each Model:
 //   slug (the `-m` id) · display_name · visibility ("list"|"hide" — offer only "list") · priority (int,
 //   sort ASC; 1 = default) · default_reasoning_level (e.g. "medium") · supported_reasoning_levels:
-//   [{effort, description}]. supported_in_api is IGNORED for selection: Ntwine launches Codex app-server,
+//   [{effort, description}]. supported_in_api is IGNORED for selection: ntwine launches Codex app-server,
 //   not the Responses API, so an api=false-but-listed model like gpt-5.3-codex-spark is still selectable.
 
 function cachePath(codexHome: string): string {
@@ -81,9 +81,9 @@ export function parseCodexModelsCache(
   // Every Codex surface on the machine writes this ONE file. An older Codex app or editor can replace
   // the pinned runtime's richer catalogue with its own smaller one at any moment; separate browser
   // tabs then snapshot different lists and a model selected in one reads "unavailable" in the other.
-  // `client_version` makes the writer explicit. Trust only the exact runtime Ntwine launches, retaining
+  // `client_version` makes the writer explicit. Trust only the exact runtime ntwine launches, retaining
   // its last good list across foreign writes; a newer writer is no safer because it may advertise a
-  // model whose minimum client is above Ntwine's pin.
+  // model whose minimum client is above ntwine's pin.
   if (expectedClientVersion && record?.client_version !== expectedClientVersion) return [...previousModels]
   const models = record?.models
   if (!Array.isArray(models)) return [...previousModels]

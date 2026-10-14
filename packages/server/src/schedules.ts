@@ -58,7 +58,7 @@ import { threadNameProblem } from "./thread-names.ts"
 //   · every start of a held row, whoever makes it — so a schedule's run the HUMAN sends early still opens
 //     with the run header and still lands in the history (`startHeldRow`).
 
-/** The owner stamped on a `starting` claim. ONE per process: the global lease means one Ntwine process
+/** The owner stamped on a `starting` claim. ONE per process: the global lease means one ntwine process
  *  per machine, so a claim whose owner is not this value was cut off by a process that is gone. */
 export const SCHEDULE_PROCESS_OWNER = randomUUID()
 
@@ -111,7 +111,7 @@ export interface ScheduleServiceDeps {
   now?: () => number
   owner?: string
   awake?: Pick<AwakeClock, "awakeBetween">
-  /** When this process started serving the project — the post-boot grace and "Ntwine was off". */
+  /** When this process started serving the project — the post-boot grace and "ntwine was off". */
   bootAtMs?: number
   postBootGraceMs?: number
   startCap?: StartCap
@@ -259,7 +259,7 @@ export function createScheduleService(deps: ScheduleServiceDeps): ScheduleServic
       if (!next) return sch
       if (storage.writeSchedule(next, sch.revision, now())) return storage.getSchedule(id)
     }
-    throw new Error("This schedule kept changing while Ntwine wrote it. Try again.")
+    throw new Error("This schedule kept changing while ntwine wrote it. Try again.")
   }
 
   function requireSchedule(id: string): ThreadScheduleRow {
@@ -488,7 +488,7 @@ export function createScheduleService(deps: ScheduleServiceDeps): ScheduleServic
       { holder: SCHEDULES_HOLDER, scheduleRun: { scheduleId: sch.id, snoozedUntil: null, title: numberedTitle(sch.title) } },
     )
     const row = storage.getSession(made.slug)
-    if (!row) throw new Error("Ntwine could not write this run down")
+    if (!row) throw new Error("ntwine could not write this run down")
     const runId = newRunId()
     storage.insertScheduleRun({
       id: runId, schedule_id: sch.id, occurrence_at: nowMs, started_at: null, state: "starting", reason: null,
@@ -518,7 +518,7 @@ export function createScheduleService(deps: ScheduleServiceDeps): ScheduleServic
       const started = row !== undefined && row.session_id === run.session_id && !isHeldRow(row)
       storage.settleScheduleRun(run.id, started
         ? { state: "started", startedAt: run.created_at }
-        : { state: "failed", reason: "Ntwine stopped" })
+        : { state: "failed", reason: "ntwine stopped" })
       // A hard kill can land after the daemon took the prompt but before the row stopped being held, so
       // that session id may have a live worker behind it. Never hand it to the next occurrence: drop the
       // held row and let the pass write the next run down under a fresh session id.
@@ -608,7 +608,7 @@ export function createScheduleService(deps: ScheduleServiceDeps): ScheduleServic
       const newest = since.at(-1)
       const catchUp = newest !== undefined && nowMs - newest <= lateCap(compiled, newest) ? newest : undefined
       const missed = since.length - (catchUp === undefined ? 0 : 1)
-      const cause = dueAt < bootAtMs ? "Ntwine was off"
+      const cause = dueAt < bootAtMs ? "ntwine was off"
         : deps.awake && deps.awake.awakeBetween(dueAt, nowMs) < lateMs - SLEEP_SLACK_MS ? "the computer was asleep"
         : "it was too late to run"
       record(sch, occurrenceAt, "skipped", missed > 0 ? `${cause}; ${missed + 1} runs missed` : cause)

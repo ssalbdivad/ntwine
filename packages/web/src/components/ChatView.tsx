@@ -845,7 +845,7 @@ export interface RuntimeStatusState {
  *  TerminalNetCard) cannot disagree about whether a thread gets it.
  *
  *  It had a second rung, the generic "respond in your external terminal" permission banner, until
- *  upstream 511316d3 (2026-10-10): every thread Ntwine runs is a broker session with no terminal, so that
+ *  upstream 511316d3 (2026-10-10): every thread ntwine runs is a broker session with no terminal, so that
  *  banner could only draw in the gap around an answerable card. A permission block with no card now
  *  reads as the turn in flight it is (`drawsWorking`). */
 export function terminalNetRung(thread: ThreadViewData | undefined): "pending-ask" | null {
@@ -1838,7 +1838,7 @@ export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue
   const board = useBoard()
   const thread = threadBySlug(board, slug)
   const markComplete = useMutation({ mutationFn: () => rpc.markComplete({ slug }) })
-  // The "Ntwine document" header affordance opens .ntwine/<slug>.md (threadBody). Many session threads have
+  // The "ntwine document" header affordance opens .ntwine/<slug>.md (threadBody). Many session threads have
   // no such file — a session thread's working files are its own business — so it would dead-end on
   // "No thread file found". Gate it on the doc actually having body content (same stripFrontmatter the
   // drawer renders through), so it shows iff there's a real doc to open. Shares the drawer's cached query
@@ -3568,7 +3568,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
   const unqueueSlug = useContext(ThreadSlugContext)
   const unqueueSupported = useUnqueueSupported(unqueueSlug)
   const { unqueue, pending: unqueuePending } = useUnqueueFollowUp(unqueueSlug)
-  // A HELD message (sent to the queue) is Ntwine's alone to hand back, on every backend: no provider
+  // A HELD message (sent to the queue) is ntwine's alone to hand back, on every backend: no provider
   // has it. Its own line below carries the same two verbs in words.
   const unqueueable = Boolean(queued && deliveryId && unqueueSlug && (unqueueSupported || held))
   // PUSH IT THROUGH. The other half of what you can do to a message that hasn't been read yet: instead
@@ -3793,7 +3793,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // bubble honors \n but not a lone \r → the breaks collapse into a run-on. Normalize for BOTH render
     // paths (the server does this too, but this is the definitive per-surface guarantee for user text).
     const text = messagePresentationText(m).replace(/\r\n?/g, "\n")
-    // A SCHEDULED RUN'S OPENING (ARCHITECTURE.md § Scheduled threads): Ntwine's header for the worker, then the
+    // A SCHEDULED RUN'S OPENING (ARCHITECTURE.md § Scheduled threads): ntwine's header for the worker, then the
     // schedule's saved prompt. The header is machinery — which occurrence, how late, how to finish quietly
     // — so it folds to one line naming the schedule, and the prompt, which the human wrote, keeps the
     // human's bubble (ScheduledRunOpening).
@@ -3819,7 +3819,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // is the Goal's prompt ends in it too, and picking it off here read every wake held beside it as one
     // Goal line (upstream 14025d09).
     // A message from ANOTHER NTWINE THREAD is delivered as a wake, but it is another agent speaking, so
-    // it takes the agent-message bubble rather than Ntwine's own chrome (AgentMessage.tsx). NtwineWake asks
+    // it takes the agent-message bubble rather than ntwine's own chrome (AgentMessage.tsx). NtwineWake asks
     // this renderer for each part it draws, so one held and merged with other wakes is still a bubble.
     if (m.wake) return <NtwineWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} />
     // A SIDEWAYS writer of a user turn the human didn't type: another top-level thread messaging this
@@ -3834,7 +3834,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // A SPINOFF REQUEST: the human's instructions for a new thread, drawn as the card that links to it.
     // `m.spinoff` is the server's tell (transcript.ts withSpinoffCards).
     if (m.spinoff) return <SpinoffCard id={m.spinoff.id} instructions={m.spinoff.instructions} sourceId={m.sourceId} />
-    // A SPINOFF CHILD'S FIRST TURN: the human's instructions, and the context Ntwine gave it folded
+    // A SPINOFF CHILD'S FIRST TURN: the human's instructions, and the context ntwine gave it folded
     // beneath them — never one bubble holding both, since the context is not the human speaking.
     if (m.spinoffOrigin) return <SpinoffOriginCard instructions={m.spinoffOrigin.instructions} context={m.spinoffOrigin.brief.trim() ? <ProseHtml md={m.spinoffOrigin.brief} wrap /> : null} sourceId={m.sourceId} />
     // `rawText` rides alongside the presentation text because the two differ: the bubble shows the
@@ -4220,7 +4220,7 @@ function visualizationTheme(requestId: number) {
 }
 
 // Codex Visualize emits a thread-local HTML fragment plus this directive. The server resolves the
-// basename against the owning Ntwine session and wraps it in a CSP; this iframe deliberately omits
+// basename against the owning ntwine session and wraps it in a CSP; this iframe deliberately omits
 // allow-same-origin, forms, popups, downloads, and navigation so fragment scripts never inherit the
 // control plane's authority. A tiny postMessage bridge supplies theme tokens and natural height.
 export function InlineVisualization({ file }: { file: string }) {
@@ -4561,7 +4561,7 @@ export function LimitPauseNotice({ pause, onContinue, continuing }: { pause: Non
 export function PermPolicyDenialCard({ policy, denies }: { policy: NonNullable<ThreadViewData["permPolicy"]>; denies?: number }) {
   const what = [policy.tool, policy.command].filter(Boolean).join(": ")
   return (
-    <TranscriptCard tone="caution" icon={AlertTriangle} label="Blocked by Ntwine's permission policy">
+    <TranscriptCard tone="caution" icon={AlertTriangle} label="Blocked by ntwine's permission policy">
       {/* The refused command leads on its own line — it is the thing you actually need to see — and
           the reason follows as prose. The reason is the same text the WORKER was given, so it
           already opens with "Refused:"; prefixing it here too read as a stutter. */}
@@ -4731,7 +4731,7 @@ export function GithubWatchRows({ watches }: { watches: readonly ThreadWatchView
 // deliberately NOT answer-chips: answering a native TUI dialog by keystroke injection is too fragile.
 // It carries NO action at all. It draws for a foreign session only (lib/operatorBlock.ts
 // `frozenPendingAsk`), which the operator is already running in their own terminal: the label says
-// where the answer goes, and Ntwine has no session of its own there to hand them a command for.
+// where the answer goes, and ntwine has no session of its own there to hand them a command for.
 export function PendingAskCard({ ask }: { ask: PendingAsk }) {
   return (
     <TranscriptCard tone="attention" icon={HelpCircle} label="Waiting on your answer — in your external terminal">
@@ -4850,15 +4850,15 @@ function ChildName({ label, subagentType, dispatchId }: { label?: string; subage
   )
 }
 
-// Another Ntwine thread by handle: a link when this project (or another open one) resolves it, the bare
+// Another ntwine thread by handle: a link when this project (or another open one) resolves it, the bare
 // `@handle` when nothing does.
 function ThreadHandleName({ handle }: { handle: string }) {
   const segment = useMentionSegments(`@${handle}`).find((s) => s.kind === "mention")
   return segment?.kind === "mention" ? <MentionLink segment={segment} /> : <span>@{handle}</span>
 }
 
-// THE INCOMING HALF of a thread-to-thread message: a wake carrying another Ntwine thread's words, drawn as
-// that thread speaking (AgentMessage) rather than as Ntwine's own chrome. Handed to NtwineWake, which asks
+// THE INCOMING HALF of a thread-to-thread message: a wake carrying another ntwine thread's words, drawn as
+// that thread speaking (AgentMessage) rather than as ntwine's own chrome. Handed to NtwineWake, which asks
 // it for the whole delivery and for each part of a merged one.
 function threadMessageBubble(text: string, sourceId: string | undefined, at: string | undefined): ReactNode | null {
   const message = parseThreadMessage(text)
@@ -4868,7 +4868,7 @@ function threadMessageBubble(text: string, sourceId: string | undefined, at: str
 }
 
 // THE OUTGOING HALF: this turn calling `SendMessage` (a steer to a child it dispatched, a report up to
-// `main`, a codex follow-up) or `message_thread` (another Ntwine thread). The same component on every
+// `main`, a codex follow-up) or `message_thread` (another ntwine thread). The same component on every
 // surface — the thread's chat and the sub-agent drawer both keep the body now, so there is no longer a
 // reason for the two to differ. The recipient is the child's dispatch DESCRIPTION, resolved server-side
 // (sendTargetLabel/sendDispatchId), because the raw `to` is an agent id that reads as a hash; a codex

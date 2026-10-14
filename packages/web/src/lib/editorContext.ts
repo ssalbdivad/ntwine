@@ -14,20 +14,20 @@ import { basename } from "./paths.ts"
 // nothing ever writes it.
 //
 // And the extension's own state the page shows (`ntwine:host-state`): whether the human shares the editor
-// with Ntwine — the one switch, `ntwine.shareEditorState`, which the bar's eye shows and flips — and whether
-// Alt+K is Ntwine's in this window. And the page's own one-shot exception to that switch: what is in front
+// with ntwine — the one switch, `ntwine.shareEditorState`, which the bar's eye shows and flips — and whether
+// Alt+K is ntwine's in this window. And the page's own one-shot exception to that switch: what is in front
 // right now, left out of the messages by the bar's × until it changes (`leaveOut`).
 
 export interface EditorContextState {
   active: EmbedEditorContextMessage["active"]
   open: EmbedEditorContextMessage["open"]
   /**
-   * The human shares the editor with Ntwine: sends carry the block, agents can read the editor. The
+   * The human shares the editor with ntwine: sends carry the block, agents can read the editor. The
    * extension's setting, as its last `ntwine:host-state` said — or, before one arrives (an extension from
    * before the message), on, as the setting defaults, with the eye this page's alone until a reload.
    */
   share: boolean
-  /** Alt+K in the editor is Ntwine's here (not while Claude Code's extension holds it). */
+  /** Alt+K in the editor is ntwine's here (not while Claude Code's extension holds it). */
   altK: boolean
   /**
    * What the human left out with the bar's × (`leaveOut`), by its `leaveOutKey` — kept while the editor
@@ -167,7 +167,7 @@ export function editorAddChord(platform: Platform): string {
  */
 export function barHints(state: { sending: boolean; selection: boolean; withheld: boolean; chord: string; leftOut?: boolean }): string[] {
   const { sending, selection, withheld, chord, leftOut } = state
-  if (!sending) return selection ? [`Not shared · ${chord} still adds it`, "Not shared"] : ["Not shared with Ntwine", "Not shared"]
+  if (!sending) return selection ? [`Not shared · ${chord} still adds it`, "Not shared"] : ["Not shared with ntwine", "Not shared"]
   // Left out with the ×: what brings it back is the editor moving on, which is what the human will do next
   // anyway — so that is what the hint says, and the ×'s own hover says a click puts it back.
   if (leftOut) return selection ? ["Left out until you select something else", "Left out"] : ["Left out until you switch files", "Left out"]

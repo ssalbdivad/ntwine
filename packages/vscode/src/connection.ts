@@ -1,33 +1,33 @@
-// THE EDITOR SOCKET — this window's one live line to Ntwine (`/_ntwine/editor`, packages/shared
+// THE EDITOR SOCKET — this window's one live line to ntwine (`/_ntwine/editor`, packages/shared
 // editor-protocol.ts; design in ARCHITECTURE.md § VS Code extension).
 //
-// The extension dials out: Ntwine is a singleton with a known way to find it, every editor window is a
+// The extension dials out: ntwine is a singleton with a known way to find it, every editor window is a
 // client of it. Over the socket this window says which folders it has open and whether it has focus,
-// and Ntwine sends it files to open, folders to raise and the projects its folders belong to.
+// and ntwine sends it files to open, folders to raise and the projects its folders belong to.
 //
 // What keeps it honest:
 //   - Discovery runs again before EVERY attempt. The private port behind the restart supervisor moves on
-//     each restart, and an Ntwine started after this window opened has to be found, not remembered.
+//     each restart, and an ntwine started after this window opened has to be found, not remembered.
 //   - The upgrade carries `Origin: http://127.0.0.1:<port>` — the server refuses a socket without one,
 //     and the restart supervisor destroys it without even a status line. That is why this uses the `ws`
 //     package: the WHATWG WebSocket cannot set Origin.
 //   - Backoff from 1s to 30s, jittered so N windows a restart dropped do not stampede it together, and
 //     reset by a `welcome` — not by a bare TCP connect, which a broken server also accepts.
-//   - Silence is a dead link. Ntwine sends `hb` every 15s; 45s without any frame and the socket is torn
+//   - Silence is a dead link. ntwine sends `hb` every 15s; 45s without any frame and the socket is torn
 //     down and dialled again (a sleeping laptop's socket can stay "open" for minutes after the far end
 //     is gone).
-//   - One log line per change of state, not per retry: a window left open on a stopped Ntwine would
+//   - One log line per change of state, not per retry: a window left open on a stopped ntwine would
 //     otherwise write a line every 30s for days.
-//   - Nothing goes out that Ntwine will refuse. A refused hello (4401) is refused again on every redial,
-//     forever, so the folders a window reports are fitted to Ntwine's limits (`fitFolders`) rather than
+//   - Nothing goes out that ntwine will refuse. A refused hello (4401) is refused again on every redial,
+//     forever, so the folders a window reports are fitted to ntwine's limits (`fitFolders`) rather than
 //     sent whole, and the editor's picture is fitted to its byte ceiling (editor-state.ts).
-//   - Nothing goes out that Ntwine does not know. The server closes the socket on a frame it has never
-//     heard of, so the `editor` frame — newer than v1 — goes only to an Ntwine whose welcome names it
-//     (`features`). An older Ntwine simply never hears it, and its agents cannot read the editor. A field
-//     newer than the frame (a selection's `withheld`) is spelled the way that Ntwine's schema takes
+//   - Nothing goes out that ntwine does not know. The server closes the socket on a frame it has never
+//     heard of, so the `editor` frame — newer than v1 — goes only to an ntwine whose welcome names it
+//     (`features`). An older ntwine simply never hears it, and its agents cannot read the editor. A field
+//     newer than the frame (a selection's `withheld`) is spelled the way that ntwine's schema takes
 //     (`forServer`): its schema is strict, so an unknown key would be refused like an unknown frame. The
-//     same for this window's own `features` frame (it can show a thread's changes), sent only to an Ntwine
-//     whose welcome names `review`: the one way Ntwine learns a window can, since the hello reaches every Ntwine.
+//     same for this window's own `features` frame (it can show a thread's changes), sent only to an ntwine
+//     whose welcome names `review`: the one way ntwine learns a window can, since the hello reaches every ntwine.
 //
 // Pure node (no `vscode` import): the host interface is how the window is reached, and the tests drive
 // this against a real `ws` server in-process.
@@ -73,12 +73,12 @@ export interface OpenResult {
 }
 
 export interface ConnectionHost {
-  /** Where Ntwine is now, or undefined; `detail` is for the log. */
+  /** Where ntwine is now, or undefined; `detail` is for the log. */
   discover(): Promise<{ origin: string; detail: string } | undefined>
   /** Everything the hello carries about this window, read at the moment it is sent. */
   hello(): Omit<EditorHello, "t" | "v">
   state(): Omit<EditorState, "t">
-  /** What the window's editor shows, for Ntwine's agents (editor-state-feed.ts). Absent: this host reports none. */
+  /** What the window's editor shows, for ntwine's agents (editor-state-feed.ts). Absent: this host reports none. */
   editor?(): EditorSnapshot
   open(message: EditorOpen): Promise<OpenResult>
   focus(message: EditorFocus): Promise<OpenResult>
@@ -104,19 +104,19 @@ export function describeClose(code: number, reason: string): { reason: string; i
   const said = reason ? ` (${reason})` : ""
   switch (code) {
     case EDITOR_CLOSE.unsupportedVersion:
-      return { reason: "This Ntwine speaks a different version of the editor connection. Update Ntwine or the extension.", incompatible: true }
+      return { reason: "This ntwine speaks a different version of the editor connection. Update ntwine or the extension.", incompatible: true }
     case EDITOR_CLOSE.invalidMessage:
-      return { reason: `Ntwine refused a message from this window${said}.`, incompatible: false }
+      return { reason: `ntwine refused a message from this window${said}.`, incompatible: false }
     case EDITOR_CLOSE.helloRequired:
-      return { reason: `Ntwine expected this window to introduce itself first${said}.`, incompatible: false }
+      return { reason: `ntwine expected this window to introduce itself first${said}.`, incompatible: false }
     case 1000:
-      return { reason: `Ntwine closed the connection${said}.`, incompatible: false }
+      return { reason: `ntwine closed the connection${said}.`, incompatible: false }
     case 1001:
-      return { reason: "Ntwine is restarting.", incompatible: false }
+      return { reason: "ntwine is restarting.", incompatible: false }
     case 1006:
-      return { reason: "The connection to Ntwine dropped.", incompatible: false }
+      return { reason: "The connection to ntwine dropped.", incompatible: false }
     default:
-      return { reason: `Ntwine closed the connection: code ${code}${said}.`, incompatible: false }
+      return { reason: `ntwine closed the connection: code ${code}${said}.`, incompatible: false }
   }
 }
 
@@ -125,16 +125,16 @@ function stateKey(state: Omit<EditorState, "t">): string {
 }
 
 /**
- * Bytes of folder paths one hello or state may carry, encoded. Ntwine refuses any frame but a compose
+ * Bytes of folder paths one hello or state may carry, encoded. ntwine refuses any frame but a compose
  * past 64 KiB (editor-bridge.ts EDITOR_MAX_FRAME_BYTES), and 64 folders of 4096 units each could be
  * 768 KiB of UTF-8. 32 KiB is hundreds of real folders' worth, and leaves the rest of a hello room.
  */
 export const FOLDERS_MAX_BYTES = 32 * 1024
 
 /**
- * The window's folders as Ntwine takes them: none longer than EDITOR_MAX_PATH, at most EDITOR_MAX_FOLDERS,
+ * The window's folders as ntwine takes them: none longer than EDITOR_MAX_PATH, at most EDITOR_MAX_FOLDERS,
  * within FOLDERS_MAX_BYTES, in the workspace's own order — so a multi-root workspace past a limit still
- * connects, with Ntwine knowing its first folders, instead of being refused on every redial.
+ * connects, with ntwine knowing its first folders, instead of being refused on every redial.
  */
 export function fitFolders(folders: readonly string[]): string[] {
   const fitted: string[] = []
@@ -151,8 +151,8 @@ export function fitFolders(folders: readonly string[]): string[] {
 }
 
 /**
- * When this window last had focus, for the hello's `focusedAgoMs`. Ntwine ranks windows by it for an open
- * no folder claims, and every window redials after an Ntwine restart — while the human is in the browser,
+ * When this window last had focus, for the hello's `focusedAgoMs`. ntwine ranks windows by it for an open
+ * no folder claims, and every window redials after an ntwine restart — while the human is in the browser,
  * so none is focused, and without this whichever redialled last would win. Gaining focus and losing it
  * both mean "focused until now", the rule the server applies to a `state` frame. Monotonic, so a clock
  * change cannot make it negative.
@@ -206,15 +206,15 @@ export class EditorConnection {
   #bootId: string | undefined
   #welcomed = false
   #lastState: string | undefined
-  /** The state the hello carried, which becomes `#lastState` once Ntwine welcomes it. */
+  /** The state the hello carried, which becomes `#lastState` once ntwine welcomes it. */
   #helloState: string | undefined
   #lastLogged: string | undefined
   #foldersNote: string | undefined
-  /** What the Ntwine this socket is connected to said it takes beyond v1 (`welcome.features`). */
+  /** What the ntwine this socket is connected to said it takes beyond v1 (`welcome.features`). */
   #features = new Set<string>()
   /** The last `editor` frame sent on this socket, so an unchanged picture is not sent again. */
   #lastEditor: string | undefined
-  /** The Ntwine at this origin answered the socket with a 404: it predates the editor connection, and so the sidebar. */
+  /** The ntwine at this origin answered the socket with a 404: it predates the editor connection, and so the sidebar. */
   #predatesBridge = false
   readonly #composes = new Map<string, { resolve: (value: EditorComposed) => void; timer: NodeJS.Timeout }>()
 
@@ -232,7 +232,7 @@ export class EditorConnection {
     return this.#status
   }
 
-  /** The origin of the Ntwine this window is connected to (welcomed), else undefined. */
+  /** The origin of the ntwine this window is connected to (welcomed), else undefined. */
   get origin(): string | undefined {
     return this.#welcomed ? this.#origin : undefined
   }
@@ -258,7 +258,7 @@ export class EditorConnection {
     this.#teardown(1000, "window closing")
   }
 
-  /** Tell Ntwine this window's folders, focus or open-links setting changed. Unchanged state is not resent. */
+  /** Tell ntwine this window's folders, focus or open-links setting changed. Unchanged state is not resent. */
   sendState(): void {
     if (!this.#welcomed) return
     const state = this.#fitted(this.#host.state())
@@ -267,26 +267,26 @@ export class EditorConnection {
     if (this.#send({ t: "state", ...state })) this.#lastState = key
   }
 
-  /** What the Ntwine this window is connected to takes beyond v1 (its welcome's `features`); undefined while not connected. */
+  /** What the ntwine this window is connected to takes beyond v1 (its welcome's `features`); undefined while not connected. */
   get features(): ReadonlySet<string> | undefined {
     return this.#welcomed ? this.#features : undefined
   }
 
   /**
-   * The Ntwine last dialled answered the editor socket with a 404 — one from before the editor connection,
-   * and so from before the sidebar too. False once any Ntwine welcomes this window.
+   * The ntwine last dialled answered the editor socket with a 404 — one from before the editor connection,
+   * and so from before the sidebar too. False once any ntwine welcomes this window.
    */
   get predatesBridge(): boolean {
     return this.#predatesBridge
   }
 
-  /** Whether the Ntwine this window is connected to takes the editor's picture (its welcome named it). */
+  /** Whether the ntwine this window is connected to takes the editor's picture (its welcome named it). */
   get sharesEditor(): boolean {
     return this.#welcomed && this.#features.has(EDITOR_FEATURES.editorState)
   }
 
   /**
-   * Tell Ntwine what the editor shows now (`host.editor()`), fitted to its ceiling. Only to an Ntwine that
+   * Tell ntwine what the editor shows now (`host.editor()`), fitted to its ceiling. Only to an ntwine that
    * said it takes it; an unchanged picture is not resent.
    */
   sendEditor(): void {
@@ -297,26 +297,26 @@ export class EditorConnection {
     if (this.#send(snapshot)) this.#lastEditor = key
   }
 
-  /** Hand Ntwine something for the page's prompt box; resolves with its `composed` answer. */
+  /** Hand ntwine something for the page's prompt box; resolves with its `composed` answer. */
   compose(item: EditorComposeInput): Promise<EditorComposed> {
     const id = randomUUID()
     if (!this.#welcomed || !this.#send({ t: "compose", id, item })) {
-      return Promise.resolve({ t: "composed", id, ok: false, error: "Ntwine isn't running." })
+      return Promise.resolve({ t: "composed", id, ok: false, error: "ntwine isn't running." })
     }
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.#composes.delete(id)
-        resolve({ t: "composed", id, ok: false, error: "Ntwine didn't answer." })
+        resolve({ t: "composed", id, ok: false, error: "ntwine didn't answer." })
       }, this.#composeTimeoutMs)
       this.#composes.set(id, { resolve, timer })
     })
   }
 
-  /** The window's state with its folders fitted to Ntwine's limits, saying so once when that leaves some out. */
+  /** The window's state with its folders fitted to ntwine's limits, saying so once when that leaves some out. */
   #fitted<T extends { folders: string[] }>(state: T): T {
     const folders = fitFolders(state.folders)
     const note = folders.length < state.folders.length
-      ? `This window has ${state.folders.length} folders; Ntwine takes ${folders.length} of them (at most ${EDITOR_MAX_FOLDERS}, none over ${EDITOR_MAX_PATH} characters), so file links to the rest open elsewhere.`
+      ? `This window has ${state.folders.length} folders; ntwine takes ${folders.length} of them (at most ${EDITOR_MAX_FOLDERS}, none over ${EDITOR_MAX_PATH} characters), so file links to the rest open elsewhere.`
       : undefined
     if (note && note !== this.#foldersNote) this.#host.log.warn(note)
     this.#foldersNote = note
@@ -347,7 +347,7 @@ export class EditorConnection {
     this.#lastState = undefined
     this.#lastEditor = undefined
     this.#features.clear()
-    this.#failComposes("The connection to Ntwine closed.")
+    this.#failComposes("The connection to ntwine closed.")
     if (socket) {
       socket.removeAllListeners()
       // A listener stays on 'error': a socket closed mid-handshake emits one, and an unheard 'error' throws.
@@ -368,7 +368,7 @@ export class EditorConnection {
   #scheduleRetry(incompatible = false): void {
     if (!this.#running) return
     clearTimeout(this.#retryTimer)
-    // An incompatible Ntwine stays incompatible until someone updates it; ask at the slowest pace.
+    // An incompatible ntwine stays incompatible until someone updates it; ask at the slowest pace.
     const delay = incompatible ? this.#maxBackoffMs : backoffDelay(this.#attempt++, this.#minBackoffMs, this.#maxBackoffMs, this.#random)
     this.#retryTimer = setTimeout(() => void this.#dial(), delay)
   }
@@ -377,7 +377,7 @@ export class EditorConnection {
     clearTimeout(this.#silenceTimer)
     this.#silenceTimer = setTimeout(() => {
       if (generation !== this.#generation) return
-      this.#host.log.warn(`Ntwine sent nothing for ${Math.round(this.#silenceMs / 1000)}s; reconnecting.`)
+      this.#host.log.warn(`ntwine sent nothing for ${Math.round(this.#silenceMs / 1000)}s; reconnecting.`)
       this.#lastLogged = undefined
       this.#socket?.terminate()
     }, this.#silenceMs)
@@ -398,12 +398,12 @@ export class EditorConnection {
     try {
       found = await this.#host.discover()
     } catch (error) {
-      this.#host.log.error(`Looking for Ntwine failed: ${(error as Error).message}`)
+      this.#host.log.error(`Looking for ntwine failed: ${(error as Error).message}`)
     }
     if (generation !== this.#generation || !this.#running) return
     if (!found) {
-      const reason = "Ntwine isn't running."
-      this.#logOnce("info", `Ntwine isn't running; looking again shortly.`)
+      const reason = "ntwine isn't running."
+      this.#logOnce("info", `ntwine isn't running; looking again shortly.`)
       if (this.#status.kind !== "offline" || this.#status.reason !== reason) this.#setStatus({ kind: "offline", reason })
       this.#scheduleRetry()
       return
@@ -417,24 +417,24 @@ export class EditorConnection {
     let refusal: string | undefined
 
     socket.on("unexpected-response", (_request, response) => {
-      // An Ntwine from before the editor connection answers the upgrade with a plain 404.
+      // An ntwine from before the editor connection answers the upgrade with a plain 404.
       this.#predatesBridge = response.statusCode === 404
       refusal = response.statusCode === 404
-        ? "This Ntwine has no editor connection yet. Update Ntwine."
-        : `Ntwine refused the connection (HTTP ${response.statusCode}).`
+        ? "This ntwine has no editor connection yet. Update ntwine."
+        : `ntwine refused the connection (HTTP ${response.statusCode}).`
       socket.terminate()
     })
     socket.on("error", (error) => {
       if (generation !== this.#generation) return
       const code = (error as NodeJS.ErrnoException).code
       if (code === "ECONNREFUSED") this.#predatesBridge = false
-      // An Ntwine from before the editor connection, behind its restart supervisor, does not answer the
+      // An ntwine from before the editor connection, behind its restart supervisor, does not answer the
       // upgrade at all: the child drops a path it has no handler for. Measured against one 2026-10-01.
       refusal ??= code === "ECONNREFUSED"
-        ? "Ntwine isn't running."
+        ? "ntwine isn't running."
         : code === "ECONNRESET" || error.message === "socket hang up"
-          ? "Ntwine didn't accept the editor connection. Update Ntwine if this keeps happening."
-          : `Couldn't reach Ntwine: ${error.message}`
+          ? "ntwine didn't accept the editor connection. Update ntwine if this keeps happening."
+          : `Couldn't reach ntwine: ${error.message}`
     })
     socket.on("open", () => {
       if (generation !== this.#generation) return
@@ -450,7 +450,7 @@ export class EditorConnection {
       try {
         message = JSON.parse(data.toString()) as EditorServerMessage
       } catch {
-        this.#host.log.warn("Ntwine sent a frame that is not JSON; ignored.")
+        this.#host.log.warn("ntwine sent a frame that is not JSON; ignored.")
         return
       }
       void this.#receive(message, generation, origin, detail)
@@ -464,7 +464,7 @@ export class EditorConnection {
       this.#lastState = undefined
       this.#lastEditor = undefined
       this.#features.clear()
-      this.#failComposes("The connection to Ntwine closed.")
+      this.#failComposes("The connection to ntwine closed.")
       const closed = refusal && !wasWelcomed ? { reason: refusal, incompatible: false } : describeClose(code, buffer.toString())
       this.#logOnce(closed.incompatible ? "error" : "warn", `${closed.reason}${refusal && !wasWelcomed ? "" : ` [${code}]`}`)
       this.#setStatus(closed.incompatible ? { kind: "incompatible", reason: closed.reason } : { kind: "offline", reason: closed.reason })
@@ -484,12 +484,12 @@ export class EditorConnection {
         this.#lastLogged = undefined
         this.#features = new Set(Array.isArray(message.features) ? message.features.filter((feature): feature is string => typeof feature === "string") : [])
         this.#lastEditor = undefined
-        const blind = this.#host.editor && !this.#features.has(EDITOR_FEATURES.editorState) ? "; this Ntwine is too old for its agents to read the editor, so update it" : ""
-        this.#host.log.info(`Connected to Ntwine at ${origin} (${detail})${restarted ? "; Ntwine restarted since the last connection" : ""}${blind}.`)
+        const blind = this.#host.editor && !this.#features.has(EDITOR_FEATURES.editorState) ? "; this ntwine is too old for its agents to read the editor, so update it" : ""
+        this.#host.log.info(`Connected to ntwine at ${origin} (${detail})${restarted ? "; ntwine restarted since the last connection" : ""}${blind}.`)
         this.#setStatus({ kind: "connected", origin, bootId: message.bootId })
-        // What this window can do beyond v1, to an Ntwine that takes the frame (see the header).
+        // What this window can do beyond v1, to an ntwine that takes the frame (see the header).
         if (this.#host.review && this.#features.has(EDITOR_FEATURES.review)) this.#send({ t: "features", features: [EDITOR_FEATURES.review] })
-        // Anything that changed between the hello and the welcome, and the editor's picture: an Ntwine that
+        // Anything that changed between the hello and the welcome, and the editor's picture: an ntwine that
         // just (re)started knows nothing of it.
         this.sendState()
         this.sendEditor()
@@ -524,14 +524,14 @@ export class EditorConnection {
       case "hb":
         return
       default:
-        // A newer Ntwine may say things this version does not know; ignoring them is the compatible answer.
+        // A newer ntwine may say things this version does not know; ignoring them is the compatible answer.
         return
     }
   }
 }
 
 /**
- * The frame as THIS Ntwine's schema takes it. A server from before `withheld` (its welcome does not name
+ * The frame as THIS ntwine's schema takes it. A server from before `withheld` (its welcome does not name
  * EDITOR_FEATURES.selectionWithheld) refuses the key, so a withheld selection goes to it as one whose text
  * did not fit — `truncated`, no text — which still keeps the text home, and its agents are told to read the
  * file if they need it.

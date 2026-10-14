@@ -31,7 +31,7 @@ import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 //     `editors` event. The settings drawer marks the Local file links editor that has a window behind it.
 //  2. THE FIRST-CONNECTION OFFER — the first time this browser sees an accepting VS Code or Cursor window
 //     while its code files go elsewhere, a toast offers to send them there. Once per editor per browser.
-//  3. PROMPT-BOX INSERTS — "Add to Ntwine prompt" in an editor leaves an item on the server and pings every
+//  3. PROMPT-BOX INSERTS — "Add to ntwine prompt" in an editor leaves an item on the server and pings every
 //     page (`compose-pending`). The page the human is LOOKING AT claims it (`composeTake`, first caller
 //     wins) and puts it in the box in front of them — on the ping when it has focus, else on the focus
 //     that follows (the human switching from their editor to this tab), and once at boot. There is no
@@ -255,7 +255,7 @@ async function insertComposeItem(item: EditorComposeItem): Promise<void> {
  * Which box an editor's item goes into (embed-protocol.ts `ntwine:compose`): "front" is the box in front
  * of the human — the open thread's reply box, else the new-thread box; "new" the new-thread box, whatever
  * is open; `{ thread, project }` that thread's reply box, its drawer opened first. `focus` puts the caret
- * there; false leaves focus where it is (in the editor, for "Add to Ntwine prompt" from its sidebar).
+ * there; false leaves focus where it is (in the editor, for "Add to ntwine prompt" from its sidebar).
  *
  * `{ box }` is the page's own: the box whose context bar asked for this item (lib/editorContext.ts
  * `requestEditorContext`), which the host's answer — aimed at "front" — is routed back to. `note` is
@@ -275,7 +275,7 @@ export type ComposeOutcome = { ok: true } | { ok: false; reason: string }
  * and one the sidebar's extension posted (lib/embedHost.ts). The chip is the ⌘I token composeEdit
  * builds, spliced at the END of the box's prose — a chip boundary, never inside a word being typed — and
  * staged under the same draft key, so the box renders and sends it exactly as a selection made in
- * Ntwine's own viewer.
+ * ntwine's own viewer.
  *
  * On the phone layout — which is also every sidebar's — the new-thread box lives in a sheet that is
  * closed until opened, so an item for it opens the sheet: an insert nobody can see reads as one that
@@ -292,7 +292,7 @@ export async function composeInto(item: EditorComposeInput, request: ComposeRequ
   if (named) {
     const shown = () => threadInFront()?.slug === named.thread && projectSlug() === named.project
     if (!shown()) {
-      if (!(await threadIsThere(named.thread, named.project))) return { ok: false, reason: "That thread isn't in Ntwine." }
+      if (!(await threadIsThere(named.thread, named.project))) return { ok: false, reason: "That thread isn't in ntwine." }
       store.showSettings = false
       store.phoneNewThread = null
       // The thread's drawer is about to be what the human sees, so nothing may sit over it.
@@ -441,7 +441,7 @@ async function readComposeProjects(): Promise<ComposeProject[] | null> {
 
 /**
  * Show the box the item went into, with the page's own verbs: focused elsewhere, focus its project (the
- * switcher's navigation, so Back undoes it); showing All projects, make it the pick (the picker's — a
+ * dock's navigation, so Back undoes it); showing All projects, make it the pick (the picker's — a
  * drawer open on the page binds it to the drawer's project, so aiming the box goes home). Resolves once
  * the page shows that project, so the next item in the same claim sees where the page now is.
  */

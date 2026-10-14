@@ -88,7 +88,7 @@ export function threadProfileOptions(
       })),
     }
   }
-  // An ACP agent's model is chosen inside the agent (its own config options), so Ntwine offers no profile
+  // An ACP agent's model is chosen inside the agent (its own config options), so ntwine offers no profile
   // for it — except a thread on a picker preset, which can move between its agent's presets and their
   // efforts. Nothing rather than a failed RPC otherwise.
   if (backend === "acp") {

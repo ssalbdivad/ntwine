@@ -331,7 +331,7 @@ function CustomSnoozeView({ thread, back, dismiss }: { thread: ThreadView; back:
           className="w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-[16px] leading-[22px] text-fg outline-none placeholder:text-muted-50 focus:border-border-strong"
         />
         <p className="text-[12.5px] text-muted">
-          {prompt.trim() ? "Ntwine will resume this thread with the prompt at the wake time." : "Leave it empty to just bring the thread back to your queue."}
+          {prompt.trim() ? "ntwine will resume this thread with the prompt at the wake time." : "Leave it empty to just bring the thread back to your queue."}
         </p>
         {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
         <button
@@ -368,7 +368,7 @@ function GoalView({ thread, back }: { thread: ThreadView; back: () => void }) {
 
 // Everything the worker registered for this thread (the rows ThreadLinks draws under the desktop
 // composer), newest first. A file opens in the reader; a link opens in a new tab — except a link to
-// the machine Ntwine runs on, which from a phone is the phone itself: it says so and opens nothing.
+// the machine ntwine runs on, which from a phone is the phone itself: it says so and opens nothing.
 function FilesView({ thread, back, dismiss, project }: { thread: ThreadView; back?: () => void; dismiss: (then?: () => void) => void; project?: QueuesProject }) {
   const links = [...(thread.links ?? [])].reverse()
   return (

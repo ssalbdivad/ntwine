@@ -143,7 +143,7 @@ test("reorderWorkspaces: Home holds the place it is dragged to, and later arriva
   }
 })
 
-// The split the whole feature rests on: agents run in the home folder, the board lives in Ntwine's
+// The split the whole feature rests on: agents run in the home folder, the board lives in ntwine's
 // state directory. `dir` being the home folder would make a worker's `.ntwine/threads/…` be `~/.ntwine`,
 // which the next boot reads as the legacy data root.
 test("homeWorkspaceProject: the board is in Home's state dir, the agents in the folder", () => {

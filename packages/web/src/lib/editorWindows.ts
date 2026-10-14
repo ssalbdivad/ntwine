@@ -24,7 +24,7 @@ export function connectedOpeners(windows: readonly EditorWindowSummary[]): Set<E
 }
 
 /**
- * Where a click on a code file goes: the Local file links app ("editor") or Ntwine's reader ("ntwine").
+ * Where a click on a code file goes: the Local file links app ("editor") or ntwine's reader ("ntwine").
  * The app exactly while it is VS Code or Cursor with a window connected that takes opens
  * (connectedOpeners) — a connected editor is proof the app is there, on this machine, and that its owner
  * installed something whose whole job is to take these clicks — and the reader otherwise. Never the app
@@ -46,7 +46,7 @@ export function codeFilesDestination({ windows, opener, phone, remote }: {
  * The editor to offer code files to, or null. Offered when a window of that editor is connected and
  * accepting, code files do not already go there (Local file links is not that editor —
  * codeFilesDestination), it has never been offered here before, and the page is neither the phone
- * layout nor a remote-access session: a device reaching this Ntwine over a tunnel should not be asked to
+ * layout nor a remote-access session: a device reaching this ntwine over a tunnel should not be asked to
  * send its clicks to an editor on the desk, where an open lands in a window it cannot see. Phone width alone stood in
  * for "remote" until review C8, so a laptop on the tunnel was asked. Windows are taken in the order the
  * server lists them, so two editors connecting at once are offered one at a time.

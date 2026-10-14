@@ -27,7 +27,7 @@ let hostTheme: ResolvedTheme | undefined
 // …and its COLOURS, while the editor sends them (`ntwine.matchEditorTheme`, on by default): each one set on
 // the root as the custom property VS Code itself names it (`--vscode-sideBar-background`), and the root
 // marked `data-host-colors="<surface>"`, which is what theme.css § The editor's colours keys on to map them
-// onto Ntwine's own tokens. Values arrive checked (embed.ts parsePalette), so a property is never anything
+// onto ntwine's own tokens. Values arrive checked (embed.ts parsePalette), so a property is never anything
 // but a colour. Cleared when a theme message comes without them: the setting turned off.
 
 // Three tokens hang on a contrast no theme promises (lib/hostPalette.ts says which and why): those are
@@ -106,7 +106,7 @@ export function setThemePreference(preference: ThemePreference) {
 
 /**
  * The editor framing this page changed its theme (lib/embedHost.ts): apply it, for this session only —
- * its kind, and its colours when it sent them (none: Ntwine's own palette).
+ * its kind, and its colours when it sent them (none: ntwine's own palette).
  */
 export function setHostTheme(theme: ResolvedTheme, palette?: HostPalette): void {
   hostTheme = theme

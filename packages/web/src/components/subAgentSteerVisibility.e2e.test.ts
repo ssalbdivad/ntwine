@@ -4,7 +4,7 @@ import test from "node:test"
 const baseUrl = process.env.NTWINE_SUBAGENT_STEER_VISIBILITY_E2E_URL
 const screenshotBase = process.env.NTWINE_SUBAGENT_STEER_VISIBILITY_SCREENSHOT
 
-test("the sub-agent drawer shows native follow-up arrivals and exact Ntwine-authored steers", {
+test("the sub-agent drawer shows native follow-up arrivals and exact ntwine-authored steers", {
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
@@ -27,7 +27,7 @@ test("the sub-agent drawer shows native follow-up arrivals and exact Ntwine-auth
     await page.waitForSelector("[data-transcript-column]")
 
     const transcript = await page.$eval("[data-transcript-column]", (element) => (element as HTMLElement).innerText)
-    assert.match(transcript, /Follow-up instructions received\. Codex encrypted the message body, so Ntwine can't display it\./)
+    assert.match(transcript, /Follow-up instructions received\. Codex encrypted the message body, so ntwine can't display it\./)
     assert.match(transcript, /Focus the second pass on the queue divider semantics\./)
     assert.match(transcript, /Check the storage deletion path too, then rerun the focused tests\./)
     assert.ok(
@@ -36,7 +36,7 @@ test("the sub-agent drawer shows native follow-up arrivals and exact Ntwine-auth
     )
     assert.ok(
       transcript.indexOf("I received the follow-up") < transcript.indexOf("Focus the second pass"),
-      "the exact Ntwine-authored steer stays after the response to the native follow-up",
+      "the exact ntwine-authored steer stays after the response to the native follow-up",
     )
     assert.ok(
       transcript.indexOf("Focus the second pass") < transcript.indexOf("Check the storage deletion path"),

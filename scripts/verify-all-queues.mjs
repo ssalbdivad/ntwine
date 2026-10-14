@@ -9,7 +9,7 @@
 // prompt box's pick), so the page-level client (`rpc`) means that project there, and a slug is unique only
 // within a project — an action wired to the wrong client either fails against the page's project or,
 // worse, succeeds on its namesake. So the page is bound to the launcher (reached the way a person reaches
-// it: the project's board, `/project/<slug>`, then the switcher's All projects, which carries the project
+// it: the project's board, `/project/<slug>`, then the dock's All, which carries the project
 // over as the pick), every write is taken on a TENANT's card (where the page client would be wrong), and
 // the same-slug pair the seed plants (`fix-flaky-login-test`, in the launcher AND a tenant) is checked from
 // both sides — from the cards, and from a tenant's drawer opened in place.
@@ -199,13 +199,12 @@ try {
   }
   // All projects, reached the way a person reaches it: the project's board, `/project/<slug>` (the
   // launcher's own landing was `/?project=<slug>` from 2026-09-29, and `/` from 2026-09-30) — then the
-  // status row's switcher, whose All projects keeps that project as the prompt box's pick (AllQueues.tsx
-  // Switcher).
+  // dock's All, which keeps that project as the prompt box's pick (AllQueues.tsx
+  // useChooseView).
   const allFrom = async (slug) => {
     await page.goto(`${origin}/project/${slug}`, { waitUntil: "networkidle2" })
-    await page.waitForSelector('[data-status-row] [data-xq-switcher="project"]', { timeout: 30_000 })
-    await clickSettled("[data-status-row] [data-xq-switcher]")
-    await clickSettled('[role="menuitem"][data-value="all-projects"]')
+    await page.waitForSelector("[data-xq-page-title]", { timeout: 30_000 })
+    await clickSettled('[data-tour="dock-all"] [data-xq-lens="All"]')
     await page.waitForFunction((paths) => paths.includes(location.pathname) && location.search === "", { timeout: 15_000 }, ALL_PATHS)
     await page.evaluate(() => { document.documentElement.dataset.theme = "dark" })
     await page.waitForSelector('[data-surface="newComposer"]', { timeout: 30_000 })
@@ -601,7 +600,7 @@ try {
   // board, `/project/<slug>` (`/?project=<slug>` from 2026-09-29 to 2026-10-06). It was a filter on the
   // queue column, held per tab at `/`, from 2026-09-28 until focus mode; before that, each of these doors
   // navigated to `/project/<slug>` too. The doors are a card's
-  // project chip (All projects draws one on every card), the READY header's switcher, and a project row's
+  // project chip (All projects draws one on every card), the dock's square, and a project row's
   // ⋯. What each check reads is the address and whose cards the queue shows:
   // focused, exactly the one project's.
   const focusedTo = async (slug) => {
@@ -618,12 +617,9 @@ try {
     await sleep(400)
     return cardProjects()
   }
-  const switchTo = async (value) => {
-    await clickSettled("[data-status-row] [data-xq-switcher]")
-    await clickSettled(`[role="menuitem"][data-value="${value}"]`)
-  }
+  const switchTo = (value) => clickSettled(value === "all-projects" ? '[data-tour="dock-all"] [data-xq-lens="All"]' : `[data-xq-dock-square="${value}"]`)
 
-  await step("a card's project chip and the switcher each focus the page on it; Back and All projects come back", async () => {
+  await step("a card's project chip and the dock each focus the page on it; Back and All projects come back", async () => {
     await allFrom("billing-worker")
     await page.waitForSelector("[data-xq-card]")
     const everything = await cardProjects()
@@ -637,9 +633,9 @@ try {
     await switchTo("all-projects")
     const cleared = await backToAll(everything.length)
     check(
-      "a card's project chip and the switcher each focus the page on it; Back and All projects come back",
+      "a card's project chip and the dock each focus the page on it; Back and All projects come back",
       only(byChip, "acme-api") && same(widened, everything) && only(byMenu, "marketing-site") && same(cleared, everything),
-      `chip → ${byChip.projects.length} project(s) at ${byChip.path}, Back → ${widened.length}/${everything.length} projects, switcher → ${byMenu.projects.length} project(s) at ${byMenu.path}, All → ${cleared.length} projects`,
+      `chip → ${byChip.projects.length} project(s) at ${byChip.path}, Back → ${widened.length}/${everything.length} projects, dock → ${byMenu.projects.length} project(s) at ${byMenu.path}, All → ${cleared.length} projects`,
     )
   })
 

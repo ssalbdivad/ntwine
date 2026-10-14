@@ -1,6 +1,6 @@
 // Disposable dev control-plane child. The long-lived supervisor forks this process and replaces it
 // whenever server/shared/RPC source changes. Claude and Codex workers are unaffected: each lives in its
-// own detached daemon, which this process neither owns nor forks. It owns only Ntwine's HTTP/Vite/watch/
+// own detached daemon, which this process neither owns nor forks. It owns only ntwine's HTTP/Vite/watch/
 // tailer/storage handles.
 import { projectFromLaunchTarget } from "./project.ts"
 import { existsSync } from "node:fs"

@@ -1,20 +1,20 @@
 # Principles: never break one without explicit confirmation
 
-Colin McDonnell designed Frizz ([colinhacks/frizz](https://github.com/colinhacks/frizz)), the original, and David Blass maintains Ntwine, its standalone continuation. Each line below is a decision one of them made on
+Colin McDonnell designed Frizz ([colinhacks/frizz](https://github.com/colinhacks/frizz)), the original, and David Blass maintains ntwine, its standalone continuation. Each line below is a decision one of them made on
 purpose and has said matters most. **Do not write code, copy, docs or worker-contract text that breaks one unless the
 maintainer has explicitly confirmed it in the current conversation.** If a task seems to need it, that is a question to ask
 first, not a call to make. An approval given for one case does not carry over to the next. Detail lives where each line
 points.
 
 **How a thread hands off (original design; ARCHITECTURE.md § How a thread hands off its state)**
-- The worker's own last word decides its thread's state, and Ntwine only checks it. There is no status field: the final
+- The worker's own last word decides its thread's state, and ntwine only checks it. There is no status field: the final
   message is the interface, and its fence language is the state.
-- Ntwine never answers, withdraws, parks or queues on a worker's behalf. The few deliberate exceptions are listed in
-  § Where Ntwine acts on a clock or with a model, and adding one needs confirmation.
+- ntwine never answers, withdraws, parks or queues on a worker's behalf. The few deliberate exceptions are listed in
+  § Where ntwine acts on a clock or with a model, and adding one needs confirmation.
 - A row beats a sentence. What must outlive a message is registered (`done`, `ask`, `watch`), and a wait always takes the
   awaiting fence.
 - A gate can refuse, and it has no bypass. A parameter on the gated call that skips the gate is not a gate.
-- A question is a row with a lifecycle. It stays open until it is answered, dismissed or withdrawn with `unask`; Ntwine
+- A question is a row with a lifecycle. It stays open until it is answered, dismissed or withdrawn with `unask`; ntwine
   never retracts one by omission.
 - Every queue item can be answered or archived. Nothing enters the queue just to be dismissed, and a running thread never
   enters it.
@@ -31,13 +31,13 @@ points.
   human opened is never taken back. `packages/web/src/sidebarFit.e2e.test.ts` holds it at upstream's heavy load
   (17 projects, ~70 threads).
 - Density over decoration, and few settings.
-- One server serves every project. Nothing Ntwine runs on its own uses a pty or tmux.
-- Ntwine brings no model of its own: the few calls it makes itself (names, status lines, Auto effort,
+- One server serves every project. Nothing ntwine runs on its own uses a pty or tmux.
+- ntwine brings no model of its own: the few calls it makes itself (names, status lines, Auto effort,
   schedule reading) run on the operator's Claude sign-in, each with a `NTWINE_*=0` off-switch.
 
 **Working here (David)**
-- Copy says what the human can do, never how Ntwine works. It is sentence case, and durations use one grammar.
-- Never run unmerged code against the maintainer's live Ntwine data (`~/.local/share/ntwine`). Use a disposable stack (the
+- Copy says what the human can do, never how ntwine works. It is sentence case, and durations use one grammar.
+- Never run unmerged code against the maintainer's live ntwine data (`~/.local/share/ntwine`). Use a disposable stack (the
   `ntwine-stack` skill).
 - Preserve evidence: never delete or rewrite a stored measurement. Experiments are temporary: record the conclusion and
   its numbers, then delete the harness. Keep benchmarks few.
@@ -54,15 +54,15 @@ points.
 
 # Git: how work lands here
 
-**Contributing from your own fork.** Ntwine takes pull requests. Fork the repo, branch, open a PR against `main`, and CI runs on it — see [Contributing](README.md). **Keep "Allow edits by maintainers" checked on every PR you open** (GitHub offers it only on a fork owned by a personal account, not an organization, so fork into your own account), so the maintainer can push a follow-up commit onto your branch; with it cleared the push is rejected, and the follow-up lands on `main` separately after the merge instead of in your PR (maintainer 2026-10-10, on upstream PR #56). `gh pr create` leaves it on unless passed `--no-maintainer-edit`; a PR opened through the REST API needs `"maintainer_can_modify": true` in its `POST /repos/ssalbdivad/ntwine/pulls` body. Nothing else in this section concerns you.
+**Contributing from your own fork.** ntwine takes pull requests. Fork the repo, branch, open a PR against `main`, and CI runs on it — see [Contributing](README.md). **Keep "Allow edits by maintainers" checked on every PR you open** (GitHub offers it only on a fork owned by a personal account, not an organization, so fork into your own account), so the maintainer can push a follow-up commit onto your branch; with it cleared the push is rejected, and the follow-up lands on `main` separately after the merge instead of in your PR (maintainer 2026-10-10, on upstream PR #56). `gh pr create` leaves it on unless passed `--no-maintainer-edit`; a PR opened through the REST API needs `"maintainer_can_modify": true` in its `POST /repos/ssalbdivad/ntwine/pulls` body. Nothing else in this section concerns you.
 
-**Working in the maintainer's own checkout** — which is every agent Ntwine dispatches on that machine, and every sub-agent it dispatches in turn — read [`AGENTS.local.md`](AGENTS.local.md) FIRST and follow it, because the git rules there are strict and this is the most-violated one in the repo: that checkout does NOT use pull requests, at all, ever. Finished work is committed to its local `main`, and `gh pr create` is always the wrong move there. The same file covers committing out of a working tree other agents are editing concurrently, which has its own traps.
+**Working in the maintainer's own checkout** — which is every agent ntwine dispatches on that machine, and every sub-agent it dispatches in turn — read [`AGENTS.local.md`](AGENTS.local.md) FIRST and follow it, because the git rules there are strict and this is the most-violated one in the repo: that checkout does NOT use pull requests, at all, ever. Finished work is committed to its local `main`, and `gh pr create` is always the wrong move there. The same file covers committing out of a working tree other agents are editing concurrently, which has its own traps.
 
 # Cutting a release — `release` is what ships, and a dispatch is what starts it
 
 **Releases belong to ONE dedicated releaser thread, and it is not you unless the maintainer told you to cut one.** Every other thread's job ends when its work is committed to local `main`: land it there, and the releaser picks it up with everything else since the last release. Never cut a release, bump a version in `package.json` or `packages/server-release/package.json`, move or push `release`, or dispatch the workflow on your own initiative — and never OFFER to: no "want me to cut a patch?", no release option in a question, no "this needs a release to reach users" as a follow-up in your handoff. Saying the change is on `main` is the whole report (maintainer 2026-10-11: *"there's a dedicated releaser agent … threads should just get all their stuff merged into main, but never offer to cut releases"*). The procedure below is for that releaser, and for a thread the maintainer explicitly asked to cut one.
 
-Ntwine publishes to npm from the [`release`](.github/workflows/release.yml) branch, never from `main`. `main` moves under you — several agents land on it continuously — so the commit you verified and the one that would publish are routinely different, and a release from `main` carries whatever happened to arrive in between. `main` answers "has this landed?"; `release` answers "has this been VERIFIED and chosen to ship?", and only the second is ever released (maintainer 2026-09-08: *"you can bump these versions and do your own testing independent of whatever's landed on `main`"*). **`release` is a fast-forward pointer into `main`, never a fork.** It holds no commits of its own: you move it to the `main` commit you tested. If it ever needs a non-fast-forward push, stop and look rather than forcing it.
+ntwine publishes to npm from the [`release`](.github/workflows/release.yml) branch, never from `main`. `main` moves under you — several agents land on it continuously — so the commit you verified and the one that would publish are routinely different, and a release from `main` carries whatever happened to arrive in between. `main` answers "has this landed?"; `release` answers "has this been VERIFIED and chosen to ship?", and only the second is ever released (maintainer 2026-09-08: *"you can bump these versions and do your own testing independent of whatever's landed on `main`"*). **`release` is a fast-forward pointer into `main`, never a fork.** It holds no commits of its own: you move it to the `main` commit you tested. If it ever needs a non-fast-forward push, stop and look rather than forcing it.
 
 **No push publishes anything (2026-09-23).** Moving `release` selects the commit; a maintainer's `gh workflow run release.yml --ref release` is what starts a release. A `workflow_dispatch` needs a GitHub session or token carrying write access, which a stolen git push credential does not give — so a credential that can push can no longer ship a package.
 
@@ -101,13 +101,13 @@ you never describe something as driven or verified when it was not.
 2026-08-08, which meant a backend fix had to read the browser rules and a CSS tweak had to read the
 stack rules:
 
-- **`ntwine-stack`** — boot a real, fully-isolated disposable Ntwine (`scripts/adhoc-stack.mjs`), including
+- **`ntwine-stack`** — boot a real, fully-isolated disposable ntwine (`scripts/adhoc-stack.mjs`), including
   the multi-project/tenant case, and seed real state through its own RPC surface.
 - **`headless-browser`** — take the shot without putting a window on the maintainer's screen
   (`scripts/shot.mjs` is the DEFAULT; Chrome DevTools MCP second, and only because this repo forces it
-  headless through its own `.mcp.json` — Ntwine mounts no browser into the workers it dispatches),
+  headless through its own `.mcp.json` — ntwine mounts no browser into the workers it dispatches),
   which states and widths to capture, browser process hygiene (one owned instance per task;
-  never a global close or a broad `pkill`), and how to embed evidence so Ntwine renders it inline.
+  never a global close or a broad `pkill`), and how to embed evidence so ntwine renders it inline.
 - **`real-subsystem-harness`** — for behavior no browser can reach: the broker socket, spawn/exec
   paths, migrations, a detached daemon's environment. Real resource, real function, negative control.
 
@@ -169,14 +169,14 @@ Do not ship "it renders" and wait to be told it looks wrong. If the pattern exis
 (GitHub, Linear, this app's own components), measure the real one and mirror it instead of designing
 from taste.
 
-# Copy says what the human can do, never how Ntwine works
+# Copy says what the human can do, never how ntwine works
 
 A card, banner, toast or empty state tells the operator what is true and what they can do about it — in
 the fewest words that do that. It never recites internal machinery: no worker-contract vocabulary ("done
-card", "registered wait", "sign-off", "handoff", "fence"), no scheduler behaviour ("Ntwine nudges it"), no process
+card", "registered wait", "sign-off", "handoff", "fence"), no scheduler behaviour ("ntwine nudges it"), no process
 mechanics ("the process exited"). Pick the message that is most USEFUL at that moment and stop; the
 mechanism belongs in a code comment. Before: "The worker stopped without a done card, a question or a
-registered wait. Ntwine nudges it for one; a reply here also wakes it." After: a one-line card,
+registered wait. ntwine nudges it for one; a reply here also wakes it." After: a one-line card,
 "Reply to continue." (David 2026-09-29.)
 
 # Copy capitalization: sentence case, never title case
@@ -187,10 +187,7 @@ Every Word (write "Confirm snooze", "Mark as done", "Fix queue focus" — not "C
 Done", "Fix Queue Focus"). Acronyms (PR, CI, API) keep their established casing. When an agent titles a
 thread, the same rule applies.
 
-**"Ntwine" is a proper noun — always capitalize it in prose.** The product is Ntwine; write "Ntwine
-dispatches a worker", never "ntwine dispatches a worker". Lowercase survives only in literal
-identifiers, where it is part of the name: `npx ntwine`, `NTWINE.md`, `.ntwine/`, `~/.ntwine/`,
-`ntwine-<slug>` session names, the `ntwine`/`ntwine-update` CLIs, and the `ntwine:*` skill and sub-agent profile names.
+**The product is always "ntwine", with a lowercase n — even at the start of a sentence or a title (maintainer 2026-10-14).** Never write "Ntwine". Only `NTWINE` in env vars and `NTWINE.md` keeps capitals.
 
 # Durations: ONE grammar, every reading — `40m`, `2h 35m`
 
@@ -201,12 +198,12 @@ Every duration and relative age the product renders uses one spelling, and it is
 - **The canonical statement, with the reasoning, is the header comment of [`packages/web/src/lib/durationLabels.ts`](packages/web/src/lib/durationLabels.ts)**, and a test in that directory pins it as a SHAPE, so a reading that reverts to `40 min`, `12 minutes` or `1hr 5m` fails rather than shipping. Relative ages share one ladder in [`activityTime.ts`](packages/web/src/lib/activityTime.ts) (`ageLadder`) for the same reason: three copies of it had already drifted, and one carried a `0y ago` bug the other two also had.
 - **It reaches past the browser.** The same grammar spells the cadence in a Goal's trailer, the elapsed in a worker's wake header (`you last spoke 3h 12m ago`), the quota chips, the `ntwine --sessions` CLI, and the board CLI's ETA. A worker reads its own duration readings; two vocabularies teach it there are two.
 - **What is NOT unified is the LADDER** — which units a reading climbs to, and how much precision it keeps. A countdown pads and ticks (`3h 05m`), the runtime slot drops seconds past a minute, a tool call keeps them, the GitHub cards stop at `2w` and then give a date. Those are per-surface behaviours with their own documented reasons; only the SPELLING is shared.
-- **The `for:` fence vocabulary is a separate contract that happens to agree.** `30s` / `15m` / `2h` / `3d` is a grammar the worker WRITES and Ntwine PARSES, defined in the worker contract; the card echoes the worker's own token back. It reads identically to the house grammar today, which is a coincidence worth not relying on — a change to one must never be applied to the other by sweep, because restyling the fence breaks the parse and the contract at once.
+- **The `for:` fence vocabulary is a separate contract that happens to agree.** `30s` / `15m` / `2h` / `3d` is a grammar the worker WRITES and ntwine PARSES, defined in the worker contract; the card echoes the worker's own token back. It reads identically to the house grammar today, which is a coincidence worth not relying on — a change to one must never be applied to the other by sweep, because restyling the fence breaks the parse and the contract at once.
 - **Running prose keeps its words.** "expires in 5 minutes" in a help line is a sentence, not a reading. The grammar governs a duration rendered as a VALUE: a column, a chip, a label, a status tail, a countdown, a tooltip.
 
 # ONE server, EVERY project — never one per repo
 
-Ntwine is a SINGLETON. One server on one origin serves every project on the machine, each named by a URL prefix (`/project/<slug>/…`). It ran one server per repo until 2026-08 and the change is recent enough that stale statements survive in comments, docs and muscle memory — `ARCHITECTURE.md` itself still said "One server per repo" in one bullet while explaining the singleton in another, and the README still promised "one server and one tab per repo" (both corrected 2026-08-19).
+ntwine is a SINGLETON. One server on one origin serves every project on the machine, each named by a URL prefix (`/project/<slug>/…`). It ran one server per repo until 2026-08 and the change is recent enough that stale statements survive in comments, docs and muscle memory — `ARCHITECTURE.md` itself still said "One server per repo" in one bullet while explaining the singleton in another, and the README still promised "one server and one tab per repo" (both corrected 2026-08-19).
 
 The practical consequences, because getting these wrong produces working-but-wrong code and copy:
 
@@ -217,29 +214,29 @@ The practical consequences, because getting these wrong produces working-but-wro
 
 # There is NO tmux. Agents are detached broker daemons
 
-Agents ran in tmux panes once, and the vocabulary outlived the transport by weeks: a `tmux_name` column, a `NTWINE_LAUNCH_TMUX_SOCKET` launch variable, hundreds of comments in `router.ts`, `tailer.ts` and `dispatch.ts` narrating a pane, and 53 seed scripts opening a dummy pane nothing read. Every agent that read them eventually told the maintainer that stopping Ntwine was safe "because the agents are in tmux" — wrong, and saying the wrong reason cost real trust. **That vocabulary was swept out on 2026-08-19.** The column is `thread_name`, the launch variable is gone, no script execs or installs tmux, and `packages/server/src/tmux.ts` has not existed since 2026-08-02. Check it in ten seconds with `grep -rn tmux --include='*.ts' packages/server/src`.
+Agents ran in tmux panes once, and the vocabulary outlived the transport by weeks: a `tmux_name` column, a `NTWINE_LAUNCH_TMUX_SOCKET` launch variable, hundreds of comments in `router.ts`, `tailer.ts` and `dispatch.ts` narrating a pane, and 53 seed scripts opening a dummy pane nothing read. Every agent that read them eventually told the maintainer that stopping ntwine was safe "because the agents are in tmux" — wrong, and saying the wrong reason cost real trust. **That vocabulary was swept out on 2026-08-19.** The column is `thread_name`, the launch variable is gone, no script execs or installs tmux, and `packages/server/src/tmux.ts` has not existed since 2026-08-02. Check it in ten seconds with `grep -rn tmux --include='*.ts' packages/server/src`.
 
 What actually happens: a Claude thread is `claude_runtime="broker"`, and `claude-broker-host.ts` forks a daemon with `detached: true, stdio: "ignore"` into its **own process group**. That single fact is the answer to most operational questions — Ctrl-C on the server signals the launcher's group and cannot reach the daemon, so a running turn survives a stop; its events queue in a 20,000-frame backlog rather than dropping while nothing is attached, and the bridge replays them on reconnect. Sub-agents live inside that daemon's SDK session, so they ride along too.
 
-**So: never tell the operator anything about tmux, and never repeat "the agents are in tmux" as a reason a restart is safe.** It is safe, for a different reason, and saying the wrong one has cost real trust here. Exactly one tmux reference survives on purpose — `isTmuxServer` in `orphan-reaper.ts`, which refuses to reap a tmux server process, because upgrading from a pre-cutover Ntwine can leave one holding panes an operator is still reading. Everything else that still says tmux is either dated design history under `plans/` (left as a record, not as guidance) or something the sweep missed; treat the second kind as a bug and prefer `git log -S` over believing it.
+**So: never tell the operator anything about tmux, and never repeat "the agents are in tmux" as a reason a restart is safe.** It is safe, for a different reason, and saying the wrong one has cost real trust here. Exactly one tmux reference survives on purpose — `isTmuxServer` in `orphan-reaper.ts`, which refuses to reap a tmux server process, because upgrading from a pre-cutover ntwine can leave one holding panes an operator is still reading. Everything else that still says tmux is either dated design history under `plans/` (left as a record, not as guidance) or something the sweep missed; treat the second kind as a bug and prefer `git log -S` over believing it.
 
-# No agent runs in a pty. Everything Ntwine runs on its own talks over pipes
+# No agent runs in a pty. Everything ntwine runs on its own talks over pipes
 
 Nothing the server runs on its own opens a pseudo-terminal. A Claude thread runs in the session broker, a Codex thread in the app-server, an ACP agent over newline-delimited JSON-RPC — all pipes. Provider sign-in runs nothing at all: the sign-in modal behind `/login` shows `claude auth login` / `codex login` for the human to run in their own terminal, then re-reads the credential. Sign-in was the last pty — an embedded terminal on node-pty and the `/term` socket — until 2026-09-24; node-pty publishes no Linux prebuild, so every Linux and WSL install died at boot on `import "node-pty"` (upstream PR #42). The maintainer then chose the command alone over keeping any hosted sign-in, and `/term` went with it.
 
-**So: never propose a pty, node-pty, or "just run it in a terminal" for an agent, for sign-in, or for anything else the server does on its own, and never describe sign-in or an agent as running in one.** If a CLI seems to need a TTY, prove it over pipes first — both provider logins were assumed to need one and neither did. `scripts/verify-linux-package.mjs` (run it in Docker; its header has the command) boots a packed Ntwine on a Linux box with no C++ toolchain.
+**So: never propose a pty, node-pty, or "just run it in a terminal" for an agent, for sign-in, or for anything else the server does on its own, and never describe sign-in or an agent as running in one.** If a CLI seems to need a TTY, prove it over pipes first — both provider logins were assumed to need one and neither did. `scripts/verify-linux-package.mjs` (run it in Docker; its header has the command) boots a packed ntwine on a Linux box with no C++ toolchain.
 
 **One exception is real: a terminal the HUMAN opens on a thread.** The drawer's ⋯ menu (Open terminal), `t`, or a `$ npm test` line in a thread's prompt box starts a shell command — or a bare shell — in the folder that thread's agent is working in, and it belongs to that thread: no row of its own, a line in the thread's strip, stopped when the thread is marked done (ARCHITECTURE.md § Board nomenclature). `server/src/thread-terminals.ts` owns one node-pty process per terminal, and `/term/<id>` (`terminal.ts`) streams it to xterm.js. That is the only pty and the only `/term` traffic. It shipped first (2026-09-23) as top-level terminal command threads from a Terminal tab in the prompt box; on 2026-09-29 the maintainer folded it into threads and made the addon lazy. **This exception is the fork's and still needs sign-off from upstream** — upstream's objections were the extra thread kind and a pty on the boot path, and the reshape answers both, but it is upstream's call.
 
 **node-pty is loaded LAZILY, and that is load-bearing.** `await import("node-pty")` runs on a terminal's start and nowhere else; no server module imports it at load (`thread-terminals.test.ts` fails if one does, with `import type` exempt). So a box where the addon will not load — no prebuild for its platform, a broken install — boots and serves every project, and the terminal pane says why it could not start (#42 was the eager version of this killing every Linux boot). Both the source server and the published `ntwine-server` depend on `node-pty@1.2.0-beta.15`, the beta that ships glibc Linux prebuilds; the server generation installs `--ignore-scripts` and node-pty loads its prebuild directly, so no install script and no `node-gyp` fallback ever runs, and it needs no `onlyBuiltDependencies` entry (`src/package-contents.test.ts` pins all of that). Sign-in and agents stay off it.
 
-Two more things look like exceptions and are not. node-pty is a ROOT `devDependency` for `scripts/verify-product-e2e.mjs` alone, which drives the launcher's interactive readout and never ships. "PTY" in the Codex code (`codex-app-server.ts`, `transcript.ts`) is Codex's own logical terminal handle inside its app-server, not an Ntwine process.
+Two more things look like exceptions and are not. node-pty is a ROOT `devDependency` for `scripts/verify-product-e2e.mjs` alone, which drives the launcher's interactive readout and never ships. "PTY" in the Codex code (`codex-app-server.ts`, `transcript.ts`) is Codex's own logical terminal handle inside its app-server, not an ntwine process.
 
 # Board nomenclature: "active" means SPINNING, and nothing else
 
 The sidebar's row groups have names the maintainer uses precisely (2026-08-05: *"when I say active, I'm only referring to the things that are currently spinning; the things beneath that, I would refer to as rested, or just items in the queue"*). The UI labels the same bands **Ready** and **Working** (`BANDS` in `web/src/components/BandLabel.tsx`; they read Queue and Running from 2026-10-06 to 2026-10-14), and the two vocabularies map one to one: say Ready and Working in copy; in code, comments and when reporting back say either pair, never both in one sentence. (The quote says "beneath" because Rested sat below Active when it was said; on 2026-08-08 the two bands SWAPPED position — the cue moved up under the prompt box — and the vocabulary did not change with them.)
 
-Every thread Ntwine started is in exactly one of five bands, top to bottom:
+Every thread ntwine started is in exactly one of five bands, top to bottom:
 
 - **Pinned** — the human's shelf, above everything. A pinned thread stays here, whatever it is doing, until it is unpinned.
 - **Ready** — the maintainer's **Rested**, the CUE: directly under the pins, the same set as **"the queue"** / "items in the queue", one row per card, each with a right-justified rest time.
@@ -247,7 +244,7 @@ Every thread Ntwine started is in exactly one of five bands, top to bottom:
 - **Snoozed** — the dimmed park band, and the HUMAN's alone (2026-10-14): a wall-clock snooze, the resting card's event-snoozes ("until new activity", "until all sub-agents return", a done card's Watch), and a schedule's next run. A worker's own park — `status: watching`, an armed timer — stays in Working under its wait's mark (shared `isSnoozed` / `agentParked`; maintainer: *"if I consider a thread to be active and an agent happens to be waiting for something, I still don't want to see it collapsed"*). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
 - **Done** — the archived section.
 
-**External** (agent sessions Ntwine did not start) is listed apart, never a sixth band. Every view draws one list (`components/TierList.tsx`): All projects (`/`, the home page), a project's page (`/project/<slug>`) and a lens are the same bands under the same headers over a different set of projects. Pinned, Ready and Working never fold; Snoozed (and Schedules) start folded; Done lists only today's, with History one click away in the center column. Each row wears its project's square on the first row of a run, and a working row's status is inline.
+**External** (agent sessions ntwine did not start) is listed apart, never a sixth band. Every view draws one list (`components/TierList.tsx`): All projects (`/`, the home page), a project's page (`/project/<slug>`) and a lens are the same bands under the same headers over a different set of projects. Pinned, Ready and Working never fold; Snoozed (and Schedules) start folded; Done lists only today's, with History one click away in the center column. Each row wears its project's square on the first row of a run, and a working row's status is inline.
 
 The trap is that `sectionOf` (`@ntwine/shared`, re-exported by `groups.ts`) returns `"active"` for Working AND Ready rows alike — that key names the `<section>` holding both bands, not the maintainer's word — and the band keys match those labels, `ready` and `working`. `partitionActive` splits the section (`.running` = Working, `.rested` = Ready), and `inActiveBand` is the one predicate that means Working exactly. Full detail, including why the archived key is `"inactive"` while its label reads Done, in `ARCHITECTURE.md` § Board nomenclature.
 

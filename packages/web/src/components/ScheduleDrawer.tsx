@@ -41,7 +41,7 @@ export function useScheduleQuery(scheduleId: string, projectId: string | undefin
   return useQuery({
     queryKey: scheduleKeys.get(projectId || "page", scheduleId),
     queryFn: () => api.getSchedule({ id: scheduleId }),
-    // The next run moves, a run starts, Ntwine pauses it: nothing pushes a schedule to the page, so the
+    // The next run moves, a run starts, ntwine pauses it: nothing pushes a schedule to the page, so the
     // drawer re-reads while it is open.
     refetchInterval: 5_000,
   })
@@ -212,7 +212,7 @@ function Banner({ tone, text, children }: { tone: "attention" | "quiet"; text: s
   )
 }
 
-/** The echo the human confirmed, from the rule Ntwine fires, and the next run — the held thread that
+/** The echo the human confirmed, from the rule ntwine fires, and the next run — the held thread that
  *  stands for it, a click away (Mark as done on it skips it; snoozing it moves it). */
 function Echo({ schedule }: { schedule: ScheduleView }) {
   const now = useNowMs()

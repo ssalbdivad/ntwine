@@ -6,7 +6,7 @@ import { liftRepoWorktree } from "./thread-cwd.ts"
 // diff (packages/vscode review.ts asks git for the rest). Design: ARCHITECTURE.md § VS Code
 // extension.
 //
-// Ntwine records nothing about a thread's base: it stays out of the worktree decision (thread-cwd.ts), and
+// ntwine records nothing about a thread's base: it stays out of the worktree decision (thread-cwd.ts), and
 // a thread's start is a transcript, not a commit. What it DOES know is where the thread wrote — the rail's
 // edited files, read off the whole transcript and filtered to what git carries (edited-files.ts,
 // repo-files.ts) — and where its agent is working now. Those name the checkouts; git names the base:

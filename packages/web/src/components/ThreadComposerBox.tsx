@@ -167,7 +167,7 @@ export function ThreadComposerBox({
   // and two Done verbs one above the other on a phone read as the same button.
   const stepsOpen = thread?.lastFence?.kind === "awaiting" && awaitingSteps(thread.lastFence.hints).length > 0
   const canComplete = thread ? threadLifecycleAvailability(thread).archive && !turnRunning && !stepsOpen : false
-  // THE GOAL rides the rail on every desktop surface that steers an Ntwine-owned session — the same
+  // THE GOAL rides the rail on every desktop surface that steers an ntwine-owned session — the same
   // threads the lifecycle verbs in the header serve. The phone reaches it from the header's ⋯ sheet.
   const goal = thread && thread.kind === "session" && thread.foreign !== true ? <RecurringPromptControl thread={thread as ThreadView} /> : undefined
 
@@ -186,7 +186,7 @@ export function ThreadComposerBox({
     if (alias) {
       clearMessage()
       if (thread?.backend === "acp") {
-        showToast("An ACP agent signs in through its own CLI — Ntwine holds no account for it")
+        showToast("An ACP agent signs in through its own CLI — ntwine holds no account for it")
         return
       }
       const backend: AccountBackend = thread?.backend === "codex" ? "codex" : "claude"
@@ -196,7 +196,7 @@ export function ThreadComposerBox({
     }
     // `$ npm test` is not a message: it opens a terminal on this thread, in the folder its agent is working
     // in, running that line — a bare `$` opens a shell there (lib/threadTerminals.ts composerTerminalLine).
-    // Only on a thread Ntwine owns; the queue card's copy of this box stays a reply box.
+    // Only on a thread ntwine owns; the queue card's copy of this box stays a reply box.
     const terminal = surface === "chatComposer" && thread?.kind === "session" && !thread.foreign ? composerTerminalLine(text) : undefined
     if (terminal) {
       clearMessage()
@@ -366,7 +366,7 @@ export function ThreadComposerBox({
         railPermission={controls.permission}
         fileDrop={fileDrop}
         // An external session keeps the ↑: sending there takes the session over, and there is no turn
-        // of Ntwine's to steer or queue behind until it has.
+        // of ntwine's to steer or queue behind until it has.
         send={thread?.foreign ? undefined : { mode, onMode: (next) => setSendMode(slug, next), running, staged }}
       />
       {controls.status}

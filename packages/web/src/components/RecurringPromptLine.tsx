@@ -44,7 +44,7 @@ export function RecurringPromptLine(props: { bump: RecurringPrompt; sourceId?: s
   // ABOVE the agent's actual handoff and read as the more important of the two (maintainer 2026-08-12:
   // "We shouldn't show the stop hook message in the UI, at least not by default").
   if (bump.kind === "signoff") {
-    const label = "Ntwine asked for a sign-off"
+    const label = "ntwine asked for a sign-off"
     return (
       <WakeDivider icon={Signpost} sourceId={sourceId} marker="rest" ariaLabel={label} at={at}>
         {/* A truncating span, never a bare text node: bare, the label is a flex item that WRAPS, and

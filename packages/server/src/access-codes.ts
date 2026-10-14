@@ -469,9 +469,9 @@ export function loadOrCreateSessionKey(stateDir: string): Buffer {
  * most recently. Returns the folder it came from, or undefined when nothing moved.
  *
  * The key, the device list and the epoch live in the state folder of whatever the server runs on.
- * That was the project a launch happened in, so each folder Ntwine was ever started from holds its
+ * That was the project a launch happened in, so each folder ntwine was ever started from holds its
  * own, and starting it somewhere else was a different key: every phone signed out. The stable
- * launcher now always runs the server on Ntwine's own folder (production.ts), which ends that — and
+ * launcher now always runs the server on ntwine's own folder (production.ts), which ends that — and
  * would itself sign every device out once, the day it first starts with no key there. So the state
  * a phone is holding a cookie for comes along. "Most recently used" is the device list's own
  * timestamp where there is one, because a sign-in writes it and a key only records when it was made.

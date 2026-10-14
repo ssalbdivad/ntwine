@@ -1,6 +1,6 @@
 # Local setup — the maintainer's own checkout
 
-This file is the operating manual for ONE machine: the maintainer's checkout of `ssalbdivad/ntwine`, where Ntwine dispatches its own workers, where several agents and the human edit a single shared working tree at the same time, and where finished work lands by being committed to a local `main`. [`AGENTS.md`](AGENTS.md) links here; that file holds the norms that apply to everybody.
+This file is the operating manual for ONE machine: the maintainer's checkout of `ssalbdivad/ntwine`, where ntwine dispatches its own workers, where several agents and the human edit a single shared working tree at the same time, and where finished work lands by being committed to a local `main`. [`AGENTS.md`](AGENTS.md) links here; that file holds the norms that apply to everybody.
 
 **None of this applies to an outside contributor.** If you cannot push to `ssalbdivad/ntwine`, stop reading — fork the repo and open a pull request, which is the only way to offer a change from outside and is welcome.
 
@@ -21,7 +21,7 @@ yourself (`git switch main && git merge <slug>`) and remove the worktree
 checkout (`../ntwine-<slug>`): where repos live directly in `~`, that is a new folder in the home
 directory. Getting the change onto local `main` is your job — never push a branch to stage a
 review and never hand back an unmerged branch. Reading GitHub (issues, PRs, CI) is fine; creating or
-pushing a PR is not. (`NTWINE.md` states this in full for Ntwine
+pushing a PR is not. (`NTWINE.md` states this in full for ntwine
 workers, whose contract is frozen at session start. This file is the copy for everything else running
 in this checkout — a plain Codex or Claude session and the sub-agents it dispatches — which reach it
 through the link in `AGENTS.md` rather than loading it automatically.)

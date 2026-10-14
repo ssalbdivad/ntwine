@@ -145,7 +145,7 @@ export class ContextStartupError extends Error {
   }) {
     const startupMessage = options.startupError instanceof Error ? options.startupError.message : String(options.startupError)
     const cleanupMessage = options.cleanupError instanceof Error ? options.cleanupError.message : String(options.cleanupError)
-    super(`Ntwine context initialization failed: ${startupMessage}; partial-context cleanup failed: ${cleanupMessage}`, {
+    super(`ntwine context initialization failed: ${startupMessage}; partial-context cleanup failed: ${cleanupMessage}`, {
       cause: options.startupError,
     })
     this.name = "ContextStartupError"
@@ -242,7 +242,7 @@ export interface AppContext {
    */
   openProject?: (projectId: string) => Promise<AppContext | undefined>
   /**
-   * The Ntwine thread that sent a cross-session message into one of THIS project's threads, for the
+   * The ntwine thread that sent a cross-session message into one of THIS project's threads, for the
    * chat line that names the sender (see session-peer.ts). Absent under a test context, and then the
    * line names the sender's session without a link.
    */
@@ -257,7 +257,7 @@ export interface AppContext {
    * so closing a tenant does not touch one — right for a shutdown, wrong for a delete, where a daemon
    * left running against a state directory that is about to be unlinked writes into files nobody can
    * see and can no longer be stopped from a UI whose board is gone. `deleteState` then removes
-   * `~/.ntwine/projects/<id>/`, which is everything Ntwine holds for it.
+   * `~/.ntwine/projects/<id>/`, which is everything ntwine holds for it.
    *
    * `closed` is false when the project was not open here — which does not stop `deleteState`, since a
    * project that failed to open still has a state directory. Supplied by the server, which owns the
@@ -269,7 +269,7 @@ export interface AppContext {
   ) => Promise<{ closed: boolean; stoppedWorkers: number }>
   /**
    * The project this server is HOSTED on — the one whose state dir and tenant it cannot let go of.
-   * The project the command was typed in, or Ntwine's own stand-in folder for a launch from `$HOME`
+   * The project the command was typed in, or ntwine's own stand-in folder for a launch from `$HOME`
    * or an unadopted folder (it borrowed the most recently opened project until 2026-10-11).
    *
    * Its `<stateDir>/server.lock` is the only status file this process publishes, and every worker on
@@ -314,12 +314,12 @@ export interface AppContext {
   // Start a held thread, whoever asks — the router's send / followUp and the scheduler alike (held-start.ts). A schedule's pending next run gets its run header and its history
   // line on this path. Absent (a hand-built test context) ⇒ the router starts held rows itself.
   startHeldThread?: (row: SessionRow, prompt: string, profile?: HeldStartProfile) => Promise<{ slug: string; sessionId: string }>
-  // Exact only for Ntwine's provisioned runtime. An explicit/PATH override is unknown and leaves the
+  // Exact only for ntwine's provisioned runtime. An explicit/PATH override is unknown and leaves the
   // shared Codex cache ungated; see backend/codex-models.ts.
   codexVersion?: string
 }
 
-// Read on every board build (once per scheduled row), so it is cached per Ntwine home — one process
+// Read on every board build (once per scheduled row), so it is cached per ntwine home — one process
 // serves every project, and every project's context writes through the same map.
 const clientZoneByHome = new Map<string, string | undefined>()
 
@@ -734,7 +734,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   // poll, so the sidebar chip (and the scheduler's weekly-reset check) always reads a recent value
   // rather than the multi-minute-stale reading a purely read-driven cache served during a fast
   // fleet burn. One cheap endpoint GET, on the same non-blocking background path a stale read kicks;
-  // the cross-process lock and the persisted `retryAt` keep N Ntwine processes to one request per window. Gated on the
+  // the cross-process lock and the persisted `retryAt` keep N ntwine processes to one request per window. Gated on the
   // same NTWINE_WAKERS_OFF flag as the scheduler so a disposable adhoc/test stack never touches the real
   // account with the real credential.
   if (process.env.NTWINE_WAKERS_OFF !== "1") {
@@ -1020,13 +1020,13 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   // here was the source of multi-second RPC stalls). Late-bound `board` breaks the cycle.
   // It ALSO reports, per tick, which sessions' JSONL advanced → fanned out on transcriptChange so the
   // /ws transcript producer can push (no board dependency; the two signals are independent).
-  // Every model call Ntwine makes on its own — the namer, both status writers, the effort chooser and the
+  // Every model call ntwine makes on its own — the namer, both status writers, the effort chooser and the
   // schedule reader below — is on unless its NTWINE_*=0 variable switches it off, and each module falls
   // back as it always did with no model wired.
   const model = (complete: ClaudeOneShot, off: boolean): (() => ClaudeOneShot | undefined) => () => off ? undefined : complete
   const namerOff = process.env.NTWINE_THREAD_NAMER === "0"
   // THE THREAD NAMER (thread-names.ts): mints a 1-2 word, project-unique NAME at dispatch, answers the AI
-  // rename, and writes the live STATUS line — all through one short Claude completion with Ntwine's own
+  // rename, and writes the live STATUS line — all through one short Claude completion with ntwine's own
   // prompt (backend/claude-oneshot.ts). It spawns nothing on its own: every call is a dispatch, a click or
   // a thread's 5th message. With NTWINE_THREAD_NAMER=0 it has no model;
   // uniqueness still holds for every writer without it, because that check reads the registry, not a model.
@@ -1248,7 +1248,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
 
   // COMMAND WATCHES (`ntwinectl watch-command`): checks run in the project's working folder with the server's own
   // environment — scrubbed of the toolchain injection a provider child is scrubbed of — plus the thread's
-  // Ntwine identity and `ntwinectl` on PATH, so a check may itself call `ntwinectl`. Everything about the
+  // ntwine identity and `ntwinectl` on PATH, so a check may itself call `ntwinectl`. Everything about the
   // process and the gate is in command-watch.ts.
   const commandWatches = createCommandWatchService({
     // Where the thread's worker works: the project root, or the home folder for the Home workspace.

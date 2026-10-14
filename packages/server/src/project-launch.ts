@@ -101,8 +101,8 @@ export class ProjectLaunchConflictError extends Error {
 
   constructor(owner: ProjectLaunchOwnerRecord | null) {
     super(owner
-      ? `Ntwine project launch is already owned by ${owner.role} pid ${owner.pid}; wait for it to become ready or stop that exact owner`
-      : "Ntwine project launch ownership is being published; retry shortly")
+      ? `ntwine project launch is already owned by ${owner.role} pid ${owner.pid}; wait for it to become ready or stop that exact owner`
+      : "ntwine project launch ownership is being published; retry shortly")
     this.name = "ProjectLaunchConflictError"
     this.owner = owner
   }
@@ -248,7 +248,7 @@ export function acquireMutationGuard(
       ? processGenerationIsStale(current, adapter)
       : age !== undefined && (age >= PARTIAL_GRACE_MS || age < -PARTIAL_GRACE_MS)
     if (stale && quarantine(path, "stale")) continue
-    if (adapter.now() >= deadline) throw new Error("timed out waiting for the Ntwine project ownership guard")
+    if (adapter.now() >= deadline) throw new Error("timed out waiting for the ntwine project ownership guard")
     adapter.sleep(Math.min(POLL_MS, Math.max(1, deadline - adapter.now())))
   }
 }
@@ -360,7 +360,7 @@ function sameProjectIdentity(record: ProjectLaunchOwnerRecord, target: ProjectLa
 }
 
 export function projectLaunchTokenProof(target: ProjectLaunchTarget, token: string): string {
-  if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
+  if (!UUID_RE.test(token)) throw new Error("invalid ntwine project launch owner token")
   return createHash("sha256")
     // The shell, the server and the VS Code extension (discovery.ts) must agree on these bytes, so a
     // change to the tag is a protocol change: a shell paired with a server on the old tag takes its own
@@ -568,14 +568,14 @@ export function adoptProjectLaunchOwner(
   role: ProjectLaunchRole,
   protocol: ProjectLaunchProtocolOptions = {},
 ): ProjectLaunchLease {
-  if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
+  if (!UUID_RE.test(token)) throw new Error("invalid ntwine project launch owner token")
   const adapter = protocol.adapter ?? defaultProcessPlatformAdapter
   const unlock = acquireMutationGuard(target.stateDir, GUARD_TIMEOUT_MS, adapter)
   try {
     const path = projectLaunchOwnerPath(target.stateDir)
     const current = parseOwner(path)
     if (!current || !sameTarget(current, target) || current.token !== token || current.state !== "active") {
-      throw new Error("Ntwine project launch ownership handoff no longer matches this project")
+      throw new Error("ntwine project launch ownership handoff no longer matches this project")
     }
     const generation = currentProcessGeneration(adapter)
     const next: ProjectLaunchOwnerRecord = {
@@ -592,7 +592,7 @@ export function adoptProjectLaunchOwner(
       committed.token !== token ||
       committed.pid !== generation.pid ||
       committed.processStart !== generation.processStart
-    ) throw new Error("Ntwine project launch ownership handoff was not committed")
+    ) throw new Error("ntwine project launch ownership handoff was not committed")
     return makeLease(target, committed, adapter)
   } finally {
     unlock()
@@ -604,7 +604,7 @@ export function verifyProjectLaunchDelegate(
   token: string,
   protocol: ProjectLaunchProtocolOptions = {},
 ): ProjectLaunchOwnerRecord {
-  if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
+  if (!UUID_RE.test(token)) throw new Error("invalid ntwine project launch owner token")
   const adapter = protocol.adapter ?? defaultProcessPlatformAdapter
   const unlock = acquireMutationGuard(target.stateDir, GUARD_TIMEOUT_MS, adapter)
   try {
@@ -616,7 +616,7 @@ export function verifyProjectLaunchDelegate(
       current.state !== "active" ||
       processGenerationIsStale(current, adapter)
     ) {
-      throw new Error("Ntwine control-plane child has no live matching project launch owner")
+      throw new Error("ntwine control-plane child has no live matching project launch owner")
     }
     return current
   } finally {
@@ -630,7 +630,7 @@ export function registerProjectLaunchDelegate(
   role: ProjectLaunchDelegateRole = "control-plane",
   protocol: ProjectLaunchProtocolOptions = {},
 ): ProjectLaunchDelegateLease {
-  if (!UUID_RE.test(token)) throw new Error("invalid Ntwine project launch owner token")
+  if (!UUID_RE.test(token)) throw new Error("invalid ntwine project launch owner token")
   const adapter = protocol.adapter ?? defaultProcessPlatformAdapter
   const generation = currentProcessGeneration(adapter)
   const unlock = acquireMutationGuard(target.stateDir, GUARD_TIMEOUT_MS, adapter)
@@ -643,17 +643,17 @@ export function registerProjectLaunchDelegate(
       current.token !== token ||
       current.state !== "active" ||
       processGenerationIsStale(current, adapter)
-    ) throw new Error("Ntwine control-plane child has no live matching project launch owner")
+    ) throw new Error("ntwine control-plane child has no live matching project launch owner")
 
     const registeredAt = new Date(adapter.now()).toISOString()
     if (current.pid === generation.pid && current.processStart === generation.processStart) {
-      throw new Error("Ntwine launch owner cannot register itself as a delegated control plane")
+      throw new Error("ntwine launch owner cannot register itself as a delegated control plane")
     }
     const delegates = current.delegates.filter((delegate) => (
       !processGenerationIsStale(delegate, adapter)
       && (delegate.pid !== generation.pid || delegate.processStart !== generation.processStart)
     ))
-    if (delegates.length >= 64) throw new Error("Ntwine project has too many live delegated control planes")
+    if (delegates.length >= 64) throw new Error("ntwine project has too many live delegated control planes")
     delegates.push({ ...generation, role, registeredAt })
     const next: ProjectLaunchOwnerRecord = {
       ...current,
@@ -665,7 +665,7 @@ export function registerProjectLaunchDelegate(
     const committed = parseOwner(path)
     if (!committed || !committed.delegates.some((delegate) => (
       delegate.pid === generation.pid && delegate.processStart === generation.processStart && delegate.role === role
-    ))) throw new Error("Ntwine control-plane delegate registration was not committed")
+    ))) throw new Error("ntwine control-plane delegate registration was not committed")
 
     let released = false
     return {
@@ -726,7 +726,7 @@ export function projectLaunchEnvironment(
  *
  * `process.env` carries the launch identity of whichever project started this server, plus whatever
  * project- and thread-scoped variables that launch happened to be holding. That was harmless while a
- * server served exactly one project. Under one Ntwine per machine it is project A identity leaking
+ * server served exactly one project. Under one ntwine per machine it is project A identity leaking
  * into project B agent: a broker fork for B would report A project id, write permission markers into
  * A state directory, and log into A file.
  *

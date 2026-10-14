@@ -1,6 +1,6 @@
 // Ending a detached daemon AND everything under it, on both platforms.
 //
-// Ntwine's two daemon families — the Claude session broker (claude-broker-host.ts) and the Codex
+// ntwine's two daemon families — the Claude session broker (claude-broker-host.ts) and the Codex
 // app-server daemon (codex-app-server-host.ts) — are forked `detached` into their own process group,
 // and each runs the provider CLI as a CHILD: `claude` under the broker, `codex app-server` under the
 // daemon. An explicit teardown has to end the child too, or a "stopped" worker keeps editing files

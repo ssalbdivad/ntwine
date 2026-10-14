@@ -81,7 +81,7 @@ export function contextLine(context: ThreadView["context"]): string | null {
   return `Context ${percent}% · ${compactTokens(context.tokens)} of ${compactTokens(context.window)}`
 }
 
-/** The start of the running turn: the newest message the human (or Ntwine on their behalf — a wake, a
+/** The start of the running turn: the newest message the human (or ntwine on their behalf — a wake, a
  *  timer, a Goal bump) put into the conversation. Queued sends have not started anything yet. */
 export function turnStartedAt(messages: readonly { role?: string; queued?: boolean; at?: string }[]): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -91,7 +91,7 @@ export function turnStartedAt(messages: readonly { role?: string; queued?: boole
   return undefined
 }
 
-/** A link a phone cannot follow: it names the machine Ntwine runs on, which from the phone is itself. */
+/** A link a phone cannot follow: it names the machine ntwine runs on, which from the phone is itself. */
 export function isLoopbackUrl(target: string): boolean {
   try {
     const host = new URL(target).hostname.replace(/^\[|\]$/g, "")

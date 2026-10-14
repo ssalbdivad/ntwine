@@ -29,15 +29,14 @@ interface TourStepSpec {
 
 const select = (selector: string) => () => document.querySelector(selector)
 
-/** Whether the page is All projects — the switcher says which view it is showing (ProjectSwitcher.tsx). */
-const onAllProjects = () => document.querySelector('[data-xq-switcher="all"]') !== null
+/** Whether the page is All projects — a project's page draws its title over the prompt box (AllQueues.tsx). */
+const onAllProjects = () => document.querySelector("[data-xq-page-title]") === null
 const textOf = (text: ViewText) => (typeof text === "string" ? text : text(onAllProjects()))
 
 // The steps, in order. Every target is on both a board and All projects, so the tour runs on either, and the
 // copy that differs between them says so. All projects is where a new browser lands (lib/tour.ts), so the
 // tour teaches it first: what to do (start a thread, in which project), where results land, and what the
-// list shows — and only then the switcher, which is how to LEAVE it for one project. The switcher's step
-// holds its menu open (lib/tour.ts SWITCHER_STEP), so its arrows have its rows to point at. The last points
+// list shows — and only then the dock, which is how to LEAVE it for one project. The last points
 // at nothing: it is the closing card, and says how little there was.
 const STEPS: TourStepSpec[] = [
   {
@@ -67,17 +66,16 @@ const STEPS: TourStepSpec[] = [
     target: select("[data-xq-rail]"),
   },
   {
-    title: (all) => (all ? "One project at a time" : "Switch projects"),
+    title: "Your projects",
     body: (all) =>
       all
-        ? "This page shows every project. This menu focuses it on one, or adds another folder."
-        : "This menu at the top of the page is how you move between projects.",
-    target: () => document.querySelector('[data-tour="switcher-all"]')?.closest('[role="menu"]') ?? null,
-    also: select("[data-xq-switcher]"),
+        ? "Click a project to show only its threads, and again to show every project. Shift-click to show a few together."
+        : "Click another project to switch to it, or All to show every project.",
+    target: select("[data-xq-dock]"),
     callouts: [
-      { target: select('[data-tour="switcher-all"]'), label: "Every project on one page" },
-      { target: select('[data-tour="switcher-projects"]'), label: "Just one project" },
-      { target: select('[data-tour="switcher-add"]'), label: "Add another folder as a project" },
+      { target: select('[data-tour="dock-all"]'), label: "Every project on one page" },
+      { target: select('[data-tour="dock-squares"] [data-xq-dock-square]'), label: "Just one project" },
+      { target: select('[data-tour="dock-add"]'), label: "Add another folder as a project" },
     ],
   },
   {
@@ -172,8 +170,8 @@ export function Tour() {
   const showing = step !== null && spec !== undefined && (!spec.target || boxes?.target != null)
   useEffect(() => {
     if (step === null || !showing) return
-    // Window CAPTURE, ahead of everything — the switcher's menu takes Enter and Escape from a document
-    // capture listener, and a held-open menu must not act on the keys that drive the tour.
+    // Window CAPTURE, ahead of everything — a Radix menu takes Enter and Escape from a document capture
+    // listener, and an open menu must not act on the keys that drive the tour.
     const onKey = (event: KeyboardEvent) => {
       const forward = event.key === "Enter" || event.key === "ArrowRight" || event.key === " "
       const back = event.key === "ArrowLeft"

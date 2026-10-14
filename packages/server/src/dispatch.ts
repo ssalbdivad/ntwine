@@ -251,7 +251,7 @@ export function scratchDirRelPath(sessionId: string): string {
  * that cwd (every registered project — byte-identical to what workers have always been told), and
  * ABSOLUTE for the Home workspace, whose board is in its state directory while its agents run in the
  * home folder (home-workspace.ts). There, the relative form names `~/.ntwine/threads/…` — and a worker
- * that created that would make Ntwine read `~/.ntwine` as its legacy data root on the next boot.
+ * that created that would make ntwine read `~/.ntwine` as its legacy data root on the next boot.
  */
 export function workerScratchPath(project: Pick<Project, "dir" | "workDir">, sessionId: string): string {
   const rel = scratchDirRelPath(sessionId)
@@ -357,7 +357,7 @@ export function codexScratchpadHookConfig(
       // `--resume-keeps-context`: a Codex thread that is resumed comes back from its rollout with its
       // whole conversation, so SessionStart(resume) is no loss and the hook must not announce one. It
       // could not fire at all until the hooks rode every resume (codexWorkerThreadConfig); now it fires
-      // on each one — the first message after an Ntwine restart included.
+      // on each one — the first message after an ntwine restart included.
       SessionStart: [cmd("--mode=session-start --resume-keeps-context")],
       UserPromptSubmit: [cmd("--mode=nudge")],
       PostToolUse: [cmd("--mode=nudge --event=PostToolUse")],
@@ -366,13 +366,13 @@ export function codexScratchpadHookConfig(
 }
 
 /**
- * Everything an Ntwine worker's Codex thread carries as per-thread config besides its MCP mount: the
+ * Everything an ntwine worker's Codex thread carries as per-thread config besides its MCP mount: the
  * reasoning summaries the transcript renders, and the hooks above.
  *
  * It is handed to the BRIDGE (context.ts `workerConfig`), not to one `thread/start`, because Codex
  * rebuilds a thread from the config of whichever request loaded it: sent with the dispatch alone, both
  * were gone after the thread's first resume. Built by the server that is running now, so a thread that
- * comes back under a newer Ntwine gets that Ntwine's registrations. `boardRoot` is the thread's board when
+ * comes back under a newer ntwine gets that ntwine's registrations. `boardRoot` is the thread's board when
  * it runs somewhere else (a Home thread: codexScratchpadHookConfig `--board-root`).
  */
 export function codexWorkerThreadConfig(sessionId: string, boardRoot?: string): Record<string, unknown> {
@@ -540,7 +540,7 @@ function workerPermissionMode(m: PermissionMode): PermissionMode {
 export const WORKER_DISPATCH_PERMISSION: Record<BackendKind, PermissionMode> = {
   claude: "auto",
   codex: "bypassPermissions",
-  // An ACP agent's permissions are its own (plans/acp-backend.md, decision 7): Ntwine sends no mode and
+  // An ACP agent's permissions are its own (plans/acp-backend.md, decision 7): ntwine sends no mode and
   // mirrors whatever the agent asks as a card. The value here is recorded on the row and nothing else.
   acp: "auto",
 }
@@ -965,7 +965,7 @@ export interface Dispatcher {
   //
   // `opts.nameSource` is the text the thread is NAMED from — the fallback title (and so the slug), a
   // caller title's disambiguating word, and the async mint — when that is not the prompt itself. Only
-  // the server sets it: a spinoff's prompt opens with Ntwine's own "A spinoff of @parent…" boilerplate,
+  // the server sets it: a spinoff's prompt opens with ntwine's own "A spinoff of @parent…" boilerplate,
   // and naming from that produced slugs like `a-spinoff-of-shell-budgets-thread-…` (2026-09-30), so
   // router.ts names the child from the human's instructions and its context instead. Deliberately
   // not a DispatchInput field: the RPC is callable by any worker and the web, and what a thread is
@@ -983,7 +983,7 @@ export interface Dispatcher {
   // Server-only, like `fork`: the caller is held-start.ts.
   dispatch(input: DispatchInput, opts?: { backend?: BackendKind; nameSource?: string; fork?: { sessionId: string }; onto?: SessionRow }): Promise<{ slug: string; sessionId: string }>
   // Cold-adopt an EXISTING thread ntwine didn't originate (e.g. a repo with a pre-existing .ntwine
-  // board): spawn a fresh worker pointed at the thread file. Ntwine's contract makes this sound —
+  // board): spawn a fresh worker pointed at the thread file. ntwine's contract makes this sound —
   // the doc, not the conversation, is the durable context; the worker reads it and continues.
   adopt(slug: string, message?: string): Promise<{ slug: string; sessionId: string }>
   // Write down a HELD THREAD for `opts.holder`: a thread row with a name and a session id but no agent
@@ -1158,7 +1158,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // missing binary, timeout) fails OPEN so a network blip never traps a logged-in user. Runs
       // before the scratchpad/spawn/registry so a rejected dispatch leaves zero trace; the browser
       // keeps the draft and opens the sign-in modal off the sentinel message.
-      // An ACP agent has no credential Ntwine can read: its auth is probed by the agent itself on
+      // An ACP agent has no credential ntwine can read: its auth is probed by the agent itself on
       // session/new, and the bridge turns that refusal into an actionable dispatch error.
       if (kind !== "acp" && deps.preflightAuth && (await deps.preflightAuth(kind).catch((): ProviderAuth => "unknown")) === "signed-out") {
         throw new ProviderAuthRequiredError(kind)
@@ -1197,10 +1197,10 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       const titleFlags = onto
         ? { title_auto: onto.title_auto, title_locked: onto.title_locked }
         : undefined
-      // Codex TUI does not reliably emit either a native title or Ntwine's requested hidden marker.
+      // Codex TUI does not reliably emit either a native title or ntwine's requested hidden marker.
       // Keep the already bounded, deterministic dispatch title as the durable automatic fallback.
       // Unlike the full composed prompt, fallbackTitle is capped and topic-oriented; a later valid
-      // provider/Ntwine signal may still replace it through the title_auto CAS.
+      // provider/ntwine signal may still replace it through the title_auto CAS.
       const registryTitle = title
       const sessionId = onto ? onto.session_id : randomUUID()
       const permissionMode = workerDispatchPermission(kind, settings)

@@ -1,20 +1,20 @@
-// THE SIDEBAR EMBED — the wire between the VS Code extension's Ntwine sidebar (packages/vscode/src/sidebar.ts)
-// and the real Ntwine page it frames (packages/web/src/lib/embed.ts). Design and rationale:
+// THE SIDEBAR EMBED — the wire between the VS Code extension's ntwine sidebar (packages/vscode/src/sidebar.ts)
+// and the real ntwine page it frames (packages/web/src/lib/embed.ts). Design and rationale:
 // ARCHITECTURE.md § VS Code extension.
 //
 // Three documents take part: the extension host (Node), the webview document VS Code serves from a
-// `vscode-webview://` origin (a relay script and nothing else), and the Ntwine page in an iframe of it,
+// `vscode-webview://` origin (a relay script and nothing else), and the ntwine page in an iframe of it,
 // at the origin the extension discovered (`http://127.0.0.1:<port>`). The relay passes these messages
 // through unchanged, in both directions, and checks where each one came from:
 //
 //  - page → host: the relay forwards only what arrives from ITS iframe (`event.source ===
-//    frame.contentWindow`) at Ntwine's origin; the extension validates the shape again and acts only on
+//    frame.contentWindow`) at ntwine's origin; the extension validates the shape again and acts only on
 //    what it knows (an unknown type is ignored, a URL that is not http(s) or mailto is refused, a key
 //    chord runs a command only if the extension's own allowlist names it).
-//  - host → page: the relay posts with `targetOrigin` = Ntwine's origin, so selected code is never handed
+//  - host → page: the relay posts with `targetOrigin` = ntwine's origin, so selected code is never handed
 //    to a document from anywhere else; the page accepts host messages only from `window.parent`.
 //
-// Nothing here goes through the Ntwine server: a selection reaches the sidebar's composer directly, so the
+// Nothing here goes through the ntwine server: a selection reaches the sidebar's composer directly, so the
 // server's held-item path (`compose` → `composeTake`, claimed by whichever page has focus) stays what it is
 // for browser tabs, and the sidebar never races a tab — or the human's own typing — for an item.
 //
@@ -39,12 +39,12 @@ export type EmbedTheme = "light" | "dark"
 /**
  * VS Code's theme changed. The page applies it for this session only and never persists it.
  *
- * `colors`: the theme's own colours, so the page can wear them instead of Ntwine's palette (the page reads
+ * `colors`: the theme's own colours, so the page can wear them instead of ntwine's palette (the page reads
  * as part of the editor rather than a foreign panel set into it). Read by the RELAY, not the extension —
  * VS Code's API names only the theme's kind; its colours exist as the `--vscode-*` custom properties VS
  * Code writes on every webview document, and the relay (packages/vscode/src/sidebar-html.ts) reads them
  * there, keyed by the names below without the `--vscode-` prefix. Absent while `ntwine.matchEditorTheme` is
- * off, and from an extension or a relay that predates it: the page then wears Ntwine's own palette.
+ * off, and from an extension or a relay that predates it: the page then wears ntwine's own palette.
  *
  * A HOSTILE PARENT is the threat this shape is bounded against: the page takes only the keys
  * `EMBED_THEME_COLORS` names, each only when its value is a plain hex or `rgb()`/`rgba()` colour
@@ -111,18 +111,18 @@ export const EMBED_COLOR_VALUE = /^(?:#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-
 export const EMBED_THEME_FRAGMENT = "ntwine-theme="
 
 /**
- * Put a selection in a composer, as the ⌘I context chip the browser's "Add to Ntwine prompt" path inserts
+ * Put a selection in a composer, as the ⌘I context chip the browser's "Add to ntwine prompt" path inserts
  * (lib/editorCompose.ts), and answer with `ntwine:composed`.
  *
  * `target`:
- *  - "front": the reply box of the thread the sidebar shows, else the new-thread box ("Add to Ntwine prompt").
- *  - "new": the new-thread box, opened if it is not ("Ask Ntwine…"). The chip's project is
+ *  - "front": the reply box of the thread the sidebar shows, else the new-thread box ("Add to ntwine prompt").
+ *  - "new": the new-thread box, opened if it is not ("Ask ntwine…"). The chip's project is
  *    `item.projectId`'s when the extension matched one.
- *  - `{ thread, project }`: that thread's reply box, navigating to the thread first ("Send to Ntwine thread…").
+ *  - `{ thread, project }`: that thread's reply box, navigating to the thread first ("Send to ntwine thread…").
  *    `project` is the project's SLUG, as the page's routes spell it.
  *
  * `focus`: put the caret in that composer after the insert, because the human writes next (Ask, Send).
- * False leaves focus where it is — in the editor, where "Add to Ntwine prompt" was run, so another selection
+ * False leaves focus where it is — in the editor, where "Add to ntwine prompt" was run, so another selection
  * can follow. An insert never lands inside text being typed: it goes at a chip boundary of the box's value.
  */
 export interface EmbedComposeMessage {
@@ -137,7 +137,7 @@ export interface EmbedComposeMessage {
   target: "front" | "new" | { thread: string; project: string }
   focus: boolean
   /**
-   * Prose to put right after the chip, as if typed there — "Ask Ntwine to fix" sends the problem's own
+   * Prose to put right after the chip, as if typed there — "Ask ntwine to fix" sends the problem's own
    * message (`Fix: Cannot find name 'foo'. ts(2304)`), so the box reads as a request rather than a bare
    * reference. Plain text, one line, at most `EMBED_MAX_NOTE` characters; the human can edit it before
    * sending like anything else in the box.
@@ -235,7 +235,7 @@ export interface EmbedEditorContextMessage {
 export const EMBED_MAX_OPEN_FILES = 50
 
 /**
- * A button in VS Code's own title row above the frame — the sidebar has no Ntwine header of its own, so
+ * A button in VS Code's own title row above the frame — the sidebar has no ntwine header of its own, so
  * the header's doors live there: a new thread, back to the queue, jump to a thread (⌘K), settings, and,
  * under the row's ⋯, the keyboard shortcuts sheet (`?`), whose ⌨ button the page's status row drops in
  * the sidebar, where it stood alone on a row of its own.
@@ -252,16 +252,16 @@ export interface EmbedCommandMessage {
 /**
  * What the extension holds that the page shows — sent once the page is ready and again on every change.
  *
- * `shareEditor` is THE switch for the editor reaching Ntwine on its own (`ntwine.shareEditorState`, a VS Code
+ * `shareEditor` is THE switch for the editor reaching ntwine on its own (`ntwine.shareEditorState`, a VS Code
  * setting, so it survives a window reload and is the same in every window): on, a send from the sidebar
- * carries the editor block and Ntwine's agents can read the editor (`mcp__ntwine__editor`); off, neither — only
+ * carries the editor block and ntwine's agents can read the editor (`mcp__ntwine__editor`); off, neither — only
  * what the human adds as a chip. The context bar's eye shows it and changes it (`ntwine:share-editor`).
  * Until 2026-10-02 the eye was the page's own preference, kept in the frame's storage, and the setting
  * governed the agents' tool alone: with the eye off an agent could still read the selection through the tool.
  *
- * `altK`: Alt+K (⌥K) in the editor is Ntwine's in this window. False while Claude Code's extension is
+ * `altK`: Alt+K (⌥K) in the editor is ntwine's in this window. False while Claude Code's extension is
  * installed, which binds the same chord with the same `when`, so which one answered depended on load order;
- * Ntwine steps aside, and the page stops teaching a chord that is not its own here.
+ * ntwine steps aside, and the page stops teaching a chord that is not its own here.
  */
 export interface EmbedHostStateMessage {
   type: "ntwine:host-state"
@@ -296,8 +296,8 @@ export interface EmbedComposedMessage {
 }
 
 /**
- * A code file the human clicked in the sidebar (anything Ntwine's reader would show as source — not
- * Markdown, not a picture, which still open in Ntwine). It opens in THIS editor window, at the position,
+ * A code file the human clicked in the sidebar (anything ntwine's reader would show as source — not
+ * Markdown, not a picture, which still open in ntwine). It opens in THIS editor window, at the position,
  * whatever the Local file links setting says: the sidebar is inside the editor the human wants it in. The
  * path is absolute in the server's filesystem terms, which are the extension's (it runs where the files
  * are). The extension says so itself when the file is not there; the page shows nothing.
@@ -380,7 +380,7 @@ export interface EmbedRouteMessage {
 }
 
 /**
- * The human flipped the context bar's eye: share the editor with Ntwine, or stop. The extension writes
+ * The human flipped the context bar's eye: share the editor with ntwine, or stop. The extension writes
  * `ntwine.shareEditorState` (where it is set: the workspace's value when the workspace has one, else the
  * user's) and answers with `ntwine:host-state` — which is also how a page learns its write did not take.
  */
@@ -391,7 +391,7 @@ export interface EmbedShareEditorMessage {
 
 /**
  * Show a thread's changes in this window as VS Code's multi-file diff — the thread's ⋯ Review changes.
- * It names the thread and nothing else: the extension asks Ntwine which checkouts the thread changed
+ * It names the thread and nothing else: the extension asks ntwine which checkouts the thread changed
  * (`reviewTarget`, the same answer a browser tab's request pushes to a window), and git for the rest, so
  * the page cannot point it at any folder. `project` is the project's SLUG, as the page's routes spell it,
  * or its id when the control is scoped to another project than the page's (a card of the cross-project
@@ -401,7 +401,7 @@ export interface EmbedReviewMessage {
   type: "ntwine:review"
   thread: string
   project: string
-  /** The thread's name as the page shows it in words, for the diff's tab; Ntwine's own record without it. */
+  /** The thread's name as the page shows it in words, for the diff's tab; ntwine's own record without it. */
   title?: string
 }
 
@@ -424,7 +424,7 @@ export type EmbedPageMessage =
 // boxes do the same (ARCHITECTURE.md § VS Code extension). The page has no file index of its own and
 // no access to the editor's diagnostics or terminal, so it asks the host for each — the host answers from
 // the workspace as VS Code sees it (files.exclude, search.exclude and .gitignore honoured), and nothing
-// here goes through the Ntwine server.
+// here goes through the ntwine server.
 
 /**
  * Files for the prompt box's `@` menu (`query`: what follows the `@`, possibly empty), or the resources

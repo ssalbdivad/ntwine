@@ -252,7 +252,7 @@ test("the command environment drops every NTWINE_* variable and names a colour t
 
 // LAZY node-pty (2026-09-29). The addon is loaded on the terminal start path and nowhere else, so a box
 // where it will not load — no prebuild for the platform, a broken install — runs every other part of
-// Ntwine, and the terminal itself says why it cannot start instead of the server dying at boot (#42).
+// ntwine, and the terminal itself says why it cannot start instead of the server dying at boot (#42).
 test("a terminal whose pty cannot load fails in its own pane, with the reason, and the runner carries on", async () => {
   const { runner, start, changes } = harness({
     loadPty: () => Promise.reject(new Error("Cannot find module 'node-pty'")),
@@ -267,7 +267,7 @@ test("a terminal whose pty cannot load fails in its own pane, with the reason, a
   const screen = attachment.replay()
   assert.match(screen, /node-pty native module did not load/)
   assert.match(screen, /Cannot find module 'node-pty'/)
-  assert.match(screen, /Everything else in Ntwine works without it/)
+  assert.match(screen, /Everything else in ntwine works without it/)
   assert.equal(await new Promise<number | undefined>((resolve) => attachment.onExit(resolve)), 127)
   // Nothing about the failure is sticky: the next start asks for the addon again.
   const second = await start(undefined)

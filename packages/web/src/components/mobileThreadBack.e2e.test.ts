@@ -22,7 +22,7 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
     await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
     const boardPath = new URL(url!).pathname
     const threadUrl = `${url}/thread/done-thread`
-    const outside = "data:text/html,<h1>Outside Ntwine</h1>"
+    const outside = "data:text/html,<h1>Outside ntwine</h1>"
     const waitForThread = async (slug = "done-thread") => {
       await page.waitForFunction(s => location.pathname.endsWith(`/thread/${s}`), {}, slug)
       await page.waitForSelector("[data-mobile-thread-back]", { visible: true })
@@ -51,14 +51,14 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
       await page.click('[data-mobile-thread-row="done-thread"]')
       await waitForThread()
     }
-    // Back from the board leaves Ntwine: there is no second board entry (or a dead same-URL one) under it.
+    // Back from the board leaves ntwine: there is no second board entry (or a dead same-URL one) under it.
     const backLeavesNtwine = async () => {
       await page.goBack({ waitUntil: "load" })
       assert.equal(page.url(), outside)
     }
     const historyLength = () => page.evaluate(() => history.length)
 
-    // No Ntwine entry underneath: a notification/bookmark arriving from another site.
+    // No ntwine entry underneath: a notification/bookmark arriving from another site.
     await page.goto(outside)
     await page.goto(threadUrl, { waitUntil: "networkidle2" })
     await waitForThread()

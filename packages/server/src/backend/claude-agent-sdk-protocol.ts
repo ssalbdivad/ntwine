@@ -111,7 +111,7 @@ export const CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS = "reload-plugins-v1"
 // others: an older surviving daemon ignores the frame, and the operator would be left watching a
 // rename that never happened.
 //
-// No current server asks: the re-title moved to Ntwine's own namer, and its button, RPC and the
+// No current server asks: the re-title moved to ntwine's own namer, and its button, RPC and the
 // bridge's verb were removed on 2026-10-14. The daemon still advertises this and still answers the
 // frame, so that an older server attached to it after a downgrade keeps a working rename.
 export const CLAUDE_BROKER_CAPABILITY_RENAME = "rename-v1"

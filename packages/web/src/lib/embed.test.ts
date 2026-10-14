@@ -77,7 +77,7 @@ test("the pre-paint guard wears the editor's colours from the first address's fr
   const again = run("", JSON.stringify(record), "")
   assert.equal(again.dataset.hostColors, "sideBar")
   assert.equal(again.props["--vscode-sideBar-background"], "#080d17")
-  // No background among them: nothing to paint with, so Ntwine's palette.
+  // No background among them: nothing to paint with, so ntwine's palette.
   const bare = run("?embed=vscode&theme=dark", null, `#ntwine-theme=${encodeURIComponent(JSON.stringify({ colors: { foreground: "#ffffff" } }))}`)
   assert.equal(bare.dataset.hostColors, undefined)
   assert.deepEqual(bare.props, {})

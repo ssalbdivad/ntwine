@@ -2,7 +2,7 @@
 // editor Source Control opens for "View changes"), the glue half: review.ts asks git, this shows it.
 // Design: ARCHITECTURE.md § VS Code extension.
 //
-// Claude Code and Cursor show an agent's edits as diffs in the editor. An Ntwine worker edits files directly,
+// Claude Code and Cursor show an agent's edits as diffs in the editor. An ntwine worker edits files directly,
 // usually in a worktree of its own, so here the review is of what is on disk: the LEFT side is the file
 // as the base commit had it, served by a content provider (`ntwine-base:`, read-only); the RIGHT side is
 // the real file, so the human can fix what they see in place, with the language server running. Each

@@ -8,7 +8,7 @@ import { noteRpcMutation } from "../lib/humanActs.ts"
 export type { Api, ProcType, RpcCallOpts } from "./contract.ts"
 export { PROCEDURES } from "./contract.ts"
 
-export const CONTROL_PLANE_RESTARTING_MESSAGE = "Ntwine is updating and restarting. Your draft is preserved; wait until it is ready before sending or changing settings."
+export const CONTROL_PLANE_RESTARTING_MESSAGE = "ntwine is updating and restarting. Your draft is preserved; wait until it is ready before sending or changing settings."
 
 // A failure the caller may safely REPLAY, because the request provably took no effect: either the
 // server refused it at a contention gate upstream of any side effect (`retryable` in the error
@@ -50,7 +50,7 @@ export async function parseRpcResponse(res: Response, name: string): Promise<unk
     json = JSON.parse(body) as { result?: unknown; error?: unknown; retryable?: unknown; kept?: unknown }
   } catch {
     if (res.status === 404 || res.status === 405) {
-      throw new Error("Ntwine server restart required — this control is newer than the running server")
+      throw new Error("ntwine server restart required — this control is newer than the running server")
     }
     // SAY THE STATUS. A non-JSON body is always something OTHER than the RPC answering, and which
     // something is the entire diagnosis — 403 is the local-origin gate refusing (a stale tab, a

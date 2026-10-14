@@ -109,7 +109,7 @@ export interface NormalizedTail {
   // a timer, a nudge, and the one that carries their answers). The clock questionRepliedPast reads —
   // information only since 2026-09-29; it releases nothing.
   lastHumanAt?: string
-  // ISO8601 of the FIRST turn the human typed — the dispatch prompt, on a thread Ntwine started. Tells a
+  // ISO8601 of the FIRST turn the human typed — the dispatch prompt, on a thread ntwine started. Tells a
   // reply to that prompt (work the sign-off nudge still asks about) from a reply in a later conversation.
   firstHumanAt?: string
   lastToolCallAt?: string // ISO8601 of the agent's newest tool call — what tells a reply that did WORK from one that only talked
@@ -177,7 +177,7 @@ export interface FoldState {
   // second title candidate.
   titleCandidateFinalText?: string
   // Provenance for Codex's auto title. A bounded dispatch fallback exists only so an omitted in-band
-  // signal never leaves the board on an internal slug; a later valid Ntwine signal may replace it.
+  // signal never leaves the board on an internal slug; a later valid ntwine signal may replace it.
   // A generated signal or provider-native title is final for automatic naming (manual titles are
   // guarded separately by storage's title_auto CAS).
   autoTitleSource?: "fallback" | "ntwine" | "native"
@@ -341,7 +341,7 @@ export function ntwineMcpEnv(mcp: NtwineMcp): Record<string, string> {
 }
 
 // ---- The worker command line ---------------------------------------------------------------------
-// `ntwinectl` (cc-worker/bin/) is how a worker reaches Ntwine: every worker capability is a command it
+// `ntwinectl` (cc-worker/bin/) is how a worker reaches ntwine: every worker capability is a command it
 // runs from its own shell, on every backend, and none of them is a tool in the model's registry. So
 // what a backend owes a worker is no longer a mount; it is an ENVIRONMENT — the command on PATH, and
 // the handful of facts the command reads to find the server and to know who is calling.
@@ -410,13 +410,13 @@ export function withNtwineCliOnPath(env: Record<string, string>, cli: NtwineCli,
   return { ...env, [key]: `${cli.binDir}${delimiter}${env[key]}` }
 }
 
-// Ntwine mounts NO browser. The only MCP server it injects into a worker is the unified `ntwine`
+// ntwine mounts NO browser. The only MCP server it injects into a worker is the unified `ntwine`
 // server above (claude: a `--mcp-config` file in dispatch.ts; codex: `-c` TOML overrides on the
 // app-server argv in codex-mcp.ts). A `chrome-devtools` mount used to ride every dispatch on both
 // backends, together with a lazy proxy in `cc-worker/bin/` that answered `tools/list` from a
 // committed schema snapshot; all of it was removed 2026-08-26. Two reasons: its 29 tool schemas cost
 // ~6,400 prefix tokens on EVERY worker session, and most workers never open a page — and mounting a
-// browser nobody asked for is an opinion Ntwine has no business holding. A project or an operator that
+// browser nobody asked for is an opinion ntwine has no business holding. A project or an operator that
 // wants one brings it themselves, the same way they would in any other Claude Code or codex session:
 // a project `.mcp.json` (this repo has one, pinned `--headless --isolated`). Since 2026-09-03 a worker
 // mounts under `--strict-mcp-config`, so `claude mcp add --scope user` reaches the operator's own
@@ -466,11 +466,11 @@ export function withNtwineCliOnPath(env: Record<string, string>, cli: NtwineCli,
 // 2.1.293, and follows it if Claude Code moves it (maintainer 2026-10-10: "we should just let the
 // agent follow its own best practices here as much as possible").
 //
-// Ntwine pinned it at 60_000 from 2026-08-01 until then, so that a call the worker had not thought
+// ntwine pinned it at 60_000 from 2026-08-01 until then, so that a call the worker had not thought
 // about — a hung `curl` — bounced in a minute rather than sitting on the turn. Do not bring the pin
 // back to shorten a blocked turn: two minutes is the harness's own answer to that, and the ceiling
 // below governs the call a worker sized deliberately. With nothing set here, a value the operator
-// exported before launching Ntwine reaches the worker like any other variable (see worker-env.ts).
+// exported before launching ntwine reaches the worker like any other variable (see worker-env.ts).
 //
 // ── BASH_MAX_TIMEOUT_MS ────────────────────────────────────────────────────────────────────────
 // The ceiling on an EXPLICIT `timeout`, lifted from Claude Code's 600_000 to 24 hours on 2026-08-11
@@ -537,7 +537,7 @@ function workerCap(name: string, lifted: number, env: NodeJS.ProcessEnv): string
   return String(lifted)
 }
 
-// Claude Code reads these inherited process variables as sub-agent profile defaults. An Ntwine worker
+// Claude Code reads these inherited process variables as sub-agent profile defaults. An ntwine worker
 // chooses its profile explicitly through the launch argv and plugin agent profiles, so let neither
 // a shell nor a globally configured Claude session silently replace that selection. An EMPTY entry
 // here overrides the inherited value while preserving every auth/config variable.
@@ -648,7 +648,7 @@ export function claudeCompactionWindowOf(env: Record<string, string> | undefined
 // its own interactive `claude` process answered it with a TUI dialog nobody was watching, and froze.
 // The broker kept it, rendering the call as a dashboard card through canUseTool — until a worker asked
 // for ten name suggestions offered three and "keep it", because the tool's own schema caps a question at
-// FOUR options and nothing in Ntwine can widen that. `mcp__ntwine__ask` has no cap and a lifecycle that
+// FOUR options and nothing in ntwine can widen that. `mcp__ntwine__ask` has no cap and a lifecycle that
 // survives the turn, so it is the only way a worker asks. The bridge's card path for the native tool
 // stays as the fallback for a session that reaches it anyway.
 export const WORKER_DISALLOWED_TOOLS = ["AskUserQuestion"] as const

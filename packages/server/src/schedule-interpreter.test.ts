@@ -6,7 +6,7 @@ import { createScheduleInterpreter, interpreterClock, interpreterSystemPrompt } 
 import type { ThreadScheduleRow } from "./schedule-store.ts"
 
 // The interpreter's VALIDATION around the model (schedule-interpreter.ts): the model is scripted here, so
-// these pin what Ntwine does with each kind of answer — accept, retry once with the reason, or refuse with
+// these pin what ntwine does with each kind of answer — accept, retry once with the reason, or refuse with
 // the human's copy. What a real model makes of real phrasings is recorded by a live run instead
 // (ARCHITECTURE.md § Scheduled threads; the five phrasings were read for real on 2026-10-05).
 

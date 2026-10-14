@@ -1,6 +1,6 @@
 # Performance pass — 2026-09, what landed and what did not
 
-Written 2026-09-04, after a measured pass over the two complaints that started it: an Ntwine restart took a long time, and the first load after it took a long time. Both were root-caused and both are fixed in `0.11.0`. This file exists for the other half — the findings that were MEASURED but not acted on, and the ones that were measured and turned out to be nothing. It is a record at a point in time, not a description of how Ntwine works now; read [`plans/README.md`](README.md) first.
+Written 2026-09-04, after a measured pass over the two complaints that started it: an ntwine restart took a long time, and the first load after it took a long time. Both were root-caused and both are fixed in `0.11.0`. This file exists for the other half — the findings that were MEASURED but not acted on, and the ones that were measured and turned out to be nothing. It is a record at a point in time, not a description of how ntwine works now; read [`plans/README.md`](README.md) first.
 
 Every number here came from an instrument, not from reading code. Where a claim was later disproved by a second measurement, the disproof is kept beside it rather than deleted, because the wrong version is the one that sounds plausible and gets re-derived.
 
@@ -24,7 +24,7 @@ Nothing below is assigned and nothing below is started. Each carries the measure
 
 ## Measured and dismissed — do not re-investigate these
 
-- **An empty isolated Ntwine idles at 0.0% CPU.** Every watt is proportional to rows and to activated projects, so there is no background cost to hunt.
+- **An empty isolated ntwine idles at 0.0% CPU.** Every watt is proportional to rows and to activated projects, so there is no background cost to hunt.
 - **A browser reload sends one keyframe, not a backlog replay.** The 20,000-frame broker backlog was suspected and is not involved.
 - **Nothing at boot opens or migrates all 40+ project databases.** The launcher opens one, in `9ms`; `backfillRegistry()` walks 57 state directories in under `5ms`.
 - **No watcher touches `node_modules`.**

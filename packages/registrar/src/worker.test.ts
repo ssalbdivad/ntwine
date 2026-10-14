@@ -185,12 +185,12 @@ function fakeGithubApi(scopes: string | null, user: Record<string, unknown> = { 
 }
 
 test("the verifier refuses a token with any scope, and accepts one with none", async () => {
-  // The `gh` CLI's token: what an old Ntwine sends, and what a compromised registrar collected.
+  // The `gh` CLI's token: what an old ntwine sends, and what a compromised registrar collected.
   const gh = fakeGithubApi("gist, read:org, repo, workflow")
   assert.equal(await githubVerifier(gh.fetchImpl)("gho_ghcli"), "scoped")
   assert.equal(await githubVerifier(fakeGithubApi("read:user").fetchImpl)("gho_x"), "scoped", "even a harmless-looking scope")
 
-  // The device-flow token from Ntwine's own OAuth App: GitHub lists no scopes for it.
+  // The device-flow token from ntwine's own OAuth App: GitHub lists no scopes for it.
   const zero = fakeGithubApi("")
   assert.deepEqual(await githubVerifier(zero.fetchImpl)("gho_zero"), { id: 4242, login: "ada", createdAt: Date.parse("2020-01-01T00:00:00Z") })
   assert.deepEqual(zero.seen, ["Bearer gho_zero"])
@@ -236,7 +236,7 @@ test("through the worker, a scoped token is refused with advice to update, and a
     assert.equal(refused.status, 400)
     const body = (await refused.json()) as { error: string; message: string }
     assert.equal(body.error, "github-token-scoped")
-    assert.match(body.message, /update Ntwine/)
+    assert.match(body.message, /update ntwine/)
     assert.equal(kv.rows.size, 0, "nothing was recorded for the scoped token")
 
     scopes = ""

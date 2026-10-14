@@ -1,4 +1,4 @@
-// Unowned broker daemons — the ones a booting Ntwine finds running under a project's state dir and does
+// Unowned broker daemons — the ones a booting ntwine finds running under a project's state dir and does
 // NOT adopt.
 //
 // A broker daemon is forked detached into its own process group, so it outlives the server on purpose:

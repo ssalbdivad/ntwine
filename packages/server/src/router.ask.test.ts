@@ -373,7 +373,7 @@ test("the answer message is written in the wire form the chat renders as the hum
   // THE FORMAT IS THE ATTRIBUTION. This message is delivered as an ntwine WAKE, and the chat draws a wake
   // as ntwine's own notification card — UNLESS the text is in the one form `parseAnswersCard` reads, which
   // it checks first. Getting it wrong does not fail: the answer simply stops being the human's words on
-  // screen and becomes agent-facing prose in an Ntwine card over them (the 2026-08-27 regression).
+  // screen and becomes agent-facing prose in an ntwine card over them (the 2026-08-27 regression).
   //
   // The worker never saw an id, so `{id: choice}` would be unreadable to it — each row quotes its own
   // question, which is also what makes the card restate the question beside the answer. And a dismissal
@@ -397,7 +397,7 @@ test("the answer message is written in the wire form the chat renders as the hum
 })
 
 test("nobody-is-coming is its own message, and NOT the answers form", () => {
-  // The autonomous thread whose questions were cancelled wholesale. Ntwine is speaking here, not the
+  // The autonomous thread whose questions were cancelled wholesale. ntwine is speaking here, not the
   // human, so it must NOT wear the Answers card — the chat draws it as a hairline instead.
   const message = questionsCancelledWakeMessage(2)
   assert.doesNotMatch(message, new RegExp(BURIED_ANSWERS_HEADER))
@@ -614,7 +614,7 @@ test("questions asked in ONE call keep their order — the tiebreak is insertion
 
 // A TYPED MESSAGE LEAVES A QUESTION OPEN AND OWED. The human wrote to the worker instead of answering: the
 // question still blocks `done` and still reads back as open, until the human answers or dismisses it or the
-// worker withdraws it. Ntwine never withdraws it on the worker's behalf.
+// worker withdraws it. ntwine never withdraws it on the worker's behalf.
 test("a question the human typed past stays open and owed — it blocks done until the worker unasks it", async () => {
   const h = harness()
   try {

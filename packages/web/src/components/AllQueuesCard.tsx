@@ -93,7 +93,7 @@ import { useFileDropZone, useFileIntakeHandle, type SurfaceFileDrop } from "../l
  * threads, and the lanes that used to say whose they were are gone (lib/allQueues.ts mergedQueue). A
  * focused view shows one project's cards, so it draws no chip (AllQueues.tsx passes `chip={!focused}`).
  * Given `onChoose` it is a button that focuses the page on the project — navigates to its
- * board, `/project/<slug>` (lib/pageView.ts projectViewHref), the same place the READY header's switcher
+ * board, `/project/<slug>` (lib/pageView.ts projectViewHref), the same place the dock
  * goes; it filtered the queue in place until focus mode retired the queue filter on 2026-09-29.
  * Without it, plain text, for a line that already sits inside a control (the command card's open button).
  * `square: false` drops its 12px square, for a card that already leads with the project's ProjectMark.
@@ -629,7 +629,7 @@ function CardArticle({
           {/* A question from a rest older than the human's bubble, flushed first as upstream's window
               flushes it — everything below the bubble is newer than it. */}
           {slots && <RegisteredQuestionStack key={`above-${restKey}`} thread={thread} questions={slots.above} keepAnswered />}
-          {/* A scheduled run's first message opens with Ntwine's header for the worker; the card shows only the
+          {/* A scheduled run's first message opens with ntwine's header for the worker; the card shows only the
               saved prompt under it, the human's own words — the title's repeat glyph already says where the
               run came from (ChatView ScheduledRunOpening does the same in the drawer). */}
           {/* An "Ask for update" click is the human's turn too (router.handoffOf), drawn as the transcript
@@ -1312,7 +1312,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
     if (alias) {
       draftStore.set(key, "")
       if (thread.backend === "acp") {
-        showToast("An ACP agent signs in through its own CLI — Ntwine holds no account for it")
+        showToast("An ACP agent signs in through its own CLI — ntwine holds no account for it")
         return
       }
       const backend: AccountBackend = thread.backend === "codex" ? "codex" : "claude"
@@ -1359,7 +1359,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
         footer={controls.footer}
         onEffortStep={controls.stepEffort}
         // THE GOAL at the rail's left end, as on every thread prompt box (ThreadComposerBox) — for a
-        // Ntwine-owned session. It reaches the card's project through the scope this box renders in.
+        // ntwine-owned session. It reaches the card's project through the scope this box renders in.
         railLead={thread.kind === "session" && thread.foreign !== true ? <RecurringPromptControl thread={thread} /> : undefined}
       />
       {controls.status}

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 // The ntwine-worker plugin (single-thread worker contract + hooks + the worker-facing bin/ scripts), a
-// sibling of board/ in the Ntwine source tree. Deployed artifacts carry it at runtime/cc-worker, but
+// sibling of board/ in the ntwine source tree. Deployed artifacts carry it at runtime/cc-worker, but
 // pnpm may load this module through a nested store rather than the flat node_modules layout. Search
 // module ancestors so the closure remains discoverable in either layout; an explicitly verified
 // artifact path wins.

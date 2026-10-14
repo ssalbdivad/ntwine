@@ -9,7 +9,7 @@
  * `ntwine-reminder` hook runs `--validate` every turn so malformed frontmatter surfaces
  * to the orchestrator immediately.
  *
- * SCOPE: NTWINE CLASSIC. Every thread here is a `.ntwine/<slug>.md` file. A thread the Ntwine APP
+ * SCOPE: NTWINE CLASSIC. Every thread here is a `.ntwine/<slug>.md` file. A thread the ntwine APP
  * dispatches writes no such file and therefore never appears in this board at all — its row, its
  * status and its queue membership are all derived server-side (packages/server/src/board.ts). See
  * config.mjs § STATUS for what still consumes this tool and why it is not the app's queue model.

@@ -35,7 +35,7 @@ export function installLocalFileLinkInterceptor(): () => void {
 
 // A markdown screenshot whose file is gone — a /tmp shot that was cleaned up, a removed worktree,
 // a path from another machine. `/local-image` 404s, and Chrome then paints its own broken-image glyph
-// beside the alt text, which reads as a rendering fault in Ntwine rather than as a missing file. Swap the
+// beside the alt text, which reads as a rendering fault in ntwine rather than as a missing file. Swap the
 // dead <img> for the plain path, exactly as BlockImage's onError fallback does for the React-rendered
 // case — nothing is silently swallowed, and the replacement holds one stable line instead of the
 // zero-height-then-glyph box that made the whole message reflow.
@@ -66,7 +66,7 @@ function imageFailureHandler(): (event: Event) => void {
   }
 }
 
-// Act on a vetted local path, in Ntwine whenever Ntwine can show it (lib/localViewer.ts): a picture opens
+// Act on a vetted local path, in ntwine whenever ntwine can show it (lib/localViewer.ts): a picture opens
 // in the picture viewer, stepping through the pictures rendered beside the one clicked; a `.md` file in
 // the reader, rendered; any other text file in the reader as source (the split panel beside the thread
 // on /full, a drawer everywhere else). Only a format the page cannot draw — a PDF, a spreadsheet, an
@@ -102,9 +102,9 @@ export function openLocalPath(path: string, from?: Element | null, scope?: Markd
     openInHostEditor(path, at)
     return
   }
-  // ON A PHONE the external app is the wrong machine: it launches on the computer Ntwine runs on, which
+  // ON A PHONE the external app is the wrong machine: it launches on the computer ntwine runs on, which
   // from a phone is somewhere else entirely, and the tap appears to do nothing. So every other file opens
-  // in Ntwine's own reader instead, as source when it is not one the reader renders.
+  // in ntwine's own reader instead, as source when it is not one the reader renders.
   if (isMobileViewport()) {
     pushFileReader(path, scope)
     return

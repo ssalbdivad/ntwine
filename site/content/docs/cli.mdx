@@ -3,12 +3,12 @@ title: CLI
 description: Every option, key and environment variable `npx ntwine` understands.
 ---
 
-You can run `npx ntwine` from anywhere. One server serves every project on the machine, each with its own board, so if Ntwine is already running, a second run just joins it.
+You can run `npx ntwine` from anywhere. One server serves every project on the machine, each with its own board, so if ntwine is already running, a second run just joins it.
 
 Where you run it decides what opens:
 
 - In a folder that's already a project, you get that project's board.
-- In a repository Ntwine hasn't seen yet, it asks whether to add it.
+- In a repository ntwine hasn't seen yet, it asks whether to add it.
 - Anywhere else, you get All projects.
 
 ```bash
@@ -19,7 +19,7 @@ npx ntwine [options]
 | --- | --- |
 | `--no-app` | Print the URL without opening a browser |
 | `--port <port>` | Request a fixed port for a new server |
-| `--sandbox` | A disposable Ntwine to try things in: throwaway home and project, its own port, deleted when this terminal closes. Credentials (`gh`, cloudflared, Claude, Codex, the machine's ntwine.app key) are shared |
+| `--sandbox` | A disposable ntwine to try things in: throwaway home and project, its own port, deleted when this terminal closes. Credentials (`gh`, cloudflared, Claude, Codex, the machine's ntwine.app key) are shared |
 | `--link` | Print a fresh single-use sign-in link for the running board |
 | `--sessions` | List the devices signed in to the running board |
 | `--sign-out <id\|all>` | Sign one device out, or every one of them |
@@ -30,7 +30,7 @@ npx ntwine [options]
 
 ## Keys in the terminal
 
-While Ntwine is running, the terminal you started it from listens for two keys:
+While ntwine is running, the terminal you started it from listens for two keys:
 
 | Key | What it does |
 | --- | --- |
@@ -39,9 +39,9 @@ While Ntwine is running, the terminal you started it from listens for two keys:
 
 ## Environment
 
-By default, Ntwine runs the Claude Code and Codex versions it pins. You can point it at your own build instead:
+By default, ntwine runs the Claude Code and Codex versions it pins. You can point it at your own build instead:
 
 | Variable | What it does |
 | --- | --- |
-| `NTWINE_CLAUDE_BIN` | Run this Claude Code build instead of the one Ntwine pins |
-| `NTWINE_CODEX_BIN` | Run this Codex build instead of the one Ntwine pins |
+| `NTWINE_CLAUDE_BIN` | Run this Claude Code build instead of the one ntwine pins |
+| `NTWINE_CODEX_BIN` | Run this Codex build instead of the one ntwine pins |

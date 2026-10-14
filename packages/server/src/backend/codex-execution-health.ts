@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 
 // This reads a local launchd service, not DNS configuration or an Internet endpoint. Offline/VPN
-// changes must not invalidate a listener. Run it THROUGH Codex: a newly restarted Ntwine can be healthy
+// changes must not invalidate a listener. Run it THROUGH Codex: a newly restarted ntwine can be healthy
 // while the detached app-server still has the previous login session's dead bootstrap context.
 export const MACOS_SERVICE_PROBE = ["/bin/launchctl", "print", "system/com.apple.configd"]
 export const MACOS_SERVICE_PROBE_TIMEOUT_MS = 3_000
@@ -60,8 +60,8 @@ export class CodexExecutionHealth {
       `Codex cannot access macOS system services (${detail}; ${scope}). ` +
       "New conversations and turns are blocked; existing work and conversation history were not changed. " +
       (hostHealthy
-        ? "Ntwine's host context is healthy, but this backend is not. Stop this project's Codex turns before replacing its shared backend; restarting Ntwine alone can reuse it."
-        : "Ntwine's host context also failed the check. Relaunch Ntwine from a fresh terminal after stopping this project's Codex turns; its shared backend must also be replaced."),
+        ? "ntwine's host context is healthy, but this backend is not. Stop this project's Codex turns before replacing its shared backend; restarting ntwine alone can reuse it."
+        : "ntwine's host context also failed the check. Relaunch ntwine from a fresh terminal after stopping this project's Codex turns; its shared backend must also be replaced."),
     )
   }
 }

@@ -16,7 +16,7 @@ const REAL_2_1_281 = [
   { value: "haiku", resolvedModel: "claude-haiku-4-5-20251001", displayName: "Haiku", description: "Haiku 4.5 · Fastest for quick answers" },
 ]
 
-test("the 2.1.281 catalogue resolves every alias to its edition, in Ntwine's order", () => {
+test("the 2.1.281 catalogue resolves every alias to its edition, in ntwine's order", () => {
   assert.deepEqual(resolveClaudeModels(REAL_2_1_281), [
     { alias: "fable", label: "Fable 5.1", resolvedModel: "claude-fable-5-1", edition: "5.1" },
     { alias: "opus", label: "Opus 5.5", resolvedModel: "claude-opus-5-5", edition: "5.5" },
@@ -43,7 +43,7 @@ test("the first row of a family wins, so the default row names the edition every
   assert.equal(resolveClaudeModels(rows).find((m) => m.alias === "opus")?.label, "Opus 5.5")
 })
 
-// LIVE: the provisioned pin answers, and every alias Ntwine offers resolves to an edition on it. This is
+// LIVE: the provisioned pin answers, and every alias ntwine offers resolves to an edition on it. This is
 // the check that a pin bump cannot silently return the picker to bare family words. Skipped when the
 // pin has not been provisioned on this machine (a fresh clone before first boot).
 test("the pinned Claude Code resolves every alias to an edition", { skip: !provisionedBinary("claude", runtimesRoot(process.env), CLAUDE_CODE_VERSION) && `Claude Code ${CLAUDE_CODE_VERSION} is not provisioned` }, async () => {

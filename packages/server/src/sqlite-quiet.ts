@@ -1,7 +1,7 @@
 // Imported for its SIDE EFFECT, and imported BEFORE `node:sqlite` anywhere it is used.
 //
 // `node:sqlite` is Stability 1.2 (release candidate) and emits an ExperimentalWarning to stderr the
-// first time it is loaded. Ntwine's launcher paints a compact readout there, so an unsolicited Node
+// first time it is loaded. ntwine's launcher paints a compact readout there, so an unsolicited Node
 // warning lands in the middle of it — and the operator can do nothing about a warning describing an
 // implementation detail they did not choose. Which releases warn is not even monotonic (measured:
 // 22.14 and 24.1 warn, 24.17 is silent, 25.0-25.2 warn again, 25.8+ silent), so suppressing it is the

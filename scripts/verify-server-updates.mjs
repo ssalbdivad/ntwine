@@ -52,8 +52,8 @@ Object.assign(env, {
 })
 writeFileSync(env.npm_config_userconfig, "")
 execFileSync("git", ["init", "-q"], { cwd: repo })
-// A launch opens the folder it is run in only when Ntwine already knows it as a project. Anywhere
-// else it lands on the dashboard, hosted on a folder of Ntwine's own (49000c91), and no project is
+// A launch opens the folder it is run in only when ntwine already knows it as a project. Anywhere
+// else it lands on the dashboard, hosted on a folder of ntwine's own (49000c91), and no project is
 // registered at all. Every scenario below is about the project the launcher was started in.
 ensureProjectIdFile(repo, home)
 const events = [], failures = [], consoleErrors = [], processes = []
@@ -298,9 +298,9 @@ try {
     page = await browser.newPage()
     const project = JSON.parse(readFileSync(join(home, "data/ntwine/registry.json"), "utf8")).projects[0]
     await page.goto(`${base}/project/${project.slug}/`, { waitUntil: "networkidle2" })
-    await page.waitForSelector('button[aria-label="Update Ntwine"]', { visible: true })
+    await page.waitForSelector('button[aria-label="Update ntwine"]', { visible: true })
     const accepted = page.waitForResponse((response) => response.url().endsWith("/update-restart") && response.request().method() === "POST").catch((error) => ({ error }))
-    await page.click('button[aria-label="Update Ntwine"]')
+    await page.click('button[aria-label="Update ntwine"]')
     const response = await accepted
     if (response.error) throw response.error
     assert.equal(response.status(), 202)
@@ -321,17 +321,17 @@ try {
   await until("initial selection committed", () => selected().version === "0.13.0")
   const registered = (directory) => JSON.parse(readFileSync(join(home, "data/ntwine/registry.json"), "utf8")).projects.find((project) => project.path === realpathSync(directory))
   // The launch was typed in the project, and that is all the project is to the launcher: the server
-  // runs on Ntwine's own folder, and it was the SERVER that opened the project — registered it and
+  // runs on ntwine's own folder, and it was the SERVER that opened the project — registered it and
   // said where to land — when the launcher asked it (POST /_ntwine/control/launch). A 0.12.10 launcher
   // predates all of this and still runs the server on the project.
   let opened
   if (!legacyTarball) {
     opened = await until("the server opened the project the launch was typed in", () => registered(repo), 30_000)
-    await until("the launcher landed where the server said", () => launcherLogs().includes(`started Ntwine at ${base}/project/${opened.slug}`), 30_000)
+    await until("the launcher landed where the server said", () => launcherLogs().includes(`started ntwine at ${base}/project/${opened.slug}`), 30_000)
     assert.doesNotMatch(launcherLogs(), /did not say where this launch lands/, "the server answered; the launcher's own rules were not used")
     const server = children().find((event) => event.event === "ready").pid
     if (cwdOf(server) !== undefined) {
-      assert.equal(cwdOf(server), realpathSync(join(home, "data/ntwine/host")), "the server runs on Ntwine's own folder, not the project")
+      assert.equal(cwdOf(server), realpathSync(join(home, "data/ntwine/host")), "the server runs on ntwine's own folder, not the project")
       assert.equal(cwdOf(shellPid), realpathSync(repo), "the launcher stays in the folder the command was typed in")
     }
     // A second launch, typed in another project, joins this server and lands on THAT project.
@@ -342,7 +342,7 @@ try {
     await until("the second launch exits", () => joining.exitCode !== null || joining.signalCode !== null, 60_000)
     assert.equal(joining.exitCode, 0)
     assert.equal(children().slice(before).some((event) => event.event === "start"), false, "a second launch starts no server")
-    assert.ok(launcherLogs().includes(`reusing Ntwine at ${base}/project/${registered(other).slug}`), "the second launch lands on the project it was typed in")
+    assert.ok(launcherLogs().includes(`reusing ntwine at ${base}/project/${registered(other).slug}`), "the second launch lands on the project it was typed in")
     record("server-routed-the-launch", { opened: opened.slug, joined: registered(other).slug, host: cwdOf(server) })
   }
   const api = createRpcClient(base, opened?.slug)
@@ -413,15 +413,15 @@ try {
     writeFileSync(join(out, `${worker.backend}-transcript.json`), JSON.stringify(transcript, null, 2))
     record("worker-survived-and-answered-followup", { backend: worker.backend, thread: worker.thread, daemon: worker.daemon })
   }
-  // The recovered board's control reads "Ntwine is up to date" once the launcher has confirmed there
-  // is nothing newer (greyed rather than hidden since 1ea81aa1), and "Restart Ntwine" until then.
-  await until("browser recovered", () => page.evaluate(() => !!document.querySelector('button[aria-label="Restart Ntwine"], button[aria-label="Ntwine is up to date"]')))
+  // The recovered board's control reads "ntwine is up to date" once the launcher has confirmed there
+  // is nothing newer (greyed rather than hidden since 1ea81aa1), and "Restart ntwine" until then.
+  await until("browser recovered", () => page.evaluate(() => !!document.querySelector('button[aria-label="Restart ntwine"], button[aria-label="ntwine is up to date"]')))
   if (argument("visual")) {
     for (const font of ["sans", "mono"]) {
       await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 6 })
       await api.mutate("settingsSet", { ...await api.query("settingsGet"), font })
       await page.reload({ waitUntil: "networkidle2" })
-      await page.hover('button[aria-label="Restart Ntwine"]')
+      await page.hover('button[aria-label="Restart ntwine"]')
       await page.waitForSelector("#update-restart-popover", { visible: true })
       await until("browser version poll catches up", () => page.evaluate(() => document.querySelector("#update-restart-popover .font-mono")?.textContent === "0.13.1"), 15_000)
       await delay(250)
@@ -450,7 +450,7 @@ try {
       assert.match(measurements.copy, /Restart Ntwine0.13.1/)
       assert.doesNotMatch(measurements.copy, /Launcher/)
       record("version-optical-geometry", measurements)
-      const ink = execFileSync(process.execPath, [join(workspace, "scripts/ink-gaps.mjs"), page.url(), "#update-restart-popover > div > span,#update-restart-popover > div > div", "--dsf=6", "--w=1280", "--h=850", `--before=document.documentElement.dataset.font='${font}'`, '--hover=button[aria-label="Restart Ntwine"]'], { cwd: workspace, encoding: "utf8", timeout: 90_000, maxBuffer: 1e6 })
+      const ink = execFileSync(process.execPath, [join(workspace, "scripts/ink-gaps.mjs"), page.url(), "#update-restart-popover > div > span,#update-restart-popover > div > div", "--dsf=6", "--w=1280", "--h=850", `--before=document.documentElement.dataset.font='${font}'`, '--hover=button[aria-label="Restart ntwine"]'], { cwd: workspace, encoding: "utf8", timeout: 90_000, maxBuffer: 1e6 })
       writeFileSync(join(out, `ink-${font}.json`), ink)
     }
     await page.mouse.move(1000, 800)
@@ -486,10 +486,10 @@ try {
   }
   await delay(600)
   // The real browser button sends the final recovery update, after all injected failures.
-  await page.waitForSelector('button[aria-label="Update Ntwine"]:not(:disabled)', { visible: true })
-  record("browser-control", { url: page.url(), control: await page.$eval('button[aria-label="Update Ntwine"]', (element) => element.outerHTML) })
+  await page.waitForSelector('button[aria-label="Update ntwine"]:not(:disabled)', { visible: true })
+  record("browser-control", { url: page.url(), control: await page.$eval('button[aria-label="Update ntwine"]', (element) => element.outerHTML) })
   const accepted = page.waitForResponse((response) => response.url().endsWith("/update-restart") && response.request().method() === "POST").catch((error) => ({ error }))
-  await page.click('button[aria-label="Update Ntwine"]')
+  await page.click('button[aria-label="Update ntwine"]')
   const response = await accepted
   if (response.error) throw response.error
   assert.equal(response.status(), 202)
@@ -523,17 +523,17 @@ try {
   // on 2026-10-11 a board had failed one every half hour for twenty hours, never offered an update,
   // and the first anyone knew was a failed click.
   await stopShell()
-  assert.doesNotMatch(launcherLogs(), /could not check npm for a newer Ntwine server/, "no probe has failed yet")
+  assert.doesNotMatch(launcherLogs(), /could not check npm for a newer ntwine server/, "no probe has failed yet")
   probeOutage = true
   await launch(); await healthy("0.13.7")
-  await until("the failed probe is logged", () => /could not check npm for a newer Ntwine server: .*INJECTED_REGISTRY_OUTAGE|could not check npm for a newer Ntwine server: .*503/su.test(launcherLogs()), 60_000)
+  await until("the failed probe is logged", () => /could not check npm for a newer ntwine server: .*INJECTED_REGISTRY_OUTAGE|could not check npm for a newer ntwine server: .*503/su.test(launcherLogs()), 60_000)
   probeOutage = false
   await api.query("board")
   record("failed-probe-logged")
-  // The folder Ntwine was started FROM is deleted while it runs. On 2026-10-11 a board started in a
+  // The folder ntwine was started FROM is deleted while it runs. On 2026-10-11 a board started in a
   // scratch folder that was removed a day later could no longer update or restart: the server ran ON
   // that folder, and nothing forks into a directory that is gone. The folder is now only where the
-  // command was typed — the server runs on Ntwine's own — so the board restarts and updates with it
+  // command was typed — the server runs on ntwine's own — so the board restarts and updates with it
   // gone, and with the launcher itself left standing in a directory that no longer exists.
   const serving = children().filter((event) => event.event === "ready").at(-1).pid
   rmSync(repo, { recursive: true, force: true })
@@ -557,7 +557,7 @@ try {
   const outside = join(root, "outside")
   mkdirSync(outside)
   await launch("0.13.0", outside); await healthy("0.13.12")
-  await until("an outside launch lands on All projects", () => new RegExp(`started Ntwine at ${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/all$`, "m").test(launcherLogs()), 30_000)
+  await until("an outside launch lands on All projects", () => new RegExp(`started ntwine at ${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/all$`, "m").test(launcherLogs()), 30_000)
   if (cwdOf(shellPid) !== undefined) assert.equal(cwdOf(shellPid), realpathSync(outside), "the launcher stays in the folder the command was typed in")
   await machine.query("projectsList")
   record("outside-launch-lands-on-the-dashboard")
@@ -565,7 +565,7 @@ try {
   // newest shell on every run and the server moves only on Update. So a shell that depends on what a
   // server release learned says so (`ntwineServer.minimum`), and starts an older machine on its
   // pinned release. The older server here is the REAL ntwine-server 0.15.20 from npm — the last one
-  // that lists Ntwine's own launch folder as a project, which is where a shell from 0.13.13 hosts
+  // that lists ntwine's own launch folder as a project, which is where a shell from 0.13.13 hosts
   // every launch outside one. A new machine, so nothing above bears on it.
   await stopShell()
   const OLD_SERVER = "0.15.20"
@@ -602,7 +602,7 @@ try {
   // A published server reports nothing to the fixtures' event file, so the launcher is found by the
   // record it publishes and readiness by the supervisor's own status.
   const launchPublished = async (shell, server, cwd = nowhere) => {
-    const landings = () => launcherLogs(newHome).match(/started Ntwine at /g)?.length ?? 0
+    const landings = () => launcherLogs(newHome).match(/started ntwine at /g)?.length ?? 0
     const landed = landings()
     start(`launcher-${processes.length}`, [npmCli, "exec", "--yes", `--package=ntwine@${shell}`, "--", "ntwine", "--no-app", "--port", new URL(base).port], cwd)
     await until(`server ${server} under shell ${shell}`, async () => { const value = await status(); return value.state === "ready" && value.version === server }, 300_000)
@@ -616,7 +616,7 @@ try {
     shellPid = await until("the launcher's owner record", () => pidIn("project-launch.owner"), 10_000)
     for (const pid of [shellPid, pidIn("server.lock")]) if (pid) publishedPids.add(pid)
   }
-  // This machine ran Ntwine before the server moved onto its own folder, so its remote sign-ins are
+  // This machine ran ntwine before the server moved onto its own folder, so its remote sign-ins are
   // under the project it was last started in. The first launch brings them along: the launcher goes
   // on signing sessions with the key the phones already hold, and the move signs nobody out.
   const formerHost = join(newHome, "data/ntwine/projects/11111111-1111-4111-8111-111111111111")
@@ -628,7 +628,7 @@ try {
   assert.equal(selected(newHome).version, OLD_SERVER)
   await until("the launcher says whose sign-in state it carried over", () => /carried the remote sign-in state over from \S*11111111-1111-4111-8111-111111111111$/m.test(launcherLogs(newHome)), 10_000)
   const sessionKeys = readdirSync(dirname(formerHost)).map((project) => join(dirname(formerHost), project, "session-key")).filter((path) => existsSync(path))
-  assert.equal(sessionKeys.length, 2, "the former host's key, and the one Ntwine's own folder now holds")
+  assert.equal(sessionKeys.length, 2, "the former host's key, and the one ntwine's own folder now holds")
   for (const path of sessionKeys) assert.ok(readFileSync(path).equals(sessionKey), `${path} is the key the devices already hold`)
   record("remote-sign-ins-carried-over", { from: formerHost, keys: sessionKeys })
   await stopShell()
@@ -639,7 +639,7 @@ try {
   mkdirSync(theirs); execFileSync("git", ["init", "-q"], { cwd: theirs }); ensureProjectIdFile(theirs, newHome)
   await launchPublished("0.13.21", OLD_SERVER, theirs)
   assert.equal(selected(newHome).version, OLD_SERVER, "a shell without a minimum never moves the installed server")
-  assert.match(launcherLogs(newHome), new RegExp(`started Ntwine at ${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/project/their-project$`, "m"), "the launcher opened the project by its own rules")
+  assert.match(launcherLogs(newHome), new RegExp(`started ntwine at ${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/project/their-project$`, "m"), "the launcher opened the project by its own rules")
   // Both launches so far met a server with no launch route: the one that installed it, and this one.
   assert.equal(launcherLogs(newHome).match(/did not say where this launch lands; using this launcher's own rules/g)?.length, 2)
   assert.ok((await listed()).includes(realpathSync(theirs)))
@@ -647,15 +647,15 @@ try {
   await stopShell()
   // Then typed outside one, which is the launch that leaves the dashboard with a project the operator
   // never added and cannot open usefully. It has to be this launch: the one above registered a
-  // project through the launcher's own registry code, which writes the list back without Ntwine's
+  // project through the launcher's own registry code, which writes the list back without ntwine's
   // folder, and the older server only puts it there as it boots.
   await launchPublished("0.13.21", OLD_SERVER)
-  await until("the older server lists Ntwine's own launch folder", async () => (await listed()).includes(launchFolder()), 30_000)
+  await until("the older server lists ntwine's own launch folder", async () => (await listed()).includes(launchFolder()), 30_000)
   record("older-server-lists-the-launch-folder", { server: OLD_SERVER, listed: await listed() })
   await stopShell()
   await launch("0.13.22", nowhere); await healthy("0.15.99")
   await until("the pinned release is selected once it is up", () => selected(newHome).version === "0.15.99", 30_000)
-  assert.match(launcherLogs(newHome), new RegExp(`the installed Ntwine server ${OLD_SERVER.replaceAll(".", "\\.")} is older than this launcher works with \\(0\\.15\\.21\\); starting on 0\\.15\\.99`))
+  assert.match(launcherLogs(newHome), new RegExp(`the installed ntwine server ${OLD_SERVER.replaceAll(".", "\\.")} is older than this launcher works with \\(0\\.15\\.21\\); starting on 0\\.15\\.99`))
   assert.deepEqual(await listed(), [realpathSync(theirs)], "the entry the older server wrote is gone from the dashboard")
   record("minimum-starts-an-older-machine-on-the-pinned-server", { from: OLD_SERVER, to: selected(newHome).version, listed: await listed() })
   assert.equal(children().some((event) => event.event === "overlapping-server"), false, "no server process may overlap its predecessor")

@@ -55,7 +55,7 @@ test("skips a project whose directory is gone rather than failing to open it", a
   assert.deepEqual(result.failed, [])
 })
 
-test("leaves a project another live Ntwine is serving closed, and says so once", async () => {
+test("leaves a project another live ntwine is serving closed, and says so once", async () => {
   const { deps, opened, logs } = harness({ servedElsewhere: (p) => (p.id === "b" ? 4242 : undefined) })
   const result = await startTenantPrime(deps).done
   assert.deepEqual(opened, ["a", "c"])

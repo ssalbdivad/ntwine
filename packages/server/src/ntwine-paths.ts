@@ -10,7 +10,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 // tree reaches gigabytes (measured: 1.8 GB of promoted artifacts and 1.5 GB of browser profiles
 // against 28 MB of actual thread state), agents hold live file descriptors into it, and the threads
 // have no backup anywhere else. So: DETECT first, and only choose for a machine that has never run
-// Ntwine.
+// ntwine.
 //
 //   1. `~/.ntwine` exists  -> use it for everything, unchanged, forever. Nobody migrates.
 //   2. otherwise         -> the platform's idiomatic locations, XDG variables honored individually.
@@ -37,7 +37,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 //   · macOS  `$TMPDIR` is `/var/folders/…/T`, PRIVATE to one user (drwx------).
 //   · Linux  `$TMPDIR` is normally unset, so it means `/tmp`: world-writable, SHARED by every account.
 //
-// One rule, two security properties. Ntwine's launch lock and port reservations are machine-global
+// One rule, two security properties. ntwine's launch lock and port reservations are machine-global
 // mutexes, and putting them in a shared `/tmp` breaks them in a way that does not self-heal, because
 // of how staleness is decided: `pidIsAlive` (project-identity.ts) probes `process.kill(pid, 0)` and
 // treats EPERM as ALIVE — correct within one account, where EPERM means "running, just not signalable
@@ -48,7 +48,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 //
 // So locks live in `state`, which is under the user's own home (or their `$XDG_STATE_HOME`) and is
 // therefore per-user by construction — the one property the runtime dir was wanted for. The only
-// thing given up is the OS wiping them at reboot, which Ntwine does not need: it already ages locks out
+// thing given up is the OS wiping them at reboot, which ntwine does not need: it already ages locks out
 // itself, by PID plus process-start generation.
 //
 // Sockets, the other thing a runtime root would serve, already solve this for themselves.
@@ -90,7 +90,7 @@ export function legacyNtwineRoot(home = homedir()): string {
 }
 
 /**
- * What only an Ntwine DATA ROOT holds. Any one of them makes `~/.ntwine` the legacy root, whatever else is
+ * What only an ntwine DATA ROOT holds. Any one of them makes `~/.ntwine` the legacy root, whatever else is
  * in it: every launch writes the registry and a project state directory, so a real install has several.
  */
 const DATA_ROOT_ENTRIES = ["projects", "registry.json", "config.json", "ui.db", "server.lock", "settings.json", "logs"]
@@ -101,9 +101,9 @@ const BOARD_ENTRIES = ["threads", ".session-state", ".id", ".gitignore", ".agent
  * Is `~/.ntwine` a project's BOARD rather than a data root — something wrote `threads/…` into it?
  *
  * The name is shared: a project's board is `<project>/.ntwine/`, so the home folder's board would be
- * `~/.ntwine` — and the bare existence of that directory is what selects the legacy layout below. An Ntwine
+ * `~/.ntwine` — and the bare existence of that directory is what selects the legacy layout below. An ntwine
  * worker runs with its cwd in the home folder when it belongs to the Home workspace (home-workspace.ts),
- * and while Ntwine points that worker's scratch directory elsewhere, a worker or tool that still writes
+ * and while ntwine points that worker's scratch directory elsewhere, a worker or tool that still writes
  * the conventional `.ntwine/threads/<id>/` relative to its cwd would otherwise switch an XDG install onto
  * an empty data root at the next boot: every project gone from the page, their data intact but unread.
  *
@@ -138,7 +138,7 @@ function supersededByInstall(root: string, platformData: string, exists: (path: 
 /**
  * A `~/.ntwine` with no registry never outranks an XDG_DATA_HOME somebody SET.
  *
- * Setting XDG_DATA_HOME is how a harness isolates a throwaway Ntwine, and its fresh temp root has no
+ * Setting XDG_DATA_HOME is how a harness isolates a throwaway ntwine, and its fresh temp root has no
  * registry yet — so supersededByInstall cannot fire, and the legacy rule used to hand the harness the
  * REAL `~/.ntwine` instead. On 2026-10-02 a dev-board harness (verify-dev-remote.ts, since deleted)
  * booted a test board that way; `~/.ntwine` existed only as agent scratch debris, the board wrote its
@@ -178,7 +178,7 @@ function windowsRoots(env: NodeJS.ProcessEnv, home: string): NtwineRootDirs {
   // sits under the home being resolved. Trusting it unconditionally made `ntwinePaths({ home })` —
   // the one mechanism every sandbox has (`projectStateDir(id, home)`, `registryPath(home)`,
   // `machineConfigPath(home)`, `serverAddressPath(home)`) — collapse onto the live machine's single
-  // `%LOCALAPPDATA%\Ntwine` tree on win32, whatever home it was handed: a test run wrote the real
+  // `%LOCALAPPDATA%\ntwine` tree on win32, whatever home it was handed: a test run wrote the real
   // account's `settings.json` and registry (caught by the first Windows suite run, 2026-08-24). It is
   // the same leak that let a test retire `~/.ntwine/server.lock` under a live server on 2026-08-08,
   // and darwin/xdg never had it because they derive every root from `home` already.
@@ -191,7 +191,7 @@ function windowsRoots(env: NodeJS.ProcessEnv, home: string): NtwineRootDirs {
   const local = env.LOCALAPPDATA && insideHome(env.LOCALAPPDATA, home)
     ? env.LOCALAPPDATA
     : join(home, "AppData", "Local")
-  const base = join(local, "Ntwine")
+  const base = join(local, "ntwine")
   return {
     data: join(base, "Data"),
     state: join(base, "State"),
@@ -200,13 +200,13 @@ function windowsRoots(env: NodeJS.ProcessEnv, home: string): NtwineRootDirs {
 }
 
 function darwinRoots(home: string): NtwineRootDirs {
-  const support = join(home, "Library", "Application Support", "Ntwine")
+  const support = join(home, "Library", "Application Support", "ntwine")
   return {
     data: support,
     // macOS has no state directory concept; Application Support is where this belongs, and the log
     // files themselves already live under each project's own directory.
     state: support,
-    cache: join(home, "Library", "Caches", "Ntwine"),
+    cache: join(home, "Library", "Caches", "ntwine"),
   }
 }
 
@@ -327,7 +327,7 @@ export function withRootsPin(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 /**
- * Resolve Ntwine's global roots — ONCE per process for any given home and environment.
+ * Resolve ntwine's global roots — ONCE per process for any given home and environment.
  *
  * An explicitly SET XDG variable wins on every platform, including macOS and Windows — a developer
  * who has configured XDG has asked for it and should get it. Everything else follows the platform.
@@ -342,7 +342,7 @@ export function withRootsPin(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  * found none of its own projects there, and answered 404 to every worker's `/_ntwine/<project>/rpc/…`
  * call. ad124bae stopped the harness choosing that directory; this stops ANY later write from moving a
  * process that has already chosen, and the pin above carries the choice across a server restart. A
- * Ntwine moves between roots only when its whole process tree restarts, which is also the only point at
+ * ntwine moves between roots only when its whole process tree restarts, which is also the only point at
  * which every daemon, descriptor and env var it handed out is re-derived together.
  *
  * The memo is KEYED on every input the decision depends on (memoKey) — never a single process-wide
@@ -382,11 +382,11 @@ export function ntwinePaths(options: NtwinePathOptions = {}): NtwinePaths {
 /**
  * What a process starting NOW would resolve: the disk as it is at this instant, no memo, no pin.
  *
- * For processes that only DISCOVER a server and own no Ntwine data — the VS Code extension host. It
+ * For processes that only DISCOVER a server and own no ntwine data — the VS Code extension host. It
  * lives for days, and the server they look for can restart onto other
  * roots (a deliberate move, or a first launch on a fresh machine that picked `~/.ntwine`), so each
  * lookup follows the rule a freshly started server follows. Never use it for anything that WRITES
- * Ntwine state: that is exactly the mid-run flip `ntwinePaths` exists to prevent.
+ * ntwine state: that is exactly the mid-run flip `ntwinePaths` exists to prevent.
  */
 export function ntwinePathsNow(options: Omit<NtwinePathOptions, "exists"> = {}): NtwinePaths {
   return ntwinePaths({ ...options, exists: existsSync })

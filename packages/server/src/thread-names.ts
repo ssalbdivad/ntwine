@@ -12,7 +12,7 @@ import type { ClaudeOneShot, ClaudeOneShotRequest } from "./backend/claude-onesh
 // A NAME IS THE THREAD'S ID, SO IT IS FINAL THE MOMENT IT EXISTS (David 2026-09-30: "once someone
 // sees the id, it cannot change"). The board shows a name as its `@handle`, and the operator types that
 // handle into other threads' prompts, so a name that moves strands every mention of it. The first name to
-// land stands: a caller's title (a spinoff, `spawn_thread`), else Ntwine's mint, else the Codex marker,
+// land stands: a caller's title (a spinoff, `spawn_thread`), else ntwine's mint, else the Codex marker,
 // else — only for a thread none of those could name — the worker's own `mcp__ntwine__title`. Only a human
 // rename changes it after that. Two things used to move it and no longer can: Claude's own session title,
 // which showed as the name until the mint landed (and outranked a spinoff's name for good — a thread
@@ -275,7 +275,7 @@ function stripDecoration(text: string): string {
 /** Sentence case that survives identifiers: the first word gets a capital only if it is a plain
  *  lowercase word ("zod" → "Zod", but `z.properties` and "ArkType" stay as written), and a later word
  *  in plain Title case is lowered UNLESS the request itself capitalizes it — "Shell Budget" is drift,
- *  "Focus mode for Ntwine" is a proper noun. */
+ *  "Focus mode for ntwine" is a proper noun. */
 export function sentenceCaseName(name: string, source: string): string {
   return name.split(" ").map((word, index) => {
     if (index === 0) return /^[a-z]+$/.test(word) ? word.charAt(0).toUpperCase() + word.slice(1) : word

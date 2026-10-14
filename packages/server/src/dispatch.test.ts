@@ -383,16 +383,16 @@ test("loadWorkerPrompt(codex) carries codex's OWN session/wake + model/effort/sa
   assert.match(c, /### CI\/review monitor selection/)
   assert.match(c, /project-local `AGENTS\.md`/)
   assert.match(c, /terminal event\/exit semantics/)
-  assert.match(c, /never silently shadow it with Ntwine/)
+  assert.match(c, /never silently shadow it with ntwine/)
   assert.match(c, /persistent `exec_command` \/ `write_stdin` session/)
   assert.match(c, /Luna child is optional\nonly/)
   assert.match(c, /active native spawn tool/)
-  // Ntwine mounts an MCP server and pre-approves its tools; it sends NO override for the native spawn
+  // ntwine mounts an MCP server and pre-approves its tools; it sends NO override for the native spawn
   // surface. The prompt said the opposite until 2026-08-26 — it told every codex worker that ntwine
   // "requests the V2 surface with process-scoped, version-gated CLI overrides", and no commit ever
   // added such an override (codexAppServerArgv is the single argv builder for all four spawn sites and
   // pushes only the two `-c` values named here). Pin the disclaimer so the false premise cannot return.
-  assert.match(c, /Ntwine sends NO config override for the native spawn surface/)
+  assert.match(c, /ntwine sends NO config override for the native spawn surface/)
   assert.match(c, /trust the callable schema/)
   assert.match(c, /context-fork control/)
   // Both directions must be teachable: fresh for clean-room/adversarial, fork when the child
@@ -601,7 +601,7 @@ test("end-state contract: a fenceless rest is a DEFECT, done checks, awaiting pa
     // Unlanded code and the live code-change discussion remain INSTANCES of the heuristic.
     assert.match(c, /live code-change discussion/)
     assert.match(c, /PLANNING session whose plan file is FULLY written and PERSISTED/)
-    // Ntwine prescribes NO plan location (the plans feature was dropped 2026-08-24) — the contract must
+    // ntwine prescribes NO plan location (the plans feature was dropped 2026-08-24) — the contract must
     // not resurrect one.
     assert.doesNotMatch(c, /\.ntwine\/plans/)
     assert.match(c, /artifact already lives outside the thread, so dismissing the thread loses nothing/)
@@ -715,7 +715,7 @@ test("runtime release gate: WIPED — no worker surface carries browser-QA opini
   // The settings-toggled Runtime-release-gate module was deleted (maintainer 2026-08-03: "extremely
   // overfit to our specific requirements inside of this repo. Wipe it entirely."). Browser-QA policy
   // now belongs to a project's own NTWINE.md/CLAUDE.md, which ntwineConfigBlock injects per repo — never to
-  // every worker Ntwine dispatches anywhere.
+  // every worker ntwine dispatches anywhere.
   for (const raw of [loadWorkerPrompt("claude"), loadWorkerPrompt("codex")]) {
     const c = raw.replace(/\s+/g, " ")
     assert.doesNotMatch(c, /Runtime release gate/i)

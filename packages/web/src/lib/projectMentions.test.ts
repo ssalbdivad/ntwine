@@ -19,7 +19,7 @@ import {
 const card = (slug: string, name: string, over: Partial<ProjectCard> = {}) =>
   ({ id: `id-${slug}`, slug, name, path: `/home/u/${slug}`, lastOpenedAt: "", stale: false, iconStatus: "unknown", ...over }) as ProjectCard
 
-const CARDS = [card("home", "Home"), card("arktype", "ArkType"), card("ntwine-web", "Ntwine web"), card("gone", "Gone", { stale: true }), card("2024", "2024")]
+const CARDS = [card("home", "Home"), card("arktype", "ArkType"), card("ntwine-web", "ntwine web"), card("gone", "Gone", { stale: true }), card("2024", "2024")]
 const PROJECTS = projectMentionCandidates(CARDS)
 
 test("every project whose directory still exists, in the list's order", () => {

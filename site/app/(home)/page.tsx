@@ -17,7 +17,7 @@ import { Mark } from "@/components/mark";
 import { Shot } from "@/components/shot";
 import { githubUrl } from "@/lib/layout.shared";
 
-// every card names one thing Ntwine does, in a line, and links to the page that says the rest
+// every card names one thing ntwine does, in a line, and links to the page that says the rest
 const features = [
   { icon: AlarmClock, title: "Snooze", text: "Park a card until tomorrow, with what to do when it wakes.", href: "/docs/snooze" },
   { icon: Target, title: "Goals", text: "“Keep going until CI is green”, re-sent at every rest.", href: "/docs/goals" },
@@ -32,8 +32,8 @@ const features = [
 
 // the commitments every feature is held to, one line each; /docs/principles says the rest
 const principles = [
-  { title: "The agent decides.", text: "A thread's state is its agent's own last word. Ntwine only checks that it holds up." },
-  { title: "Ntwine never answers for it.", text: "Outside a short, listed set, nothing is answered, parked or withdrawn on an agent's behalf." },
+  { title: "The agent decides.", text: "A thread's state is its agent's own last word. ntwine only checks that it holds up." },
+  { title: "ntwine never answers for it.", text: "Outside a short, listed set, nothing is answered, parked or withdrawn on an agent's behalf." },
   { title: "Every card is yours to act on.", text: "Nothing enters the queue just to be dismissed, and a running thread never does." },
   { title: "Five bands, never lost.", text: "Pinned, Queue, Running, Snoozed, Done. Every thread is in exactly one." },
   { title: "One project at a time.", text: "A project's board is the default. All projects is one click away." },
@@ -66,7 +66,7 @@ export default function Home() {
     <main className="mx-auto w-full max-w-6xl px-6">
       <section className="grid items-center gap-12 pt-16 pb-20 md:grid-cols-[1fr_1.35fr] md:pt-24">
         <div>
-          <h1 className="sr-only">Ntwine</h1>
+          <h1 className="sr-only">ntwine</h1>
           <Mark className="h-auto w-24 md:w-28" />
           <p className="mt-8 text-3xl leading-tight font-semibold tracking-tight text-balance md:text-4xl">
             One tab for all your coding agents.
@@ -90,7 +90,7 @@ export default function Home() {
           width={1760}
           height={1100}
           priority
-          alt="Ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick."
+          alt="ntwine focused on one project: the prompt box and the project's threads on the left, and on the right the first queue card, where an agent asks whether the settings store should use SQLite or a JSON file, with numbered options and a countdown to the recommended pick."
         />
       </section>
 
@@ -145,7 +145,7 @@ export default function Home() {
           <div className="mt-5 space-y-4 text-lg text-fd-muted-foreground">
             <p>
               An agent waiting on CI, a review, a reporter&rsquo;s reply or another thread registers a watch and rests
-              outside your queue. Ntwine holds the watch, not the agent&rsquo;s session, so it lasts as long as the
+              outside your queue. ntwine holds the watch, not the agent&rsquo;s session, so it lasts as long as the
               server does. That can be days, or years.
             </p>
             <p>
@@ -185,8 +185,8 @@ export default function Home() {
           board&rsquo;s work at once.
         </p>
         <p>
-          Each agent runs in its own background process. Close the tab or stop Ntwine and it keeps working. When you
-          relaunch, Ntwine reconnects.
+          Each agent runs in its own background process. Close the tab or stop ntwine and it keeps working. When you
+          relaunch, ntwine reconnects.
         </p>
       </Split>
 
@@ -239,11 +239,11 @@ export default function Home() {
           <Heading title="From your phone, too." />
           <div className="mt-5 space-y-4 text-lg text-fd-muted-foreground">
             <p>
-              Press <Code>R</Code> in the terminal running Ntwine and pick how your phone should reach it. A private
+              Press <Code>R</Code> in the terminal running ntwine and pick how your phone should reach it. A private
               ntwine.app name needs no account and nothing installed.
             </p>
             <p>
-              Either way, Ntwine stays on localhost. The first visit from each device needs a single-use sign-in link,
+              Either way, ntwine stays on localhost. The first visit from each device needs a single-use sign-in link,
               which it shows as a QR code.
             </p>
           </div>

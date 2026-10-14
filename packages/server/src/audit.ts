@@ -9,11 +9,11 @@ import { log as ntwineLog } from "./logging.ts"
 // ── The audit trail of high-impact board actions ────────────────────────────────────────────────────
 // On 2026-10-08 a board session stolen through a backdoored hosted relay (on the old domain) was used to add
 // `/private/tmp` as a project, dispatch about 13 workers into it, and later remove the project with
-// its data. Ntwine had logged none of it: no line said a project was added or removed, that a thread
+// its data. ntwine had logged none of it: no line said a project was added or removed, that a thread
 // was dispatched or messaged, whether the request came over loopback or through the relay, or which
 // signed-in device sent it. Nothing could be attributed.
 //
-// So every action that can start work on this machine, or destroy Ntwine's record of it, writes one
+// So every action that can start work on this machine, or destroy ntwine's record of it, writes one
 // JSON line here: when, what, which project and thread, whether it was refused, and WHO — the request
 // origin the launcher's proxy saw (CALLER_HEADER) plus the board session it verified. Never a
 // secret: a session is named by its record id (what `ntwine --sessions` lists), never its cookie, and
@@ -166,7 +166,7 @@ export interface AuditLog {
   append(record: AuditRecord): void
 }
 
-/** `<data>/logs/audit.jsonl` for the Ntwine root a project state dir lives under (`../..` from it). */
+/** `<data>/logs/audit.jsonl` for the ntwine root a project state dir lives under (`../..` from it). */
 export function auditLogPathForStateDir(stateDir: string): string {
   return join(dirname(serverAddressPathForStateDir(stateDir)), "logs", "audit.jsonl")
 }
@@ -176,7 +176,7 @@ export function auditLogPathForStateDir(stateDir: string): string {
  * the action.
  *
  * One `appendFileSync` per record: O_APPEND writes of one short line land whole even with several
- * Ntwine processes appending (the run log relies on the same guarantee; see logging.ts).
+ * ntwine processes appending (the run log relies on the same guarantee; see logging.ts).
  */
 export function fileAuditLog(path: string): AuditLog {
   let secured = false

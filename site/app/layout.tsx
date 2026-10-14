@@ -12,7 +12,7 @@ const description =
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://ntwine.app"),
-  title: { default: "Ntwine: one tab for all your coding agents", template: "%s · Ntwine" },
+  title: { default: "ntwine: one tab for all your coding agents", template: "%s · ntwine" },
   description,
   icons: {
     icon: [
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    siteName: "Ntwine",
+    siteName: "ntwine",
     description,
     images: [{ url: "/img/og.png", width: 1200, height: 630 }],
   },

@@ -13,7 +13,7 @@ import { applyRemoteChoice, type ClaimSignIn, kindOf, type RemoteChoice, type Re
  * Why here and not in flags: the choice is made once, and it is a walkthrough, not a switch. Each
  * setup has a prerequisite (a tunnel created in another terminal, a Tailscale daemon) that a flag
  * can only fail on, while a screen can check it, print the commands, and ask for
- * exactly the one or two values Ntwine cannot find out for itself. What it saves is served by every
+ * exactly the one or two values ntwine cannot find out for itself. What it saves is served by every
  * later plain launch; "Off" clears it.
  *
  * The pane is a small state machine over a handful of screens, rendered whole on every change. Keys
@@ -65,7 +65,7 @@ const CHOICES: Choice[] = [
   { kind: "ntwine", title: "Custom name", blurb: "<name>.ntwine.app of your choosing; needs a GitHub account" },
   { kind: "cloudflare", title: "Cloudflare Tunnel", blurb: "a domain you own on Cloudflare; cloudflared on this machine" },
   { kind: "tailscale", title: "Tailscale", blurb: "your tailnet; tailscale serve does the TLS" },
-  { kind: "other", title: "Something else", blurb: "any proxy or tunnel you run — tell Ntwine its address" },
+  { kind: "other", title: "Something else", blurb: "any proxy or tunnel you run — tell ntwine its address" },
   { kind: "off", title: "Off", blurb: "loopback only" },
 ];
 
@@ -160,7 +160,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
         "Reach this board from anywhere",
         "",
         ...wrap(
-          "Ntwine binds 127.0.0.1 and has no login. Reaching it from another device means something in front of it does the authenticating. Whatever you pick here is remembered; from then on a plain `npx ntwine` serves it.",
+          "ntwine binds 127.0.0.1 and has no login. Reaching it from another device means something in front of it does the authenticating. Whatever you pick here is remembered; from then on a plain `npx ntwine` serves it.",
         ),
         "",
         ...choices().map((choice, index) => {
@@ -235,7 +235,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
           : []),
         "",
         ...wrap(
-          "When you claim, Ntwine shows a code to enter at github.com/login/device. The sign-in grants Ntwine no permissions: it only tells the registrar which account you are.",
+          "When you claim, ntwine shows a code to enter at github.com/login/device. The sign-in grants ntwine no permissions: it only tells the registrar which account you are.",
         ),
       ];
     }
@@ -258,7 +258,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
         "  cloudflared tunnel route dns my-board board.example.com",
         "",
         ...wrap(
-          `Point it at http://127.0.0.1:${options.port} in ~/.cloudflared/ntwine.yml, which Ntwine reads by name. Then name them here, and Ntwine runs the tunnel beside the board, so the two share a lifetime.`,
+          `Point it at http://127.0.0.1:${options.port} in ~/.cloudflared/ntwine.yml, which ntwine reads by name. Then name them here, and ntwine runs the tunnel beside the board, so the two share a lifetime.`,
         ),
       ];
     }
@@ -280,14 +280,14 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
         "",
         `  tailscale serve --bg ${options.port}`,
         "",
-        "Tailscale answers at the address below — that is the origin Ntwine accepts.",
+        "Tailscale answers at the address below — that is the origin ntwine accepts.",
       ];
     }
     return [
       "Something else",
       "",
       ...wrap(
-        `Terminate TLS wherever you like, proxy to http://127.0.0.1:${options.port}, and give Ntwine the exact origin a browser will show — scheme and host, no path. Ntwine answers only to that Host and prints a single-use sign-in link.`,
+        `Terminate TLS wherever you like, proxy to http://127.0.0.1:${options.port}, and give ntwine the exact origin a browser will show — scheme and host, no path. ntwine answers only to that Host and prints a single-use sign-in link.`,
       ),
     ];
   };
@@ -350,7 +350,7 @@ export function createRemotePane(options: RemotePaneOptions): Pane {
                 `Open      ${prompt.verificationUri}`,
                 `Enter     ${prompt.userCode}`,
                 "",
-                ...wrap("on this or any other device. Ntwine asks GitHub for no permissions; the sign-in only names your account to the registrar."),
+                ...wrap("on this or any other device. ntwine asks GitHub for no permissions; the sign-in only names your account to the registrar."),
               ],
               cancel: () => abort.abort(),
             };

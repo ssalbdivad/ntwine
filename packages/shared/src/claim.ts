@@ -28,7 +28,7 @@ export const CLAIM_MAX_AGE_MS = 5 * 60_000
 export const CLAIM_LEASE_MS = 30 * 24 * 60 * 60_000
 
 /**
- * Names Ntwine keeps for itself.
+ * Names ntwine keeps for itself.
  *
  * `_acme-challenge` is the one that actually matters — handing it out would let someone obtain a
  * certificate for a name in the zone. The rest are the ordinary infrastructure labels that would be
@@ -114,7 +114,7 @@ export interface ClaimPayload {
    * A GitHub access token, proving the claimant is a real account.
    *
    * SIGNED but NEVER STORED. The registrar exchanges it for a user id, records the id as the name's
-   * owner, and discards the token — it is a rate limit on identity, not a login, and Ntwine keeps no
+   * owner, and discards the token — it is a rate limit on identity, not a login, and ntwine keeps no
    * session with GitHub at all. Renewals carry no token: the keypair alone proves ownership after the
    * first claim, so a name does not depend on GitHub being reachable to stay alive.
    *

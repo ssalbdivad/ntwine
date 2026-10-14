@@ -84,7 +84,7 @@ test("a project registered but never OPENED still gets its state directory", () 
 })
 
 // Only the Home workspace sets workDir (home-workspace.ts): its agents run in the home folder while its
-// board sits in Ntwine's state directory. Screenshots land where the agents run, so that is trusted too.
+// board sits in ntwine's state directory. Screenshots land where the agents run, so that is trusted too.
 test("workDirOf is dir unless a workDir is set, and a separate workDir is a trusted file root", () => {
   assert.equal(workDirOf({ dir: "/repo" }), "/repo")
   assert.equal(workDirOf({ dir: "/state/home", workDir: "/home/x" }), "/home/x")

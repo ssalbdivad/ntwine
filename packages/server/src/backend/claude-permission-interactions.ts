@@ -307,7 +307,7 @@ const CLAUDE_QUESTION_DECLINED =
  *  redirect rather than downgraded to an approval card, whose bare allow the model reads as unanswered.
  *  (It redirected to a ```question fence until 2026-09-11, when the free-form fence was retired.) */
 export const CLAUDE_ASK_DENY_MESSAGE =
-  "Ntwine could not render this question as a card. Register it with `ntwinectl ask` instead — context, " +
+  "ntwine could not render this question as a card. Register it with `ntwinectl ask` instead — context, " +
   "the question, options with a one-line trade-off each, the recommended one first — never as a ```question " +
   "fence, which is retired. The operator answers it from the queue and the reply arrives as your next user message."
 
@@ -531,6 +531,6 @@ export function claudeQuestionDecisionFor(
   }
   return {
     behavior: "deny",
-    message: "Ntwine could not return the operator's answer in a form this tool accepts. Ask the question in your final message instead.",
+    message: "ntwine could not return the operator's answer in a form this tool accepts. Ask the question in your final message instead.",
   }
 }

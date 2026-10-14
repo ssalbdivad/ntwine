@@ -5,7 +5,7 @@ import { Lock } from "lucide-react"
 // passes only its own type size, tone and margin; the lock and the copy live here.
 //
 // THE COPY IS THE MAINTAINER'S, verbatim (2026-10-12). It replaced "Held in memory on the machine
-// running Ntwine and handed to one command, once. The worker never sees it.", which wrapped to two lines
+// running ntwine and handed to one command, once. The worker never sees it.", which wrapped to two lines
 // on every surface. Of five treatments of that long copy, the maintainer said: "They're all so bad …
 // shorten it onto one line and then go with something like option A with the hanging lock." A second
 // round of drawn treatments settled the lock. "Only in memory" is the FIFO in

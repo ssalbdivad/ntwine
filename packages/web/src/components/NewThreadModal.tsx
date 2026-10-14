@@ -106,7 +106,7 @@ function PromptForm({
   // A new thread can be pointed at any thread on the board it is dispatched into (`@shell-budgets`).
   const mentions = useMentionCandidates()
   // No session yet, so no harness to list skills: the `/` menu here is the operator's own user commands,
-  // which Ntwine expands itself (useUserCommands.ts) — `/commit` starts a thread on that prompt.
+  // which ntwine expands itself (useUserCommands.ts) — `/commit` starts a thread on that prompt.
   const userCommandsQuery = useUserCommands()
   const userCommands = userCommandsQuery.data?.commands
   const slashSuggest = useMemo(() => () => Promise.resolve(userCommandItems(userCommands ?? [])), [userCommands])
@@ -332,7 +332,7 @@ function PromptForm({
       // The text was an account action, not this thread: the pick it is about to sign in to stays.
       clearDispatchDraft(projectDir, { keepPick: true })
       if (resolved.backend === "acp") {
-        showToast("An ACP agent signs in through its own CLI — Ntwine holds no account for it")
+        showToast("An ACP agent signs in through its own CLI — ntwine holds no account for it")
         return
       }
       if (alias === "login") {
@@ -611,7 +611,7 @@ export function NewThreadDialog({ onClose }: { onClose: () => void }) {
   // Over whatever drawers are open — `c`, the palette's New thread or an editor's New thread button all
   // open it on top of a thread (lib/overlaySurface.ts aboveDrawersZ, which says why not z-[200]).
   const z = aboveDrawersZ(useSnapshot(store).drawers.length)
-  // Ntwine opens this dialog by writing store state, not through RadixDialog.Trigger. Capture the real
+  // ntwine opens this dialog by writing store state, not through RadixDialog.Trigger. Capture the real
   // opener during the mount render so close can restore it explicitly.
   const openerRef = useRef<HTMLElement | null>(
     typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null,

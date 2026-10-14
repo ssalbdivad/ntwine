@@ -2,7 +2,7 @@ import { projectSlug } from "./base-path.ts"
 
 // DATA CARRIES ITS PROJECT, AND WE CHECK IT AT THE DOOR.
 //
-// One Ntwine serves every project on the machine from one origin, and the client switches between them
+// One ntwine serves every project on the machine from one origin, and the client switches between them
 // WITHOUT a document load. So at any moment there may be a response, a socket frame or a seed in flight
 // that was asked for by the project you just left. Nothing about such a payload looks wrong — a board is
 // a board, and thread slugs are only unique WITHIN a project — so it lands, renders, and the operator is

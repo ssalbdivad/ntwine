@@ -63,8 +63,8 @@ test("a new version beside this one counts when it is newer and not marked obsol
   const next = { ...running, version: "0.1.1", builtAt: "2026-10-02T11:00:00.000Z", id: "next" }
   install(dir, `${ID}-0.1.1`, next)
   // VS Code's own folder names keep the publisher's case; the id it reports is lowercase.
-  install(dir, "SsalbDivad.Ntwine-Vscode-0.1.2", { ...running, version: "0.1.2", builtAt: "2026-10-02T12:00:00.000Z", id: "newest" })
+  install(dir, "SsalbDivad.ntwine-Vscode-0.1.2", { ...running, version: "0.1.2", builtAt: "2026-10-02T12:00:00.000Z", id: "newest" })
   assert.equal(installedBuild(here, ID, running)?.id, "newest", "the newest of them")
-  writeFileSync(join(dir, ".obsolete"), JSON.stringify({ "SsalbDivad.Ntwine-Vscode-0.1.2": true }))
+  writeFileSync(join(dir, ".obsolete"), JSON.stringify({ "SsalbDivad.ntwine-Vscode-0.1.2": true }))
   assert.deepEqual(installedBuild(here, ID, running), next, "one VS Code is removing is not what a reload loads")
 })

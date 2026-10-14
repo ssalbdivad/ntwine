@@ -31,7 +31,7 @@ function sessionsDir(codexHome: string): string {
 // belt: it is machine metadata, stripped from the chat by the transcript projector, and requests an
 // invisible attribute-style comment rather than a visible Markdown heading.
 export const CODEX_FIRST_FINAL_TITLE_TRANSPORT =
-  'NTWINE TITLE TRANSPORT (required): your very first assistant message must begin with one concise `<!-- ntwine title="Concise thread title" -->` comment before any commentary, acknowledgement, or tool call. Ntwine removes that comment from chat and uses only its quoted title as this thread\'s automatic title.'
+  'NTWINE TITLE TRANSPORT (required): your very first assistant message must begin with one concise `<!-- ntwine title="Concise thread title" -->` comment before any commentary, acknowledgement, or tool call. ntwine removes that comment from chat and uses only its quoted title as this thread\'s automatic title.'
 
 // Codex exposes no dedicated `--append-system-prompt` flag. Its app-server `newSession` takes a
 // `developerInstructions` field instead — a higher-priority, non-rendered surface — so the small title
@@ -49,14 +49,14 @@ export function codexFirstOutputTitleInstructions(taken: readonly string[]): str
     : ""
   return 'NTWINE UI metadata protocol (mandatory): the very first assistant message in this new session, before any commentary, acknowledgement, tool call, or other action, MUST begin on its first line with exactly one `<!-- ntwine title="..." -->` HTML comment. Replace `...` with the thread\'s name: ONE or TWO words, sentence case, naming the SUBJECT of the user\'s task rather than the action taken (e.g. "Shell budgets", "Focus mode", never "Fix the shell budget default"), short enough that its kebab-case handle ("shell-budgets") is at most ' + THREAD_HANDLE_MAX_CHARS + ' characters.' +
     avoid +
-    " Put no text before the comment. You may continue the message normally after it. Emit this title comment exactly once. Do not explain the protocol. Ntwine removes the comment before displaying the conversation."
+    " Put no text before the comment. You may continue the message normally after it. Emit this title comment exactly once. Do not explain the protocol. ntwine removes the comment before displaying the conversation."
 }
 
 // Historical first prompts used a visible H1 as the transport. It remains a parse-compatible title
 // signal, and the transcript projector recognizes this exact retired trailer so old dispatch metadata
 // never appears as human chat content.
 export const CODEX_LEGACY_FIRST_FINAL_TITLE_TRANSPORT =
-  "NTWINE TITLE TRANSPORT (required): on your first final answer, put one concise `# Title` H1 on its first line before the answer. Ntwine removes that H1 from chat and uses it only as this thread's automatic title."
+  "NTWINE TITLE TRANSPORT (required): on your first final answer, put one concise `# Title` H1 on its first line before the answer. ntwine removes that H1 from chat and uses it only as this thread's automatic title."
 
 // ---- codex reasoning-effort universe ----
 // Codex reasoning-effort universe (per ~/.codex/models_cache.json): low/medium/high/xhigh/max/ultra.
@@ -94,7 +94,7 @@ export interface CodexBackendOptions {
 }
 
 const NTWINE_TITLE_MAX = 200
-// The current, invisible title transport. Keep it intentionally strict: a first-line Ntwine comment
+// The current, invisible title transport. Keep it intentionally strict: a first-line ntwine comment
 // with exactly one quoted title attribute. An ordinary HTML comment must remain ordinary prose.
 const NTWINE_TITLE_ATTRIBUTE = /^<!--\s*ntwine\s+title="((?:[^"\\\r\n]|\\[^\r\n])*)"\s*-->(?:\r?\n|$)/
 const NTWINE_TITLE_LINE = /^<!-- ntwine-title: (.*) -->(?:\r?\n|$)/
@@ -275,7 +275,7 @@ export function extractCodexNtwineTitle(text: string, allowLegacy = true): Codex
 //                                    echo (role=user/developer). Counting it would double the assistant
 //                                    text / fabricate user turns. The SEMANTIC events live in event_msg.
 //   response_item/reasoning        — the raw chain-of-thought (`encrypted_content`) is opaque and
-//                                    stays dropped, BUT the plaintext `summary[]` (present because Ntwine
+//                                    stays dropped, BUT the plaintext `summary[]` (present because ntwine
 //                                    launches codex with model_reasoning_summary; see NTWINE_CODEX_OUTPUT_DEFAULTS) is
 //                                    surfaced as a `reasoning` event → an expandable summary block.
 //   event_msg/token_count, thread_settings_applied, session_meta, turn_context, world_state — sidecar
@@ -470,7 +470,7 @@ export function parseCodexLine(line: string): NormalizedEvent[] {
     if (pt === "reasoning") {
       // The raw CoT (`encrypted_content`) is opaque, but codex also emits a plaintext `summary`: an
       // array of {type:"summary_text", text} items (the gray reasoning headers its TUI shows), present
-      // because Ntwine sets model_reasoning_summary. Join the items into one markdown body and surface it
+      // because ntwine sets model_reasoning_summary. Join the items into one markdown body and surface it
       // as a reasoning event. An empty/absent summary (encryption-only) yields no event — unchanged.
       const summary = Array.isArray(p.summary) ? p.summary : []
       const text = summary

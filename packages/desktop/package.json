@@ -1,9 +1,9 @@
 {
   "name": "@ntwine/desktop",
-  "productName": "Ntwine",
+  "productName": "ntwine",
   "version": "0.0.0",
   "private": true,
-  "description": "Ntwine in an Electron window, for the dev loop: a window onto the board `nub run dev` serves",
+  "description": "ntwine in an Electron window, for the dev loop: a window onto the board `nub run dev` serves",
   "license": "MIT",
   "author": "David Blass",
   "type": "module",

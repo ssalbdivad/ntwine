@@ -1,10 +1,10 @@
-// LIVE proof (not a unit test; excluded from the *.test.ts glob). After an Ntwine update, what does a
+// LIVE proof (not a unit test; excluded from the *.test.ts glob). After an ntwine update, what does a
 // Codex thread that was already running end up on — and is anything it was doing lost on the way?
 //
 //   env -u NODE_COMPAT nub packages/server/src/backend/_live_codex_config_sync.mts
 //   … --control      the same run with NTWINE_PLUGIN_SYNC_OFF=1: the thread that was mid-turn must
 //                    STAY on the old generation, or the run above proves nothing about the rebuild
-//   CODEX_BIN=/path/to/codex overrides the binary (default: Ntwine's own provisioned pin, then PATH)
+//   CODEX_BIN=/path/to/codex overrides the binary (default: ntwine's own provisioned pin, then PATH)
 //
 // NEEDS NO CODEX SIGN-IN. Codex is pointed at a local mock Responses provider under a temporary
 // CODEX_HOME, so a real turn runs — hooks fire, the MCP tool is listed and called, a background command
@@ -12,7 +12,7 @@
 // what a model would have CHOSEN to do; nothing here depends on that.
 //
 // The flow is the real one: the REAL CodexAppServerBridge over the REAL production transport (a detached
-// `codex app-server --listen unix://`), the real per-thread MCP mount and the real hook config. "An Ntwine
+// `codex app-server --listen unix://`), the real per-thread MCP mount and the real hook config. "An ntwine
 // update" is exactly what the code sees: bridge A is built with generation A's MCP script and hooks,
 // then closed, which leaves the listener running as a server exit does; bridge B is built over the same
 // database with generation B's. Three threads cross it:
@@ -43,7 +43,7 @@ import { killNativeListener, nativeListenCodexAppServerHost, readNativeRecord } 
 const CONTROL = process.argv.includes("--control")
 if (CONTROL) process.env.NTWINE_PLUGIN_SYNC_OFF = "1"
 else delete process.env.NTWINE_PLUGIN_SYNC_OFF
-// The binary Ntwine itself runs: its own provisioned pin (runtimes.ts), which is the audited version.
+// The binary ntwine itself runs: its own provisioned pin (runtimes.ts), which is the audited version.
 const CODEX_BIN = process.env.CODEX_BIN
   || provisionedBinary("codex", runtimesRoot(), CODEX_APP_SERVER_SUPPORTED_VERSION)
   || "codex"

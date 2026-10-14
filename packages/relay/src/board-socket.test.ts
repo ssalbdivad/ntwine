@@ -60,7 +60,7 @@ test("a whole answer with no body is marked ended, so the visitor's stream can c
 })
 
 test("a STREAMED body reaches the visitor while it is still being produced", async () => {
-  // This is the whole reason the head and the body are separate frames. Ntwine's event feed is SSE: the
+  // This is the whole reason the head and the body are separate frames. ntwine's event feed is SSE: the
   // response never ends, so buffering until it does would mean the board never appears to load at all.
   const board = fakeSocket()
   const relay = new BoardSocket()

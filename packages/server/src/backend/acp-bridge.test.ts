@@ -121,11 +121,11 @@ test("acp-bridge: the agent is forked with the worker command on its PATH and th
   } finally { await teardown(r) }
 })
 
-// The whole path a real ACP worker's command takes, with only the agent's brain and Ntwine's router stood
+// The whole path a real ACP worker's command takes, with only the agent's brain and ntwine's router stood
 // in for: the bridge forks the REAL detached daemon, the daemon forks the agent, the agent's shell runs
 // `ntwinectl` by BARE NAME, and the plugin's real launcher reaches a real http server. The test above
 // reads the environment at the fork; this one proves that environment is enough, where it is used.
-test("acp-bridge: a command the agent's own shell runs reaches Ntwine as that agent's thread", { skip: process.platform === "win32" }, async () => {
+test("acp-bridge: a command the agent's own shell runs reaches ntwine as that agent's thread", { skip: process.platform === "win32" }, async () => {
   const seen: Array<{ url: string; body: unknown }> = []
   const ntwine = createServer((req, res) => {
     let raw = ""
@@ -368,7 +368,7 @@ test("acp-bridge: agentModels reads the advertised list through a throwaway sess
 
 // ---- THE DETACHED DAEMON: an agent and its turn outlive the bridge ----------------------------------
 // The whole reason acp-daemon.ts exists (maintainer 2026-09-24: an ACP restart ended the agent, its
-// turn and every sub-agent inside it). Bridge A is shut down MID-TURN — exactly what an Ntwine restart
+// turn and every sub-agent inside it). Bridge A is shut down MID-TURN — exactly what an ntwine restart
 // does — and bridge B, a fresh instance over the same state dir, warms up and carries the turn to its
 // real ending. The plain-child control shows the turn dying instead.
 

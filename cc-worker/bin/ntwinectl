@@ -1,9 +1,9 @@
 #!/bin/sh
-# ntwinectl — the Ntwine command line a worker runs from its own shell. ntwinectl.mjs, beside this file,
+# ntwinectl — the ntwine command line a worker runs from its own shell. ntwinectl.mjs, beside this file,
 # is all of it; this only finds a node to run it with.
 #
-# NTWINE_NODE is the node Ntwine itself runs on, handed to every worker's environment, because a
-# worker's PATH varies by how Ntwine was launched (a GUI-launched app, a login-shell difference) and a
+# NTWINE_NODE is the node ntwine itself runs on, handed to every worker's environment, because a
+# worker's PATH varies by how ntwine was launched (a GUI-launched app, a login-shell difference) and a
 # bare `node` that is not on it would take every command with it — the same reason the MCP mount this
 # replaced pinned an absolute path. A stale one (the worker outlived an update that moved it) falls
 # back to whatever `node` the shell has.

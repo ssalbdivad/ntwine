@@ -8,7 +8,7 @@
 // `Query.reloadPlugins()`, and real agent turns on either side.
 //
 // The worker is launched against the STABLE path while it leads to plugin v1. With the worker idle,
-// v2 is staged and the path repointed — exactly what booting a newer Ntwine does — and then a follow-up
+// v2 is staged and the path repointed — exactly what booting a newer ntwine does — and then a follow-up
 // is sent. NOTHING ELSE: no reload request crosses the socket. v2 differs from v1 in three ways, one
 // per thing that has to move, and each is constructed so that only the real mechanism can satisfy it:
 //
@@ -41,7 +41,7 @@ import { pluginContentDigest, stageStablePluginDir } from "../stable-plugin-path
 
 const control = process.argv.includes("--control")
 // The daemon is forked with this process's environment, which is how the opt-out reaches it in
-// production too (set where Ntwine is started).
+// production too (set where ntwine is started).
 if (control) process.env.NTWINE_PLUGIN_SYNC_OFF = "1"
 else delete process.env.NTWINE_PLUGIN_SYNC_OFF
 
@@ -142,7 +142,7 @@ try {
     v1Marks.some((m) => m.version === "v1" && m.event === "UserPromptSubmit") && !v1Marks.some((m) => m.event === "Stop"),
     JSON.stringify(v1Marks))
 
-  // THE UPDATE — what booting a newer Ntwine does. The worker is idle and is told nothing.
+  // THE UPDATE — what booting a newer ntwine does. The worker is idle and is told nothing.
   const repoint = publish(pluginVersion("v2"))
   ok("the stable path was repointed at v2 under the live worker", repoint.outcome === "repointed" && repoint.stablePath === stablePath)
 

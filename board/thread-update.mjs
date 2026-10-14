@@ -6,7 +6,7 @@
 // preserving every byte outside the keys/regions it touches.
 //
 // SCOPE: ntwine classic — it edits an EXISTING thread file and never creates one, so the server's
-// mark-as-done call is a no-op for a thread the Ntwine app dispatched (those write no file). See
+// mark-as-done call is a no-op for a thread the ntwine app dispatched (those write no file). See
 // config.mjs § STATUS.
 //
 // Exposed as the `ntwine-update` command (bin/ntwine-update is on the Bash PATH while the

@@ -423,7 +423,7 @@ export interface Api {
   // The Claude aliases with the edition the pinned runtime resolves each to ("Opus 5.5"). The picker's
   // Claude rows take their labels from this; the bare family words cover loading and an older server.
   claudeModels(): Promise<ClaudeModel[]>
-  // The ACP agents Ntwine can launch, with `available` for the ones on the server's PATH. The composer
+  // The ACP agents ntwine can launch, with `available` for the ones on the server's PATH. The composer
   // lists the available ones as `acp:<id>` models (plans/acp-backend.md).
   acpAgents(): Promise<AcpAgent[]>
   // The models one ACP agent advertises (a throwaway session, cached server-side). Asked only when a
@@ -466,10 +466,10 @@ export interface Api {
   // The rail's manual order: the whole list of ids, because the client has just laid the squares out
   // and an index pair would have to be replayed against a server order that may already differ.
   projectsReorder(input: { ids: string[] }): Promise<ProjectCard[]>
-  // Delete a project: Ntwine's record of it, never the folder it names. Without `deleteData` this only
+  // Delete a project: ntwine's record of it, never the folder it names. Without `deleteData` this only
   // forgets the registry entry and closes the project, so adding the folder back restores the same
-  // board; with it, the project's live workers are stopped and everything Ntwine holds for it is
-  // removed. The project Ntwine is RUNNING from is refused — see the router.
+  // board; with it, the project's live workers are stopped and everything ntwine holds for it is
+  // removed. The project ntwine is RUNNING from is refused — see the router.
   projectRemove(input: { id: string; deleteData?: boolean }): Promise<{ removed: boolean; deletedData: boolean; stoppedWorkers: number }>
   // Queue size per OPEN project, keyed by project id — the rail's badges. A project with no board on
   // this server is absent (no honest count without one), which the rail draws as no badge rather than

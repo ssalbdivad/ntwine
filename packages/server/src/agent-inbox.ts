@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto"
 // its target up in the session's task table, and a Workflow's agents are run by the workflow and never
 // entered there — so the lookup reads the agent as evicted and RESUMES A SECOND COPY from its transcript
 // beside the live one (read off the 2.1.287 bundle; seen live 2026-09-29, two writers in one worktree).
-// Ntwine's own drawer steer cannot reach one either: it rides an input frame the CLI only routes to
+// ntwine's own drawer steer cannot reach one either: it rides an input frame the CLI only routes to
 // tool_use ids its main thread issued.
 //
 // Hooks DO reach them. Measured on 2.1.287 (2026-10-06): a PostToolUse hook fires for every tool call
@@ -32,11 +32,11 @@ import { randomUUID } from "node:crypto"
 // One file per message, written to a temp name and renamed in, so a reader never sees half of one. The
 // reader claims each file by renaming it, so two hooks firing at once for parallel tool calls cannot
 // both deliver it. The session dir is the one Claude Code keeps beside the session transcript
-// (`<transcript without .jsonl>/`), which both sides can find without knowing anything of Ntwine's.
+// (`<transcript without .jsonl>/`), which both sides can find without knowing anything of ntwine's.
 
 export const INBOX_DIRNAME = "ntwine-inbox"
 
-/** `@handle`: another Ntwine thread, through `message_thread` to `@thread.child`. */
+/** `@handle`: another ntwine thread, through `message_thread` to `@thread.child`. */
 export type InboxSender = "parent" | "operator" | `@${string}`
 
 /** A Workflow run's agents live in `<session-dir>/subagents/workflows/<run>` (workflow-runs.ts). */

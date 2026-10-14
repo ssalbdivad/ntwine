@@ -547,7 +547,7 @@ export function Composer({
     if (!fileMentions || !uris.length) return
     const files = await fileMentions.resolve(uris)
     if (!files?.length) {
-      showToast(files === null ? "Update the Ntwine extension to drop files here." : "Only files and folders on disk can be added.")
+      showToast(files === null ? "Update the ntwine extension to drop files here." : "Only files and folders on disk can be added.")
       return
     }
     const latest = splitComposerValue(valueRef.current)

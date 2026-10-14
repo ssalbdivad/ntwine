@@ -420,7 +420,7 @@ test("the two limit wakes never read as each other", () => {
 //
 // The three formatters that stayed in the SERVER package until 2026-08-24 and so had no parser the chat
 // could reach. Every one fell through NtwineWake's legacy fallback and printed its whole agent-facing
-// body as a bordered "Ntwine" card in the human's transcript — which tool to call, which fence to write
+// body as a bordered "ntwine" card in the human's transcript — which tool to call, which fence to write
 // (maintainer: "ntwine cards that seem to be exposing internals"). Measured across every transcript on
 // the machine: 73 of 12 891 delivered wakes drew that card, and every live one was one of these.
 //
@@ -525,7 +525,7 @@ test("every wake ntwine composes is recognized by a parser — none may reach th
 // The table above was satisfied for five weeks while the commonest pair in it drew the verbatim card.
 // The scheduler merges everything waiting for a thread into ONE message, and its composer lived in the
 // server package, so the envelope was a shape with no row here and no parser anywhere: a park ending
-// beside the shell whose exit ended it printed both agent-facing bodies in a bordered "Ntwine" card.
+// beside the shell whose exit ended it printed both agent-facing bodies in a bordered "ntwine" card.
 // The envelope's contract is that it cuts back into exactly the wakes that went in.
 const NOW = Date.parse("2026-10-11T16:52:00Z")
 const stamped = (text: string) => `${text}\n\n${wakeTimeHeader(NOW - 60_000, "2026-10-11T16:40:00Z")}`
@@ -555,14 +555,14 @@ test("identical events fold into one part that says how many it stands for", () 
     { reason: "background shell finished (b1)", message: stamped(shell) },
     { reason: "pr-watch nubjs/nub#777 CI failing", message: stamped(ci) },
   ], NOW)
-  assert.match(merged, /^Ntwine held 3 wakes /)
+  assert.match(merged, /^ntwine held 3 wakes /)
   assert.deepEqual(parseMergedWake(merged), [{ body: ci, count: 2 }, { body: shell, count: 1 }])
 })
 
 // Byte for byte the delivery in the maintainer's screenshot, token and all — the releaser thread,
 // 2026-10-11 09:52. The park wake carries the "NOTHING running" paragraph the scheduler appends to it.
 test("the delivery that was reported cuts into its park and its shell", () => {
-  const record = "Ntwine held 2 wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.\n\n### 1. awaiting park named 1 dead item(s)\n\n✅ The work you parked on has FINISHED, so the park is over and your thread is back in the queue.\n\n- `shells: [br6vpp762]` — FINISHED — its result is waiting for you\n\nREAD ITS OUTPUT AND CARRY ON. This is not a broken fence and there is nothing to fix: the wait\nyou declared simply ended. Do NOT relaunch the same work — its result is already on disk.\n\nThen park on whatever comes next, or end in ```done or a registered question (`mcp__ntwine__ask`) if nothing is left.\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n```done, or register a question with `mcp__ntwine__ask`.\n\n### 2. background shell finished (br6vpp762)\n\n⏰ Your background shell finished: `br6vpp762` — Running the update harness against the built shell and server.\n\n(Ntwine sends this because it finished after you came to rest, where your runtime's own completion notification does not reach you. Read its output if you still need it.)\n\n⏱ 2026-10-11 09:52 — you last spoke 3m ago.\n\n<!-- ntwine-wake:5d7e952abebe8b7153215553d6bc077258f6d28e3ca6e825cf93cbe8d97c3234 -->"
+  const record = "ntwine held 2 wakes for this thread and is delivering them together, oldest first. Each is under its own heading; read all of them before acting on any.\n\n### 1. awaiting park named 1 dead item(s)\n\n✅ The work you parked on has FINISHED, so the park is over and your thread is back in the queue.\n\n- `shells: [br6vpp762]` — FINISHED — its result is waiting for you\n\nREAD ITS OUTPUT AND CARRY ON. This is not a broken fence and there is nothing to fix: the wait\nyou declared simply ended. Do NOT relaunch the same work — its result is already on disk.\n\nThen park on whatever comes next, or end in ```done or a registered question (`mcp__ntwine__ask`) if nothing is left.\n\nYou have NOTHING running right now — no shell, no sub-agent, no timer, no registered\npull request. There is nothing that could wake you, so this thread is not awaiting: finish in\n```done, or register a question with `mcp__ntwine__ask`.\n\n### 2. background shell finished (br6vpp762)\n\n⏰ Your background shell finished: `br6vpp762` — Running the update harness against the built shell and server.\n\n(ntwine sends this because it finished after you came to rest, where your runtime's own completion notification does not reach you. Read its output if you still need it.)\n\n⏱ 2026-10-11 09:52 — you last spoke 3m ago.\n\n<!-- ntwine-wake:5d7e952abebe8b7153215553d6bc077258f6d28e3ca6e825cf93cbe8d97c3234 -->"
   const parts = parseMergedWake(record)
   assert.equal(parts?.length, 2)
   assert.deepEqual(parseParkWake(parts![0].body), { kind: "finished", items: ["- `shells: [br6vpp762]` — FINISHED — its result is waiting for you"] })
@@ -614,7 +614,7 @@ test("a body with numbered headings of its own is refused, never cut", () => {
 
 // …and the fallback still has to WORK, or the guard above would be satisfied by deleting it.
 test("a shape no parser knows still reaches the fallback, so its text survives", () => {
-  const future = "⏰ Ntwine has invented a wake shape this build predates.\n\nAnd whatever it says, the text must survive."
+  const future = "⏰ ntwine has invented a wake shape this build predates.\n\nAnd whatever it says, the text must survive."
   assert.ok(RECOGNIZERS.every((parse) => !parse(future)))
 })
 
@@ -696,7 +696,7 @@ test("every trailer ntwine appends comes off the display projection", () => {
   }
 })
 
-// Ntwine's worker-facing text said "the human" until 2026-10-08 and says "the user" now. A transcript
+// ntwine's worker-facing text said "the human" until 2026-10-08 and says "the user" now. A transcript
 // written before that still carries the old bytes, so every recognizer keyed on one of those strings
 // must keep reading them. The old strings are spelled out literally here, not derived, so this fails if
 // the legacy reconstruction ever stops reproducing what was actually written.

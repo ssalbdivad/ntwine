@@ -50,7 +50,7 @@ interface LockObservation {
 export type GitProjectIdentityScope = "repository" | "worktree"
 
 export interface GitProjectIdentity {
-  /** The Ntwine instance id. Ordinary/main worktrees retain the repository-local `ntwine.id`. */
+  /** The ntwine instance id. Ordinary/main worktrees retain the repository-local `ntwine.id`. */
   id: string
   scope: GitProjectIdentityScope
   /** Canonical paths identify the exact checkout independently of symlink aliases. */
@@ -299,8 +299,8 @@ export function tryReservePort(
 function lockTimeoutError(observation: LockObservation): Error {
   return new Error(
     observation.ownerPid === undefined
-      ? "another Ntwine launch still owns the global launch lock"
-      : `another Ntwine launch (pid ${observation.ownerPid}) still owns the global launch lock`,
+      ? "another ntwine launch still owns the global launch lock"
+      : `another ntwine launch (pid ${observation.ownerPid}) still owns the global launch lock`,
   )
 }
 
@@ -391,7 +391,7 @@ export function resolveGitWorktree(dir: string): GitWorktree {
     gitDir,
     commonGitDir,
     scope,
-    // Do not enable Git's repository-wide `extensions.worktreeConfig` merely to hold one private Ntwine
+    // Do not enable Git's repository-wide `extensions.worktreeConfig` merely to hold one private ntwine
     // value. A config file inside the linked worktree's own administrative directory has Git's atomic
     // config-lock behavior, survives `git worktree move`, and disappears with `git worktree remove`.
     ...(scope === "worktree" ? { identityConfig: join(gitDir, "ntwine.config") } : {}),
@@ -517,7 +517,7 @@ function resolvedIdentity(worktree: GitWorktree): GitProjectIdentity | undefined
 }
 
 /**
- * Resolve the durable Ntwine identity for one exact Git checkout.
+ * Resolve the durable ntwine identity for one exact Git checkout.
  *
  * The main/ordinary worktree keeps the historical repository-local `ntwine.id` byte-for-byte, preserving
  * its existing state directory. Each linked worktree stores a different UUID in its own Git administrative

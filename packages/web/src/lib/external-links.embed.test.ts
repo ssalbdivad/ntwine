@@ -35,7 +35,7 @@ test("mailto goes to the mail client through the editor", () => {
   assert.deepEqual(embedLinkAction("mailto:a@example.com", { ...plain, button: 1, blank: false }, HERE), { kind: "external", url: "mailto:a@example.com" })
 })
 
-test("everything else is left alone: cross-origin, Ntwine's API, other schemes, a plain same-tab link", () => {
+test("everything else is left alone: cross-origin, ntwine's API, other schemes, a plain same-tab link", () => {
   assert.equal(embedLinkAction("https://example.com/spec", plain, HERE), null, "the external handler's")
   assert.equal(embedLinkAction("http://127.0.0.1:4918/", plain, HERE), null, "another port is another origin")
   assert.equal(embedLinkAction("/_ntwine/acme/local-image?path=/a.png", plain, HERE), null)

@@ -73,7 +73,7 @@ test("the eager executable probe leaves the Node floor to the full prerequisite 
   );
 });
 
-// The floor users are TOLD about and the floor Ntwine enforces must be the same. They have drifted
+// The floor users are TOLD about and the floor ntwine enforces must be the same. They have drifted
 // twice, in opposite directions: `>=26` against an enforced 22.12 (EBADENGINE about a floor nothing
 // checked), then `>=22.12.0` against a runtime that segfaults there.
 test("the published engines floor is exactly the floor the launcher enforces", () => {
@@ -152,7 +152,7 @@ test("the Node floor covers the Node-API version every native dependency builds 
     if (!ours) continue; // We advertise no release on that line at all, so nothing can load there.
     assert.ok(
       ours.minor >= line.minor,
-      `Ntwine advertises Node ${ours.major}.${ours.minor}, below the ${line.major}.${line.minor} that ` +
+      `ntwine advertises Node ${ours.major}.${ours.minor}, below the ${line.major}.${line.minor} that ` +
         `Node-API ${highest} requires — a native dependency would crash there, not fail cleanly`
     );
   }

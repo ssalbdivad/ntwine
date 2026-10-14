@@ -28,18 +28,18 @@ export function escapeHtml(text: string): string {
 }
 
 export function loadingPage(): string {
-  return page("Ntwine", `<h1>Connecting…</h1>`)
+  return page("ntwine", `<h1>Connecting…</h1>`)
 }
 
 /** No board is up yet. The app keeps looking and opens it the moment one answers. */
 export function waitingPage(url?: string): string {
   const where = url ? `<p>Waiting for <code>${escapeHtml(url)}</code> to answer.</p>` : `<p>Start one with <code>nub run dev</code>. It opens here as soon as it is up.</p>`
-  return page("Ntwine", `<h1>No board is running</h1>${where}`)
+  return page("ntwine", `<h1>No board is running</h1>${where}`)
 }
 
 export function errorPage(options: { title: string; message: string }): string {
   return page(
-    "Ntwine",
+    "ntwine",
     `<h1>${escapeHtml(options.title)}</h1><p>${escapeHtml(options.message)}</p>` +
       `<div class="actions"><button class="primary" onclick="ntwineDesktop.retry()">Try again</button></div>`,
   )

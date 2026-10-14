@@ -14,7 +14,7 @@ tailscale serve status
 
 `status` reports the URL it's serving, in the form `https://<machine>.<tailnet>.ts.net`. Copy the origin from there instead of composing it by hand. You don't choose the MagicDNS name.
 
-## Tell Ntwine the origin
+## Tell ntwine the origin
 
 ```text
   press R, choose Tailscale
@@ -22,9 +22,9 @@ tailscale serve status
   Origin  https://your-machine.your-tailnet.ts.net
 ```
 
-Ntwine reads your tailnet name while the pane is open, so the field is usually filled in already.
+ntwine reads your tailnet name while the pane is open, so the field is usually filled in already.
 
-Ntwine checks that a request's `Host` matches the origin you gave it, so the value has to be the exact origin a browser sees: scheme included, no trailing slash.
+ntwine checks that a request's `Host` matches the origin you gave it, so the value has to be the exact origin a browser sees: scheme included, no trailing slash.
 
 ## Stop serving
 

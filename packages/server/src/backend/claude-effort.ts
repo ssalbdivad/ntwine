@@ -4,7 +4,7 @@
 // warns ("Unknown --effort value … using the default effort") and is dropped. Ultracode is instead a
 // session-scoped BOOLEAN setting (`Settings.ultracode` in @anthropic-ai/claude-agent-sdk) meaning
 // "xhigh effort plus standing dynamic-workflow orchestration", supplied via `--settings` on the CLI or
-// the `settings` option on the SDK. Ntwine still PRESENTS it as the top rung of the effort select,
+// the `settings` option on the SDK. ntwine still PRESENTS it as the top rung of the effort select,
 // because that is exactly how Claude Code's own `/effort [low|…|max|ultracode|auto]` presents it — so
 // this module is the single place that translates that rung into what a spawn actually accepts.
 //
@@ -17,11 +17,11 @@
 //   claude -p --effort high  --settings '{"ultracode":true}'  → ultracode OFF   ← the trap
 //   claude -p --effort xhigh --settings '{"ultracode":true}'  → ultracode ON
 //
-// Ntwine sets an effort on every Claude dispatch, so the flag alone would never have worked.
+// ntwine sets an effort on every Claude dispatch, so the flag alone would never have worked.
 export const CLAUDE_ULTRACODE = "ultracode"
 
 // The effort ultracode actually runs at. Claude derives this itself when no launch effort is pinned,
-// but Ntwine always pins one, so we must pin the matching value (see above).
+// but ntwine always pins one, so we must pin the matching value (see above).
 export const CLAUDE_ULTRACODE_EFFORT = "xhigh"
 
 // Ultracode additionally requires an xhigh-capable model — Fable 5, Opus 4.7+, Sonnet 5 per the CLI's

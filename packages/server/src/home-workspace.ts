@@ -15,8 +15,8 @@ import { findById, findProjectBySegment, listProjects, readRegistry, reorderProj
 // square in the switcher.
 //
 // IT IS NOT A REGISTERED PROJECT, and cannot be one. A project's board is `<folder>/.ntwine/`, and
-// `~/.ntwine` is not a free name: it is Ntwine's own data root on every install that predates the XDG
-// layout, and on every other install the mere EXISTENCE of that directory switches Ntwine back to it on
+// `~/.ntwine` is not a free name: it is ntwine's own data root on every install that predates the XDG
+// layout, and on every other install the mere EXISTENCE of that directory switches ntwine back to it on
 // the next boot (ntwine-paths.ts), taking every project's threads with it. The home folder is also the
 // one directory project-root.ts refuses to adopt, for the same reason. So Home is synthesized here
 // rather than written into registry.json, and its Project splits the two directories every registered
@@ -28,7 +28,7 @@ import { findById, findProjectBySegment, listProjects, readRegistry, reorderProj
 //     where a Home thread's scratch directory lives, and a worker is handed that path absolute.
 //
 // Everything that reads `dir` meaning "the board" works unchanged, and a site that should have read
-// workDirOf but did not puts an agent in Ntwine's state directory — visibly wrong, never `~/.ntwine`.
+// workDirOf but did not puts an agent in ntwine's state directory — visibly wrong, never `~/.ntwine`.
 //
 // It stays out of the registry's own lookups on purpose. The launcher reads listProjects to pick a
 // project to host the server from (src/launcher.ts mostRecentProject), and hosting from Home would

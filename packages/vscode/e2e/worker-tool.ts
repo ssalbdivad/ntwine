@@ -1,5 +1,5 @@
 // A WORKER'S `editor` TOOL, CALLED FOR REAL — one `tools/call editor` on the real cc-worker/bin/ntwine-mcp.mjs,
-// spawned the way an Ntwine worker of `projectId` runs it and finding the server by its lock, so what comes
+// spawned the way an ntwine worker of `projectId` runs it and finding the server by its lock, so what comes
 // back is exactly what an agent reads. Shared by the suite (e2e/suite.ts, inside VS Code, --stack mode)
 // and the real-page sidebar run (scripts/e2e-sidebar.ts, in the harness).
 
@@ -10,7 +10,7 @@ export interface WorkerToolOptions {
   node: string
   /** cc-worker/bin/ntwine-mcp.mjs. */
   mcp: string
-  /** The server lock a worker's MCP server finds Ntwine by (NTWINE_SERVER_LOCK). */
+  /** The server lock a worker's MCP server finds ntwine by (NTWINE_SERVER_LOCK). */
   serverLock: string
   /** The project the worker belongs to (NTWINE_PROJECT_ID): the tool reads that project's editor windows. */
   projectId: string

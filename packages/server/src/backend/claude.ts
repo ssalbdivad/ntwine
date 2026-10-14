@@ -94,7 +94,7 @@ export function parseClaudeLine(line: string): NormalizedEvent[] {
   if (rec.type === "ai-title" && typeof rec.aiTitle === "string" && rec.aiTitle.trim()) return [{ kind: "title", title: rec.aiTitle.trim() }]
   // Native `/rename` writes an intermediate `custom-title` record. It is deliberately
   // observation-only in the authoritative tailer until the rename controller verifies the
-  // readable replacement, so this normalized view must not promote it into Ntwine title state.
+  // readable replacement, so this normalized view must not promote it into ntwine title state.
   return []
 }
 

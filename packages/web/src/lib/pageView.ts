@@ -2,7 +2,7 @@
 // project (its board).
 //
 // ALL PROJECTS is home: every project's list and one queue across all of them, with the prompt box's own
-// picker. A project's BOARD is one click away (the switcher, its square in the dock): the list is that
+// picker. A project's BOARD is one click away (its square in the dock): the list is that
 // project's (TierList.tsx), the queue shows its cards, and the prompt box dispatches into
 // it. From 2026-10-06 to 2026-10-14 the board was the default instead; David reversed that on 2026-10-14.
 //

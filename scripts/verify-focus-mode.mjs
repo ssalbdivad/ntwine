@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Drive a PROJECT'S BOARD (focus mode) — the page showing one project at `/project/<slug>`, chosen from the
-// switcher (web lib/pageView.ts, components/TierList.tsx) — on a real, seeded, multi-project stack, and
+// dock (web lib/pageView.ts, components/TierList.tsx) — on a real, seeded, multi-project stack, and
 // check what it promised:
 //   · `/project/<slug>` shows that project alone: its list, its cards, and a prompt box that dispatches into
 //     it with no picker; the query-era `/?project=<slug>` (2026-09-29 to 2026-10-06) and an older
@@ -9,7 +9,7 @@
 //     projects is `/all` (a retired `/?all` lands there), and a bare `/` goes back to the view this
 //     browser showed LAST — All projects for a browser that never chose (a board from 2026-10-06 to
 //     2026-10-14) — while a phone's `/` is its projects list;
-//   · the status row's switcher changes the view by navigating, and Back undoes it; All projects is the
+//   · the dock changes the view by navigating, and Back undoes it; All projects is the
 //     unified page, with the prompt box's picker carried over to the project just left;
 //   · a thread drawer closes back to the tab's view, not to a guess;
 //   · an unknown board says so;
@@ -90,10 +90,10 @@ const waitAddress = (page, want, ms = 10_000) =>
 // runs, and a Working run the list had no room for is one rollup line (`data-xq-rollup`).
 const listed = (page) => page.$$eval("[data-xq-rail-project], [data-xq-rollup]", (groups) => [...new Set(groups.map((g) => g.getAttribute("data-xq-rail-project") ?? g.getAttribute("data-xq-rollup")))])
 const cardProjects = (page) => page.$$eval("[data-xq-card]", (cards) => [...new Set(cards.map((c) => c.getAttribute("data-xq-card")?.split("/")[0]))])
-const switcherSays = (page) => page.$eval("[data-xq-switcher-label]", (el) => el.textContent?.trim() ?? "").catch(() => "")
-// The view has painted: the switcher names it and the list holds exactly its projects.
+// The view has painted: a project's page is titled with its name (All projects has no title) and the list
+// holds exactly its projects.
 const showing = async (page, project) => {
-  await page.waitForFunction((name) => document.querySelector("[data-xq-switcher-label]")?.textContent?.trim() === name, { timeout: 10_000 }, project ? project.slug : "All projects")
+  await page.waitForFunction((name) => (document.querySelector("[data-xq-page-title-name]")?.textContent?.trim() ?? "") === name, { timeout: 10_000 }, project ? project.slug : "")
   await page.waitForSelector("[data-xq-rail-project]")
   await sleep(500)
 }
@@ -121,10 +121,8 @@ const clickSettled = async (page, selector, { text } = {}) => {
   ).catch(async () => { throw new Error(`${selector}${text ? ` "${text}"` : ""} never settled on screen; at ${await address(page)}`) })
   await handle.asElement().click()
 }
-const choose = async (page, value) => {
-  await clickSettled(page, "[data-xq-switcher]")
-  await clickSettled(page, `[role="menuitem"][data-value="${value}"]`)
-}
+// The dock (ProjectDock.tsx) is the one place to choose a view: All leads it, then a square per project.
+const choose = (page, value) => clickSettled(page, value === "all-projects" ? '[data-tour="dock-all"] [data-xq-lens="All"]' : `[data-xq-dock-square="${value}"]`)
 
 try {
   // ── the board's address ────────────────────────────────────────────────────────────────────────────
@@ -245,13 +243,13 @@ try {
     check("…and it stays closed, though Escape came before the route had caught up", !reopened.drawer && reopened.at === `/project/${A.slug}`, reopened.at)
   })
 
-  // ── the switcher ───────────────────────────────────────────────────────────────────────────────────
-  await step("the switcher focuses another project, and Back returns", async () => {
+  // ── the dock ──────────────────────────────────────────────────────────────────────────────────────
+  await step("the dock focuses another project, and Back returns", async () => {
     await choose(page, B.slug)
     await waitAddress(page, `/project/${B.slug}`)
     await showing(page, B)
     const groups = await listed(page)
-    check("the switcher focuses the page on the project chosen", groups.length === 1 && groups[0] === B.id, groups.join(", "))
+    check("the dock focuses the page on the project chosen", groups.length === 1 && groups[0] === B.id, groups.join(", "))
     const cards = await cardProjects(page)
     check("…with its cards alone", cards.every((c) => c === B.id), cards.join(", "))
     await page.goBack()

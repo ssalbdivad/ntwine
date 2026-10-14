@@ -41,7 +41,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
       return {
         buttons: [...node.querySelectorAll("button")].map((b) => b.getAttribute("data-local-path")),
         // The failure this whole page exists to catch is an anchor SURVIVING: a local path left as an
-        // href is a same-origin URL, and one click leaves Ntwine for a 404. Nothing here may be one.
+        // href is a same-origin URL, and one click leaves ntwine for a 404. Nothing here may be one.
         anchors: [...node.querySelectorAll("a")].map((a) => a.getAttribute("href")),
         imageSrc: img?.getAttribute("src"),
         imagePath: img?.getAttribute("data-local-path"),
@@ -90,7 +90,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
     })
 
     // The ROUTING split, which the markup above deliberately cannot show: every link is the same
-    // `data-local-path` button, and only the click decides where each one goes. A file Ntwine can show —
+    // `data-local-path` button, and only the click decides where each one goes. A file ntwine can show —
     // the `.md` prose and the `.json` capture alike — must push the reader drawer and never reach the
     // desktop opener, while a format the page cannot draw (the PDF) must still be handed to the opener
     // and open no drawer.
@@ -128,7 +128,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
       ],
     })
 
-    // A rendered picture opens in Ntwine's picture viewer — never the desktop opener, which on a WSL box
+    // A rendered picture opens in ntwine's picture viewer — never the desktop opener, which on a WSL box
     // meant a browser tab — among the pictures rendered beside it, in reading order.
     await page.click('img[data-local-path="D:/fixture/win-shot.png"]')
     assert.deepEqual(await page.evaluate(() => (window as unknown as { __localFileFixtureViewer: () => unknown }).__localFileFixtureViewer()), {
@@ -223,7 +223,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
       '[data-positioned] [data-local-path="/fixture/src/f.ts"]',
       '[data-positioned] [data-local-path="/fixture/App.tsx"]',
       '[data-positioned] [data-local-path="/fixture/src/g.ts"]',
-      // Markdown always opens in Ntwine, line or no line — it never reaches the RPC.
+      // Markdown always opens in ntwine, line or no line — it never reaches the RPC.
       '[data-positioned] [data-local-path="/fixture/guide.md"]',
       '[data-positioned] [data-local-path="/fixture/src/raw.ts"]',
       '[data-codex-finding] [data-local-path="/fixture/src/h.ts"]',
@@ -293,7 +293,7 @@ test("Markdown local image syntax uses the gated image proxy and local files rem
     assert.deepEqual(await clickAuto(a5, { windows: [{ ...vscodeWindow, acceptsOpens: false }], opener: "vscode" }), { to: "reader", path: "/fixture/src/a.ts", alsoEditor: false })
     // A remote session: an open would land in a window on the desk nobody there can see.
     assert.deepEqual(await clickAuto(a5, { windows: [vscodeWindow], remote: true }), { to: "reader", path: "/fixture/src/a.ts", alsoEditor: false })
-    // And Markdown always opens in Ntwine, editor or not.
+    // And Markdown always opens in ntwine, editor or not.
     assert.deepEqual(await clickAuto('[data-positioned] [data-local-path="/fixture/guide.md"]', {}), { to: "reader", path: "/fixture/guide.md", alsoEditor: false })
 
     assert.deepEqual(pageErrors, [])

@@ -9,7 +9,7 @@
  * DEPENDENCY-FREE, like claim.ts and for the same reason: the board runs this on Node and the relay
  * runs it on workerd.
  *
- * WHAT THIS HAS TO CARRY, and why a plain request/response relay would be useless for Ntwine: the board
+ * WHAT THIS HAS TO CARRY, and why a plain request/response relay would be useless for ntwine: the board
  * is mostly a live surface. Its event feed is SSE and its terminals are WebSockets. So the protocol
  * frames three things, not one — a unary request, a STREAMED response body, and a nested WebSocket.
  */

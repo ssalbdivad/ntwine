@@ -77,7 +77,7 @@ export function rememberLastFocusedProject(projectId: string): void {
   try {
     if (localStorage.getItem(LAST_FOCUSED_KEY) !== projectId) localStorage.setItem(LAST_FOCUSED_KEY, projectId)
   } catch {
-    // Storage disabled: the box falls through to the project Ntwine was launched from.
+    // Storage disabled: the box falls through to the project ntwine was launched from.
   }
 }
 
@@ -122,7 +122,7 @@ export function stepPick<P extends { slug: string; open: boolean; stale: boolean
  * boot — so a launch from `storefront` aimed the box at `billing-api` and a task landed in the wrong repo.
  *
  * `openIds`, when known, narrows every step to projects whose board this server has open: a project another
- * Ntwine serves, or one that failed to open, can be focused but never takes a thread, and landing on it
+ * ntwine serves, or one that failed to open, can be focused but never takes a thread, and landing on it
  * showed a prompt box that never arrived. It only narrows — with none open (a boot still opening them)
  * the page lands as it would without the list.
  */

@@ -1,11 +1,11 @@
 import { z } from "zod"
 
-// The slice of the Agent Client Protocol (ACP, v1 — https://agentclientprotocol.com) that Ntwine READS.
+// The slice of the Agent Client Protocol (ACP, v1 — https://agentclientprotocol.com) that ntwine READS.
 //
 // Every schema here is deliberately OPEN: `.passthrough()` on objects, a catch-all on every union, and
 // nothing required beyond what the spec marks required. ACP is additive by policy (the SDK's own schema
 // grew from 5 documented `session/update` variants to 15 without a version bump), 34 agents implement it
-// with varying fidelity, and a field Ntwine does not render must never be the reason a turn is dropped.
+// with varying fidelity, and a field ntwine does not render must never be the reason a turn is dropped.
 // An unknown update is skipped, never thrown — see `parseSessionUpdate`.
 //
 // Plan and measurements: plans/acp-backend.md. The wire facts (what `opencode acp` actually sends) are
@@ -49,7 +49,7 @@ export const AcpAuthMethod = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
   // Absent = "agent" (call `authenticate {methodId}`); "terminal" = relaunch the same program
-  // interactively with `args`/`env` — which Ntwine does not do; it tells the operator instead.
+  // interactively with `args`/`env` — which ntwine does not do; it tells the operator instead.
   type: z.string().optional(),
 }).passthrough()
 export type AcpAuthMethod = z.infer<typeof AcpAuthMethod>
@@ -153,7 +153,7 @@ export type AcpToolCallUpdate = z.infer<typeof AcpToolCallUpdate>
 
 export const AcpPlanEntry = z.object({ content: z.string(), priority: z.string().optional(), status: z.string().optional() }).passthrough()
 
-// Every variant Ntwine renders, each parsed on its own so one malformed field never poisons the rest.
+// Every variant ntwine renders, each parsed on its own so one malformed field never poisons the rest.
 export const AcpSessionUpdateKnown = z.discriminatedUnion("sessionUpdate", [
   z.object({ sessionUpdate: z.literal("user_message_chunk"), content: AcpContentBlock, messageId: z.string().optional() }).passthrough(),
   z.object({ sessionUpdate: z.literal("agent_message_chunk"), content: AcpContentBlock, messageId: z.string().optional() }).passthrough(),
@@ -170,7 +170,7 @@ export type AcpSessionUpdateKnown = z.infer<typeof AcpSessionUpdateKnown>
 
 export type AcpSessionUpdate = AcpSessionUpdateKnown | { sessionUpdate: "unknown"; raw: unknown }
 
-/** Classify one `session/update` payload. A variant Ntwine does not know (`available_commands_update`,
+/** Classify one `session/update` payload. A variant ntwine does not know (`available_commands_update`,
  *  `current_mode_update`, `plan_update`, anything v2 adds) or a known one with a field that fails to
  *  parse comes back as `unknown` — the caller logs it at debug and moves on. */
 export function parseSessionUpdate(raw: unknown): AcpSessionUpdate {

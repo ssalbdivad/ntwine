@@ -9,12 +9,12 @@ import { join } from "node:path"
 import { UserCommandName, type SaveUserCommandInput, type UserCommand, type UserCommandSource } from "@ntwine/shared"
 import { ntwineRoots } from "./ntwine-paths.ts"
 
-/** Where Ntwine's own commands live: beside its other data, wherever this machine resolved that to. */
+/** Where ntwine's own commands live: beside its other data, wherever this machine resolved that to. */
 export function ntwineCommandsDir(): string {
   return join(ntwineRoots().data, "commands")
 }
 
-/** The three folders, in precedence order: one written in Ntwine wins over a project's, which wins over
+/** The three folders, in precedence order: one written in ntwine wins over a project's, which wins over
  *  the machine-wide one, so the operator's own edit is always what runs. */
 export function userCommandDirs(projectDir: string | undefined, home = homedir()): Array<{ source: UserCommandSource; dir: string }> {
   return [
@@ -83,7 +83,7 @@ export async function listUserCommands(projectDir: string | undefined, home = ho
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Write an Ntwine command, atomically, and drop the file it was renamed from. Only Ntwine's own folder is
+/** Write an ntwine command, atomically, and drop the file it was renamed from. Only ntwine's own folder is
  *  ever written: a project's or the machine-wide commands are read, never edited from here. */
 export async function saveUserCommand(input: SaveUserCommandInput): Promise<void> {
   const dir = ntwineCommandsDir()

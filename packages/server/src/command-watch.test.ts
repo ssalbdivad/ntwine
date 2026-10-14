@@ -265,7 +265,7 @@ test("gate: a sandbox block that is off, or says nothing about `enabled`, does n
   assert.ok(commandWatchRefusal(BYPASS, gate))
 })
 
-test("gate: a settings file Ntwine cannot parse or read refuses — it might be the one that says `enabled: true`", { skip: !posix || process.getuid?.() === 0 }, () => {
+test("gate: a settings file ntwine cannot parse or read refuses — it might be the one that says `enabled: true`", { skip: !posix || process.getuid?.() === 0 }, () => {
   const { cwd, home, gate } = settingsRoots()
   writeFileSync(join(cwd, ".claude", "settings.json"), "{ not json")
   assert.match(commandWatchRefusal(BYPASS, gate)!, /not valid JSON/)
@@ -290,7 +290,7 @@ test("gate: CLAUDE_CONFIG_DIR moves the user scope, as it does for Claude Code",
 
 // An MDM configuration profile reaches Claude Code as `/Library/Managed Preferences/…/com.anthropic.claudecode.plist`,
 // which it converts with `plutil` and reads as settings — a sandbox turned on there is in no JSON file.
-test("gate: a sandbox an MDM profile turns on refuses, and a profile Ntwine cannot convert refuses too", () => {
+test("gate: a sandbox an MDM profile turns on refuses, and a profile ntwine cannot convert refuses too", () => {
   const { root, gate } = settingsRoots()
   const plist = join(root, "com.anthropic.claudecode.plist")
   writeFileSync(plist, "<plist/>") // only its existence is read; the conversion is the seam below

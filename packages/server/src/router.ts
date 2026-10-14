@@ -720,13 +720,13 @@ export async function stopAndForgetRegisteredRuntime(
 /**
  * DELETE ONE THREAD — the one body behind the ⋯ menu's Delete, the Settings drawer's bulk delete and the
  * retention sweep (thread-retention.ts). Stops its worker if one is still running (the same stop Mark as
- * done performs), then drops every row Ntwine keeps for it (storage `forgetOwnedRow`) and tombstones its
+ * done performs), then drops every row ntwine keeps for it (storage `forgetOwnedRow`) and tombstones its
  * transcript so discovery cannot bring it back, stops its terminals, drops the tailer's state and removes
  * its scratch directory. Its slug and `@handle` are free the moment this returns: the next thread named
  * like it gets the bare slug, and a mention no longer finds it.
  *
  * The provider's own transcript is left where the provider wrote it — it belongs to Claude or Codex,
- * not to Ntwine. The caller refreshes the board, so a bulk delete rebuilds it once.
+ * not to ntwine. The caller refreshes the board, so a bulk delete rebuilds it once.
  */
 export async function deleteOwnedThread(
   ctx: Pick<AppContext, "storage" | "tailer" | "terminalRunner" | "project" | "codexAppServer" | "claudeBroker" | "acpBridge">,
@@ -964,7 +964,7 @@ export function addProjectAtPath(
     }
   }
   const root = options.exact ? absolute : enclosing
-  // Minting an id in $HOME writes a project into ~/.ntwine — Ntwine's own state root — and every
+  // Minting an id in $HOME writes a project into ~/.ntwine — ntwine's own state root — and every
   // unmarked directory under home then resolves to it. The launcher refuses this; so does the add-project dialog.
   if (isHomeDirectory(root, home)) throw new Error("The home folder cannot be a project — choose a folder inside it.")
   // SEEDED, exactly as the launcher seeds it: an established repository whose id lives only in
@@ -1023,7 +1023,7 @@ function storeProjectIcon(id: string, name: string, bytes: Buffer): ProjectCard 
   writeFileSync(path, bytes)
   if (!imageDimensions(path)) {
     rmSync(path, { force: true })
-    throw new Error("That file does not look like an image Ntwine can draw.")
+    throw new Error("That file does not look like an image ntwine can draw.")
   }
   // A previous upload in a DIFFERENT format would otherwise sit beside this one and win nothing, but
   // it would linger forever; the registry only ever points at the newest.
@@ -1062,7 +1062,7 @@ function setProjectIconFromFile(id: string, file: string): ProjectCard {
   return storeProjectIcon(id, file, bytes)
 }
 
-// MODULE level, not per-router: one Ntwine serves N projects, each with its own router instance, and
+// MODULE level, not per-router: one ntwine serves N projects, each with its own router instance, and
 // every cache key here is a fully-qualified `owner/repo#N` — so sharing the cache across tenants is
 // both safe and the point (a monorepo's threads and a sibling project's threads referencing the same
 // upstream issue pay for it once).
@@ -1074,7 +1074,7 @@ function mergeSubAgentSteers(messages: TranscriptMessage[], steers: SubAgentStee
   for (const steer of steers) {
     const at = new Date(steer.sent_at).toISOString()
     // Future broker versions may start persisting addressed input. Prefer the provider's native record
-    // when the same text appears at the same instant rather than rendering Ntwine's journal copy too.
+    // when the same text appears at the same instant rather than rendering ntwine's journal copy too.
     const duplicate = messages.some((message) => {
       if (message.role !== "user" || message.text.trim() !== steer.message.trim() || !message.at) return false
       return Math.abs(Date.parse(message.at) - steer.sent_at) <= 5_000
@@ -1106,10 +1106,10 @@ const HANDOFF_ASKED_MAX = 1200
  * (web lib/messagePresentation.ts `lastHumanTurnIndex`), so the card on All queues and the card on the
  * board open on the same exchange.
  *
- * "The human" skips everything Ntwine or another agent put in the worker's composer — a wake, a
+ * "The human" skips everything ntwine or another agent put in the worker's composer — a wake, a
  * sub-agent steer, a peer's report, a queued send not yet delivered — because a card that answered
  * "what did you ask for?" with a PR-watcher status line would be quoting the wrong author. EXCEPT the one
- * wake the human wrote: the answer to a registered question, which Ntwine delivers as a wake because the
+ * wake the human wrote: the answer to a registered question, which ntwine delivers as a wake because the
  * worker may have been down when it was given. Skipping it anchored the card on the message BEFORE the
  * answer, so a card answered on All queues came back quoting the original task.
  *
@@ -1280,8 +1280,8 @@ export function decodeDoneCursor(cursor: string): DoneKey {
   return { at, projectId, threadId }
 }
 
-/** Whether a thread belongs in History: a Done session Ntwine started, or — when External is on — a
- *  foreign session (one Ntwine did not start) that is at rest. A foreign row never carries a state, so it
+/** Whether a thread belongs in History: a Done session ntwine started, or — when External is on — a
+ *  foreign session (one ntwine did not start) that is at rest. A foreign row never carries a state, so it
  *  is never `inactive`; at rest is all History can say about it. */
 function historyThread(thread: ThreadView, external: boolean): boolean {
   if (thread.kind !== "session") return false
@@ -1372,7 +1372,7 @@ export function createRouter(ctx: AppContext) {
     const messages = info?.outputFile ? read(info.outputFile) : []
     const said = (m: (typeof messages)[number]) => (m.displayText ?? m.text).trim()
     const opening = messages.find((m) => m.role === "user" && !m.kind && said(m))
-    // The dispatch prompt as the WORKER wrote it: the transcript projection already cut Ntwine's helper
+    // The dispatch prompt as the WORKER wrote it: the transcript projection already cut ntwine's helper
     // epilogue off it (transcript.ts subAgentDispatchDisplayText), the same cut the drawer reads.
     const request = opening ? said(opening) : ""
     const spoken = messages.filter((m) => m.role === "assistant" && !m.kind && said(m))
@@ -1616,7 +1616,7 @@ export function createRouter(ctx: AppContext) {
   // A LINK INTO A WORKTREE THAT IS GONE OPENS THE MAIN CHECKOUT'S COPY. An agent working in a worktree
   // names its files there — absolute paths in its tool calls and prose, relative ones the page resolves
   // against its worktree (lib/useMarkdown.ts CheckoutBaseContext) — and the worktree is usually removed
-  // once its branch is merged. Only `<project>/.ntwine/worktrees/` is recognized: Ntwine mandates no
+  // once its branch is merged. Only `<project>/.ntwine/worktrees/` is recognized: ntwine mandates no
   // worktree folder, and that is the one convention it already knows (board.ts ignores it too). Every
   // way the page opens a local file (the editor, the reader, inline-code links, the sidebar's own opener
   // through `settleLocalPath`) passes the path through here: as asked while it exists, else the main
@@ -1779,7 +1779,7 @@ export function createRouter(ctx: AppContext) {
         const binding = bridge.binding(input.slug, row.session_id)
         // Writer-yield: if the rollout shows an in-flight turn the bridge does NOT hold (it has no
         // current turn of its own), someone is driving this thread in their own terminal via
-        // `codex resume`. Ntwine keeps MIRRORING that turn (the tailer follows the same rollout), but it
+        // `codex resume`. ntwine keeps MIRRORING that turn (the tailer follows the same rollout), but it
         // must not start/steer a second turn and race two writers. Yield until the external turn rests.
         // A turn the app-server opens on its own — a codex thread goal's continuation — is NOT this
         // case: the bridge adopts it from `turn/started` (codex-app-server.ts), so it holds a current
@@ -1797,7 +1797,7 @@ export function createRouter(ctx: AppContext) {
         const turnLive = ctx.tailer.get(input.slug)?.turn === "in-flight" && !stalled
         if (turnLive && (!binding || binding.currentTurnId === null)) {
           // Under 160 characters: sendEagerFollowUp toasts this after "Steer failed — " and cuts the rest.
-          throw new Error("This thread is being driven outside Ntwine. Wait for that turn to end, then resend.")
+          throw new Error("This thread is being driven outside ntwine. Wait for that turn to end, then resend.")
         }
         if (!binding || binding.state !== "active") {
           await bridge.resumeOwnedSession(input.slug, row.session_id)
@@ -2852,7 +2852,7 @@ export function createRouter(ctx: AppContext) {
   function spinoffTarget(projectId: string | null | undefined): AppContext | undefined {
     if (!projectId || projectId === ctx.project.id) return undefined
     const open = (ctx.activeTenants?.() ?? []).find((t) => t.project.id === projectId)?.ctx
-    if (!open) throw new Error("That project is not open in Ntwine right now, so a thread cannot start there")
+    if (!open) throw new Error("That project is not open in ntwine right now, so a thread cannot start there")
     return open
   }
 
@@ -2880,7 +2880,7 @@ export function createRouter(ctx: AppContext) {
     }
     const all = [...candidates.values()]
     const here = candidates.get(ctx.project.id)!
-    const listing = `Projects in Ntwine:\n${spawnProjectList(all, here)}`
+    const listing = `Projects in ntwine:\n${spawnProjectList(all, here)}`
     let chosen: SpawnProject | undefined
     if (project !== undefined) {
       chosen = resolveSpawnProject(project, all)
@@ -2907,7 +2907,7 @@ export function createRouter(ctx: AppContext) {
     }
     if (chosen.id === ctx.project.id) return undefined
     const target = tenants.get(chosen.id)?.ctx ?? (await ctx.openProject?.(chosen.id))
-    if (!target) throw new Error(`${chosen.name} could not be opened in Ntwine right now, so a thread cannot start there`)
+    if (!target) throw new Error(`${chosen.name} could not be opened in ntwine right now, so a thread cannot start there`)
     return { ctx: target, slug: chosen.slug }
   }
 
@@ -2922,7 +2922,7 @@ export function createRouter(ctx: AppContext) {
   // parent's prompt cache) and was ~1.1-2x faster.
   //
   // THE SUMMARY (David 2026-10-07, summarySpinoff below), everywhere else — a fresh thread whose opening
-  // prompt is the human's instructions over context Ntwine assembles from what it already stores:
+  // prompt is the human's instructions over context ntwine assembles from what it already stores:
   //   • Codex and ACP threads — nothing here can fork their sessions.
   //   • A CROSS-PROJECT spinoff. The Claude CLI finds a session to fork from any cwd (measured on 2.1.284),
   //     but the conversation it would copy is full of paths relative to ANOTHER checkout, and the target's
@@ -2958,7 +2958,7 @@ export function createRouter(ctx: AppContext) {
         ...(parent.model ? { model: parent.model } : {}),
         ...(effort.success && effort.data !== undefined ? { effort: effort.data } : {}),
       },
-      // Named from the human's words — the prompt opens on Ntwine's "A spinoff of @parent…" boilerplate.
+      // Named from the human's words — the prompt opens on ntwine's "A spinoff of @parent…" boilerplate.
       { backend: "claude", nameSource: spinoffNameSource({ instructions, brief: "" }), fork: { sessionId: fromSessionId } },
     )
     // The edge is written only once the child exists, and complete from birth: a forked request is never
@@ -2974,7 +2974,7 @@ export function createRouter(ctx: AppContext) {
     return { id }
   }
 
-  // THE SUMMARY ROUTE: a fresh thread on context Ntwine assembles from the parent (spinoffContext) — its
+  // THE SUMMARY ROUTE: a fresh thread on context ntwine assembles from the parent (spinoffContext) — its
   // original request, its latest handoff and, across projects, where it lives. Until 2026-10-07 this was a
   // `<spinoff-request>` message to the parent's worker, which wrote a brief and dispatched it: a model call
   // inside the parent's conversation that took ~800 lines to keep out of the parent's chat, rest and queue
@@ -3334,7 +3334,7 @@ export function createRouter(ctx: AppContext) {
               deliveryId,
             })
           }
-          // The provider deliberately does not write addressed input into the child's transcript. Ntwine
+          // The provider deliberately does not write addressed input into the child's transcript. ntwine
           // has the plaintext here, so journal it only after delivery succeeds and merge it into future
           // drawer reads. INSERT OR IGNORE makes a retried transport id one visible message.
           ctx.storage.recordSubAgentSteer({
@@ -3576,7 +3576,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // SPINOFF a new thread from this one (SpinoffInput): a fork of this thread's session where one can be
-    // made, else a fresh thread on context Ntwine assembles. Either way this thread is sent nothing.
+    // made, else a fresh thread on context ntwine assembles. Either way this thread is sent nothing.
     spinoff: mutation({
       input: SpinoffInput,
       output: SpinoffResult,
@@ -3647,8 +3647,8 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         const row = currentOwnedSession(input.slug, input.sessionId)
         if (!row) throw new Error("This thread is no longer the session this tab is looking at")
-        // A message Ntwine is HOLDING for the agent's rest was never handed to any runtime, so taking it
-        // back is Ntwine's alone to do, on every backend: drop the entry and the words go back to the
+        // A message ntwine is HOLDING for the agent's rest was never handed to any runtime, so taking it
+        // back is ntwine's alone to do, on every backend: drop the entry and the words go back to the
         // prompt box. A null here means it was released in the meantime, and the ordinary rules below
         // decide what can still be done about it.
         if (dropHeldDelivery(ctx.storage, input.slug, input.deliveryId) !== null) {
@@ -3720,7 +3720,7 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         const row = currentOwnedSession(input.slug, input.sessionId)
         if (!row) throw new Error("This thread is no longer the session this tab is looking at")
-        // What Ntwine was HOLDING for the rest goes to the runtime first — the operator has just said not
+        // What ntwine was HOLDING for the rest goes to the runtime first — the operator has just said not
         // to wait — and then the interrupt below pushes the whole queue through, those included. On a
         // runtime with no interrupt the release is the entire act, and it is a steer there, read at the
         // agent's next step.
@@ -3794,7 +3794,7 @@ export function createRouter(ctx: AppContext) {
           return
         }
         if (row.backend !== "claude" || row.claude_runtime !== "broker") {
-          throw new Error("This thread's runtime can't be compacted from Ntwine")
+          throw new Error("This thread's runtime can't be compacted from ntwine")
         }
         const bridge = ctx.claudeBroker
         if (!bridge) throw new Error("Claude session broker is unavailable; cannot compact this thread")
@@ -3839,7 +3839,7 @@ export function createRouter(ctx: AppContext) {
         // Codex TUI as a Claude composer. That controller is gone (see the Claude branch below), but the
         // BACKEND test stays: followUp branches the same way and migrates such a row on contact.
         const permRow = ctx.storage.getSession(input.slug)
-        if (permRow?.backend === "acp") throw new Error("An ACP agent enforces its own permissions; Ntwine has no mode to set on it")
+        if (permRow?.backend === "acp") throw new Error("An ACP agent enforces its own permissions; ntwine has no mode to set on it")
         if (permRow?.backend === "codex") {
           // Persist FIRST and unconditionally: the registry is the operator's stated intent, it is what
           // every later cold resume now carries (resumeSandboxOverride), and it must survive even if the
@@ -3914,7 +3914,7 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // USER SLASH COMMANDS — the markdown prompts in Ntwine's own folder, this project's `.agents/commands`
+    // USER SLASH COMMANDS — the markdown prompts in ntwine's own folder, this project's `.agents/commands`
     // and `~/.agents/commands` (user-commands.ts). Read fresh on every ask; the composer offers them beside
     // the harness's skills and expands them itself, so they work on every backend.
     userCommands: query({
@@ -3935,7 +3935,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // The composer's `/` typeahead asks the thread's HARNESS for its skills — the broker daemon's
-    // `supportedCommands()` for Claude, the app-server's `skills/list` for Codex. Ntwine owns no skill
+    // `supportedCommands()` for Claude, the app-server's `skills/list` for Codex. ntwine owns no skill
     // discovery of its own, on purpose: the harness already resolves plugins, project and global roots
     // and enable state, and an ntwine-side scan could only drift from what the session actually loaded.
     // Unavailability (no live daemon, a legacy row, an old broker) THROWS with a reason; the web treats
@@ -4021,7 +4021,7 @@ export function createRouter(ctx: AppContext) {
       output: UpgradeThreadModelResult,
       handler: async ({ input }) => {
         const row = currentOwnedSession(input.slug, input.sessionId)
-        if (!row || !isBrokerClaudeRow(row)) throw new Error("Only a Claude thread Ntwine runs can be upgraded")
+        if (!row || !isBrokerClaudeRow(row)) throw new Error("Only a Claude thread ntwine runs can be upgraded")
         const telemetry = ctx.tailer.get(input.slug)
         const newer = claudeModelStanding(telemetry?.model, peekClaudeModels())?.newer
         if (!newer) throw new Error("This thread already runs the newest edition of its model")
@@ -4523,7 +4523,7 @@ export function createRouter(ctx: AppContext) {
         if (!probe.ok) {
           throw new Error(
             `\`${target}\` cannot be watched as a pull request — the server's \`gh\` could not read it: ${probe.reason}. ` +
-            "Ntwine polls with the `gh` of the process it runs as, not yours: check `gh auth status` there and that the repo is " +
+            "ntwine polls with the `gh` of the process it runs as, not yours: check `gh auth status` there and that the repo is " +
             "reachable, then register again. If GitHub itself was briefly down, registering again in a minute is enough.",
           )
         }
@@ -4614,7 +4614,7 @@ export function createRouter(ctx: AppContext) {
     // ---- REGISTERED COMMAND WATCHES (add / drop / list) -------------------------------------------
     // `ntwinectl watch-command`: a shell command the SERVER re-runs on a cadence until it exits 0 (scheduler
     // SOURCE 16, command-watch.ts). Slug-only like every worker registry. The GATE runs before anything
-    // else, the idempotent short-circuit included: whether Ntwine may run commands for this thread at all
+    // else, the idempotent short-circuit included: whether ntwine may run commands for this thread at all
     // is the first question, and a thread that has lost the right must not be told its old watch stands.
     addOwnCommandWatch: mutation({
       input: AddOwnCommandWatchInput,
@@ -4628,7 +4628,7 @@ export function createRouter(ctx: AppContext) {
         const service = ctx.commandWatches
         const refusal = service ? service.refusal(row) : `this server cannot run command watches. ${COMMAND_WATCH_FALLBACK}`
         if (refusal) {
-          return { refused: `Ntwine will not run a command watch for this thread: ${refusal}`, alreadyArmed: false, passed: false, watches: armedCommandWatchViews(input.slug) }
+          return { refused: `ntwine will not run a command watch for this thread: ${refusal}`, alreadyArmed: false, passed: false, watches: armedCommandWatchViews(input.slug) }
         }
         const command = input.command.trim()
         const armed = ctx.storage.listCommandWatches(input.slug, { armedOnly: true })
@@ -4672,7 +4672,7 @@ export function createRouter(ctx: AppContext) {
         if (first && (first.outcome === "error" || (first.outcome === "exit" && (first.exitCode === 126 || first.exitCode === 127)))) {
           return {
             refused:
-              `Ntwine ran your command once to check it, and it could not run here (${first.outcome === "error" ? "the shell did not start" : `\`/bin/sh\` exited ${first.exitCode}`}). ` +
+              `ntwine ran your command once to check it, and it could not run here (${first.outcome === "error" ? "the shell did not start" : `\`/bin/sh\` exited ${first.exitCode}`}). ` +
               `The server runs it with \`/bin/sh -c\` in ${ctx.project.dir}, with the server's own PATH, not your shell's: ` +
               `use absolute paths, or ${COMMAND_WATCH_FALLBACK.charAt(0).toLowerCase()}${COMMAND_WATCH_FALLBACK.slice(1)}`,
             alreadyArmed: false, passed: false, firstRun, watches: armedCommandWatchViews(input.slug),
@@ -4865,7 +4865,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // THE MACHINE-WIDE WRAP-UP: one deadline, and the human's note, on every Running thread in every open
-    // project — the way to say "restarting in 15m" before a reboot ends the broker daemons an Ntwine restart
+    // project — the way to say "restarting in 15m" before a reboot ends the broker daemons an ntwine restart
     // would not. Running means the rail's own band (`activeBandThread`) less the rows parked on a wait their
     // worker declared (`agentParked`): a queued thread is already at rest, and a parked one — snoozed by the
     // human or by its worker — waits on a registration that outlives the reboot, so none of them is woken. A thread
@@ -5536,7 +5536,7 @@ export function createRouter(ctx: AppContext) {
     // WHAT A BROWSER TAB SHOWS OF THE EDITOR BESIDE IT (shared editor-protocol.ts EditorFront): the file
     // in front of the window this project's agents' `editor` tool would read, and its selection's lines,
     // for the quiet `VS Code: a.ts:12-20` line over the tab's prompt boxes (web EditorLine.tsx). Never the
-    // text, until the human clicks the line: `text: true` adds `item`, what an editor's own "Add to Ntwine
+    // text, until the human clicks the line: `text: true` adds `item`, what an editor's own "Add to ntwine
     // prompt" would send, which the page turns into the same chip. The `editor-front` event says when to
     // ask again. Project-scoped by the URL prefix, like `editorState`, so the window is the one that has
     // THIS project open.
@@ -5572,7 +5572,7 @@ export function createRouter(ctx: AppContext) {
         const target = reviewTarget(input.slug, input.title)
         if (target.checkouts.length === 0) throw new Error("This thread hasn't changed any files yet.")
         if (!ctx.editors || !(await ctx.editors.review(target, workDir))) {
-          throw new Error("No editor window can show the changes. Open the project in VS Code with the Ntwine extension.")
+          throw new Error("No editor window can show the changes. Open the project in VS Code with the ntwine extension.")
         }
         return { ok: true as const }
       },
@@ -5645,7 +5645,7 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // Persist a HUMAN display title in Ntwine's session registry. This deliberately does not inject a
+    // Persist a HUMAN display title in ntwine's session registry. This deliberately does not inject a
     // backend slash command: Codex and Claude expose different rename behavior, the process need not
     // be idle/live, and transcript ai-title records must never be allowed to replace explicit intent.
     renameThread: mutation({
@@ -5911,7 +5911,7 @@ export function createRouter(ctx: AppContext) {
       handler: async () => readClaudeModels({ claudeBin: ctx.claudeBin, cwd: workDir, log: (message) => ntwineLog.warn("server", message) }),
     }),
 
-    // The ACP agents Ntwine knows how to launch, with `available` for the ones on this machine's PATH.
+    // The ACP agents ntwine knows how to launch, with `available` for the ones on this machine's PATH.
     // The composer lists the available ones as `acp:<id>` models (plans/acp-backend.md, decision 9).
     acpAgents: query({
       output: z.array(AcpAgent),
@@ -6076,7 +6076,7 @@ export function createRouter(ctx: AppContext) {
      * Every registered project IS opened, so absent is the exception rather than the rule: the server
      * primes the ones the operator has not visited within about a second of boot (tenant-prime.ts), which is
      * what stopped the badges from appearing only after you clicked into each square. What stays absent
-     * is a project another live Ntwine is serving, one whose directory is gone, and one that would not
+     * is a project another live ntwine is serving, one whose directory is gone, and one that would not
      * open — plus every project for the first seconds of a boot, before the pass reaches it.
      *
      * Kept OFF `projectsList` on purpose: that list is one registry-file read, cheap enough to be the
@@ -6229,7 +6229,7 @@ export function createRouter(ctx: AppContext) {
      * Every open project's threads whose name or slug contains the query, open and Done — the palette's
      * and History's search. Case-insensitive substring over the title, the worker's own title, the slug
      * and every former name. Open threads rank before Done (the one you are after is more often
-     * live), then newest rest first. Foreign sessions are left out: they are not threads Ntwine can act on.
+     * live), then newest rest first. Foreign sessions are left out: they are not threads ntwine can act on.
      */
     threadsSearch: query({
       input: ThreadsSearchInput,
@@ -6285,7 +6285,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     /**
-     * Delete a project — Ntwine's record of it, never the folder it names.
+     * Delete a project — ntwine's record of it, never the folder it names.
      *
      * TWO LEVELS, and the difference is the whole design. The default forgets the registry entry and
      * closes the tenant: the project leaves the project list and the rail, and everything it ever held is
@@ -6294,7 +6294,7 @@ export function createRouter(ctx: AppContext) {
      * and removes that directory.
      *
      * WHAT IS NEVER TOUCHED is the project's own directory. Not its files, not its `.ntwine/.id`.
-     * Ntwine is an index over folders somebody else owns, and a "delete" that reached into a working
+     * ntwine is an index over folders somebody else owns, and a "delete" that reached into a working
      * tree would be a different product.
      *
      * THE LAUNCHING PROJECT CAN BE FORGOTTEN, BUT ITS DATA CANNOT BE DELETED. This process publishes
@@ -6305,7 +6305,7 @@ export function createRouter(ctx: AppContext) {
      *
      * Forgetting it was refused too until 2026-10-10, and the operator could not act on the refusal:
      * a `ntwine` run from `$HOME` or an unadopted folder was then hosted on the most recently opened
-     * project (launcher.ts `resolveLaunchIntent`; Ntwine's own folder since 2026-10-11), so "the
+     * project (launcher.ts `resolveLaunchIntent`; ntwine's own folder since 2026-10-11), so "the
      * launching project" was routinely one nobody chose, and "restart from another folder" picked the
      * same one again. Forgetting needs none of what the
      * refusal protects — only the registry entry goes. The tenant itself stays open until the process
@@ -6328,17 +6328,17 @@ export function createRouter(ctx: AppContext) {
         // Read BEFORE the removal, which forgets the very entry that names the folder.
         () => ({ project: { id: input.id, dir: findById(input.id)?.path ?? null }, detail: { deleteData: input.deleteData === true } }),
         async () => {
-          if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into Ntwine, so it cannot be deleted.`)
+          if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into ntwine, so it cannot be deleted.`)
           const entry = findById(input.id)
           if (!entry) return { removed: false, deletedData: false, stoppedWorkers: 0 }
           const deleteData = input.deleteData === true
           if (ctx.launchProjectId === entry.id) {
             // The message deliberately does NOT name the project: the confirmation's title already
-            // does, and naming it here reads "Ntwine is running from ntwine" in this very repository.
+            // does, and naming it here reads "ntwine is running from ntwine" in this very repository.
             // It names another PROJECT's folder because any other folder is hosted on the most
             // recently opened project, which is this one.
             if (deleteData) {
-              throw new Error("Ntwine keeps its own running state with this project, so its threads and history cannot be deleted right now. Delete it without them, or quit Ntwine and start it from inside another project's folder.")
+              throw new Error("ntwine keeps its own running state with this project, so its threads and history cannot be deleted right now. Delete it without them, or quit ntwine and start it from inside another project's folder.")
             }
             // No teardown: the tenant is the server's own (see above), and the state dir is kept.
             return { removed: forgetProject(entry.id), deletedData: false, stoppedWorkers: 0 }
@@ -6360,7 +6360,7 @@ export function createRouter(ctx: AppContext) {
      * Give a project an icon of the operator's choosing.
      *
      * The bytes land in the project's STATE DIR, never in the repository: a picture chosen for a rail
-     * square is Ntwine's business, and writing one into someone's working tree would show up in their
+     * square is ntwine's business, and writing one into someone's working tree would show up in their
      * `git status` for a UI preference they set in another app.
      *
      * Same trust gates as `/attach` — an extension allowlist and a size cap, and the on-disk name is
@@ -6372,7 +6372,7 @@ export function createRouter(ctx: AppContext) {
      *
      * A browser file input cannot be aimed anywhere — the OS picks, and it lands wherever you last
      * were. A project's icon is nearly always inside the project (a logo in the repo, a screenshot of
-     * it), so the picker should open where Ntwine already knows the project lives. The browser input
+     * it), so the picker should open where ntwine already knows the project lives. The browser input
      * stays as the fallback for a platform with no native dialog.
      */
     projectIconPick: mutation({
@@ -6436,7 +6436,7 @@ export function createRouter(ctx: AppContext) {
     }),
 
     /**
-     * Rename a project — the name Ntwine shows and the URL it answers on, and, only when asked, the
+     * Rename a project — the name ntwine shows and the URL it answers on, and, only when asked, the
      * folder itself.
      *
      * The name is the registry's display override, cleared again when it matches the folder so the
@@ -6460,18 +6460,18 @@ export function createRouter(ctx: AppContext) {
       }).strict(),
       output: ProjectCard,
       handler: async ({ input }) => {
-        if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into Ntwine, so it cannot be renamed.`)
+        if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into ntwine, so it cannot be renamed.`)
         const entry = findById(input.id)
         if (!entry) throw new Error("No such project.")
         const name = input.name.trim()
         let path = entry.path
         if (input.renameDirectory && name !== basename(entry.path)) {
           if (ctx.launchProjectId === entry.id) {
-            throw new Error("Ntwine is running from this project's folder, so the folder cannot be renamed right now. Quit Ntwine and start it from inside another project's folder first.")
+            throw new Error("ntwine is running from this project's folder, so the folder cannot be renamed right now. Quit ntwine and start it from inside another project's folder first.")
           }
           path = moveProjectDirectory(entry.id, name).path
           // Detached workers keep running through the rename (their cwd follows the inode); only
-          // Ntwine's own view of the project has to be rebuilt, and the slug route does that lazily.
+          // ntwine's own view of the project has to be rebuilt, and the slug route does that lazily.
           await ctx.teardownProject?.(entry.id, {})
         }
         const updated = renameProject(entry.id, { name: name === basename(path) ? null : name, slug: name })

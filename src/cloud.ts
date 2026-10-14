@@ -30,7 +30,7 @@ import { connectRelay } from "./relay-connection.ts";
  *   dana               -> CLAIM `dana.ntwine.app` from the registrar, bound to your GitHub account
  *                         through a no-permission GitHub sign-in (github-device-flow.ts). PAUSED
  *                         while CUSTOM_NAMES_OFFERED is false: the answer is refused up front.
- *   board.example.com  -> a tunnel you made yourself, which Ntwine only runs
+ *   board.example.com  -> a tunnel you made yourself, which ntwine only runs
  *
  * The claimed path exists because creating a tunnel and its DNS record needs a zone-scoped Cloudflare
  * token, and that token can never live on a user's machine. The registrar holds it and hands back a
@@ -59,7 +59,7 @@ export interface CloudConfig {
    * `tunnel` — the older path, where the registrar provisioned a Cloudflare tunnel per name.
    *
    * `external` — the operator runs the transport (Tailscale Serve, a proxy, a tunnel started by hand)
-   * and Ntwine runs nothing: it only knows the origin, gates it, and prints links for it.
+   * and ntwine runs nothing: it only knows the origin, gates it, and prints links for it.
    *
    * Absent on an existing config means tunnel, so an upgrade does not silently change how a board that
    * already works is served.
@@ -69,7 +69,7 @@ export interface CloudConfig {
   provider?: "tailscale" | "other";
 }
 
-/** A config Ntwine serves by knowing the origin alone — nothing to start, nothing to renew. */
+/** A config ntwine serves by knowing the origin alone — nothing to start, nothing to renew. */
 export function isExternalConfig(config: CloudConfig): boolean {
   return config.serve === "external";
 }
@@ -97,7 +97,7 @@ export const REGISTRAR_IS_LIVE = true;
 /**
  * Are CUSTOM names (`dana.ntwine.app`, bound to a GitHub account) offered?
  *
- * Yes, since 2026-10-13, when Ntwine's GitHub OAuth app was registered (its client id is in
+ * Yes, since 2026-10-13, when ntwine's GitHub OAuth app was registered (its client id is in
  * github-device-flow.ts). They were withdrawn from 2026-10-08 until then. Setting this to `false`
  * withdraws them again: the R pane stops listing "Custom name", the prompt stops mentioning it, and a
  * word answer refuses (CUSTOM_NAMES_PAUSED) before any GitHub sign-in or registrar call. Private names
@@ -157,7 +157,7 @@ export function zoneClaimLabel(hostname: string): string | null {
  * claimed at all, or a claim issued while the registrar still provisioned tunnels — this claims the
  * label now, through the same call a first launch makes, and hands back the relay config to save.
  * The board then serves through the relay on this very launch. Before this, the launcher ran the old
- * tunnel faithfully and the phone that scanned the QR read "No Ntwine board has claimed this name."
+ * tunnel faithfully and the phone that scanned the QR read "No ntwine board has claimed this name."
  * (2026-08-25), with no step anywhere that would ever have claimed it.
  *
  * A hostname outside the zone is the operator's own tunnel and is never touched; a relay config is
@@ -184,12 +184,12 @@ export async function reconcileCloudConfig(
   if (!label) return config;
   if (!isAnonymousClaimName(label) && !customNamesOffered()) {
     throw new Error(
-      `${config.hostname} needs moving onto the Ntwine relay, which means claiming it again, and custom ntwine.app names are paused for now — press R to pick a private name or another setup`,
+      `${config.hostname} needs moving onto the ntwine relay, which means claiming it again, and custom ntwine.app names are paused for now — press R to pick a private name or another setup`,
     );
   }
   onNotice?.(
     isClaimedConfig(config)
-      ? `${config.hostname} is served by the Ntwine relay now; moving this board off its tunnel`
+      ? `${config.hostname} is served by the ntwine relay now; moving this board off its tunnel`
       : `${config.hostname} is inside ${CLAIM_ZONE}, where names are claimed, not tunnelled; claiming ${label}`,
   );
   return establishCloudConfig(label, port, home, origin, github);
@@ -424,7 +424,7 @@ export async function resolveRunToken(
     return result.token;
   } catch (error) {
     if (cached && error instanceof ClaimError && error.code === "unreachable") {
-      onWarning?.(`could not reach the Ntwine registrar to renew ${config.hostname}; using the token from last time`);
+      onWarning?.(`could not reach the ntwine registrar to renew ${config.hostname}; using the token from last time`);
       return cached;
     }
     throw error;
@@ -472,7 +472,7 @@ export async function startRelay(
     ...(onStatus
       ? {
           onStatus: (status, detail) => {
-            if (status === "connected") onStatus(`connected to the Ntwine relay for ${config.hostname}`);
+            if (status === "connected") onStatus(`connected to the ntwine relay for ${config.hostname}`);
             else if (status === "retrying") onStatus(`relay: ${detail ?? "reconnecting"}`);
           },
         }

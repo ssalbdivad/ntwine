@@ -133,7 +133,7 @@ const { startServer } = await import("../packages/server/src/index.ts")
 try {
   // --dist serves the BUILT client (packages/web/dist — run `vite build` in packages/web first) instead of
   // Vite's dev middleware. Anything judged by load time — first paint, time to interactive — must use it:
-  // in dev every module is transformed on request, which measures Vite, not Ntwine.
+  // in dev every module is transformed on request, which measures Vite, not ntwine.
   const started = await startServer({ dev: !flag("dist"), port, installSignalHandlers: false, claudeBin })
   close = () => started.close()
   // Confirm the API is actually serving before announcing — a race here would hand CDP a dead port.

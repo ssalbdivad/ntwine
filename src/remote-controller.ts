@@ -84,7 +84,7 @@ export function createRemoteController(options: RemoteControllerOptions): Remote
         });
       }
       transport = await startRelay(next, options.port, home, (message) => options.log.info("relay", message));
-      options.log.info("relay", `serving ${next.hostname} through the Ntwine relay`);
+      options.log.info("relay", `serving ${next.hostname} through the ntwine relay`);
       return;
     }
     // The tunnel is a CHILD of this launcher, so the two halves share a lifetime. A tunnel outliving

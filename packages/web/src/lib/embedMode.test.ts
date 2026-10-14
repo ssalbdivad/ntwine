@@ -146,7 +146,7 @@ test("a code file goes to the editor with its place, never to the reader or the 
   assert.deepEqual(fetched, [], "nothing asked of the server")
 })
 
-test("Markdown still opens in Ntwine's reader", () => {
+test("Markdown still opens in ntwine's reader", () => {
   posted.length = 0
   openLocalPath("/repo/README.md")
   assert.deepEqual(posted, [])

@@ -28,7 +28,7 @@ function machine(t: TestContext) {
   return { home, folder, open: (dir: string) => resolveProject(dir, home) }
 }
 
-test("a folder Ntwine knows opens as itself, from anywhere inside it, and is registered by the answer", (t) => {
+test("a folder ntwine knows opens as itself, from anywhere inside it, and is registered by the answer", (t) => {
   const { home, folder, open } = machine(t)
   const app = folder("code/kirby")
   const deep = folder("code/kirby/packages/web/src")

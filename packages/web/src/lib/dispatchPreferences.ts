@@ -193,7 +193,7 @@ export function resolveDispatchPreferences(
       : acpAgents.some((candidate) => candidate.available && candidate.id === acpAgentId)
   // Auto unless the operator made another level the default: the server picks one from the prompt.
   const defaultEffort = backend === "claude" || codexModel ? AUTO_EFFORT : preset?.defaultEffort ?? ""
-  // An ACP agent has no effort axis in Ntwine — it runs on its own CLI's model and effort — so its
+  // An ACP agent has no effort axis in ntwine — it runs on its own CLI's model and effort — so its
   // effort is "" and always "available": there is nothing to be unavailable. A preset has one.
   const effort = backend === "acp" && !preset ? "" : profile.effort ?? defaultEffort
   const autoOptions = [{ value: AUTO_EFFORT, label: "Auto" }]

@@ -70,7 +70,7 @@ export function SessionMessageLine({ peer, text, queued, sourceId, at, wrap }: {
             </span>
           </>
         ) : (
-          // Not an Ntwine thread, or one that exited before Ntwine could trace it: the session's own name is
+          // Not an ntwine thread, or one that exited before ntwine could trace it: the session's own name is
           // all there is, said as a name rather than dressed up as a link.
           <span className="min-w-0 truncate">{peer.name ? `Message from session ${peer.name}` : "Message from another session"}</span>
         )}

@@ -125,7 +125,7 @@ test("the launcher's address record is taken while its port answers health, and 
 
 test("an address record a crash left behind is not trusted, even when something answers health on its port", async () => {
   // The case the record's own comment warns about: the launcher was SIGKILLed (or WSL shut down), the
-  // record stayed, and a `ntwine --sandbox` or another account's Ntwine now holds the port.
+  // record stayed, and a `ntwine --sandbox` or another account's ntwine now holds the port.
   const { home, roots } = fixtureRoots()
   const foreign = await healthServer(() => ({ ok: true, bootId: "foreign" }))
   const addressPath = join(roots.state, "ntwine-server", "address.json")
@@ -147,7 +147,7 @@ test("an address record a crash left behind is not trusted, even when something 
     })
     writeJson(addressPath, { version: 1, ownerToken, pid: 999_999, processStart: "linux:x:1", publisherToken: randomUUID(), port: foreign.port })
     const crashed = await discoverNtwine({ roots, ports: [], pidAlive: () => false })
-    assert.equal(crashed.found, undefined, "a dead owner's port is not this user's Ntwine any more")
+    assert.equal(crashed.found, undefined, "a dead owner's port is not this user's ntwine any more")
     assert.match(crashed.notes.join("\n"), /its owner, pid 999999, is gone/)
   } finally {
     foreign.server.close()
@@ -222,7 +222,7 @@ test("a well-known port is joined only when its health proves THIS user's launch
     const found = await discoverNtwine({ roots, ports: [closed, port] })
     assert.deepEqual(found.found, { origin: `http://127.0.0.1:${port}`, port, source: "well-known-port" })
 
-    // Another account's Ntwine or a --sandbox one: the same health shape, a token we do not hold.
+    // Another account's ntwine or a --sandbox one: the same health shape, a token we do not hold.
     health = { ...health, ownerProof: projectLaunchTokenProof({ projectId, projectDir, stateDir }, randomUUID()) }
     assert.equal(await ownedNtwine(port, roots.data), false)
     assert.equal((await discoverNtwine({ roots, ports: [port] })).found, undefined)
@@ -289,6 +289,6 @@ test("a page opened on server.lock's port is logged as such; every other source 
   const lock = pageAddressNote("server-lock")
   assert.equal(lock.level, "warn")
   assert.match(lock.note, /lock file/)
-  assert.match(lock.note, /only when Ntwine runs without its restart supervisor/)
+  assert.match(lock.note, /only when ntwine runs without its restart supervisor/)
   assert.match(lock.note, /ntwine\.serverUrl/)
 })

@@ -191,7 +191,7 @@ export interface ClaudeQueryHandle extends AsyncIterable<ClaudeQueryEvent> {
   reloadPlugins(): Promise<ClaudePluginReload>
   /**
    * The session's invocable skills, as the harness itself reports them — names from the init frame,
-   * descriptions from `supportedCommands()`. Ntwine deliberately implements NO skill discovery of its
+   * descriptions from `supportedCommands()`. ntwine deliberately implements NO skill discovery of its
    * own: the CLI already resolves plugins, project and global skill roots and their enable state, and
    * an ntwine-side re-implementation could only ever drift from it.
    */
@@ -557,9 +557,9 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
   // "(resumable with /resume)", `/fast` "(Opus 4.8)"). A wrong label is worse than none.
   //
   // The BUILT-IN commands ride along too (2026-10-02): the initialize list is the SDK's own answer to
-  // "what can this session run", and a typed `/context` or `/usage` works through Ntwine exactly as it does
+  // "what can this session run", and a typed `/context` or `/usage` works through ntwine exactly as it does
   // in the CLI, its output drawn under the command in the transcript. What is left out is the handful a
-  // Ntwine thread must not run (see NTWINE_EXCLUDED_COMMANDS) and the CLI's own retired and internal rows.
+  // ntwine thread must not run (see NTWINE_EXCLUDED_COMMANDS) and the CLI's own retired and internal rows.
   // A built-in is tagged `builtin` when claude names no source for it, which is what it is.
   //
   // A command FILE (`.claude/commands/commit.md`, a plugin's `commands/`) is missing from the init
@@ -1101,7 +1101,7 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
       // consumer declares that it renders a per-task stop control wired to `stop_task`, every
       // interrupt (the ⌘-Enter "interrupt and send", the queued bubble's push-now, a "pause now")
       // aborts the turn AND kills every background agent under it — because a consumer with no way
-      // to stop a runaway child must not be left with one it cannot end. Ntwine HAS that control (the
+      // to stop a runaway child must not be left with one it cannot end. ntwine HAS that control (the
       // sub-agent row's stop → `Query.stopTask`, see router.ts / board.ts), so it declares it, and an
       // interrupt then aborts only the turn: the children keep running and their notifications land
       // as usual. Measured 2026-09-24 (_live_broker_interrupt_subagent.mts), one variable: the flag
@@ -2102,13 +2102,13 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-// Built-in commands the composer's `/` menu never offers on an Ntwine thread. Each one fights something
-// Ntwine owns, so offering it would invite the operator to break their own thread:
-// - `clear` starts a NEW session, and an Ntwine thread is bound to the one it was dispatched as.
+// Built-in commands the composer's `/` menu never offers on an ntwine thread. Each one fights something
+// ntwine owns, so offering it would invite the operator to break their own thread:
+// - `clear` starts a NEW session, and an ntwine thread is bound to the one it was dispatched as.
 // - `model`, `effort`, `fast` change the live profile behind the thread's own model and effort control,
 //   which then reads a setting the session no longer runs.
-// - `rename` has Ntwine's own title editor; `color`, `focus` and `heapdump` drive or dump the CLI's own
-//   terminal UI, which an Ntwine thread does not have.
+// - `rename` has ntwine's own title editor; `color`, `focus` and `heapdump` drive or dump the CLI's own
+//   terminal UI, which an ntwine thread does not have.
 // Typing one is still sent as written — this filters the MENU, never the message.
 const NTWINE_EXCLUDED_COMMANDS: ReadonlySet<string> = new Set(["clear", "model", "effort", "fast", "rename", "color", "focus", "heapdump"])
 export function offeredBuiltinCommand(command: { name: string; description: string }): boolean {

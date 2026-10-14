@@ -741,7 +741,7 @@ test("applyRecord: a resume landing between the carriers of the OLD completion k
   // The real lando thread (2026-09-30): one completion reached the transcript three times, byte-identical
   // — queue enqueue, inline attachment, queue remove — and the parent's SendMessage resumed the child
   // between the first and the second. The later copies used to retire the resumed run 100 ms after it
-  // started, and Ntwine told the worker its helper was "NOT RUNNING" for the hour it went on building.
+  // started, and ntwine told the worker its helper was "NOT RUNNING" for the hour it went on building.
   const s = newTailState("t", "s", "/x")
   const agentId = "a0b3e54c10910201e"
   applyRecord(s, agentDispatch("toolu_dispatch", "Renaming Lando to Porg", "2026-09-30T17:40:00.000Z"))
@@ -3244,7 +3244,7 @@ test("tailer: firstUserText is the OPENING human turn and never drifts to a late
   assert.equal(t.get("toolfirst")?.firstUserText, "the real question")
 })
 
-// The exclusion that a CODEX row depends on entirely. Ntwine mints `session_id` itself, but codex mints
+// The exclusion that a CODEX row depends on entirely. ntwine mints `session_id` itself, but codex mints
 // its own rollout id and ntwine pins it in `agent_session_id` — so for a codex thread that column is the
 // ONLY one naming the file on disk. Missing it, every codex thread ntwine dispatched came back as its own
 // read-only external twin in the External band, which promises the opposite of a thread ntwine drives.
@@ -4767,7 +4767,7 @@ test("parseSignalFence: a `shell:` line after the delimiter is prose, not a wait
 
 // A BACKGROUND SHELL'S LIVENESS IS ASKED OF THE OS, not guessed from age or output.
 //
-// Ntwine spawns none of these processes and the runtime records no pid it can read, so before this the
+// ntwine spawns none of these processes and the runtime records no pid it can read, so before this the
 // ONLY thing that retired a shell was its `<task-notification>` — and one whose process died without
 // emitting one stayed "running" forever (the maintainer's board: `RUNNING · 2583 MIN`, 43 hours, for a
 // process that did not exist).

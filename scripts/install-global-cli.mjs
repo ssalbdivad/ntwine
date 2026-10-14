@@ -100,7 +100,7 @@ function isOwned(path) {
  * A byte-for-byte comparison against `body` cannot tell "someone else's ntwine-dev" from "our own
  * launcher aimed at a path that moved" — and the second is routine: move or re-clone the checkout, or
  * relocate the CLI inside it, and the embedded path changes. Guarding replacement on the exact body
- * therefore refused to upgrade our own shim and said `is not the Ntwine source launcher` about a file
+ * therefore refused to upgrade our own shim and said `is not the ntwine source launcher` about a file
  * whose first comment line is that very marker. Ownership is the marker; the body is only currency.
  */
 function isOurs(path) {
@@ -193,7 +193,7 @@ function writeAtomic(path, contents) {
   }
 }
 
-const label = "Ntwine development source launcher";
+const label = "ntwine development source launcher";
 
 if (args.has("--uninstall")) {
   if (existsSync(target) && isOurs(target)) {
@@ -215,7 +215,7 @@ if (args.has("--check")) {
 mkdirSync(binDir, { recursive: true });
 if (targetExists(target) && !isOurs(target) && !args.has("--force")) {
   console.error(
-    `${target} already exists and is not the Ntwine source launcher; rerun with --force to replace it`
+    `${target} already exists and is not the ntwine source launcher; rerun with --force to replace it`
   );
   process.exit(1);
 }

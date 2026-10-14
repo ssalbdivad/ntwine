@@ -32,7 +32,7 @@ const concepts = [
     id: "converge",
     name: "Converge",
     tagline: "Many agents come back to one queue",
-    idea: "The truer half of Ntwine. Work fans out, but the whole point of the app is that it all returns to one place you read top to bottom. Three strands run parallel, then merge low into a single root.",
+    idea: "The truer half of ntwine. Work fans out, but the whole point of the app is that it all returns to one place you read top to bottom. Three strands run parallel, then merge low into a single root.",
     small: "Holds, and better than the fan — three parallel bars merging is a stable silhouette.",
     risk: "Splaying the arms straight makes it an aeroplane; the merge has to stay low and the bend has to stay soft.",
     mark: `
@@ -43,7 +43,7 @@ const concepts = [
   {
     id: "curl",
     name: "Curl",
-    tagline: "Ntwine, literally — one strand curling",
+    tagline: "ntwine, literally — one strand curling",
     idea: "A closed loop and one tail sweeping the other way — a tendril, not a numeral.",
     small: "Holds. The counter is 132 units across, so the hole stays open — though at exactly 16px it reads as a notch rather than a clean round hole.",
     risk: "Drawn with the tail on the loop's left it is unmistakably a 6, and no amount of tilt fixes that. The tail has to leave from the right and sweep back across, which is the whole design.",
@@ -59,7 +59,7 @@ const concepts = [
     tagline: "Two strands, tied",
     idea: "A single overhand loop with two tails crossing below it. The one mark here with genuine craft in it at hero size.",
     small: "Fails. The crossings merge and the two tails close up into a capital A. Measured, not predicted — the 16px render is below.",
-    risk: "Meaning fights the product: a knot says tangled and stuck, which is the state Ntwine exists to prevent.",
+    risk: "Meaning fights the product: a knot says tangled and stuck, which is the state ntwine exists to prevent.",
     mark: `
       <path d="M166 426 V308 C166 214 268 186 302 250 C328 300 264 344 232 300" stroke-width="54"/>
       <path d="M346 426 V308 C346 214 244 186 210 250 C184 300 248 344 280 300" stroke="${CASING}" stroke-width="76"/>
@@ -77,7 +77,7 @@ const concepts = [
   {
     id: "spark",
     name: "Spark",
-    tagline: "Ntwine as static — everything going at once",
+    tagline: "ntwine as static — everything going at once",
     idea: "Six bowed fibres from a common origin. Bowed, not straight, so it reads as hair with a charge in it rather than a sparkle or an asterisk.",
     small: "Holds. Radial symmetry is the friendliest thing you can hand a 16px box — there is no wrong orientation and no dead corner.",
     risk: "Busiest mark here. Too much bow and it turns into an octopus.",
@@ -148,7 +148,7 @@ const concepts = [
   {
     id: "coil",
     name: "Coil",
-    tagline: "Ntwine as a texture, not an object",
+    tagline: "ntwine as a texture, not an object",
     idea: "A curly-cord corkscrew — two real loops, not a wave. The most literal picture of the word, and the least literal about the product.",
     small: "Fails, and it is the only outright failure in the set. Two loops inside 288 units leaves ~30 units of counter — under 1px — so at 16px the holes fill and it becomes a lump. Shown unfudged.",
     risk: "The arithmetic kills it: any coil with more than one turn cannot clear the 2px counter floor at favicon size. This direction is off the table unless the favicon is allowed to be a different, simpler mark than the logo.",

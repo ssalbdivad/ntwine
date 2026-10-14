@@ -7,7 +7,7 @@ import { isRetryableRpcError, rpc } from "../api/rpc.ts"
 // toggle persists on the click.
 // How long "Saved" lingers before the status goes quiet again.
 const SAVED_LINGER_MS = 1600
-// A REPLAYABLE failure — a mutation refused because Ntwine is mid-update — is worth waiting out rather
+// A REPLAYABLE failure — a mutation refused because ntwine is mid-update — is worth waiting out rather
 // than reporting. A promotion takes a few seconds; six tries covers it without becoming a poller.
 const RETRY_DELAY_MS = 2000
 const MAX_RETRIES = 6

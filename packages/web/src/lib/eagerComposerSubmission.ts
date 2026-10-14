@@ -38,7 +38,7 @@ export type EagerFollowUpCallbacks = {
   // their wire form with the text under them, which the server's own copy then replaces by deliveryId.
   answers?: QuestionAnswer[]
   displayText?: string
-  // "Send to queue": Ntwine holds the message until the agent rests (FollowUpInput.hold).
+  // "Send to queue": ntwine holds the message until the agent rests (FollowUpInput.hold).
   hold?: boolean
 }
 type FollowUpExtras = { answers?: QuestionAnswer[]; hold?: boolean }
@@ -200,7 +200,7 @@ export function sendFollowUpAttempt(
   extras: FollowUpExtras = {},
 ): Promise<void> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(new Error("Ntwine did not answer this send")), timeoutMs)
+  const timer = setTimeout(() => controller.abort(new Error("ntwine did not answer this send")), timeoutMs)
   // Resolve the session id per ATTEMPT (sessionIdFor): a thread re-dispatched mid-retry must bind to
   // its CURRENT session, and the guarded followUp is what turns a stale id into a clean refusal instead
   // of a misdelivery. The PROJECT is the one the send was committed in (see SendTarget).
@@ -348,7 +348,7 @@ export function replayPendingSends(now: number = Date.now(), attempt: (send: Pen
 
 function replayAttempt(send: PendingSend): Promise<void> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(new Error("Ntwine did not answer this send")), DELIVERY_SEND_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(new Error("ntwine did not answer this send")), DELIVERY_SEND_TIMEOUT_MS)
   const { slug, sessionId, message, deliveryId, freshProcess, interrupt } = send
   return (rpcAtBase(send.apiBase).followUp(
     { slug, sessionId, message, deliveryId, freshProcess, interrupt, ...followUpExtras(send) },

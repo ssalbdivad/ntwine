@@ -1,8 +1,8 @@
 // The one clipboard write behind every copy affordance in the app. `navigator.clipboard` exists only
-// in a SECURE context — https, or localhost — and Ntwine is routinely read from neither: `--host`
+// in a SECURE context — https, or localhost — and ntwine is routinely read from neither: `--host`
 // serves the board over plain http to a LAN address, which is exactly the origin a phone is reading.
 // There the async API is simply undefined, and every surface that checked for it and gave up ("copy
-// the command from a secure Ntwine page") was refusing the copy on the page the user actually had. The
+// the command from a secure ntwine page") was refusing the copy on the page the user actually had. The
 // fallback is the classic one — select the text in an off-screen textarea and `execCommand("copy")` —
 // which every engine still ships and which needs only the user activation the click already provides.
 //

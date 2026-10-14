@@ -513,7 +513,7 @@ test("real SIGKILL recovery follows canonical main and linked-worktree root move
   }
 })
 
-// One Ntwine per machine means one process.env for N projects. A raw spread of it into a forked agent
+// One ntwine per machine means one process.env for N projects. A raw spread of it into a forked agent
 // is project A's identity arriving in project B's worker — a wrong value is silently obeyed, where a
 // missing one just makes the consumer resolve for itself. So scoped keys are STRIPPED, not filtered.
 test("projectScopedEnvironment strips the launching project's identity and restates this one's", () => {

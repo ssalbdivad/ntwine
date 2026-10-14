@@ -254,7 +254,7 @@ export function ntwineActive(projectDir, sessionId) {
  * written to disk going forward; legacy spellings (`todo`/`plan`/`enqueued`/`needs-decision`)
  * are accepted on read via {@link STATUS_ALIASES} + {@link normalizeStatus}, never written.
  *
- * SCOPE — THIS GOVERNS `.ntwine/<slug>.md` THREAD FILES, WHICH IS NTWINE CLASSIC. A thread the Ntwine
+ * SCOPE — THIS GOVERNS `.ntwine/<slug>.md` THREAD FILES, WHICH IS NTWINE CLASSIC. A thread the ntwine
  * APP dispatches writes no such file, so none of the machinery narrated below (the nag, the pulse,
  * the Stop-hook pop, the `⚖ awaiting you` queue) runs for it: the server synthesizes its `status` as
  * "active" and never reads it back, and its place in the board's queue comes from `deriveNeedsYou`

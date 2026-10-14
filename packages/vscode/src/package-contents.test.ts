@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 
 // WHAT THE .vsix CARRIES. `.vscodeignore` drops everything and re-admits a list, so a file the manifest
 // names but the list forgets packages without a word from vsce — and the editor shows its absence, not
-// an error: the activity bar painted a solid grey square where the Ntwine icon belonged (2026-10-01), on
+// an error: the activity bar painted a solid grey square where the ntwine icon belonged (2026-10-01), on
 // an install whose vsix had no media/ntwine.svg. These pin the list to the manifest instead.
 
 const pkg = join(dirname(fileURLToPath(import.meta.url)), "..")

@@ -27,7 +27,7 @@
 // something before launching ntwine, your agents see it.
 //
 // ── WHAT IS STILL DENIED, AND WHY ──────────────────────────────────────────────────────────────
-// Ntwine's OWN variables, by the `NTWINE_` prefix. These are control plane, not developer environment:
+// ntwine's OWN variables, by the `NTWINE_` prefix. These are control plane, not developer environment:
 //   · NTWINE_CLAUDE_BROKER / NTWINE_CODEX_APP_SERVER_DAEMON carry a daemon's entire config as JSON,
 //     including socket paths and the record path it publishes to.
 //   · NTWINE_LAUNCH_OWNER_TOKEN, NTWINE_SERVER_LOCK and the NTWINE_LAUNCH_* set are the launch identity that
@@ -72,14 +72,14 @@ export function isNtwineInternalEnvKey(key: string): boolean {
 }
 
 // ── THE HUMAN'S EDITOR IS NOT A WORKER'S ─────────────────────────────────────────────────────────
-// Launch Ntwine from a terminal inside VS Code, Cursor or Windsurf with Claude Code's extension installed
+// Launch ntwine from a terminal inside VS Code, Cursor or Windsurf with Claude Code's extension installed
 // and the shell carries that window's address: the extension writes CLAUDE_CODE_SSE_PORT, the port of
 // its own IDE server, into every terminal it can reach (`environmentVariableCollection.replace`, read out
 // of anthropic.claude-code 2.1.287), and older releases also wrote ENABLE_IDE_INTEGRATION=true. Claude
 // Code treats either as "you are running in that editor" (its `MNe` auto-connect check, 2.1.287: the
 // port alone is enough), so every BACKGROUND worker would attach to the human's editor and could open
 // diffs in it, steal focus, or read its selection as though the human had pointed at it — from a thread
-// they are not looking at. Ntwine's own window onto the editor is `mcp__ntwine__editor`, which reads and
+// they are not looking at. ntwine's own window onto the editor is `mcp__ntwine__editor`, which reads and
 // never drives; a worker must not hold a second, driving one.
 //
 // So the variables that POINT a process at an editor are not inherited: the port, the legacy switch,

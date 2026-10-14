@@ -43,7 +43,7 @@ test("mergeOptimistic: the server's OWN queued copy also consumes the optimistic
 // human's send is their text PLUS those. Compared raw it consumed nothing and the optimistic bubble was
 // re-appended: two identical gray bubbles of the operator's own message (reported 2026-09-01, alongside
 // the answers-card twin). The server hit the same thing in its ledger projection — see renderMatchKey.
-const GAP_NOTE = "⏱ Ntwine: the message above arrived 4h 9m after your last one. It is now 2026-09-01 07:09."
+const GAP_NOTE = "⏱ ntwine: the message above arrived 4h 9m after your last one. It is now 2026-09-01 07:09."
 const WAKE_TOKEN = `<!-- ntwine-wake:${"a".repeat(64)} -->`
 
 test("mergeOptimistic: the clock note ntwine appends does not stop the server's copy consuming the bubble", () => {

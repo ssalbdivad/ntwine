@@ -1,6 +1,6 @@
 // WHERE A SANDBOX'S DATABASE IS — the one answer, for every seed and verify script.
 //
-// Ntwine kept one SQLite file per project until 2026-08-27 (`~/.ntwine/projects/<id>/ui.db`); the
+// ntwine kept one SQLite file per project until 2026-08-27 (`~/.ntwine/projects/<id>/ui.db`); the
 // singleton made that a vestige of the one-server-per-repo era and it became ONE file for the machine
 // at `~/.ntwine/ui.db`, every row tagged with its `project_id` (packages/server/src/ntwine-db.ts).
 //

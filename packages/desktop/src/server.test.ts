@@ -34,7 +34,7 @@ test("nothing answering is undefined, a stale record included", async () => {
   assert.equal(await locateServer({ readOwner: () => running(4321), healthy: none, owned: none }), undefined)
 })
 
-test("an Ntwine on a well-known port is ours only if it proves this user's launch token", async () => {
+test("an ntwine on a well-known port is ours only if it proves this user's launch token", async () => {
   const home = mkdtempSync(join(tmpdir(), "ntwine-desktop-owned-"))
   const project = join(home, "repo")
   mkdirSync(project)

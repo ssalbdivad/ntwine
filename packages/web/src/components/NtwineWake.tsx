@@ -70,7 +70,7 @@ export const DIVIDER_LINK = "rounded-sm underline decoration-muted/30 underline-
 // hairline here dates itself by, with two exceptions that carry a better one of their own: a single
 // review item dates by GitHub's clock (when the comment was filed, which is the news), and a timer by
 // the instant it was set to fire.
-/** `agentMessage` draws a wake that is ANOTHER AGENT speaking (an Ntwine thread's message) in the agent
+/** `agentMessage` draws a wake that is ANOTHER AGENT speaking (an ntwine thread's message) in the agent
  *  bubble, or returns null; the thread view passes it (ChatView threadMessageBubble), since the bubble's
  *  name link lives there. Asked for each part of a merged delivery too. */
 export type WakeAgentMessage = (text: string, sourceId: string | undefined, at: string | undefined) => ReactNode | null
@@ -143,7 +143,7 @@ export function NtwineWake({ steer: served, text, sourceId, at, wrap, agentMessa
   if (!steer && !status && !state) {
     return (
       <div data-ntwine-msg={sourceId} data-ntwine-wake className="min-w-0 max-w-[85%]">
-        <TranscriptCard icon={Bell} label="Ntwine">
+        <TranscriptCard icon={Bell} label="ntwine">
           {/* The trailer comes off HERE too, so the file's rule ("dropped in every case") is true of the
               one branch that renders arbitrary text. The server strips it in the display projection and
               this is normally a no-op — but this branch exists precisely for a delivery the parsers
@@ -327,7 +327,7 @@ function QuestionsCancelledDivider({ count, sourceId, at }: { count: number; sou
 
 // THE HUMAN'S "Ask for update" CLICK, on their own side of the conversation. It rode the park family's
 // centred hairline until 2026-10-06 ("Update requested · click to expand"), which drew it exactly like the
-// expiries and finishes Ntwine raises on its own, so the one wake the human caused was the one nobody could
+// expiries and finishes ntwine raises on its own, so the one wake the human caused was the one nobody could
 // find (maintainer: "it should be obvious in the conversation where I manually requested an update").
 // Right-justified on the user bubble's surface, because right-justification IS the human's side, and with
 // a glyph and fixed wording so it never reads as words they typed. The queue card draws the same marker

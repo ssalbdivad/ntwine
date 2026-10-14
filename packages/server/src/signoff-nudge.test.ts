@@ -437,7 +437,7 @@ test("one nudge per rest, however many ticks run over it", async () => {
   } finally { h.close() }
 })
 
-// THE LOOP THIS ALMOST SHIPPED WITH. Ntwine's own delivery lands as a USER record, so it advances both
+// THE LOOP THIS ALMOST SHIPPED WITH. ntwine's own delivery lands as a USER record, so it advances both
 // `lastActivityAt` and `lastUserAt`. The first design keyed the delivery id on the former and the cap's
 // anchor on the latter, which meant the nudge minted a fresh id for a rest that never happened and reset
 // its own counter with its own message: 22 deliveries to one thread in four minutes, measured on a real

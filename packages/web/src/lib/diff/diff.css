@@ -1,5 +1,5 @@
 /* Styles for the rendered diff (packages/web/src/lib/diff). Self-contained: token colours are the
-   selected Ntwine palette (see theme.css). Import this where the diff
+   selected ntwine palette (see theme.css). Import this where the diff
    is rendered. Class names are namespaced `ntwine-diff-*` / `ftk-*` (ntwine token kind). */
 
 /* `--block-radius` (styles.css) is the corner EVERY block-level element in the app wears — a signal

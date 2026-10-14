@@ -10,7 +10,7 @@ const SAVE_DEBOUNCE_MS = 500
 const SAVED_LINGER_MS = 1600
 
 // The "Project instructions" editor in the model picker's agent settings: the project's NTWINE.md, which
-// Ntwine injects into every worker it dispatches, adopts or resumes here, on either runtime. It edits the
+// ntwine injects into every worker it dispatches, adopts or resumes here, on either runtime. It edits the
 // file itself rather than a Settings value (why: project-instructions.ts on the server), so it keeps
 // its own save loop instead of useSettingsDraft — same write-as-you-type feel, but every write names
 // the revision it started from. Workers edit NTWINE.md too; when one has, the save is refused and the

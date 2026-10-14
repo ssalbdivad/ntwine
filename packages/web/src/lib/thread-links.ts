@@ -36,7 +36,7 @@ export function threadLinkTarget(inner: string): { slug: string; address?: strin
 }
 
 // A PROJECT MENTION in agent prose (`#arktype`, lib/mentionAutolink.ts) links to that project's board,
-// `/project/<slug>`. A plain click moves the page there in place through the router, as the switcher does,
+// `/project/<slug>`. A plain click moves the page there in place through the router, as the dock does,
 // where the browser would reload the whole app; a modified click is left to it. The board's address was
 // `/?project=<slug>` until 2026-10-06, and prose written then still carries it; the router redirects it.
 const PROJECT_VIEW_HREF = /^\/(?:project\/[^/?#\s]+\/?|\?project=[^&#\s]+)$/u

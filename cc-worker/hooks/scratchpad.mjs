@@ -114,8 +114,8 @@ if (childId && mode !== 'subagent-start') process.exit(0);
 
 // WHERE THE BOARD IS. Its cwd, for a worker in a registered project — the checkout holds `.ntwine/`. Not
 // for one in the Home workspace (server/home-workspace.ts): it runs in the operator's home folder, and its
-// board is in Ntwine's state directory, because `~/.ntwine` is Ntwine's own legacy data root and creating it
-// on a newer install switches every project's data back to it on the next boot. Ntwine says so with
+// board is in ntwine's state directory, because `~/.ntwine` is ntwine's own legacy data root and creating it
+// on a newer install switches every project's data back to it on the next boot. ntwine says so with
 // NTWINE_BOARD_ROOT (Claude) or `--board-root` (codex's shared app-server carries no per-thread env), and
 // then the worker is told the directory by its absolute path, since the relative one names the wrong place.
 const boardRoot = (flagValue('--board-root') || process.env.NTWINE_BOARD_ROOT || '').trim();
@@ -151,7 +151,7 @@ if (mode === 'subagent-start') {
         'the top-level `/root` worker and any sibling agents. If you want notes on disk, create your ' +
         'own file in it — never edit, replace or delete a file another agent wrote, and never treat a ' +
         'document you did not create as yours to rewrite. One file per writer means there is nothing ' +
-        'to merge and nothing to clobber. Writing your own file here is Ntwine coordination state, not ' +
+        'to merge and nothing to clobber. Writing your own file here is ntwine coordination state, not ' +
         'a project deliverable or source edit: it remains allowed when a delegated task limits your ' +
         'deliverable paths with phrases such as “write only <path>” or “do not modify the repo”, and ' +
         'must never be classified as unauthorized or rolled back. Other project files, including files ' +
@@ -220,8 +220,8 @@ function emitJson(additionalContext, hookEventName) {
 // ── mode: session-start ──────────────────────────────────────────────────────────────────────────
 if (mode === 'session-start') {
   // A CODEX resume loses nothing: the thread is rebuilt from its rollout with the whole conversation in
-  // it, and Ntwine resumes a thread routinely — its first message after every Ntwine restart, and again
-  // when a newer Ntwine hands it new hooks. Telling that worker "Context was just lost" would be false
+  // it, and ntwine resumes a thread routinely — its first message after every ntwine restart, and again
+  // when a newer ntwine hands it new hooks. Telling that worker "Context was just lost" would be false
   // every time, so the Codex registration says so with a flag and this stays silent. (On Claude a
   // resume is a cold start of the process and keeps the wording below.)
   if (input.source === 'resume' && argv.includes('--resume-keeps-context')) process.exit(0);

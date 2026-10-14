@@ -81,7 +81,7 @@ const PACKAGE_NAME = process.env.NTWINE_REGISTRY_PACKAGE ?? "ntwine";
  *
  * It used to be `process.env.npm_package_version ?? "0.0.1"`, and npm sets that variable only for
  * lifecycle scripts — NOT when a bin runs through the npx shim, which is how every real user starts
- * Ntwine. So the launcher reported itself as `0.0.1` forever. Measured end-to-end against the published
+ * ntwine. So the launcher reported itself as `0.0.1` forever. Measured end-to-end against the published
  * package: a genuine 0.1.1 install served `artifactDigest: "npm:ntwine@0.0.1"`, and still served
  * `0.0.1` after updating itself to 0.1.2.
  *
@@ -127,23 +127,23 @@ const options: CliOptions = (() => {
 })();
 if (options.help) {
   console.log(
-    `Ntwine production launcher
+    `ntwine production launcher
 
 Usage: npx ${PACKAGE_NAME} [options]
 
 Run it anywhere. One server serves EVERY project on this machine, each on its own board, so a
 second run joins the one already going. In a folder that is already a project it opens that
 project's board; anywhere else it opens All projects, where projects are added. Runs the
-npm-resolved immutable Ntwine package, then opens it in your default browser. Use ntwine-dev only
+npm-resolved immutable ntwine package, then opens it in your default browser. Use ntwine-dev only
 for a source checkout.
 
 Commands:
-  top                    memory on this machine and Ntwine's share of it (--json, --watch)
+  top                    memory on this machine and ntwine's share of it (--json, --watch)
 
 Options:
   --no-app               print the URL without opening a browser
   --port <port>          request a fixed port for a new workspace server
-  --sandbox              a disposable Ntwine to try things in: throwaway home and project, its
+  --sandbox              a disposable ntwine to try things in: throwaway home and project, its
                          own port, deleted when this terminal closes; credentials (gh,
                          cloudflared, Claude, Codex, the machine's ntwine.app key) are shared
   --link                 print a fresh single-use access link for the running board
@@ -205,7 +205,7 @@ const workspace: Workspace = (() => {
   // BEFORE workspace preparation, so a machine running a Node the server's database cannot survive
   // learns it here by name instead of from whichever internal step tripped over it first. On an
   // unsupported release SQLite does not misbehave, it SEGFAULTS, and a segfault mid-boot is
-  // indistinguishable from Ntwine being broken. The required executables list beside it is empty:
+  // indistinguishable from ntwine being broken. The required executables list beside it is empty:
   // repository discovery can fall back to project markers when Git is absent (see preflight.ts).
   //
   // `--stop` and `--status` skip the Node floor deliberately: they only read a status file and signal
@@ -220,7 +220,7 @@ const workspace: Workspace = (() => {
     if (!pinned) throw new Error("registry successor is missing its pinned project identity");
     return workspaceFromLaunchTarget(pinned);
   }
-  // ALWAYS Ntwine's own folder, whatever folder the command was typed in. The server was run on the
+  // ALWAYS ntwine's own folder, whatever folder the command was typed in. The server was run on the
   // project being opened until now, which made a rule about folders something this launcher had to
   // hold BEFORE any server existed to ask: which folder is a project, which to offer, which to
   // refuse. Four of the seven shell releases between 2026-10-01 and 2026-10-11 changed nothing else,
@@ -236,7 +236,7 @@ const workspace: Workspace = (() => {
 // host folder deleted later left every child the launcher started without a working directory.
 
 /**
- * The port of the Ntwine running on this machine, for the flags that talk to it rather than start it.
+ * The port of the ntwine running on this machine, for the flags that talk to it rather than start it.
  * The machine-wide record first: it names a board whichever folder it was started on, including one
  * an older launcher is still running on a project.
  */
@@ -246,7 +246,7 @@ function runningBoardPort(): number | undefined {
   return liveWorkspaceOwner(workspace.stateDir, workspaceLaunchTarget(workspace))?.port;
 }
 
-/** Where `--stop` and `--status` look for a board whose record is not under Ntwine's own folder. */
+/** Where `--stop` and `--status` look for a board whose record is not under ntwine's own folder. */
 function controlPorts(): number[] {
   const machine = readStableServerOwner();
   return [...new Set([...(machine.kind === "running" ? [machine.port] : []), DEFAULT_PORT, fallbackPort(DEFAULT_PORT)])];
@@ -259,18 +259,18 @@ if (options.stop) {
   // stop, then reap only a provably stale owner — never a signal to a pid that might be recycled.
   try {
     // One server, every project, so there is one board to stop and the folder this was typed in does
-    // not choose it. Its record is under Ntwine's own folder — or, for a board an older launcher is
+    // not choose it. Its record is under ntwine's own folder — or, for a board an older launcher is
     // still running, under the project that launcher started it on, which its ports name.
     const control = await resolveLaunchControlTarget({ stateDir: workspace.stateDir, target: workspaceLaunchTarget(workspace), ports: controlPorts() });
     const result = await stopProjectLaunch({ stateDir: control.stateDir, target: control.target });
     console.log(
       result.kind !== "stopped"
-        ? "Ntwine is not running"
+        ? "ntwine is not running"
         : result.stale
           // A board that died without releasing its record (a kill, a crash) reads as "running" to
           // every later launch until someone reaps it; say what happened rather than claiming a stop.
-          ? "Ntwine was not running; cleared the record a dead board left behind"
-          : "stopped Ntwine; running agents keep going — they are detached daemons",
+          ? "ntwine was not running; cleared the record a dead board left behind"
+          : "stopped ntwine; running agents keep going — they are detached daemons",
     );
     process.exit(0);
   } catch (error) { fail(error); }
@@ -279,7 +279,7 @@ if (options.status) {
   const control = await resolveLaunchControlTarget({ stateDir: workspace.stateDir, target: workspaceLaunchTarget(workspace), ports: controlPorts() });
   const running = await runningNtwineStatus({ stateDir: control.stateDir, target: control.target });
   if (!running) {
-    console.log("Ntwine is not running");
+    console.log("ntwine is not running");
     process.exit(1);
   }
   console.log(`running: http://127.0.0.1:${running.port}`);
@@ -294,7 +294,7 @@ if (options.sessions || options.signOut !== undefined) {
   // no board is up — starting one here would create an empty directory and answer a different question.
   const port = runningBoardPort();
   if (!port) {
-    console.error("ntwine: Ntwine is not running");
+    console.error("ntwine: ntwine is not running");
     process.exit(1);
   }
   if (options.signOut !== undefined) await signOutSession(port, options.signOut);
@@ -306,7 +306,7 @@ if (options.link) {
   // the interactive QR pane cannot install.
   const port = runningBoardPort();
   if (!port) {
-    console.error("ntwine: Ntwine is not running");
+    console.error("ntwine: ntwine is not running");
     process.exit(1);
   }
   const response = await fetch(`http://127.0.0.1:${port}${SUPERVISOR_ACCESS_CODE_PATH}`, {
@@ -338,7 +338,7 @@ const readout = reexec || process.env.NTWINE_PRODUCTION_SUPERVISOR === "1"
   : new Readout({ debug: options.debug });
 /**
  * Where supervisor lifecycle beats print. Normally the boot readout — but a launcher that execve'd
- * itself into this release through Update Ntwine has no boot to narrate and still owns the operator's
+ * itself into this release through Update ntwine has no boot to narrate and still owns the operator's
  * terminal, so it gets a notice-only one rather than falling silent for the rest of the session. The
  * detached fallback successor has no terminal at all (stdio ignored) and stays quiet, as before.
  */
@@ -350,7 +350,7 @@ readout?.plan([
   { key: "browser", label: options.noApp ? "Address" : "Browser" },
 ]);
 readout?.begin("server", "starting");
-logger.info("launcher", `Ntwine launcher ${PACKAGE_VERSION} starting in ${launchDir}`);
+logger.info("launcher", `ntwine launcher ${PACKAGE_VERSION} starting in ${launchDir}`);
 const target = workspaceLaunchTarget(workspace);
 const expected = expectedOwnerHealth(target, readProjectLaunchOwner(workspace.stateDir));
 
@@ -404,7 +404,7 @@ function legacyProject(): { id: string; root: string; name: string; slug: string
  *
  *   - run in a project: `/`, the browser's own last view (All projects for a new browser), with that
  *     project registered and stamped as the prompt box's pick;
- *   - run in a repository Ntwine has not seen (`offer`): the add-project dialog asking about it,
+ *   - run in a repository ntwine has not seen (`offer`): the add-project dialog asking about it,
  *     `/?add=<dir>`, over whichever view this browser was on last (web routes.tsx LastViewRedirect);
  *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
  *   - a project the registry cannot record, or a folder that cannot be opened: `/`, the browser's own
@@ -463,7 +463,7 @@ async function joinPreSplitNtwine(): Promise<number | undefined> {
  */
 async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute): Promise<void> {
   const url = `http://127.0.0.1:${port}${landing.path}`;
-  logger.info("launcher", `${reused ? "reusing" : "started"} Ntwine at ${url}`);
+  logger.info("launcher", `${reused ? "reusing" : "started"} ntwine at ${url}`);
   readout?.settle("server", "done", reused ? `already running on port ${port}` : `port ${port}`);
   let browser: string | undefined;
   if (!options.noApp) {
@@ -471,7 +471,7 @@ async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute):
     try {
       if (options.appMode) {
         await launchApp(url, { dataPath: join(workspace.stateDir, "browser-profile") });
-        browser = reused ? "focused the Ntwine app window" : "opened the Ntwine app window";
+        browser = reused ? "focused the ntwine app window" : "opened the ntwine app window";
       } else {
         await launchBrowserTab(url);
         browser = "opened in your default browser";
@@ -492,7 +492,7 @@ async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute):
   if (sessionNotice && !reused) warnings.push(sessionNotice);
   if (landing.notice) warnings.push(landing.notice);
   if (!readout) {
-    console.log(`${reused ? "reusing" : "started"} Ntwine${landing.project ? ` for ${landing.project.dir}` : ""}`);
+    console.log(`${reused ? "reusing" : "started"} ntwine${landing.project ? ` for ${landing.project.dir}` : ""}`);
     console.log(url);
     if (publicOrigin) console.log(activeAccessLink?.url ?? `${publicOrigin}/`);
     for (const warning of warnings) console.log(warning);
@@ -504,13 +504,13 @@ async function openOrPrint(port: number, reused: boolean, landing: LaunchRoute):
       { label: "Local", value: boardAddress(url), accent: true },
       ...(publicOrigin ? [{ label: "Public", value: activeAccessLink?.url ?? `${publicOrigin}/`, accent: true }] : []),
       // Only a launch that OPENED a project names one: the dashboard and an offer are about no
-      // project, and the folder the server runs on is Ntwine's own.
+      // project, and the folder the server runs on is ntwine's own.
       ...(landing.project ? [{ label: "Project", value: `${landing.project.name} — ${tildePath(landing.project.dir, home)}` }] : []),
       ...(logger.file ? [{ label: "Logs", value: tildePath(logger.file, home) }] : []),
     ],
     reused
       ? // This launch owns nothing and exits immediately, so ctrl-c would not stop what it reopened.
-        "reopened the Ntwine already running on this machine · stop it from the terminal that started it"
+        "reopened the ntwine already running on this machine · stop it from the terminal that started it"
       : options.debug
         ? undefined
         : publicOrigin
@@ -543,17 +543,17 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
   const spec = serverReleaseSpec(manifest, process.env.NTWINE_SERVER_PACKAGE);
   const installer = npmServerPackageInstaller(env);
   const store = new ServerReleaseStore(spec, installer, undefined, undefined, serverReleaseMinimum(manifest));
-  // The one time starting Ntwine replaces the server without a click on Update, so it is said out
+  // The one time starting ntwine replaces the server without a click on Update, so it is said out
   // loud and written down: the selection moves, and the log is where someone asks why it did.
   const raise = store.belowMinimum();
   if (raise)
-    logger.info("launcher", `the installed Ntwine server ${raise.selected} is older than this launcher works with (${raise.minimum}); starting on ${raise.pinned}`);
+    logger.info("launcher", `the installed ntwine server ${raise.selected} is older than this launcher works with (${raise.minimum}); starting on ${raise.pinned}`);
   activityReadout?.notice(
     "progress",
     "Starting",
     raise
-      ? `installing Ntwine server ${raise.pinned}: ${raise.selected} is older than this launcher works with`
-      : "loading the selected Ntwine server release",
+      ? `installing ntwine server ${raise.pinned}: ${raise.selected} is older than this launcher works with`
+      : "loading the selected ntwine server release",
   );
   let active = await store.load();
   let pending: ServerGeneration | undefined;
@@ -566,7 +566,7 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
   //
   // Seeded `false`, not `true`. It started optimistic so the button would not flip from Restart to
   // Update a second after load — but the flip that actually happens is the other way: right after
-  // an update the successor seeded `true` again and the reloaded tab showed "Update Ntwine" naming a
+  // an update the successor seeded `true` again and the reloaded tab showed "Update ntwine" naming a
   // version it already was, and a click in that window failed with "already current" presented as
   // an error; offline, the seed never cleared at all and every click was a red failure (audit
   // 2026-09-11, finding 5). A Restart that becomes Update once the registry answers is the cheaper
@@ -592,7 +592,7 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
       // that simply stopped offering updates with nothing anywhere to say so: on 2026-10-11 one had
       // failed every half hour for twenty hours, and the first sign of it was a failed Update click.
       const message = error instanceof Error ? error.message : String(error);
-      if (message !== probeFailure) logger.warn("launcher", `could not check npm for a newer Ntwine server: ${message}`);
+      if (message !== probeFailure) logger.warn("launcher", `could not check npm for a newer ntwine server: ${message}`);
       probeFailure = message;
     }
   };
@@ -600,8 +600,8 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
   const updateAvailablePoll = setInterval(() => void refreshUpdateAvailable(), 30 * 60 * 1000);
   updateAvailablePoll.unref();
 
-  // Persisted in Ntwine's own state folder, so a restart does not sign every device out — and neither
-  // does starting Ntwine from a different folder, which it did while this lived under whichever
+  // Persisted in ntwine's own state folder, so a restart does not sign every device out — and neither
+  // does starting ntwine from a different folder, which it did while this lived under whichever
   // project the launch happened in. The first start here brings that project's state along
   // (adoptSessionState), so the move itself signs nobody out either.
   // Always, not only when public: the origin can be switched on later (press R), and a phone signed
@@ -651,13 +651,13 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
       previous = active;
       try {
         const plan = await planRegistryUpdate(spec.package, active.version, installer);
-        if (!plan) { updateAvailable = false; updateVersion = undefined; return { state: "failed" as const, message: `Ntwine ${active.version} is already current` }; }
+        if (!plan) { updateAvailable = false; updateVersion = undefined; return { state: "failed" as const, message: `ntwine ${active.version} is already current` }; }
         updateAvailable = true;
         updateVersion = plan.latestVersion;
         // Install while the current server serves. Selection remains provisional until the new
         // child is ready; the durable launcher, listener, terminal and tunnels never move.
         pending = await store.prepare(plan.latestVersion);
-        return { state: "ready" as const, message: `Ntwine ${plan.latestVersion} is installed and compatible` };
+        return { state: "ready" as const, message: `ntwine ${plan.latestVersion} is installed and compatible` };
       } catch (error) {
         return { state: "failed" as const, message: error instanceof Error ? error.message : String(error) };
       }
@@ -705,8 +705,8 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
       const suffix = logger.file ? `\n  log: ${tildePath(logger.file, homedir())}` : "";
       process.stdout.write(
         code === 0
-          ? `\n  Ntwine stopped. Running agents keep going — they are detached daemons.${suffix}\n\n`
-          : `\n  Ntwine stopped with errors (exit ${code}).${suffix}\n\n`,
+          ? `\n  ntwine stopped. Running agents keep going — they are detached daemons.${suffix}\n\n`
+          : `\n  ntwine stopped with errors (exit ${code}).${suffix}\n\n`,
       );
       process.exit(code);
     },
@@ -730,7 +730,7 @@ async function runSupervisor(port: number, token: string, onPrepared: () => void
     activityReadout?.notice(
       "done",
       "Updated",
-      `Ntwine ${active.version} is serving on port ${port} · ctrl-c to stop${globalInstall ? ` · ${keepUpdateHint(PACKAGE_NAME, PACKAGE_VERSION)}` : ""}`,
+      `ntwine ${active.version} is serving on port ${port} · ctrl-c to stop${globalInstall ? ` · ${keepUpdateHint(PACKAGE_NAME, PACKAGE_VERSION)}` : ""}`,
     );
   }
   return await new Promise<never>(() => {});
@@ -740,10 +740,10 @@ try {
   // Hold this across downloads, child handoffs and recovery. A 503 from the application is never
   // permission to start a second scheduler, and a custom port is just as discoverable as the default.
   const globalClaim = acquireStableServerOwner();
-  if (globalClaim.kind === "busy") throw new Error("Ntwine is starting or recovering on this machine; retry shortly");
+  if (globalClaim.kind === "busy") throw new Error("ntwine is starting or recovering on this machine; retry shortly");
   if (globalClaim.kind === "running") {
     if (options.port && options.port !== globalClaim.port)
-      throw new Error(`Ntwine is already running on port ${globalClaim.port}; --port cannot change a running server`);
+      throw new Error(`ntwine is already running on port ${globalClaim.port}; --port cannot change a running server`);
     // The token in the record that named this server is what lets a launch in ANY folder ask it.
     await openOrPrint(globalClaim.port, true, await resolveLanding(globalClaim.port, globalClaim.owner.token));
     process.exit(0);
@@ -755,7 +755,7 @@ try {
     if (!token) throw new Error("registry supervisor launch is missing project ownership");
     await runSupervisor(options.port, token);
   }
-  // An Ntwine already running on Ntwine's own folder that does not hold the machine-wide record — the
+  // An ntwine already running on ntwine's own folder that does not hold the machine-wide record — the
   // source launcher started outside a project. Its launch token is in the record it does publish.
   const existing = await existingPort();
   if (existing) {
@@ -765,7 +765,7 @@ try {
   const preSplit = await joinPreSplitNtwine();
   if (preSplit) { await openOrPrint(preSplit, true, legacyLanding()); process.exit(0); }
   const claim = tryAcquireProjectLaunchOwner(target, "launcher");
-  if (claim.kind !== "acquired") throw new Error("Ntwine is starting on this machine; retry shortly");
+  if (claim.kind !== "acquired") throw new Error("ntwine is starting on this machine; retry shortly");
   let release: (() => void) | undefined = await acquireGlobalLaunchLock();
   let portReservation: (() => void) | undefined;
   try {

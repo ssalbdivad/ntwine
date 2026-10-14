@@ -121,7 +121,7 @@ a { color: inherit; }
     parent.postMessage({ type: "ntwine-inline-vis-applied", requestId: event.data.requestId }, "*");
   });
   window.openai = Object.freeze({
-    sendFollowUpMessage: async () => { throw new Error("Follow-up actions are not supported in Ntwine visualizations yet"); }
+    sendFollowUpMessage: async () => { throw new Error("Follow-up actions are not supported in ntwine visualizations yet"); }
   });
   addEventListener("DOMContentLoaded", () => {
     new ResizeObserver(notifyHeight).observe(document.body);

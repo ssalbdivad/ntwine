@@ -3,7 +3,7 @@ import { projectSlug } from "./base-path.ts"
 
 // THE CACHE IS PER PROJECT, AND NOBODY HAS TO REMEMBER THAT.
 //
-// One Ntwine serves every project on the machine from one origin, so `["transcript", "fix-auth"]` names
+// One ntwine serves every project on the machine from one origin, so `["transcript", "fix-auth"]` names
 // a different thread depending on which project asked — thread slugs are unique only WITHIN a project
 // (see `rebindProject` in api/socket.ts). `["settingsGet"]` is worse: the server reads a per-project
 // blob (`getSettings` in packages/server/src/settings.ts), so the same key genuinely holds different
@@ -25,7 +25,7 @@ import { projectSlug } from "./base-path.ts"
  * Keys that name the MACHINE rather than one project, and must stay shared.
  *
  * `projectsList` is every project on the machine — scoping it would refetch the whole list on every
- * switch and blank the project list and switcher mid-navigation, which is the flicker the client-side router exists to remove.
+ * switch and blank the project list and dock mid-navigation, which is the flicker the client-side router exists to remove.
  * `threadLocate` deliberately searches every registered project server-side, so a per-project copy
  * would be several caches of one answer. `projectsRailCounts` is the rail's badges — one answer for
  * every project, read by a rail that outlives every switch. `dispatchPreferencesGet` is the prompt

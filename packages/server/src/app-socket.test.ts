@@ -1314,7 +1314,7 @@ function fakeWatcher() {
     armed,
     released,
     watchFile(path: string, onChange: () => void): () => void {
-      if (path.includes("refused")) throw new Error("Local file is outside Ntwine's trusted roots")
+      if (path.includes("refused")) throw new Error("Local file is outside ntwine's trusted roots")
       armed.set(path, onChange)
       return () => {
         armed.delete(path)

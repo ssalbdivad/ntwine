@@ -150,7 +150,7 @@ export async function planRegistryUpdate(
   const latestVersion = (await adapter.latestVersion(packageName)).trim();
   const comparison = compareReleaseVersions(currentVersion, latestVersion);
   if (comparison === null)
-    throw new Error(`cannot safely compare installed Ntwine version ${currentVersion} with registry version ${latestVersion}`);
+    throw new Error(`cannot safely compare installed ntwine version ${currentVersion} with registry version ${latestVersion}`);
   if (comparison >= 0) return null;
   return { packageName, currentVersion, latestVersion, packageSpec: `${packageName}@${latestVersion}` };
 }
@@ -158,11 +158,11 @@ export async function planRegistryUpdate(
 /**
  * The argv a successor is started with, after its entry. NO repository path: an internal launch
  * reads its pinned project out of the environment (`projectLaunchTargetFromEnvironment`), and
- * `parseCliArgs` REFUSES a positional path since the singleton (bc037f17) — "Ntwine takes no
+ * `parseCliArgs` REFUSES a positional path since the singleton (bc037f17) — "ntwine takes no
  * repository path". The handoff kept passing one anyway, so from that day every registry Update &
  * Restart started a successor that died on its first line, exit 1, into `stdio: "ignore"`, after the
  * launcher had already printed "taking over" and quit. Measured 2026-09-10 22:35: the npm debug log
- * for `npm exec --package=ntwine@0.12.10` ends `verbose exit 1` four seconds in, no Ntwine log was ever
+ * for `npm exec --package=ntwine@0.12.10` ends `verbose exit 1` four seconds in, no ntwine log was ever
  * created, and the operator found a dead board with a note saying it had updated.
  */
 export function successorArgs(port: number): string[] {
@@ -179,8 +179,8 @@ export function successorArgs(port: number): string[] {
  * `--_ntwine-production-reexec --port <n> <projectDir>`, and by the time the successor reads it the old
  * launcher has drained its board and quit. A successor that refuses the path is therefore one no
  * install in the field can update INTO: measured 2026-09-11 against the published 0.12.10 updating to
- * 0.12.11 — "Ntwine 0.12.11 is taking over on port 47110", ECONNREFUSED one second later, never back.
- * That is the failure users report as "the update button kills Ntwine and I have to run npx again".
+ * 0.12.11 — "ntwine 0.12.11 is taking over on port 47110", ECONNREFUSED one second later, never back.
+ * That is the failure users report as "the update button kills ntwine and I have to run npx again".
  *
  * The directory carries nothing the successor needs: a re-exec'd launch reads its pinned project out
  * of the environment (projectLaunchTargetFromEnvironment), which every one of those releases sets the
@@ -284,7 +284,7 @@ export function handoffToRegistrySuccessor(
   // The error still arrives on the next tick; without a listener it would throw and take this
   // process down before the caller could restore the board.
   child.once("error", () => {});
-  if (child.pid === undefined) throw new Error(`could not start Ntwine ${successor.plan.latestVersion} from ${successor.entry}`);
+  if (child.pid === undefined) throw new Error(`could not start ntwine ${successor.plan.latestVersion} from ${successor.entry}`);
   child.unref();
   return child;
 }
@@ -344,7 +344,7 @@ export async function awaitRegistrySuccessor(
   try {
     const started = now();
     for (;;) {
-      if (exited) throw new Error(`Ntwine ${expected.version} exited (${exited}) before it answered on port ${expected.port}${where}`);
+      if (exited) throw new Error(`ntwine ${expected.version} exited (${exited}) before it answered on port ${expected.port}${where}`);
       const status = await watch.status();
       if (status?.version === expected.version) return;
       if (now() - started >= deadlineMs) {
@@ -352,7 +352,7 @@ export async function awaitRegistrySuccessor(
         // the board the caller is about to restore.
         try { child.kill(); } catch { /* already gone */ }
         throw new Error(
-          `Ntwine ${expected.version} did not answer on port ${expected.port} within ${Math.round(deadlineMs / 1000)}s${where}`
+          `ntwine ${expected.version} did not answer on port ${expected.port} within ${Math.round(deadlineMs / 1000)}s${where}`
         );
       }
       await sleep(intervalMs);

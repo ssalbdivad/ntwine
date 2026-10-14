@@ -125,7 +125,7 @@ export interface TenantPrimeDeps {
    */
   activate: (project: Project) => Promise<unknown>
   /**
-   * The pid of another live Ntwine already serving this project, if there is one (project-launch.ts).
+   * The pid of another live ntwine already serving this project, if there is one (project-launch.ts).
    * Checked HERE as well as inside activation so the ordinary migration state — a per-project server
    * still running beside the singleton — logs one line per project instead of an error and a stack.
    */
@@ -145,7 +145,7 @@ export interface TenantPrimeDeps {
 export interface TenantPrimeResult {
   /** Project ids this pass opened. */
   opened: string[]
-  /** Already open, stale, or served by another live Ntwine. */
+  /** Already open, stale, or served by another live ntwine. */
   skipped: string[]
   /** Tried and would not open — reported by the tenant seam, one dead card each. */
   failed: string[]
@@ -244,7 +244,7 @@ export function startTenantPrime(deps: TenantPrimeDeps): TenantPrimeRun {
       const other = deps.servedElsewhere?.(project)
       if (other !== undefined) {
         result.skipped.push(entry.id)
-        log(`${project.name} is served by another Ntwine (pid ${other}) — leaving it closed here`)
+        log(`${project.name} is served by another ntwine (pid ${other}) — leaving it closed here`)
         continue
       }
       const resolveMs = (deps.monotonicNow?.() ?? performance.now()) - resolveStartedAt

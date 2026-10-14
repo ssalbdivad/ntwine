@@ -53,7 +53,7 @@ function rootsFor(roots: ServerOwnerRoots | undefined): ServerOwnerRoots {
   return roots ?? ntwinePaths()
 }
 
-/** One stable-server target per Ntwine home, independent of the repository that launched it. */
+/** One stable-server target per ntwine home, independent of the repository that launched it. */
 export function stableServerOwnerTarget(roots?: ServerOwnerRoots): ProjectLaunchTarget {
   const resolved = rootsFor(roots)
   mkdirSync(resolved.data, { recursive: true, mode: 0o700 })
@@ -134,7 +134,7 @@ export function acquireStableServerOwner(roots?: ServerOwnerRoots): ServerOwnerA
 
 /** Publish the public listener only from the exact lease generation that acquired the global owner. */
 export function publishStableServerAddress(lease: ServerOwnerLease, port: number): void {
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error(`invalid stable Ntwine server port: ${port}`)
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error(`invalid stable ntwine server port: ${port}`)
   const owner = readProjectLaunchOwner(lease.target.stateDir)
   if (
     !owner ||
@@ -143,7 +143,7 @@ export function publishStableServerAddress(lease: ServerOwnerLease, port: number
     owner.pid !== lease.pid ||
     owner.processStart !== lease.processStart ||
     processGenerationIsStale(owner)
-  ) throw new Error("cannot publish an address without the exact live stable Ntwine server owner")
+  ) throw new Error("cannot publish an address without the exact live stable ntwine server owner")
   writeProjectStatus(join(lease.target.stateDir, ADDRESS_NAME), {
     version: 1,
     ownerToken: lease.token,

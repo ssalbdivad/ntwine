@@ -51,12 +51,12 @@ export function showsUpdateBadge(status: Pick<NtwineSupervisorStatus, "updateRes
 // rebuilds from source, so there is no version to name) and a registry launcher whose registry probe
 // has not answered yet. A registry launcher that HAS observed a newer version gets the specific
 // sentence below instead, which is what actually tells the operator they are behind.
-const updateCopy = "Install the latest version of Ntwine. Your running threads will not be affected."
-const newerVersionCopy = "A newer version of Ntwine is available. Your running threads will not be affected."
-const restartCopy = "Restart Ntwine. Your running threads will not be affected."
+const updateCopy = "Install the latest version of ntwine. Your running threads will not be affected."
+const newerVersionCopy = "A newer version of ntwine is available. Your running threads will not be affected."
+const restartCopy = "Restart ntwine. Your running threads will not be affected."
 // True of a registry launcher that has confirmed it is current AND of a legacy supervisor with no
 // update verb at all, which is why it does not claim "the latest version".
-const currentCopy = "There is no newer version of Ntwine to install."
+const currentCopy = "There is no newer version of ntwine to install."
 
 // The one anchor both panels that hang off this button use. Desktop: anchored to the button's LEFT
 // edge and opening RIGHTWARD, into the gutter and the workpane beyond it. The button sits at the
@@ -164,7 +164,7 @@ export function UpdateRestartPopover({
   updateVersion?: string
 }) {
   if (!open) return null
-  const action = current ? "Ntwine is up to date" : update ? "Update Ntwine" : "Restart Ntwine"
+  const action = current ? "ntwine is up to date" : update ? "Update ntwine" : "Restart ntwine"
   // Name the newer version only on the verb that installs it: in plain-restart mode the board is
   // confirmed current, so `updateVersion` is never present there anyway.
   const newer = update ? updateVersion : undefined
@@ -280,7 +280,7 @@ export function RestartActionButton({
     <button
       type="button"
       aria-describedby="update-restart-popover"
-      aria-label={current ? "Ntwine is up to date" : update ? "Update Ntwine" : "Restart Ntwine"}
+      aria-label={current ? "ntwine is up to date" : update ? "Update ntwine" : "Restart ntwine"}
       disabled={busy}
       aria-busy={busy || undefined}
       // aria-disabled, not the native attribute: the popover that explains the grey hangs off this
@@ -308,11 +308,11 @@ export function RestartActionButton({
 
 /**
  * The update control's state and its one verb, shared by the desktop status-row button below and the
- * phone Settings page's "Update Ntwine" row (SettingsDrawer.tsx), so a click means the same thing on
+ * phone Settings page's "Update ntwine" row (SettingsDrawer.tsx), so a click means the same thing on
  * both: the same request, the same blocking RestartOverlay (App.tsx), the same reload-after-ready
  * hand-off and the same failure reading. Only the markup differs.
  *
- * The control is live only while there is something to install; on a current Ntwine it stays greyed and
+ * The control is live only while there is something to install; on a current ntwine it stays greyed and
  * inert rather than offering a plain restart that changes nothing (maintainer 2026-09-25: hidden first,
  * then "Actually, just gray it out"). A click in flight or a failure on screen keeps it live, so neither
  * greys out mid-read.
@@ -345,7 +345,7 @@ export function useUpdateRestart() {
   // read as "the modal flashed and nothing happened". Once this session has asked for an update,
   // keep the supervisor's own reason on screen. It clears itself when the state leaves "failed".
   const reported = requested.current !== null && snap.controlPlaneState === "failed"
-  const reportedFailure = reported ? snap.controlPlaneMessage ?? "Ntwine did not become ready" : undefined
+  const reportedFailure = reported ? snap.controlPlaneMessage ?? "ntwine did not become ready" : undefined
   const failure = error ?? reportedFailure
   const shownError = failure && failure !== dismissed ? failure : undefined
   // A rejected POST (`error`) came from the server we clicked on, so the previous version is by
@@ -411,7 +411,7 @@ export function useUpdateRestart() {
       setBusy(false)
       setError(message)
       // The reason goes in the failure panel, not the toast — see the same call in App.tsx.
-      showToast(`${updateAvailable ? "Update & Restart" : "Restart Ntwine"} failed`)
+      showToast(`${updateAvailable ? "Update & Restart" : "Restart ntwine"} failed`)
     }
   }
 

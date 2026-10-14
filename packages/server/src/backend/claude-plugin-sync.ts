@@ -1,10 +1,10 @@
 // A WORKER KEEPS ITS OWN PLUGIN CLOSURE CURRENT. Nobody presses a button, and the server asks for nothing.
 //
 // A Claude worker loads its closure — hook registrations, skills, sub-agent profiles, commands — once,
-// when its session starts, and the daemon holding that session outlives the Ntwine that forked it by
+// when its session starts, and the daemon holding that session outlives the ntwine that forked it by
 // hours. Two things change under it meanwhile:
 //
-//  • NTWINE'S OWN PLUGIN. Ntwine publishes it at a path that MOVES when a newer version boots
+//  • NTWINE'S OWN PLUGIN. ntwine publishes it at a path that MOVES when a newer version boots
 //    (stable-plugin-path.ts), and a source checkout's `cc-worker/` is edited where it stands.
 //  • THE OPERATOR'S. A skill added to the project, an agent profile edited, a plugin installed. A live
 //    session does not notice any of these by itself — measured against claude 2.1.296, a project skill
@@ -38,7 +38,7 @@ import { join } from "node:path"
 import { pluginFingerprint } from "../stable-plugin-path.ts"
 
 /** Opt-out, for the day a reload itself is what is breaking workers: `NTWINE_PLUGIN_SYNC_OFF=1` in the
- *  environment Ntwine is started with. Read by the daemon at fork, so it reaches newly started workers. */
+ *  environment ntwine is started with. Read by the daemon at fork, so it reaches newly started workers. */
 export function claudePluginSyncEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.NTWINE_PLUGIN_SYNC_OFF !== "1"
 }
@@ -102,7 +102,7 @@ function claudeDirEntries(root: string, entries: string[]): void {
 }
 
 /**
- * The closure a reload would re-read, as it is on disk right now: Ntwine's plugin (where its path leads
+ * The closure a reload would re-read, as it is on disk right now: ntwine's plugin (where its path leads
  * and every file there — `pluginFingerprint`), plus the project's and the operator's own `.claude`
  * directories. Undefined when any of it cannot be read at this moment, which is never a reason to
  * reload.

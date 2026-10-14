@@ -72,7 +72,7 @@ test("the drawer offers no Save or Cancel — a toggle writes on the click", { s
 
 // Removing the Save button removed the operator's own retry. A mutation refused mid-update is
 // certified side-effect-free (`retryable` in the envelope), so the drawer has to replay it — otherwise
-// restarting Ntwine while Settings is open silently discards whatever was changed in that window.
+// restarting ntwine while Settings is open silently discards whatever was changed in that window.
 test("a replayable refusal is replayed until it lands, and says so meanwhile", { skip: !baseUrl, timeout: 60_000 }, async () => {
   const { browser, page, errors } = await launch("?retryableFailures=1")
   try {

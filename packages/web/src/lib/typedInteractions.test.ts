@@ -52,7 +52,7 @@ function record(over: Partial<InteractionRecord> = {}): InteractionRecord {
   }
 }
 
-test("decision presentation ignores provider labels, uses Ntwine order, and warns on durable scope", () => {
+test("decision presentation ignores provider labels, uses ntwine order, and warns on durable scope", () => {
   const decisions = canonicalInteractionDecisions(record())
   assert.deepEqual(decisions.map(({ id, label }) => [id, label]), [
     ["accept", "Approve once"],

@@ -160,7 +160,7 @@ export interface PhoneProjectEntry {
 }
 
 /**
- * THE PROJECTS LIST'S ORDER — the desktop switcher's: projects with work in flight first, then the quiet
+ * THE PROJECTS LIST'S ORDER — the desktop dock's: projects with work in flight first, then the quiet
  * ones, each group in the machine-wide order, and Home last, on its own.
  *
  * THE ACCENT NUMBER IS ASKS, not the queue (upstream ef6f7f23, "the projects list's accent number is asks,

@@ -16,7 +16,7 @@ import { BoardSocket } from "./board-socket.ts"
  * tunnel design could never get past.
  *
  * WE ARE ON THE DATA PATH HERE, unlike the registrar. That is the trade this design makes deliberately:
- * unlimited names cost us the traffic. The visitor still meets Ntwine's own single-use access gate on
+ * unlimited names cost us the traffic. The visitor still meets ntwine's own single-use access gate on
  * the far side, but every byte passes through here in plaintext — the access code as it is redeemed,
  * the session cookie on every request after it, prompts, transcripts and terminal keystrokes. So
  * whoever controls this Worker controls every board behind it: between 2026-09-21 and 2026-10-08 a
@@ -240,9 +240,9 @@ export class Board {
 
     // A visitor's WebSocket — a terminal. The board opens its own end locally and the two are linked
     // frame by frame. Without this a relayed board renders and streams but cannot be worked in, which
-    // is most of what Ntwine is for.
+    // is most of what ntwine is for.
     if (request.headers.get("upgrade") === "websocket") {
-      if (!this.relay.connected) return new Response("This Ntwine board is not running right now.", { status: 502 })
+      if (!this.relay.connected) return new Response("This ntwine board is not running right now.", { status: 502 })
       const pair = new WebSocketPair()
       const visitor = pair[1]!
       this.state.acceptWebSocket(visitor, ["visitor"])
@@ -265,7 +265,7 @@ export class Board {
     if (!this.relay.connected) {
       // The name exists but nothing is serving it. Said plainly, because "this board is offline" is a
       // different problem from "no such board" and the visitor can act on one of them.
-      return new Response("This Ntwine board is not running right now.", {
+      return new Response("This ntwine board is not running right now.", {
         status: 502,
         headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
       })
@@ -341,7 +341,7 @@ export default {
 
     const owner = await ownerPubkeyFor(env, name)
     if (!owner) {
-      return new Response("No Ntwine board has claimed this name.", {
+      return new Response("No ntwine board has claimed this name.", {
         status: 404,
         headers: { "content-type": "text/plain; charset=utf-8" },
       })

@@ -73,13 +73,13 @@ function isDiskWrite(cmd) {
   return /\bmkfs(\.\w+)?\b/.test(cmd) || /\bdd\b[^|;&]*\bof=\/dev\/(disk|r?disk|sd|nvme|hd)/.test(cmd);
 }
 
-// The worker's OWN Ntwine command fed by a quoted heredoc, and provably nothing else:
+// The worker's OWN ntwine command fed by a quoted heredoc, and provably nothing else:
 //
 //     ntwinectl ask --input - <<'EOF'
 //     {"question": "…", "options": […]}
 //     EOF
 //
-// Dispatch pre-approves `Bash(ntwinectl:*)` (dispatch.ts claudeCliConfig), which is the promise the Ntwine
+// Dispatch pre-approves `Bash(ntwinectl:*)` (dispatch.ts claudeCliConfig), which is the promise the ntwine
 // MCP server's own pre-approval made before 2026-10-11: a worker's sign-off, its question and its
 // registrations are never something a human has to approve. Claude Code honours that rule for every
 // form but one. Measured on 2.1.296 against a real worker on a `default`-mode thread
@@ -131,7 +131,7 @@ const RULES = [
     id: 'own-ntwinectl',
     test: (i) => i.tool_name === 'Bash' && isOwnNtwinectlHeredoc(String(i.tool_input?.command ?? '')),
     decision: 'allow',
-    reason: "The worker's own Ntwine command, fed by a quoted heredoc: its questions, registrations and sign-off are pre-approved in every permission mode.",
+    reason: "The worker's own ntwine command, fed by a quoted heredoc: its questions, registrations and sign-off are pre-approved in every permission mode.",
   },
   {
     // Respect a DELIBERATELY restrictive mode. ntwine dispatches workers at `auto`; a thread sitting at
@@ -197,7 +197,7 @@ if (input.tool_name === 'ExitPlanMode') process.exit(0);
 // tells the model "The user did not answer the questions." So the auto-approval that keeps a worker
 // moving for every other tool is, for this one, a guaranteed wasted turn.
 //
-// Ntwine's broker intercepts this call at canUseTool and renders it as a real question card the
+// ntwine's broker intercepts this call at canUseTool and renders it as a real question card the
 // operator answers (claude-permission-interactions.ts), so the right move here is to say NOTHING —
 // no decision AND no marker. A `defer` verdict would write a marker the tailer reads as a human
 // permission block, stacking a second "needs you" surface on top of the card already asking.

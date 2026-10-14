@@ -56,7 +56,7 @@ function serverTable(command: string, args: readonly string[], cwd: string, env?
  * The `-c` overrides that mount ntwine's MCP server into a codex app-server.
  *
  * The unified `ntwine` server is the ONLY server ntwine mounts, and only when its descriptor resolved;
- * absent ⇒ the worker simply lacks those tools, exactly as on the claude side. Ntwine injects no
+ * absent ⇒ the worker simply lacks those tools, exactly as on the claude side. ntwine injects no
  * browser on EITHER backend (see types.ts) — a `chrome-devtools` mount rode every app-server until
  * 2026-08-26. Whatever the operator configured themselves in `~/.codex/config.toml` still loads: these
  * are overrides layered ON the config, not a replacement for it.
@@ -93,7 +93,7 @@ export function codexMcpConfigArgs(ntwineMcp?: NtwineMcp, nodeBin: string = proc
  * `threadSlug()` in cc-worker/bin/ntwine-mcp.mjs — failed at the moment of use with "this ntwine MCP
  * server was not told which thread it belongs to". Only `spawn_thread` worked. That is most of the
  * worker contract: a codex worker could not name its own thread, register a question, or sign off, and
- * one of them said so in its own final message ("Ntwine's completion registration also failed because
+ * one of them said so in its own final message ("ntwine's completion registration also failed because
  * the server lacked NTWINE_THREAD_SLUG; the fence below is the sign-off").
  *
  * WHY IT WORKS NOW AND DID NOT BEFORE. The header above says a per-conversation `mcp_servers` override
@@ -146,7 +146,7 @@ export function codexThreadMcpConfig(ntwineMcp: NtwineMcp | undefined, slug: str
 /**
  * The PER-THREAD switch that turns the ntwine MCP server OFF for a thread taught `ntwinectl` instead.
  *
- * Needed because an app-server outlives the server that started it: Ntwine reattaches to it, for as long
+ * Needed because an app-server outlives the server that started it: ntwine reattaches to it, for as long
  * as a client keeps coming back. One started before 2026-10-11 still carries the process-wide argv
  * mount `-c mcp_servers.ntwine=…`, with no thread identity in its env, so a NEW thread started on it is
  * offered sixteen `mcp__ntwine__*` tools its contract never mentions, every one of which fails.

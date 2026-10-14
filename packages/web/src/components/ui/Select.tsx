@@ -188,7 +188,7 @@ export function Select({
           side={side}
           sideOffset={5}
           // Select is often nested in a drawer/dialog. Radix dismisses the highest layer after this
-          // callback; stop the same native Escape from continuing to Ntwine's window-level drawer
+          // callback; stop the same native Escape from continuing to ntwine's window-level drawer
           // handler, which would otherwise close both layers in one keypress.
           onEscapeKeyDown={(event) => event.stopPropagation()}
           className={`${menuZClass} ${OPAQUE_SURFACE_BASE} min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg p-1 ${promptReadoutTypography}`}

@@ -22,7 +22,7 @@ export { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 //     auto-resume (the yellow hourglass, offered the same one-click continue). Every surface that renders this
 //     component reads that same derivation, so the verb can never disagree between the card, the header
 //     and the rail. The live-process maintenance verbs (Reload plugins, Restart worker), the copy
-//     terminal command and the Ntwine document sat here until 2026-09-29; they are the drawer's ⋯ menu
+//     terminal command and the ntwine document sat here until 2026-09-29; they are the drawer's ⋯ menu
 //     items now (ThreadMenu.tsx), and Reload plugins is gone (upstream 288f5687: the server reloads a
 //     worker's plugins on its own).
 //     The two lifecycle verbs (snooze, mark as done) close the same strip after this component, from

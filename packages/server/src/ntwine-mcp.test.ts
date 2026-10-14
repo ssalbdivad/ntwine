@@ -35,7 +35,7 @@ function startServer(env: Record<string, string>, cwd = mkdtempSync(join(tmpdir(
   const child = spawn(process.execPath, [descriptor.scriptPath], {
     stdio: ["pipe", "pipe", "inherit"],
     cwd,
-    // The Ntwine identity of the shell running the suite is BLANKED before the test's own is laid on.
+    // The ntwine identity of the shell running the suite is BLANKED before the test's own is laid on.
     // Run from a worker, that shell names the real server (NTWINE_SERVER_LOCK wins over the state dir
     // a test passes), the real project and the worker's own thread, so an unblanked spawn sends every
     // test's dispatch, steer and ask to the maintainer's board — two real opus threads per run.
@@ -84,7 +84,7 @@ test("the ntwine MCP server identifies as `ntwine` and exposes its worker tools"
     // The list follows the server's capabilities, so the client is told to expect it to change.
     assert.deepEqual(init.result.capabilities.tools, { listChanged: true })
 
-    // No Ntwine answers here, so the capabilities cannot be read and every tool is listed, as before the
+    // No ntwine answers here, so the capabilities cannot be read and every tool is listed, as before the
     // list was gated — a server it cannot reach must never cost a worker a tool.
     rpc.send({ jsonrpc: "2.0", method: "notifications/initialized" })
     rpc.send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
@@ -243,7 +243,7 @@ test("the ntwine MCP server identifies as `ntwine` and exposes its worker tools"
 })
 
 // A TOOL IS LISTED ONLY WHILE ITS CAPABILITY EXISTS (plans/upstream-superset.md §5): `editor` while an
-// editor window has this project open. Against a real HTTP server standing in for Ntwine's
+// editor window has this project open. Against a real HTTP server standing in for ntwine's
 // `workerCapabilities`, flipped mid-session the way a human opens and closes VS Code: the first list
 // leaves `editor` out, an editor that appears is announced with `notifications/tools/list_changed` and
 // listed on the re-list, and one that goes is withdrawn only once it has read absent at two polls in a
@@ -307,7 +307,7 @@ test("`editor` is listed only while an editor has the project open, and the list
   }
 })
 
-// An Ntwine from before `workerCapabilities` answers 404: the capability is unknown, not absent, so every
+// An ntwine from before `workerCapabilities` answers 404: the capability is unknown, not absent, so every
 // tool stays listed — gating must never take a tool away because the server is older than the worker.
 test("a server that cannot report capabilities keeps every tool listed", async () => {
   const http = createServer((_req, res) => {
@@ -373,7 +373,7 @@ test("`spawn_thread` POSTs the real dispatch RPC and names the new thread by its
     assert.match(call.result.content[0].text, /It is @child: name it that way/)
     assert.doesNotMatch(call.result.content[0].text, /\/thread\//, "a named thread is not handed over as a link")
     assert.match(call.result.content[0].text, /It knows this thread: if its prompt asked for results back, they arrive as a message that wakes you/)
-    const back = (prompt: string) => prompt.startsWith("do the thing\n\n---\n") && /Spawned by the Ntwine thread `caller`/.test(prompt) && /`ntwinectl message-thread caller --message-file <file\|->`/.test(prompt)
+    const back = (prompt: string) => prompt.startsWith("do the thing\n\n---\n") && /Spawned by the ntwine thread `caller`/.test(prompt) && /`ntwinectl message-thread caller --message-file <file\|->`/.test(prompt)
     const sent = seen as Array<{ url: string; body: { prompt: string } }>
     assert.ok(back(sent[0].body.prompt), sent[0].body.prompt)
     assert.deepEqual(seen, [{ url: "/_ntwine/rpc/dispatch", body: { prompt: sent[0].body.prompt, model: "opus", effort: "high", title: "Child", awaitHandle: true, spawnedFrom: "caller" } }])
@@ -399,7 +399,7 @@ test("`spawn_thread` POSTs the real dispatch RPC and names the new thread by its
     assert.equal(there.result.isError, undefined)
     assert.match(there.result.content[0].text, /on the `arktype` project's board/)
     assert.match(there.result.content[0].text, /\[Docs\]\(\/project\/arktype\/thread\/spawned-child\)/)
-    assert.match(sent[2].body.prompt, /^fix the docs\n\n---\nSpawned by the Ntwine thread `caller`/)
+    assert.match(sent[2].body.prompt, /^fix the docs\n\n---\nSpawned by the ntwine thread `caller`/)
     assert.deepEqual(seen[2], { url: "/_ntwine/rpc/dispatch", body: { prompt: sent[2].body.prompt, model: "sonnet", effort: "medium", title: "Docs", project: "arktype", awaitHandle: true, spawnedFrom: "caller" } })
 
     // model/effort stay REQUIRED server-side, not only in the schema — a lenient client must not be
@@ -434,7 +434,7 @@ test("`editor` reads the window on this project as text, and says why when there
   const stateDir = mkdtempSync(join(tmpdir(), "ntwine-mcp-"))
   writeFileSync(join(stateDir, "server.lock"), JSON.stringify({ port }))
   const projectId = "0b7c1f6e-5a2d-4c4e-9d61-6f1f7c2b9a10"
-  // No thread stamped (the test may itself run inside an Ntwine worker, whose NTWINE_THREAD would ride in).
+  // No thread stamped (the test may itself run inside an ntwine worker, whose NTWINE_THREAD would ride in).
   const rpc = startServer({ NTWINE_STATE_DIR: stateDir, NTWINE_PROJECT_ID: projectId, NTWINE_THREAD: "", NTWINE_THREAD_SLUG: "" })
   let id = 10
   const call = async (result: unknown, status = 200) => {
@@ -517,15 +517,15 @@ test("`editor` reads the window on this project as text, and says why when there
 
     // Each way of having nothing to show, with its reason and the move that is always open.
     const off = await call({ windows: [{ ...front, editor: { shared: false, reportedAgoMs: 0, active: null, open: [], diagnostics: [], problems: { errors: 0, warnings: 0 } } }], connected: 1 })
-    assert.match(off.text, /turned off sharing their editor with Ntwine \(the eye over the sidebar's prompt box, the `ntwine.shareEditorState` setting\)/)
+    assert.match(off.text, /turned off sharing their editor with ntwine \(the eye over the sidebar's prompt box, the `ntwine.shareEditorState` setting\)/)
     const silent = await call({ windows: [{ ...front, editor: undefined }], connected: 1 })
-    assert.match(silent.text, /has this project open, but it has not reported what it shows: its Ntwine extension predates this/)
+    assert.match(silent.text, /has this project open, but it has not reported what it shows: its ntwine extension predates this/)
     const none = await call({ windows: [], connected: 0 })
-    assert.match(none.text, /^No editor is connected to Ntwine/)
+    assert.match(none.text, /^No editor is connected to ntwine/)
     // Windows on other projects are counted, never described — and an OLDER server's listing of their
     // folders (it sent `elsewhere` until 2026-10-02) is not repeated to the worker either.
     const elsewhere = await call({ windows: [], connected: 2, elsewhere: [{ app: "Cursor", folders: ["/home/me/other"] }] })
-    assert.match(elsewhere.text, /^2 editor windows are connected to Ntwine, but none has this project open, so what the user has in front of them is in another project\./)
+    assert.match(elsewhere.text, /^2 editor windows are connected to ntwine, but none has this project open, so what the user has in front of them is in another project\./)
     assert.doesNotMatch(elsewhere.text, /\/home\/me\/other/)
     const empty = await call({ windows: [{ ...front, editor: { ...front.editor, active: null, open: [], diagnostics: [], problems: { errors: 0, warnings: 0 } } }], connected: 1 })
     assert.match(empty.text, /No file is in front/)
@@ -535,9 +535,9 @@ test("`editor` reads the window on this project as text, and says why when there
       assert.equal(reply.isError, undefined, "having nothing to read is an answer, not a failure")
     }
 
-    // An Ntwine from before the procedure answers 404 naming it (packages/rpc's fall-through).
+    // An ntwine from before the procedure answers 404 naming it (packages/rpc's fall-through).
     const old = await call({ error: "unknown RPC procedure `editorState` — this server does not implement it." }, 404)
-    assert.match(old.text, /predates this command\. Restart Ntwine to enable this\./)
+    assert.match(old.text, /predates this command\. Restart ntwine to enable this\./)
     assert.equal(old.isError, undefined)
     // Any other failure is the tool failing, with the server's own words.
     const broken = await call({ error: "the bridge exploded" }, 500)
@@ -1533,7 +1533,7 @@ test("`ask` and `unask` register and withdraw the CALLING thread's questions, tr
 
 test("`secret` registers ONE masked question on the CALLING thread and hands back the quoted pipe path", async () => {
   const seen: Array<{ url: string; body: any }> = []
-  const path = "/Users/x/Library/Application Support/Ntwine/projects/p/secrets/asking-thread/qst_sec111"
+  const path = "/Users/x/Library/Application Support/ntwine/projects/p/secrets/asking-thread/qst_sec111"
   const spec = { question: "The npm one-time code for the maintainer account.", kind: "question", secret: true, header: "npm OTP" }
   const view = { id: "qst_sec111", spec, askedAt: "2026-10-08T00:00:00.000Z", secretPath: path }
   const replies: any[] = [{ registered: [view], open: [view] }]

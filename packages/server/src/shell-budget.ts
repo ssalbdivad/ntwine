@@ -85,8 +85,8 @@ export function shellBudgetWarningMessage(input: {
     ? `\`TaskStop\` with task id \`${handle}\``
     : input.backend === "codex" ? "end its process yourself" : "kill it yourself"
   const consequence = input.stoppable
-    ? ` Ntwine stops it in ${formatElapsed(SHELL_BUDGET_GRACE_MS)} unless you extend it.`
-    : " Ntwine cannot stop this one for you, so it keeps running until you do."
+    ? ` ntwine stops it in ${formatElapsed(SHELL_BUDGET_GRACE_MS)} unless you extend it.`
+    : " ntwine cannot stop this one for you, so it keeps running until you do."
   return (
     `\u23f0 Your background shell \`${handle}\` (${label}) has been running ${formatElapsed(input.ranMs)}, past its ` +
     `${formatElapsed(input.budgetMs)} budget.${consequence}\n\n` +
@@ -108,10 +108,10 @@ export type ShellStopReason =
 export function shellStopNotice(label: string, reason: ShellStopReason = { kind: "operator" }): string {
   const tail = "It is no longer running and will never report a result — do not wait on it or poll it again."
   if (reason.kind === "operator") {
-    return `[ntwine] The operator stopped your background command ${JSON.stringify(label)} from the Ntwine dashboard. ${tail}`
+    return `[ntwine] The operator stopped your background command ${JSON.stringify(label)} from the ntwine dashboard. ${tail}`
   }
   return (
-    `[ntwine] Ntwine stopped your background command ${JSON.stringify(label)} after ${formatElapsed(reason.ranMs)}: it ran ` +
+    `[ntwine] ntwine stopped your background command ${JSON.stringify(label)} after ${formatElapsed(reason.ranMs)}: it ran ` +
     `past its ${formatElapsed(reason.budgetMs)} budget and was not extended with \`ntwinectl extend-shell\` after the ` +
     `warning. ${tail} If you still need it, relaunch it — with a Bash \`timeout\` sized to it, or none if it must run until you stop it.`
   )

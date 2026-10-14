@@ -183,7 +183,7 @@ test("a failure names the step it died in and where to read the whole story", ()
   assert.equal(readout.activeStep()?.key, "server");
   readout.fail("server: port 4923 is already in use", "/tmp/logs/ntwine-1.log");
   const shown = out.rendered;
-  assert.match(shown, /✗ {2}Ntwine could not start/);
+  assert.match(shown, /✗ {2}ntwine could not start/);
   assert.match(shown, /port 4923 is already in use/);
   assert.match(shown, /Full log: \/tmp\/logs\/ntwine-1\.log/);
 });
@@ -222,9 +222,9 @@ test("--debug streams records, suppresses the repaint, and does not duplicate th
   const readout = new Readout({ output: out, color: false, debug: true, tickMs: 60_000 });
   readout.plan([{ key: "server", label: "Server" }]);
   readout.begin("server", "starting");
-  readout.note("12:00:00 INFO  supervisor   starting Ntwine");
+  readout.note("12:00:00 INFO  supervisor   starting ntwine");
   assert.equal(out.raw.includes("\x1b["), false, "debug mode must not repaint");
-  assert.match(out.raw, /12:00:00 INFO {2}supervisor {3}starting Ntwine/);
+  assert.match(out.raw, /12:00:00 INFO {2}supervisor {3}starting ntwine/);
   // The log feed is the authoritative account under --debug; the step rows would restate it in a
   // second format right beside it.
   assert.equal(out.raw.includes("ntwine: ··· server"), false, out.raw);
@@ -251,13 +251,13 @@ test("a lifecycle notice prints under the ready block without disturbing it", ()
   readout.begin("server");
   readout.ready([{ label: "Local", value: "http://127.0.0.1:3939" }], "press ctrl-c to stop");
   const before = out.rendered;
-  readout.notice("progress", "Restarting", "Restart Ntwine requested from browser");
+  readout.notice("progress", "Restarting", "Restart ntwine requested from browser");
   readout.notice("done", "Restarted", "in 1.2s");
   const rendered = out.rendered;
   assert.ok(rendered.startsWith(before), "the ready block stays exactly as it was printed");
   const added = rendered.slice(before.length).split("\n").filter((line) => line.trim());
   assert.deepEqual(added, [
-    "  ↻  03:04:05  Restarting  Restart Ntwine requested from browser",
+    "  ↻  03:04:05  Restarting  Restart ntwine requested from browser",
     "  ✓  03:04:05  Restarted   in 1.2s",
   ]);
 });

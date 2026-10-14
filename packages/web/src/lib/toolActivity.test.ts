@@ -208,7 +208,7 @@ test("ordinary calls batched ahead of a dispatch in one message fold into the ru
     ],
   }
   const toolSearch = tool("ToolSearch", { detail: "select:SendMessage", status: "completed" })
-  const dispatch = tool("Agent", { agentId: "call-1", prompt: "Audit the token overhead", detail: "Auditing Ntwine token overhead", status: "pending" })
+  const dispatch = tool("Agent", { agentId: "call-1", prompt: "Audit the token overhead", detail: "Auditing ntwine token overhead", status: "pending" })
   const mixed = toolMessage("mixed", [toolSearch, dispatch], "2026-07-30T12:00:03.000Z")
 
   const compact = coalesceToolActivityMessages([lead, mixed])

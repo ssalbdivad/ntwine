@@ -109,7 +109,7 @@ export function isWsl(p: Pick<WakeLockPlatform, "platform" | "env" | "kernelRele
 // helper resets the event when its stdin closes and waits on it instead of sleeping. The one race —
 // a successor's Set landing between a lingerer's Reset and its wait — costs a full linger, never a gap.
 const WINDOWS_HOLD_SCRIPT = (lingerS: number) =>
-  `$k=Add-Type -Name WakeLock -Namespace Ntwine -PassThru -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);';` +
+  `$k=Add-Type -Name WakeLock -Namespace ntwine -PassThru -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);';` +
   `[void]$k::SetThreadExecutionState([uint32]2147483649);` +
   `$h=New-Object System.Threading.EventWaitHandle($false,[System.Threading.EventResetMode]::ManualReset,'Local\\NtwineWakeLockHolder');` +
   `[void]$h.Set();` +
@@ -142,7 +142,7 @@ export function wakeLockCommand(p: WakeLockPlatform, lingerS = WAKE_LOCK_LINGER_
   if (isWsl(p)) return ["powershell.exe", psArgs]
   if (p.platform === "darwin") return ["caffeinate", ["-i", "/bin/sh", "-c", POSIX_HOLD_SCRIPT]]
   if (p.platform === "linux") {
-    return ["systemd-inhibit", ["--what=idle", "--who=Ntwine", "--why=An agent is working", "--mode=block", "/bin/sh", "-c", POSIX_HOLD_SCRIPT]]
+    return ["systemd-inhibit", ["--what=idle", "--who=ntwine", "--why=An agent is working", "--mode=block", "/bin/sh", "-c", POSIX_HOLD_SCRIPT]]
   }
   return undefined
 }

@@ -6,7 +6,7 @@ import { test } from "node:test"
 import { resetNtwineRoots } from "./ntwine-paths.ts"
 import { deleteUserCommand, formatCommandFile, ntwineCommandsDir, listUserCommands, parseCommandFile, saveUserCommand } from "./user-commands.ts"
 
-// A throwaway data root (XDG_DATA_HOME is how every harness here isolates Ntwine) and a throwaway home.
+// A throwaway data root (XDG_DATA_HOME is how every harness here isolates ntwine) and a throwaway home.
 function sandbox() {
   const root = mkdtempSync(join(tmpdir(), "ntwine-user-commands-"))
   process.env.XDG_DATA_HOME = join(root, "data")
@@ -35,7 +35,7 @@ test("a saved file parses back to what was saved, frontmatter only when needed",
   assert.equal(formatCommandFile({ description: "", body: "x" }), "x\n")
 })
 
-test("the three folders are read in precedence order — Ntwine's own, the project's, then ~/.agents", async () => {
+test("the three folders are read in precedence order — ntwine's own, the project's, then ~/.agents", async () => {
   const { home, project } = sandbox()
   writeFileSync(join(home, ".agents", "commands", "commit.md"), "global commit")
   writeFileSync(join(home, ".agents", "commands", "dev.md"), "global dev")
@@ -59,7 +59,7 @@ test("a symlinked command is read through its link, the way ~/app shares its com
   assert.deepEqual((await listUserCommands(undefined, home)).map((c) => c.body), ["linked prompt"])
 })
 
-test("a rename removes the old file; delete removes Ntwine's own file and nothing else", async () => {
+test("a rename removes the old file; delete removes ntwine's own file and nothing else", async () => {
   const { home } = sandbox()
   writeFileSync(join(home, ".agents", "commands", "keep.md"), "global")
   await saveUserCommand({ name: "old", description: "", body: "x" })

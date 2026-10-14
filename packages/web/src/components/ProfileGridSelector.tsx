@@ -274,7 +274,7 @@ function DesktopProfileGridSelector({
 
   // A row with NO effort axis — an ACP agent runs on whatever model and effort its own CLI is configured
   // for — is one cell, keyed on `effort: ""` (profileGridOptionEfforts). In the matrix it spans every
-  // effort column. "Default" is the honest label: Ntwine sets nothing, the agent's own defaults apply.
+  // effort column. "Default" is the honest label: ntwine sets nothing, the agent's own defaults apply.
   function renderDefaultCell(group: ProfileGridGroup, option: ProfileGridOption) {
     const selection = { provider: group.id, model: option.model, effort: "" }
     const key = profileGridSelectionKey(selection)

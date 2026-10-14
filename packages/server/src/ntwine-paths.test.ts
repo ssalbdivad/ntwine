@@ -22,7 +22,7 @@ const never = () => false
 // memo (ntwine-paths.ts) would — correctly — keep answering with the first resolution.
 const disk = { exists: existsSync }
 
-// The property the whole module exists to protect: an installed Ntwine never moves. This tree reaches
+// The property the whole module exists to protect: an installed ntwine never moves. This tree reaches
 // gigabytes, detached daemons hold descriptors into it, and the threads have no second copy.
 test("an existing ~/.ntwine keeps every root, on every platform, whatever XDG says", () => {
   const base = mkdtempSync(join(tmpdir(), "ntwine-paths-legacy-"))
@@ -203,7 +203,7 @@ test("a different home, XDG root or $HOME gets its own answer, not the first one
 
     const env = { XDG_DATA_HOME: join(freshHome, "xdg-data") }
     assert.equal(ntwinePaths({ home: freshHome, platform: "linux", env }).data, join(freshHome, "xdg-data", "ntwine"))
-    assert.equal(ntwinePaths({ home: freshHome, platform: "darwin", env: {} }).data, join(freshHome, "Library", "Application Support", "Ntwine"))
+    assert.equal(ntwinePaths({ home: freshHome, platform: "darwin", env: {} }).data, join(freshHome, "Library", "Application Support", "ntwine"))
 
     process.env.HOME = legacyHome
     const a = ntwineRoots().data
@@ -239,11 +239,11 @@ test("the memo splits on XDG_DATA_HOME and win32 %LOCALAPPDATA%, and state/cache
     // win32: %LOCALAPPDATA% decides where the platform data root is, and so whether it already holds
     // an install that outranks the registry-less ~/.ntwine (supersededByInstall).
     const localA = join(base, "A")
-    mkdirSync(join(localA, "Ntwine", "Data"), { recursive: true })
-    writeFileSync(join(localA, "Ntwine", "Data", "registry.json"), "{}")
+    mkdirSync(join(localA, "ntwine", "Data"), { recursive: true })
+    writeFileSync(join(localA, "ntwine", "Data", "registry.json"), "{}")
     const a = ntwinePaths({ home: base, platform: "win32", env: { LOCALAPPDATA: localA } })
     assert.equal(a.legacy, false)
-    assert.equal(a.data, join(localA, "Ntwine", "Data"))
+    assert.equal(a.data, join(localA, "ntwine", "Data"))
     const b = ntwinePaths({ home: base, platform: "win32", env: { LOCALAPPDATA: join(base, "B") } })
     assert.equal(b.legacy, true, "another %LOCALAPPDATA% with no install is its own decision")
 
@@ -354,7 +354,7 @@ test("an injected exists bypasses the memo in both directions", () => {
 // platform BRANCH, which is injected, while the separator is the HOST's — so a POSIX literal is a
 // second, accidental assertion that the suite is running on POSIX, and on Windows the same correct
 // branch answers `\home\x\.local\share\ntwine`. join() states the branch and nothing else.
-test("a machine that has never run Ntwine gets the platform's own locations", () => {
+test("a machine that has never run ntwine gets the platform's own locations", () => {
   const linux = ntwinePaths({ home: "/home/x", platform: "linux", env: {}, exists: never })
   assert.deepEqual(
     { data: linux.data, state: linux.state, cache: linux.cache, legacy: linux.legacy },
@@ -367,8 +367,8 @@ test("a machine that has never run Ntwine gets the platform's own locations", ()
   )
 
   const mac = ntwinePaths({ home: "/Users/x", platform: "darwin", env: {}, exists: never })
-  assert.equal(mac.data, join("/Users/x", "Library", "Application Support", "Ntwine"))
-  assert.equal(mac.cache, join("/Users/x", "Library", "Caches", "Ntwine"))
+  assert.equal(mac.data, join("/Users/x", "Library", "Application Support", "ntwine"))
+  assert.equal(mac.cache, join("/Users/x", "Library", "Caches", "ntwine"))
 })
 
 test("a set XDG variable wins on every platform, and each one moves only its own root", () => {
@@ -379,7 +379,7 @@ test("a set XDG variable wins on every platform, and each one moves only its own
     exists: never,
   })
   assert.equal(partial.cache, join("/c", "ntwine"), "the variable that was set moves")
-  assert.equal(partial.data, join("/Users/x", "Library", "Application Support", "Ntwine"), "the others do not")
+  assert.equal(partial.data, join("/Users/x", "Library", "Application Support", "ntwine"), "the others do not")
 
   const all = ntwinePaths({
     home: "/home/x",
@@ -407,7 +407,7 @@ test("Windows uses Local, never Roaming — a multi-gigabyte cache must not foll
     exists: never,
   })
   for (const root of [paths.data, paths.state, paths.cache]) {
-    assert.match(root, /AppData[\\/]Local[\\/]Ntwine/)
+    assert.match(root, /AppData[\\/]Local[\\/]ntwine/)
     assert.doesNotMatch(root, /Roaming/)
   }
 
@@ -418,13 +418,13 @@ test("Windows uses Local, never Roaming — a multi-gigabyte cache must not foll
     env: { USERPROFILE: "C:\\Users\\x" },
     exists: never,
   })
-  assert.match(bare.data, /Users[\\/]x[\\/]AppData[\\/]Local[\\/]Ntwine/)
+  assert.match(bare.data, /Users[\\/]x[\\/]AppData[\\/]Local[\\/]ntwine/)
 })
 
 // A SANDBOX HAS TO STAY SANDBOXED ON WIN32 TOO, and %LOCALAPPDATA% is what used to break that:
 // `ntwinePaths({ home })` is the ONE mechanism every sandbox here has (projectStateDir, registryPath,
 // machineConfigPath, serverAddressPath, stablePluginPath), and on Windows all of them collapsed onto
-// the live account's single `%LOCALAPPDATA%\Ntwine` tree whatever home they were handed — a suite run
+// the live account's single `%LOCALAPPDATA%\ntwine` tree whatever home they were handed — a suite run
 // rewrote the operator's own settings.json and registry (first Windows suite run, 2026-08-24). The
 // variable describes the PROCESS's home, so it is honored only when it sits under the home in hand.
 test("on win32 the home in hand outranks a %LOCALAPPDATA% belonging to another tree", () => {
@@ -434,7 +434,7 @@ test("on win32 the home in hand outranks a %LOCALAPPDATA% belonging to another t
   const b = sandbox("C:\\tmp\\b\\home")
   for (const [label, paths, home] of [["a", a, "a"], ["b", b, "b"]] as const) {
     for (const root of [paths.data, paths.state, paths.cache]) {
-      assert.match(root, new RegExp(`^C:[\\\\/]tmp[\\\\/]${home}[\\\\/]home[\\\\/]AppData[\\\\/]Local[\\\\/]Ntwine`), label)
+      assert.match(root, new RegExp(`^C:[\\\\/]tmp[\\\\/]${home}[\\\\/]home[\\\\/]AppData[\\\\/]Local[\\\\/]ntwine`), label)
     }
   }
   assert.notEqual(a.data, b.data, "two sandboxes are two trees, not one shared one")
@@ -449,7 +449,7 @@ test("on win32 the home in hand outranks a %LOCALAPPDATA% belonging to another t
     env: { LOCALAPPDATA: "c:\\users\\x\\AppData\\Local" },
     exists: never,
   })
-  assert.equal(real.data, join("c:\\users\\x\\AppData\\Local", "Ntwine", "Data"))
+  assert.equal(real.data, join("c:\\users\\x\\AppData\\Local", "ntwine", "Data"))
 })
 
 // THE ADDRESS AND THE STATE DIR MUST AGREE, and the agreement is `../..` — the exact derivation the

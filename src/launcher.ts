@@ -78,7 +78,7 @@ export interface CliOptions {
   /** Stream the full event feed to the terminal instead of the compact readout. */
   debug: boolean;
   port?: number;
-  /** `--sandbox`: a disposable Ntwine — throwaway home and project, own port, deleted on exit. */
+  /** `--sandbox`: a disposable ntwine — throwaway home and project, own port, deleted on exit. */
   sandbox: boolean;
   /** `--link`: ask the ALREADY-RUNNING board for a fresh single-use access link, then exit. */
   link: boolean;
@@ -126,7 +126,7 @@ export interface ExpectedNtwineHealth {
   /**
    * Ask a SPECIFIC project's health on a shared server: `/_ntwine/nub/health`.
    *
-   * One Ntwine serves N projects, so "is Ntwine on this port" and "is Ntwine serving MY project on this
+   * One ntwine serves N projects, so "is ntwine on this port" and "is ntwine serving MY project on this
    * port" stopped being the same question. Probing the slug answers the second one.
    *
    * Asking does NOT open the project. The server answers this route out of its registry for a project
@@ -242,7 +242,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
     // `ntwine /some/repo` reads as "serve that repo", when the server it starts serves all of them.
     // Refuse rather than ignore — someone with this in a script deserves to be told where it went.
     throw new Error(
-      `unexpected argument: ${arg} — Ntwine takes no repository path, because one server serves every project on this machine. cd into the directory you want and run it with no arguments.`
+      `unexpected argument: ${arg} — ntwine takes no repository path, because one server serves every project on this machine. cd into the directory you want and run it with no arguments.`
     );
   }
   let port: number | undefined;
@@ -347,7 +347,7 @@ export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: s
   // asked for it. Inherited into a sandbox it defeats the whole point — `registryPath(home)`,
   // `claimIdentityPath(home)`, `cloudConfigPath(home)` all resolve straight back into the operator's
   // real `$XDG_DATA_HOME/ntwine`, and the cleanup on exit only removes the throwaway home (raised on
-  // PR #43, 2026-09-23). A sandbox is a home that has never run Ntwine, so it gets the platform defaults.
+  // PR #43, 2026-09-23). A sandbox is a home that has never run ntwine, so it gets the platform defaults.
   for (const name of SANDBOX_DROPPED_XDG_ROOTS) delete env[name];
   // The pinned Claude Code and Codex are a CACHE, not state: immutable, one directory per version,
   // and guarded against a concurrent sweep by live-process leases (runtime-lease.ts), which is exactly
@@ -373,7 +373,7 @@ export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: s
   } catch {
     throw new Error("--sandbox mints a throwaway git repository and git is not available — install git, or play in a repo of your own with a temp HOME");
   }
-  // Only a folder Ntwine already knows opens its own board (resolveLaunchIntent); a fresh repository
+  // Only a folder ntwine already knows opens its own board (resolveLaunchIntent); a fresh repository
   // lands on the dashboard. A sandbox is a board to try things in, so its project is made one here.
   writeProjectIdFile(project, randomUUID());
   process.chdir(project);
@@ -390,7 +390,7 @@ export function prepareSandbox(env: NodeJS.ProcessEnv = process.env, realHome: s
  * be "taken" against the real board for the length of a lease. Linking the real key makes a sandbox
  * claim the machine's claim, which the real board then renews as its own.
  *
- * cloudflared's files are linked one by one into a real directory, not as the directory itself: Ntwine
+ * cloudflared's files are linked one by one into a real directory, not as the directory itself: ntwine
  * writes ntwine.yml there, and that write must land in the sandbox, not over the real one. Everything
  * here is best-effort — a missing file is simply not linked, and a platform that refuses symlinks gets
  * a sandbox without shared credentials rather than no sandbox.
@@ -435,7 +435,7 @@ function shareCredentials(realHome: string, home: string, realEnv: NodeJS.Proces
   // macOS keeps the login keychain UNDER the home directory, and that is where gh and Claude keep their
   // tokens — so a redirected HOME hides every credential above even with the config dirs linked.
   // Measured: gh answers 401 through a linked ~/.config/gh alone, and the login through this link.
-  // Only the keychain: ~/Library/Application Support/Ntwine is state and must stay throwaway.
+  // Only the keychain: ~/Library/Application Support/ntwine is state and must stay throwaway.
   if (process.platform === "darwin" && existsSync(join(realHome, "Library", "Keychains"))) {
     mkdirSync(join(home, "Library"), { recursive: true });
     link(join(realHome, "Library", "Keychains"), join(home, "Library", "Keychains"));
@@ -452,13 +452,13 @@ export function cleanupSandbox(home: string): void {
 }
 
 export function helpText(command = "ntwine-dev"): string {
-  return `Ntwine source launcher
+  return `ntwine source launcher
 
 Usage: ${command} [options]
 
 Run it anywhere. One server serves EVERY project on this machine, each on its own board, so a
 second run joins the one already going. In a folder that is already a project it opens that
-project's board; anywhere else it opens All projects, where projects are added. Ntwine serves a
+project's board; anywhere else it opens All projects, where projects are added. ntwine serves a
 verified immutable artifact, selecting or safely building one on first launch, then opens it in
 your default browser; source edits never restart the shared board.
 
@@ -467,7 +467,7 @@ Options:
   --foreground           accepted for compatibility; ${command} always runs in the foreground
   --dev                  explicitly use the unsafe source watcher and Vite/HMR, not an artifact
   --port <port>          request a fixed port for a new workspace server
-  --sandbox              a disposable Ntwine to try things in: throwaway home and project, its
+  --sandbox              a disposable ntwine to try things in: throwaway home and project, its
                          own port, deleted when this terminal closes; credentials (gh,
                          cloudflared, Claude, Codex, the machine's ntwine.app key) are shared
   --link                 print a fresh single-use access link for the already-running board
@@ -480,10 +480,10 @@ Options:
 
 
 Commands:
-  build                  build a new immutable candidate from the configured Ntwine source checkout
+  build                  build a new immutable candidate from the configured ntwine source checkout
   promote <digest>       explicitly select a verified candidate for this workspace
   restart                restart the currently promoted artifact without building
-  top                    memory on this machine and Ntwine's share of it (--json, --watch)
+  top                    memory on this machine and ntwine's share of it (--json, --watch)
 
 To reach the board from a phone or another machine, press R in the terminal running it: a short
 walkthrough sets up a private ntwine.app name (no account needed), a custom one, a Cloudflare
@@ -499,27 +499,27 @@ An immutable artifact is the default. --dev is the only explicit unsafe source w
  * What a `ntwine` in THIS directory should actually do.
  *
  * A FOLDER NTWINE ALREADY KNOWS OPENS ITS BOARD. ANYTHING ELSE OPENS ALL PROJECTS. One server serves
- * every project on the machine, so the command starts Ntwine; it does not pick a project, and it never
+ * every project on the machine, so the command starts ntwine; it does not pick a project, and it never
  * makes one. Projects are added from the add-project dialog (upstream maintainer 2026-10-10: "If the
- * folder that you run it in is not a pre-existing Ntwine project, it should just bring you to the root
+ * folder that you run it in is not a pre-existing ntwine project, it should just bring you to the root
  * of the dashboard"; this fork's dashboard is All projects).
  *
  * It was the other way round twice. Running the command ADOPTED the directory until 2026-08-06, which
- * minted a project in $HOME, inside Ntwine's own `~/.ntwine` state root. Then a repository was adopted
+ * minted a project in $HOME, inside ntwine's own `~/.ntwine` state root. Then a repository was adopted
  * on sight and everything else refused or offered (2026-08-11) — so a new user's first `npx ntwine`,
  * typed in a fresh terminal or in `~/Documents`, ended in "cd into a repository and run ntwine
  * there". Both came from the days of one server per project, when where the command ran had to mean
  * something.
  *
- *  - `open`  — a directory Ntwine knows, from `.ntwine/.id` or from the registry: its own board.
- *  - `offer` — a repository or a manifest root Ntwine has not seen: `/`, where the add-project dialog
+ *  - `open`  — a directory ntwine knows, from `.ntwine/.id` or from the registry: its own board.
+ *  - `offer` — a repository or a manifest root ntwine has not seen: `/`, where the add-project dialog
  *               asks whether to add it. Nothing is written until the operator says yes there.
  *  - `everything` — every other directory: All projects, `/all`, and nothing else. `~/Downloads` is a
  *               command in the wrong terminal. $HOME is never offered because the add-project dialog
  *               refuses it (isHomeDirectory).
  *
  * The last two still need a project to LAUNCH with, because a server is a process that serves a
- * board. That host is a folder of Ntwine's own (hostWorkspace), never one of the operator's projects.
+ * board. That host is a folder of ntwine's own (hostWorkspace), never one of the operator's projects.
  *
  * It was the most recently opened project until 2026-10-11, and that tied a running board to a
  * folder nobody had launched it from: `npx ntwine` typed in $HOME was hosted on `~/Documents/scratch`,
@@ -587,13 +587,13 @@ export async function askLaunchRoute(
 }
 
 /**
- * The server's host for a launch outside a project: a folder of Ntwine's own, never registered.
+ * The server's host for a launch outside a project: a folder of ntwine's own, never registered.
  *
  * The server builds a whole board around the project it is launched with — its state dir holds the
  * launch record and the `server.lock` every worker reads the port from — so "no project" is not a
  * state it has. This is the smallest thing that stands in: a real, empty project the registry never
  * hears about, so the dashboard lists only the operator's own projects, and on a new machine says
- * "Welcome to Ntwine". Every project there is an ordinary tenant.
+ * "Welcome to ntwine". Every project there is an ordinary tenant.
  */
 export function hostWorkspace(home = homedir()): Workspace {
   const dir = launchHostDir(home)
@@ -684,10 +684,10 @@ export function workspaceFromLaunchTarget(
   try {
     root = realpathSync(target.projectDir);
   } catch {
-    throw new Error("pinned Ntwine workspace is no longer available");
+    throw new Error("pinned ntwine workspace is no longer available");
   }
   if (root !== target.projectDir)
-    throw new Error("pinned Ntwine workspace path is not canonical");
+    throw new Error("pinned ntwine workspace path is not canonical");
   return {
     root,
     id: target.projectId,
@@ -829,7 +829,7 @@ export const HEALTH_PROBE_TIMEOUT_MS = 1000;
  * How long the JOIN probe waits, versus the second it takes to ask a server about itself.
  *
  * These are different questions and only one of them is cheap. "Is the server I started healthy yet"
- * is answered by a process with nothing else to do. "Is the Ntwine already running on this machine
+ * is answered by a process with nothing else to do. "Is the ntwine already running on this machine
  * serving my project" is answered by a process that may be mid-prime for some other board, and its
  * event loop is genuinely busy for seconds at a time.
  *
@@ -882,7 +882,7 @@ export async function probeNtwine(
 }
 
 /**
- * The unscoped health of whatever Ntwine answers on a port, with no expectation to match against:
+ * The unscoped health of whatever ntwine answers on a port, with no expectation to match against:
  * the singleton names the project it was LAUNCHED from, which is what a client in another project
  * needs to learn before it can find that launch's owner record.
  */
@@ -1068,7 +1068,7 @@ function portCandidates(
 
 function noFreePortMessage(base = DEFAULT_PORT): string {
   const fallback = fallbackPort(base);
-  return `no free Ntwine port: ${base} is taken, and so is every port in ${fallback}-${
+  return `no free ntwine port: ${base} is taken, and so is every port in ${fallback}-${
     fallback + PORT_SCAN_COUNT - 1
   }`;
 }
@@ -1141,7 +1141,7 @@ export interface WaitForWorkspaceOptions {
  *
  * WHY THIS IS NOT A FLAT DEADLINE. A launcher spawns the control plane detached and cannot see inside
  * it, so a flat 30s budget silently conflates "something is wrong" with "this board is big and this
- * machine is busy" — and the maintainer's own board hit that every time, printing "Ntwine did not become
+ * machine is busy" — and the maintainer's own board hit that every time, printing "ntwine did not become
  * healthy" while a perfectly healthy child kept booting behind it. Elapsed time is not evidence of
  * failure; a boot that has STOPPED MAKING PROGRESS is. So when the state dir is known, `timeoutMs` is
  * spent from the last observed progress step rather than from the start, and the failure message names
@@ -1176,8 +1176,8 @@ export async function waitForWorkspace(
       const waited = Math.ceil((now - started) / 1000);
       throw new Error(
         lastPhase
-          ? `Ntwine did not become healthy on port ${port} after ${waited}s; its last reported boot step was "${lastPhase}" and it stopped making progress`
-          : `Ntwine did not become healthy on port ${port} within ${waited}s`
+          ? `ntwine did not become healthy on port ${port} after ${waited}s; its last reported boot step was "${lastPhase}" and it stopped making progress`
+          : `ntwine did not become healthy on port ${port} within ${waited}s`
       );
     }
     await delay(150);
@@ -1201,7 +1201,7 @@ export function sourceLabel(): string {
  * The tail of this workspace's most recent run log, for a failure message that can show what the
  * server was doing when it gave up.
  *
- * This used to read `<stateDir>/dev.log` — a file Ntwine has never written since the detached
+ * This used to read `<stateDir>/dev.log` — a file ntwine has never written since the detached
  * supervisor was removed — and had no callers, so the diagnostic it appeared to offer always came
  * back empty. It now reads the run log that `@ntwine/server/logging` actually produces.
  */
@@ -1256,7 +1256,7 @@ export async function stopProjectLaunch(options: StopProjectLaunchOptions): Prom
     : false;
   if (!controlled && !processGenerationIsStale(owner, adapter)) {
     throw new Error(
-      "Ntwine refused to stop a live owner without authenticated token-bound control; the owner was left untouched"
+      "ntwine refused to stop a live owner without authenticated token-bound control; the owner was left untouched"
     );
   }
   const reap = (): boolean => {

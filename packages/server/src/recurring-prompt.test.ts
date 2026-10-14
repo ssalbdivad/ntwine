@@ -204,7 +204,7 @@ function scheduler(
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 1,
     title: slug, state: "open", meta: null, seen_at: null, transcript_id: null,
   } as SessionRow)
-  // Ntwine's built-in sign-off reminder (SOURCE 9) now fires on EVERY fenceless rest, independently of
+  // ntwine's built-in sign-off reminder (SOURCE 9) now fires on EVERY fenceless rest, independently of
   // the Goal — so it would add a second delivery to every count in this file. Silenced so these stay
   // about the Goal; the reminder has signoff-nudge.test.ts.
   storage.setSetting("signoffNudge", "off")
@@ -305,7 +305,7 @@ test("heartbeat: live sub-agents and background shells are IRRELEVANT to firing"
 })
 
 // THE LOOP THIS TRIGGER SHIPPED WITH FOR MONTHS, and which only became dangerous when every dispatched
-// thread started carrying a Goal. Ntwine speaks as the USER, so its own bump lands in the transcript and
+// thread started carrying a Goal. ntwine speaks as the USER, so its own bump lands in the transcript and
 // advances `lastActivityAt` — the field the delivery id used to key on — minting a "rest" nobody rested.
 // A thread whose worker is gone stays idle forever, so it was bumped every tick: 10 in 100 seconds,
 // measured on a real stack. `turn === "idle"` cannot tell "you stopped" from "nothing is happening";

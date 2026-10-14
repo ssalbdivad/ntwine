@@ -312,7 +312,7 @@ test("an open goes to the window whose folder holds the file: deepest folder, th
 })
 
 test("focus recency survives a reconnect: the hello says how long ago the window last had focus", async (t) => {
-  // After an Ntwine restart every window redials while the human is in the browser, so none is focused.
+  // After an ntwine restart every window redials while the human is in the browser, so none is focused.
   // Without the hello's focusedAgoMs they all ranked 0 and the window that redialled LAST took every
   // open no folder claims.
   const h = await harness(t)
@@ -527,7 +527,7 @@ test("editor state: a folder passed beside the project counts as the project's",
   assert.deepEqual(h.bridge.editorState(dirs.mono, [join(dirs.root, "gone")]).windows, [], "a folder that does not exist adds nothing")
 })
 
-test("an editor frame Ntwine cannot take closes the socket like any other bad frame", async (t) => {
+test("an editor frame ntwine cannot take closes the socket like any other bad frame", async (t) => {
   const h = await harness(t)
   const send = async (frame: unknown) => {
     const win = await editor(h.port)
@@ -770,7 +770,7 @@ test("review: only a window that said it can, the one holding the checkout first
   await until(() => h.bridge.windows().some((w) => !w.acceptsOpens), "opens off")
   assert.equal(await h.bridge.review(target(dirs.mono), dirs.mono), true)
   assert.equal(reviews(monoWin).length, 2)
-  assert.equal(reviews(pkgWin).length, 2, "the only window left that takes things from Ntwine")
+  assert.equal(reviews(pkgWin).length, 2, "the only window left that takes things from ntwine")
 })
 
 test("review: a window that says it could not is the error, in its own words; silence is false", async (t) => {

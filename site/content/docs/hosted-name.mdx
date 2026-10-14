@@ -13,25 +13,25 @@ Your board stays on loopback and **dials out** to ntwine.app. That means there's
 
 ## A private name
 
-This is the default. Ntwine mints an unguessable name (20 random characters, so nobody finds it by guessing) and claims it with this machine's own key. There's no sign-in of any kind.
+This is the default. ntwine mints an unguessable name (20 random characters, so nobody finds it by guessing) and claims it with this machine's own key. There's no sign-in of any kind.
 
 The name is the address, not the lock. The first visit from every device still needs a single-use [sign-in link](/docs/remote-access#ntwine-does-the-authenticating).
 
 ## Custom names
 
-Pick **Custom name** and type a word to claim `<name>.ntwine.app`. It costs a GitHub sign-in: Ntwine shows a code to enter at [github.com/login/device](https://github.com/login/device), on any device. The sign-in grants no permissions; the registrar reads your account id, discards the token, and binds the name to that account. One custom name per account, and accounts under 30 days old can't claim one.
+Pick **Custom name** and type a word to claim `<name>.ntwine.app`. It costs a GitHub sign-in: ntwine shows a code to enter at [github.com/login/device](https://github.com/login/device), on any device. The sign-in grants no permissions; the registrar reads your account id, discards the token, and binds the name to that account. One custom name per account, and accounts under 30 days old can't claim one.
 
 A name claimed before 2026-10-13 was on the old domain, which no longer serves. Press <kbd>R</kbd> to claim a new one.
 
 ## Keeping a name
 
-Your machine holds an Ed25519 key, `identity.key` in Ntwine's state directory (`~/.ntwine/` on an install that has one). That key alone proves ownership, so renewals need no sign-in. To move a name to another machine, copy the file, the same way you'd move an SSH key.
+Your machine holds an Ed25519 key, `identity.key` in ntwine's state directory (`~/.ntwine/` on an install that has one). That key alone proves ownership, so renewals need no sign-in. To move a name to another machine, copy the file, the same way you'd move an SSH key.
 
 Every launch renews the lease. A name nobody has run for **30 days** is released — a lapsed custom name can be claimed by someone else.
 
 ## What you're agreeing to
 
 - **One name per machine key.**
-- **The name is a lease, not property.** It lapses after 30 days unused, and Ntwine can reclaim any name at any time. That's the only enforcement there is, so it has to exist.
-- **Your traffic passes through us.** A name on ntwine.app is served by a relay we run, and every request and every keystroke goes through it. Ntwine's own access gate still runs on your machine, so a visitor meets it whether or not the relay is honest. If you'd rather no third party carried the bytes, use [a domain you control](/docs/cloudflare-tunnel).
+- **The name is a lease, not property.** It lapses after 30 days unused, and ntwine can reclaim any name at any time. That's the only enforcement there is, so it has to exist.
+- **Your traffic passes through us.** A name on ntwine.app is served by a relay we run, and every request and every keystroke goes through it. ntwine's own access gate still runs on your machine, so a visitor meets it whether or not the relay is honest. If you'd rather no third party carried the bytes, use [a domain you control](/docs/cloudflare-tunnel).
 - **No warranty.** This is a free convenience on a domain someone else owns. Anything you can't afford to lose access to belongs on a domain you control.

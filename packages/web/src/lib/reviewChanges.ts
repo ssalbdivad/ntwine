@@ -7,15 +7,15 @@ import { store } from "../store.ts"
 
 // REVIEW CHANGES — everything a thread changed, as the editor's multi-file diff against where it started
 // (ARCHITECTURE.md § VS Code extension). Claude Code and Cursor show an agent's edits
-// as native diffs; an Ntwine worker edits files directly, often in a worktree of its own, so here the
+// as native diffs; an ntwine worker edits files directly, often in a worktree of its own, so here the
 // review is of what is on disk, opened in the editor where the human can fix what they see in place.
 //
-// WHERE IT IS OFFERED, and why only there. The diff is the EDITOR's (the Ntwine extension's), so the action
+// WHERE IT IS OFFERED, and why only there. The diff is the EDITOR's (the ntwine extension's), so the action
 // exists only where one can show it:
 //   - in the editor's sidebar (embed mode), always: the page names the thread to its host
-//     (`ntwine:review`), which asks Ntwine for what it changed and opens the diff in THAT window;
+//     (`ntwine:review`), which asks ntwine for what it changed and opens the diff in THAT window;
 //   - in a browser tab, while an editor window that can review is connected (`reviews` on the window
-//     summary — an extension from before the feature never says it can): Ntwine pushes the review to the
+//     summary — an extension from before the feature never says it can): ntwine pushes the review to the
 //     window that has the thread's checkout open, which opens it and comes to the front. The label names
 //     that editor, because the click leaves the browser.
 // No editor connected, no item: an in-browser diff is a different feature, and an item that could only

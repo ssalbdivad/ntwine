@@ -1,23 +1,23 @@
-// THE SIDEBAR'S DOCUMENTS — the HTML VS Code serves into the Ntwine view. Two kinds:
+// THE SIDEBAR'S DOCUMENTS — the HTML VS Code serves into the ntwine view. Two kinds:
 //
-//  - the FRAME document: one full-bleed iframe of the Ntwine page, and the relay script, which is the only
-//    thing that runs in it. Its CSP names exactly one frame origin (Ntwine's), loads nothing else, and lets
+//  - the FRAME document: one full-bleed iframe of the ntwine page, and the relay script, which is the only
+//    thing that runs in it. Its CSP names exactly one frame origin (ntwine's), loads nothing else, and lets
 //    only its own nonce'd script and style run.
 //  - a MESSAGE document: a line of copy and a button or two, in VS Code's own colours, for the states
-//    with no page to show (Ntwine not found, a port Ntwine would refuse).
+//    with no page to show (ntwine not found, a port ntwine would refuse).
 //
 // Pure strings, no `vscode`: sidebar-html.test.ts pins the CSP, the escaping and the relay's rules.
 //
 // The relay. Three documents take part (embed-protocol.ts): the extension host, this document (served
 // from a `vscode-webview://` origin) and the page in its iframe. Messages cross it unchanged:
-//  - page → host: only from ITS iframe (`event.source === frame.contentWindow`) at Ntwine's origin, sent on
+//  - page → host: only from ITS iframe (`event.source === frame.contentWindow`) at ntwine's origin, sent on
 //    as `{ page: <message> }`. The extension validates the message again (embed.ts parsePageMessage).
 //  - host → page: VS Code's host frame delivers the extension's messages at this document's own origin
 //    (pre/index.html, `contentWindow.postMessage(…, window.origin)`), and that ORIGIN is how they are
 //    known: VS Code sets `window.parent = window` in a webview document (its injected API script), so
 //    the source cannot be compared with the parent, and each webview's origin is its own — only VS
 //    Code's frame and this document share it. A `ntwine:` message is posted on with `targetOrigin` =
-//    Ntwine's origin, so if the frame were ever somewhere else the browser drops it instead of handing it
+//    ntwine's origin, so if the frame were ever somewhere else the browser drops it instead of handing it
 //    selected code.
 //  - the view's own traffic never reaches the page: `{ view: … }` from this document (its buttons, its
 //    platform, `focused` when it takes the keyboard, `loaded` for each document the frame loads) and `{ view: "hint" }` from the extension, which
@@ -32,7 +32,7 @@
 // the body's class), and puts the first one on the frame's address as a fragment, so the page's FIRST
 // paint is already in them (embed-protocol.ts EMBED_THEME_FRAGMENT). While `ntwine.matchEditorTheme` is
 // off (`match` false, then `{ view: "match-theme" }` from the extension) its theme messages carry no
-// colours, and the page wears Ntwine's own palette.
+// colours, and the page wears ntwine's own palette.
 
 import { randomBytes } from "node:crypto"
 import { EMBED_THEME_COLORS, EMBED_THEME_FRAGMENT, type EmbedSurface } from "@ntwine/shared/embed-protocol"
@@ -127,20 +127,20 @@ export function messageDocument(input: { nonce: string; text: string; actions: r
 
 /** The text and buttons of the bar shown over a page that has not said it is ready. */
 export const HINT = {
-  text: "Ntwine hasn't finished loading here.",
+  text: "ntwine hasn't finished loading here.",
   actions: [{ action: "reload", label: "Reload" }, { action: "browser", label: "Open in browser", secondary: true }],
 } as const
 
 /**
- * The bar's words when the Ntwine the frame reached is one from before the sidebar (its editor connection
+ * The bar's words when the ntwine the frame reached is one from before the sidebar (its editor connection
  * says so — sidebar.ts SidebarHost.pageSupport): its page will never say it is ready, and "hasn't finished
  * loading" sent the human to wait, or to Reload, for something that was never coming.
  */
-export const HINT_OLD_NTWINE = "This Ntwine is older than the sidebar. Update Ntwine to use it here, or open it in your browser."
+export const HINT_OLD_NTWINE = "This ntwine is older than the sidebar. Update ntwine to use it here, or open it in your browser."
 
 /**
- * The iframe of Ntwine at `url` (whose origin is `origin`), and the relay. `hint`: the bar's words, shown
- * from the first paint — for an Ntwine already known to predate the sidebar, rather than a message posted
+ * The iframe of ntwine at `url` (whose origin is `origin`), and the relay. `hint`: the bar's words, shown
+ * from the first paint — for an ntwine already known to predate the sidebar, rather than a message posted
  * at a document whose relay may not be listening yet. `state`: kept with VS Code's webview state
  * (`setState`), which is what a thread's editor tab is restored from after a window reload
  * (thread-panel.ts); JSON, and only names — never anything the page showed.
@@ -169,7 +169,7 @@ export function frameDocument(input: {
 <body>
 <div class="frame">
 <div class="hint" id="hint" role="status"${input.hint ? "" : " hidden"}><p id="hint-text">${escapeHtml(input.hint ?? HINT.text)}</p><div class="actions">${buttons(HINT.actions)}</div></div>
-<iframe id="ntwine" title="Ntwine" allow="clipboard-read; clipboard-write; local-network-access"></iframe>
+<iframe id="ntwine" title="ntwine" allow="clipboard-read; clipboard-write; local-network-access"></iframe>
 </div>
 <script nonce="${input.nonce}">
   const vscode = acquireVsCodeApi()${input.state ? `
@@ -214,7 +214,7 @@ export function frameDocument(input: {
   restyled.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] })
   restyled.observe(document.body, { attributes: true, attributeFilter: ["class"] })
   posted = JSON.stringify(themeMessage(undefined))
-  // Every document the frame loads — the first, and any the page loads itself (a reload after Ntwine
+  // Every document the frame loads — the first, and any the page loads itself (a reload after ntwine
   // restarts) — including the browser's error page for a reload that reached no server. The extension
   // counts them: a page that reloaded and never says it is ready is gone (sidebar.ts).
   frame.addEventListener("load", () => vscode.postMessage({ view: "loaded" }))
@@ -254,7 +254,7 @@ export function frameDocument(input: {
   // focused frame — the page under it loses the keyboard though nothing here moved. Focusing the frame
   // element again would be a no-op (it is the active element), so the page's window is focused instead.
   //
-  // And the extension hears of it: which Ntwine the human used last — the sidebar or a thread's tab — is
+  // And the extension hears of it: which ntwine the human used last — the sidebar or a thread's tab — is
   // where Ctrl+L in the editor takes the selection (app.ts frontFrame).
   window.addEventListener("focus", () => {
     vscode.postMessage({ view: "focused" })

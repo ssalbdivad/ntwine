@@ -2,7 +2,7 @@ import { formatFileReference, splitFilePosition, type FilePosition } from "@ntwi
 import { apiBase, isRetiredAppPath, projectSlug, APP_ROUTE_SEGMENTS, MACHINE_ROUTE_SEGMENTS } from "./base-path.ts"
 import { dirnameLike, isRooted, joinLike } from "./paths.ts"
 // Markdown is often written by tools that report local artifacts as links. A browser interprets a
-// POSIX absolute path as a same-origin URL path, which both navigates away from Ntwine and produces a
+// POSIX absolute path as a same-origin URL path, which both navigates away from ntwine and produces a
 // deceptive localhost URL. Identify those targets before DOM sanitization so they can never become
 // navigable anchors. This module deliberately does not decide filesystem authorization: the server's
 // origin-gated `/local-image` route serves any absolute path that realpath-resolves to a regular image
@@ -28,7 +28,7 @@ const WINDOWS_ABSOLUTE_PATH = /^[a-zA-Z]:[\\/](?![\\/])/
 // Agents under user-level "link every file" instructions write these (`[plan.md](cursor://file/<abs>)`)
 // because in a terminal that is the only clickable form. Left as an anchor, the OS resolves the scheme
 // and the named editor opens no matter what the "Local file links" setting says — and a `.md` file
-// never reaches Ntwine's own reader. Classify the path the link names instead, so it routes exactly
+// never reaches ntwine's own reader. Classify the path the link names instead, so it routes exactly
 // like a plain path link. The path may carry its own leading slash (`cursor://file//Users/…`) or lean
 // on the route's (`cursor://file/Users/…`); both forms occur in the wild and both editors accept both.
 const EDITOR_FILE_URL = /^(?:cursor|vscode|vscode-insiders|windsurf):\/\/file\/(.*)$/i
@@ -75,7 +75,7 @@ function isNtwineRoute(href: string): boolean {
   // A link that names its project — a drawer, `/all/nub/thread/x`, or its `/full` — is in-app whichever
   // page it is read on.
   if (projectSlug(bare)) return true
-  // So is an address Ntwine itself minted before 2026-09-28 (`/project/nub/thread/x`): it lands on the
+  // So is an address ntwine itself minted before 2026-09-28 (`/project/nub/thread/x`): it lands on the
   // page, where a local-file chip would ask the server to open a file that is not there.
   if (isRetiredAppPath(bare)) return true
   const first = bare.split("/")[1] ?? ""
@@ -182,7 +182,7 @@ export function isProxiedVideoPath(path: string): boolean {
   return PROXIED_VIDEO_PATH.test(path)
 }
 
-// Must match the server's `MARKDOWN_FILE_EXT`. A local path with this extension is rendered by Ntwine's
+// Must match the server's `MARKDOWN_FILE_EXT`. A local path with this extension is rendered by ntwine's
 // own reader drawer instead of being handed to the desktop opener — the one local file kind the app
 // knows how to show. The strip mirrors an editor cursor suffix (`README.md:12`) the way
 // resolveOpenableFile does, so a line-anchored reference still reads as Markdown. `.mdx` counts: an MDX
@@ -202,7 +202,7 @@ export function isLocalMarkdownFile(path: string): boolean {
 // as it typed it into the shell. With no base, none of those is a local path OR a working URL: the
 // anchor stayed relative and the browser resolved it against the PAGE, so clicking a handoff link in a
 // drawer navigated to a path under the drawer's own address (`/all/nub/thread/.ntwine/threads/<id>/…`)
-// and out of Ntwine entirely.
+// and out of ntwine entirely.
 //
 // The base is the rendering document's own directory for the file reader, and the PROJECT DIRECTORY
 // for every other surface — the same root the server resolves a bare inline-code path against

@@ -8,7 +8,7 @@ metadata:
 
 # ntwine-artifact-e2e — verify on the promoted artifact, not the dev stack
 
-Ntwine serves a PROMOTED ARTIFACT from `~/.ntwine/builds/<digest>/runtime/`, never the source checkout
+ntwine serves a PROMOTED ARTIFACT from `~/.ntwine/builds/<digest>/runtime/`, never the source checkout
 (see the `ntwine-servers-run-promoted-artifacts` memory). The `ntwine-stack` isolated stack runs
 `startServer({dev:true})` — SOURCE. So a green `ntwine-stack` run proves the dev path, NOT the shipped build:
 bundling, detached-daemon emission (`build-runtime.mjs` writes each `DETACHED_DAEMON_ENTRIES` file beside
@@ -26,7 +26,7 @@ catches it.
 it. Two gotchas:
 
 - **You are probably running inside an ntwine worker**, so your env has `NTWINE_DEV_CHILD=1` and `NTWINE_LAUNCH_*`.
-  Left set, `ntwine-dev` takes the CHILD path and dies `"Ntwine control-plane child has no live matching
+  Left set, `ntwine-dev` takes the CHILD path and dies `"ntwine control-plane child has no live matching
   project launch owner"`. Strip them.
 - Use a **throwaway git repo** as the project (isolated `~/.ntwine/projects/<id>`), **real HOME** (so
   Keychain claude auth works — a sandbox HOME fails `AUTH_REQUIRED:claude`), and force the feature on.
@@ -52,7 +52,7 @@ nub -e 'const r=JSON.parse(require("fs").readFileSync(process.env.HOME+"/.ntwine
 Run that BEFORE you launch and again after you clean up, and diff the two. Any project of yours that survives is one the maintainer now has to delete by hand. Remove the registry entry and its `~/.ntwine/projects/<id>` state dir, then re-run the check and confirm the list matches what you started with.
 
 Run it with Bash `run_in_background: true`. First launch BUILDS the artifact (esbuild runtime + web build,
-~30-90s). Wait for `requested Ntwine in your default browser — http://127.0.0.1:<PROXY>` (the proxy port; the
+~30-90s). Wait for `requested ntwine in your default browser — http://127.0.0.1:<PROXY>` (the proxy port; the
 child API logs `server on http://127.0.0.1:<CHILD> (prod)` — `(prod)` confirms it's the artifact, not dev).
 Drive the PROXY url.
 
@@ -72,7 +72,7 @@ for (let i=0;i<40;i++){ await sleep(3000)
 
 For a worker-environment change, dispatch a prompt that uses the real surface — a `ntwine:haiku` sub-agent,
 the ntwine MCP (`mcp__ntwine__spawn_thread`), the cc-worker hooks — and assert the sub-agent's marker token
-routes back. A plain "write a file" proves almost nothing. Ntwine mounts **no browser** into a worker (since
+routes back. A plain "write a file" proves almost nothing. ntwine mounts **no browser** into a worker (since
 2026-08-26 the only server it injects is `ntwine`), so a dispatched worker has chrome-devtools tools only
 when the project it runs in brings them — this repo does, through its own `.mcp.json`; a throwaway repo
 does not. If your change is about the worker environment, assert which of the two you expect.
@@ -108,11 +108,11 @@ record. A thread that dies quietly is the failure mode; a wrong answer is a much
 ### 3. Screenshot in a real browser tab
 
 The `chrome-devtools` MCP is the reliable path here (`scripts/shot.mjs`'s puppeteer Chrome tends to hang in
-a worker env). It is YOUR tool, from this repo's `.mcp.json` — not something Ntwine put in the worker you
+a worker env). It is YOUR tool, from this repo's `.mcp.json` — not something ntwine put in the worker you
 dispatched. `new_page` the proxy url → `wait_for` the thread text → `take_screenshot`. **Write the shot
 under a chrome workspace root** (e.g. the ntwine repo dir), NOT `/tmp` (access denied); then move it to a
 trusted embed root (`~/Screenshots`, the project dir, or `os.tmpdir()`) for the handoff and clean the repo.
-Ntwine only lists a project's threads when the project has a `.ntwine/` dir — `mkdir -p $REPO/.ntwine/threads` if it's
+ntwine only lists a project's threads when the project has a `.ntwine/` dir — `mkdir -p $REPO/.ntwine/threads` if it's
 otherwise empty.
 
 ### 4. Clean up

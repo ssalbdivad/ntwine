@@ -33,7 +33,7 @@ test("fence options are never mistaken for a label", () => {
   assert.equal(parseFenceLabel(`ts ${"word ".repeat(30)}`), null, "a sentence is not a name")
 })
 
-test("the fences Ntwine draws as something else are never tabs", () => {
+test("the fences ntwine draws as something else are never tabs", () => {
   for (const name of ["lightbox", "mermaid", "question", "done", "awaiting"]) {
     assert.equal(parseFenceLabel(`${name} qst_ab12cd34`), null, name)
   }

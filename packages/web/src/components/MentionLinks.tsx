@@ -57,7 +57,7 @@ export function useMentionSegments(text: string): MentionTextSegment[] {
   }, [text, index, projects])
 }
 
-// `#slug` OPENS THE PROJECT — the page focused on it, as choosing it in the switcher does. The thread
+// `#slug` OPENS THE PROJECT — the page focused on it, as choosing it in the dock does. The thread
 // mention's look and click contract: underlined in the host's colour, a plain click moves the page in
 // place, a modified click is the browser's (a new tab focused on the project).
 export function ProjectMentionLink({ segment }: { segment: Extract<MentionTextSegment, { kind: "project" }> }) {
@@ -123,7 +123,7 @@ function ThreadMentionLink({ segment, href, onOpen, title, className = "underlin
 
 // A THREAD NAMED BY NTWINE, NOT BY A HUMAN'S TEXT — the spinoff card's child, the child's way back to its
 // parent (Spinoff.tsx). It is the mention link above with the name filled in from the board rather than
-// scanned out of prose, so a thread Ntwine points at reads and clicks exactly like one the human typed:
+// scanned out of prose, so a thread ntwine points at reads and clicks exactly like one the human typed:
 // `@handle`, a plain click opens its drawer, a modified click follows the address. One link style, not
 // a third (David 2026-09-30: "link and mention the spinoff by name with the new @ feature").
 //

@@ -29,7 +29,7 @@ The research behind every claim, with file:line, is in the planning thread's scr
 
 | # | Principle | Upstream's words (standup notes) |
 |---|---|---|
-| S1 | **Every thread belongs to one of five rails, and that status distinction is core information** that must never be lost from view | "a unified sidebar loses important conceptual information in Ntwine, especially thread status distinctions, because each thread belongs to one of '5 rails.'" |
+| S1 | **Every thread belongs to one of five rails, and that status distinction is core information** that must never be lost from view | "a unified sidebar loses important conceptual information in ntwine, especially thread status distinctions, because each thread belongs to one of '5 rails.'" |
 | S2 | **Workspaces/projects stay separate** | "[upstream's] strongest product intuition is still that workspaces/projects should stay separate, which aligns with other tools like Claude, ChatGPT, and T3." |
 | S3 | **The default must hold up at heavy load,** e.g. upstream's 17 projects and ~70 open threads, against a sidebar that fits ~15–20 rows. No view fits 70, upstream's included, so in practice this means **capacity parity: the default shows at least as much as upstream's does** (§2) | "the unified-sidebar model does not scale for [upstream's] usage because [upstream] currently has '17 projects' and around '70 active threads'"; "a single sidebar only fits around '20' threads at most, and closer to '15' once project-group spacing is included" |
 | S4 | **Mainline takes changes in pieces:** cherry-picks, soundness fixes first, no wholesale structural changes | "integrating the fork will likely be 'a cherry-pick situation'"; "substantive structural changes in the fork that [upstream] does not want to pull back into main wholesale"; "use agents to categorize changes from the fork and identify soundness fixes worth cherry-picking" |
@@ -50,7 +50,7 @@ argued rather than hidden.
 | P2 | Five named bands; Queue and Running never hidden (Sidebar.tsx:47-48, 259; 45ce008e) | **Upheld** in the project board, with S1 (§2); in All projects every row keeps its band mark. |
 | P3 | Upstream's vocabulary: Queue, Running, board | **Adopted** (§2): no feature cost, and the fork's own CLAUDE.md already teaches agents upstream's band names. |
 | P4 | `/project/<slug>` URLs; `?project=` was rejected (singleton-ntwine.md:131) | **Adopted** for the project board (§2). |
-| P5 | Ntwine runs no model of its own (ARCHITECTURE.md:5) | **Kept, with an off switch.** See below. |
+| P5 | ntwine runs no model of its own (ARCHITECTURE.md:5) | **Kept, with an off switch.** See below. |
 | P6 | The worker contract is mechanics only; every token costs | **Kept, trimmed where inert.** Tools and sections tied to an absent capability are not listed (§5). |
 | P7 | Few settings | No setting for the view (the URL names it, §2). One setting for model calls, replacing today's env-only switches. |
 | P8 | Keyboard is ⌘K, ⌘I and Esc | **Kept on.** The single-key layer is visible (the `?` sheet) and rebindable. |
@@ -269,10 +269,10 @@ The fork's contract and tools stay. Under P6 two cheap changes remove cost witho
 
 ## 7. The plugin system (built, then removed)
 
-Step 9 built a plugin system (loader, web slots, per-plugin database, Settings → Ntwine plugins) to hold features that
+Step 9 built a plugin system (loader, web slots, per-plugin database, Settings → ntwine plugins) to hold features that
 don't make the product, with lazy threads as its one plugin. On 2026-10-07 David removed lazy threads and then the
 system, since it had no other user: an empty extension API is structure upstream never asked for. It can be restored from
-git (`refactor(plugins): remove the Ntwine plugin system`) if a declined feature needs a home. The held-thread primitive
+git (`refactor(plugins): remove the ntwine plugin system`) if a declined feature needs a home. The held-thread primitive
 it introduced stays, because a schedule's next run is one.
 
 ---
@@ -432,7 +432,7 @@ Each line names the step it amends.
   The rename keeps every row; `queued_at` is dropped.
 - Upstream's `pendingCallDeadline` kept with the fork's awake time passed in. Two behaviours now follow upstream: a
   dead child mid-call reads stale 15m past its call's deadline (the fork said 2m), and only Bash declares a bound.
-- Spinoff's legacy side-turn path is NOT cut. Codex has no session fork in Ntwine's app-server client, ACP has none
+- Spinoff's legacy side-turn path is NOT cut. Codex has no session fork in ntwine's app-server client, ACP has none
   that is portable, cross-project spinoffs use the brief route by David's 2026-09-30 call (cce227b4), and a parent
   with no transcript has nothing to fork.
 - Quotes: fork-added `maintainer YYYY-MM-DD` quotes dated from the fork point (2026-09-26) whose text is not in
@@ -464,7 +464,7 @@ the default". So:
 - Capacity is unchanged, with the rail off and on: All projects 23/30, the board 22/29.
 
 **Step 9 (plugins)**
-- User-visible copy says "Ntwine plugins", apart from Claude Code plugins ("Reload plugins"). The final name is
+- User-visible copy says "ntwine plugins", apart from Claude Code plugins ("Reload plugins"). The final name is
   upstream's call (§8).
 - The held thread keeps a downgrade-safe shadow: every held row also carries a non-null `lazy_prompt`, so an
   older server generation reads it as an unstarted thread. Nothing is dropped.
@@ -486,10 +486,10 @@ the default". So:
 
 David asked that nothing reach upstream that reads as bloat. He picked these from a ranked audit, and each is one commit
 whose body says what went and what replaced it:
-- **The Ntwine plugin system** (`refactor(plugins): remove the Ntwine plugin system`). Held threads stay for schedules;
+- **The ntwine plugin system** (`refactor(plugins): remove the ntwine plugin system`). Held threads stay for schedules;
   the `plugins` slug is no longer reserved; the alternate submit beside Send went with its slot.
 - **The desktop app** (`refactor(desktop): remove the Electron desktop app`), with its release workflow and docs.
-- **Spinoff's side turn** (`refactor(spinoff): replace the side-turn brief route with a summary Ntwine builds itself`).
+- **Spinoff's side turn** (`refactor(spinoff): replace the side-turn brief route with a summary ntwine builds itself`).
   This supersedes Step 7's "NOT cut". A Codex, ACP, cross-project or no-transcript parent now gets a fresh child whose
   prompt carries the parent's request and latest handoff. Nothing reaches the parent, and no model is called.
 - **The Bash pre-filter** (`refactor(cc-worker): the per-Bash hook calls node directly; …`). The cost is about 67ms
@@ -500,16 +500,16 @@ whose body says what went and what replaced it:
 Not removed, after the audit: terminals, schedules and their live reading, time limits, cords, ImageViewer, Remote
 access in Settings, the rarely-used settings and thread info.
 
-From upstream's tenets on hand-off (the worker's own last word decides a thread's state; Ntwine only checks it), David
+From upstream's tenets on hand-off (the worker's own last word decides a thread's state; ntwine only checks it), David
 chose three changes:
-- **A typed message leaves questions open.** Set-aside and `keep` are gone, so Ntwine never withdraws a question by
+- **A typed message leaves questions open.** Set-aside and `keep` are gone, so ntwine never withdraws a question by
   omission. This supersedes §4's row and §8's item. The 10-minute default still skips a question the human typed past.
 - **A wait on another thread takes the awaiting fence**, naming it under `threads:`. `await_reply` no longer parks on
   its own, and its own timeout is gone; the fence's `for:` is the timeout.
 - **A running thread never queues.** Quiet-turn queueing is gone, superseding Step 5's note. A terminal waiting at a
   prompt still queues its thread, which is a separate rule from the same commit.
 
-Kept by David's choice, and documented in ARCHITECTURE.md as Ntwine acting on a clock or with a model: the 10-minute
+Kept by David's choice, and documented in ARCHITECTURE.md as ntwine acting on a clock or with a model: the 10-minute
 default answer, the 30-minute check-in on sub-agent parks, model-written names and status lines (Background
 summaries), and per-question delivery.
 

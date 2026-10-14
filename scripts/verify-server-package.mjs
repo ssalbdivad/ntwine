@@ -216,10 +216,10 @@ try {
     restartRequested = true
     await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 2 })
     await page.goto(`${base}/`, { waitUntil: "networkidle2" })
-    await page.waitForSelector('button[aria-label="Update Ntwine"]:not(:disabled)', { visible: true })
+    await page.waitForSelector('button[aria-label="Update ntwine"]:not(:disabled)', { visible: true })
     await page.screenshot({ path: join(out, "before-update.png") })
     const accepted = page.waitForResponse((response) => response.url().endsWith("/update-restart") && response.request().method() === "POST")
-    await page.click('button[aria-label="Update Ntwine"]')
+    await page.click('button[aria-label="Update ntwine"]')
     assert.equal((await accepted).status(), 202)
     const updated = await until("browser server update", async () => {
       const state = await status()
@@ -253,8 +253,8 @@ try {
     restartRequested = false
     await page.reload({ waitUntil: "networkidle2" })
     // The update installed the newest version the registry offers, so the button is in its greyed
-    // "up to date" state (1ea81aa1, 2026-09-25), not the plain "Restart Ntwine" one.
-    await page.hover('button[aria-label="Ntwine is up to date"]')
+    // "up to date" state (1ea81aa1, 2026-09-25), not the plain "Restart ntwine" one.
+    await page.hover('button[aria-label="ntwine is up to date"]')
     await page.waitForSelector("#update-restart-popover", { visible: true })
     await until("updated version in browser", () => page.$eval("#update-restart-popover .font-mono", (el, version) => el.textContent.replace(/^Server /, "") === version, currentVersion))
     const popover = await page.$("#update-restart-popover")

@@ -61,7 +61,7 @@ test("inheritWorkerEnvironment copies everything but ntwine's own, and drops und
   assert.notEqual(snapshot as unknown, mutable as unknown)
 })
 
-// An Ntwine launched from a terminal in VS Code (or Cursor, Windsurf) with Claude Code's extension installed
+// An ntwine launched from a terminal in VS Code (or Cursor, Windsurf) with Claude Code's extension installed
 // inherits that window's IDE server port; every background Claude worker would then attach to the human's
 // editor. The values below are what anthropic.claude-code 2.1.287 writes into a terminal and what the
 // 2.1.287 CLI reads to find an editor.

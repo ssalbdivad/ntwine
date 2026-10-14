@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { WebSocket, WebSocketServer } from "ws"
 import { EDITOR_CLOSE, EDITOR_MAX_FOLDERS, EDITOR_MAX_PATH, EDITOR_SOCKET_PATH, EDITOR_STATE_MAX_SELECTION_TEXT, type EditorClientMessage, type EditorOpen, type EditorProject, type EditorServerMessage, type EditorSnapshot } from "@ntwine/shared/editor-protocol"
-// The server's OWN frame rules (the extension never bundles these): a frame Ntwine would refuse fails here.
+// The server's OWN frame rules (the extension never bundles these): a frame ntwine would refuse fails here.
 import { EditorClientMessageSchema } from "@ntwine/shared"
 import { EDITOR_MAX_FRAME_BYTES, EDITOR_MAX_PAYLOAD_BYTES } from "../../server/src/editor-bridge.ts"
 import { notConnectedMessage } from "./status.ts"
@@ -22,7 +22,7 @@ class FakeNtwine {
   readonly sockets: WebSocket[] = []
   /** Answer each hello with welcome + projects, as the server does. */
   welcome = true
-  /** What the welcome says this Ntwine takes beyond v1, as the real one does; undefined is an Ntwine from before the field. */
+  /** What the welcome says this ntwine takes beyond v1, as the real one does; undefined is an ntwine from before the field. */
   features: string[] | undefined = ["editor-state"]
   projects: EditorProject[] = [{ id: "p1", slug: "repo", name: "repo", dir: "/home/me/repo", ready: 2, working: 1 }]
   readonly #server: Server
@@ -215,7 +215,7 @@ test("state is sent whole when it changes, and not at all when it has not", asyn
   }
 })
 
-test("a change between the hello and the welcome is sent as soon as Ntwine welcomes the window", async () => {
+test("a change between the hello and the welcome is sent as soon as ntwine welcomes the window", async () => {
   const ntwine = await new FakeNtwine().listen()
   ntwine.welcome = false
   const host = makeHost(ntwine)
@@ -247,8 +247,8 @@ function picture(selected: string, over: Partial<EditorSnapshot> = {}): EditorSn
   }
 }
 
-test("the editor's picture goes only to an Ntwine whose welcome names it: on connect, then only when it changes", async () => {
-  // An Ntwine from before the frame closes the socket on it (4401) — on every redial, forever — so it
+test("the editor's picture goes only to an ntwine whose welcome names it: on connect, then only when it changes", async () => {
+  // An ntwine from before the frame closes the socket on it (4401) — on every redial, forever — so it
   // must never hear one. Its welcome has no `features`.
   const old = await new FakeNtwine().listen()
   old.features = undefined
@@ -260,7 +260,7 @@ test("the editor's picture goes only to an Ntwine whose welcome names it: on con
     await until("the welcome", () => oldConnection.status.kind === "connected")
     oldConnection.sendEditor()
     await sleep(60)
-    assert.equal(old.of("editor").length, 0, "nothing an old Ntwine would refuse")
+    assert.equal(old.of("editor").length, 0, "nothing an old ntwine would refuse")
     assert.equal(oldConnection.sharesEditor, false)
     assert.match(oldHost.logs.join("\n"), /too old for its agents to read the editor/)
   } finally {
@@ -285,7 +285,7 @@ test("the editor's picture goes only to an Ntwine whose welcome names it: on con
     connection.sendEditor()
     await until("the changed picture", () => ntwine.of("editor").length === 2)
     assert.equal(ntwine.of("editor")[1]?.active?.selection?.text, "let x = 2")
-    // An Ntwine that restarted knows nothing: the same picture again on the new welcome.
+    // An ntwine that restarted knows nothing: the same picture again on the new welcome.
     ntwine.live.close(1001, "restarting")
     await until("the picture on the redial", () => ntwine.of("editor").length === 3)
     assert.deepEqual(ntwine.of("editor")[2], ntwine.of("editor")[1])
@@ -295,8 +295,8 @@ test("the editor's picture goes only to an Ntwine whose welcome names it: on con
   }
 })
 
-test("a window says it can show a thread's changes only to an Ntwine that asks, and answers a review with its result", async () => {
-  // An Ntwine from before the feature: its welcome does not name it, so the frame it would refuse never goes.
+test("a window says it can show a thread's changes only to an ntwine that asks, and answers a review with its result", async () => {
+  // An ntwine from before the feature: its welcome does not name it, so the frame it would refuse never goes.
   const old = await new FakeNtwine().listen()
   const oldHost = makeHost(old)
   oldHost.review = async () => ({ ok: true })
@@ -332,7 +332,7 @@ test("a window says it can show a thread's changes only to an Ntwine that asks, 
     ntwine.send(ntwine.live, { t: "review", id: "r2", ...target, title: "refuse" })
     await until("the refusal", () => ntwine.of("result").length === 2)
     assert.deepEqual(ntwine.of("result")[1], { t: "result", id: "r2", ok: false, error: "Nothing has changed in tidy yet." })
-    // A restarted Ntwine is told again.
+    // A restarted ntwine is told again.
     ntwine.live.close(1001, "restarting")
     await until("the features frame on the redial", () => ntwine.of("features").length === 2)
   } finally {
@@ -357,7 +357,7 @@ test("a window says it can show a thread's changes only to an Ntwine that asks, 
   }
 })
 
-test("a picture past Ntwine's ceiling is fitted before it is sent, never refused", async () => {
+test("a picture past ntwine's ceiling is fitted before it is sent, never refused", async () => {
   const { ntwine, host, connection, done } = await connected()
   try {
     // 32 Ki NULs (six bytes each, encoded) and a hundred long diagnostics: ~220 KB as built. The fake
@@ -376,7 +376,7 @@ test("a picture past Ntwine's ceiling is fitted before it is sent, never refused
   }
 })
 
-test("a withheld selection is spelled the way each Ntwine's schema takes it: `withheld` to one that names it, `truncated` to one from before", () => {
+test("a withheld selection is spelled the way each ntwine's schema takes it: `withheld` to one that names it, `truncated` to one from before", () => {
   const frame: EditorSnapshot = {
     t: "editor",
     shared: true,
@@ -386,7 +386,7 @@ test("a withheld selection is spelled the way each Ntwine's schema takes it: `wi
     problems: { errors: 0, warnings: 0 },
   }
   const now = forServer(frame, new Set(["editor-state", "editor-selection-withheld"]))
-  assert.equal(now, frame, "an Ntwine that takes the field gets the frame as built")
+  assert.equal(now, frame, "an ntwine that takes the field gets the frame as built")
   const before = forServer(frame, new Set(["editor-state"]))
   assert.deepEqual(before.active?.selection, { startLine: 1, endLine: 2, truncated: true })
   // Both spellings are frames today's server takes; the converted one carries nothing an older schema
@@ -422,14 +422,14 @@ test("every open and focus is answered with a result: ok, the window's own refus
   }
 })
 
-test("compose resolves with Ntwine's own answer; offline or unanswered, it fails with words to show", async () => {
+test("compose resolves with ntwine's own answer; offline or unanswered, it fails with words to show", async () => {
   const ntwine = await new FakeNtwine().listen()
   const host = makeHost(ntwine)
   const connection = new EditorConnection(host, { ...FAST, composeTimeoutMs: 150 })
   try {
     const offline = await connection.compose({ path: "/home/me/repo/a.ts" })
     assert.equal(offline.ok, false)
-    assert.equal(offline.error, "Ntwine isn't running.")
+    assert.equal(offline.error, "ntwine isn't running.")
 
     connection.start()
     await until("the welcome", () => connection.status.kind === "connected")
@@ -444,7 +444,7 @@ test("compose resolves with Ntwine's own answer; offline or unanswered, it fails
     assert.equal(answered.id, ntwine.of("compose")[0]?.id)
 
     const unanswered = await connection.compose({ path: "/home/me/repo/b.ts" })
-    assert.deepEqual([unanswered.ok, unanswered.error], [false, "Ntwine didn't answer."])
+    assert.deepEqual([unanswered.ok, unanswered.error], [false, "ntwine didn't answer."])
   } finally {
     connection.stop()
     await ntwine.close()
@@ -461,13 +461,13 @@ test("a dropped socket is dialled again from a fresh discovery, and says hello a
     await until("connected again", () => host.statuses.at(-1)?.kind === "connected")
     const kinds = host.statuses.map((s) => s.kind)
     assert.deepEqual(kinds.slice(-2), ["offline", "connected"])
-    assert.match(host.logs.join("\n"), /Ntwine is restarting\. \[1001\]/)
+    assert.match(host.logs.join("\n"), /ntwine is restarting\. \[1001\]/)
   } finally {
     await done()
   }
 })
 
-test("no Ntwine is offline, retried on the backoff, and logged once rather than once per retry", async () => {
+test("no ntwine is offline, retried on the backoff, and logged once rather than once per retry", async () => {
   const ntwine = await new FakeNtwine().listen()
   const host = makeHost(ntwine)
   host.reachable = false
@@ -475,10 +475,10 @@ test("no Ntwine is offline, retried on the backoff, and logged once rather than 
   try {
     connection.start()
     await until("several attempts", () => host.discovered >= 4)
-    assert.deepEqual(connection.status, { kind: "offline", reason: "Ntwine isn't running." })
+    assert.deepEqual(connection.status, { kind: "offline", reason: "ntwine isn't running." })
     assert.equal(host.logs.filter((line) => /isn't running/.test(line)).length, 1)
     host.reachable = true
-    await until("the connection once Ntwine is up", () => connection.status.kind === "connected", 2_000)
+    await until("the connection once ntwine is up", () => connection.status.kind === "connected", 2_000)
   } finally {
     connection.stop()
     await ntwine.close()
@@ -506,13 +506,13 @@ test("negative control: a heartbeat inside the silence window keeps the one sock
   }
 })
 
-test("close 4400 says to update Ntwine or the extension, and retries only at the slowest pace", async () => {
+test("close 4400 says to update ntwine or the extension, and retries only at the slowest pace", async () => {
   const { ntwine, host, connection, done } = await connected({ minBackoffMs: 10, maxBackoffMs: 400, random: () => 0.5 })
   try {
     ntwine.live.close(EDITOR_CLOSE.unsupportedVersion, "protocol 1 unsupported")
     await until("the incompatible status", () => connection.status.kind === "incompatible")
-    assert.match((connection.status as { reason: string }).reason, /Update Ntwine or the extension/)
-    assert.match(notConnectedMessage(connection.status), /Update Ntwine or the extension/)
+    assert.match((connection.status as { reason: string }).reason, /Update ntwine or the extension/)
+    assert.match(notConnectedMessage(connection.status), /Update ntwine or the extension/)
     assert.ok(host.logs.some((line) => line.startsWith("error ") && line.includes("[4400]")))
     await sleep(250)
     assert.equal(ntwine.of("hello").length, 1, "no quick retry against a server that cannot speak to us")
@@ -527,7 +527,7 @@ test("4401 and 4402 are refusals worth logging, then an ordinary reconnect", asy
   try {
     ntwine.live.close(EDITOR_CLOSE.invalidMessage, "bad frame")
     await until("the reconnect", () => ntwine.of("hello").length === 2)
-    assert.match(host.logs.join("\n"), /Ntwine refused a message from this window \(bad frame\)\. \[4401\]/)
+    assert.match(host.logs.join("\n"), /ntwine refused a message from this window \(bad frame\)\. \[4401\]/)
     ntwine.live.close(EDITOR_CLOSE.helloRequired, "")
     await until("the next reconnect", () => ntwine.of("hello").length === 3)
     assert.match(host.logs.join("\n"), /introduce itself first\. \[4402\]/)
@@ -536,22 +536,22 @@ test("4401 and 4402 are refusals worth logging, then an ordinary reconnect", asy
   }
 })
 
-test("an Ntwine from before the editor connection (a plain 404 on the upgrade) is told to update", async () => {
+test("an ntwine from before the editor connection (a plain 404 on the upgrade) is told to update", async () => {
   const ntwine = await new FakeNtwine({ editorPath: false }).listen()
   const host = makeHost(ntwine)
   const connection = new EditorConnection(host, FAST)
   try {
     connection.start()
     await until("the offline status", () => connection.status.kind === "offline")
-    assert.deepEqual(connection.status, { kind: "offline", reason: "This Ntwine has no editor connection yet. Update Ntwine." })
-    assert.equal(notConnectedMessage(connection.status), "This Ntwine has no editor connection yet. Update Ntwine.", "a command says so too, not that Ntwine is stopped")
+    assert.deepEqual(connection.status, { kind: "offline", reason: "This ntwine has no editor connection yet. Update ntwine." })
+    assert.equal(notConnectedMessage(connection.status), "This ntwine has no editor connection yet. Update ntwine.", "a command says so too, not that ntwine is stopped")
   } finally {
     connection.stop()
     await ntwine.close()
   }
 })
 
-test("an Ntwine that hangs up on the upgrade (one from before the editor connection, behind its supervisor) is told to update", async () => {
+test("an ntwine that hangs up on the upgrade (one from before the editor connection, behind its supervisor) is told to update", async () => {
   const server = createServer()
   server.on("upgrade", (_request, socket) => socket.destroy())
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
@@ -561,8 +561,8 @@ test("an Ntwine that hangs up on the upgrade (one from before the editor connect
   try {
     connection.start()
     await until("the offline status", () => connection.status.kind === "offline")
-    assert.deepEqual(connection.status, { kind: "offline", reason: "Ntwine didn't accept the editor connection. Update Ntwine if this keeps happening." })
-    assert.equal(notConnectedMessage(connection.status), "Ntwine didn't accept the editor connection. Update Ntwine if this keeps happening.")
+    assert.deepEqual(connection.status, { kind: "offline", reason: "ntwine didn't accept the editor connection. Update ntwine if this keeps happening." })
+    assert.equal(notConnectedMessage(connection.status), "ntwine didn't accept the editor connection. Update ntwine if this keeps happening.")
   } finally {
     connection.stop()
     await new Promise((resolve) => server.close(resolve))
@@ -579,7 +579,7 @@ test("stop closes the socket cleanly and nothing redials", async () => {
   await done()
 })
 
-test("a window with more folders than Ntwine takes still connects: the hello and every state are fitted, and the log says so once", async () => {
+test("a window with more folders than ntwine takes still connects: the hello and every state are fitted, and the log says so once", async () => {
   // 70 roots and one path past the cap: sent whole, the hello is refused (4401) on every redial, forever.
   const many = Array.from({ length: 70 }, (_, i) => `/home/me/roots/r${String(i).padStart(2, "0")}`)
   const long = `/home/me/${"x".repeat(EDITOR_MAX_PATH)}`
@@ -596,8 +596,8 @@ test("a window with more folders than Ntwine takes still connects: the hello and
     connection.sendState()
     await until("the state frame", () => ntwine.of("state").length === 1)
     assert.equal(ntwine.of("state")[0]!.folders.length, EDITOR_MAX_FOLDERS)
-    assert.deepEqual(host.logs.filter((line) => /Ntwine takes/.test(line)), [
-      "warn This window has 71 folders; Ntwine takes 64 of them (at most 64, none over 4096 characters), so file links to the rest open elsewhere.",
+    assert.deepEqual(host.logs.filter((line) => /ntwine takes/.test(line)), [
+      "warn This window has 71 folders; ntwine takes 64 of them (at most 64, none over 4096 characters), so file links to the rest open elsewhere.",
     ], "said once, not on every frame")
   } finally {
     connection.stop()
@@ -656,7 +656,7 @@ test("the backoff doubles from 1s to a 30s ceiling, jittered ±20%", () => {
   assert.equal(backoffDelay(9, 1_000, 30_000, () => 1), 30_000, "jitter never pushes past the ceiling")
 })
 
-test("an Ntwine that answers the editor socket with a 404 predates it; one that welcomes this window does not", async () => {
+test("an ntwine that answers the editor socket with a 404 predates it; one that welcomes this window does not", async () => {
   const old = await new FakeNtwine({ editorPath: false }).listen()
   const host = makeHost(old)
   const connection = new EditorConnection(host, FAST)

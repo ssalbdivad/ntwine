@@ -49,7 +49,7 @@ const CTRL_C = "\x03";
  * Re-raise ^C as the SIGINT the raw-mode tty swallowed. Dispatched to this process's own listeners
  * rather than through `process.kill(process.pid, "SIGINT")`: on Windows libuv implements a SIGINT
  * sent to a pid as an unconditional TerminateProcess, so the launcher's graceful `stop` handler
- * never ran there — no drain, no "Ntwine stopped" farewell, exit 1 (Windows audit 2026-09-11). With
+ * never ran there — no drain, no "ntwine stopped" farewell, exit 1 (Windows audit 2026-09-11). With
  * no listener installed the kill is the right thing on every platform: Node's default action.
  */
 export function raiseInterrupt(): void {

@@ -21,5 +21,5 @@ test("names the sender's project when it is another one", () => {
 
 test("leaves anything else alone", () => {
   assert.equal(parseThreadMessage("Message from @x about something:\n\nhi"), undefined)
-  assert.equal(parseThreadMessage("quoting: Message from @x, another Ntwine thread in this project:\n\nhi"), undefined)
+  assert.equal(parseThreadMessage("quoting: Message from @x, another ntwine thread in this project:\n\nhi"), undefined)
 })

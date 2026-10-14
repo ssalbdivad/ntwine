@@ -90,7 +90,7 @@ export function HistoryView({ projectIds, onOpen }: { projectIds?: readonly stri
           role="checkbox"
           aria-checked={external}
           onClick={() => setExternal((on) => !on)}
-          title="Include sessions Ntwine did not start"
+          title="Include sessions ntwine did not start"
           className="flex shrink-0 items-center gap-1.5 rounded px-1.5 py-1 text-[12px] text-muted-70 hover:bg-hover hover:text-fg"
         >
           <span aria-hidden className={`flex size-3 items-center justify-center rounded-[3px] border ${external ? "border-accent bg-accent" : "border-control-border"}`}>

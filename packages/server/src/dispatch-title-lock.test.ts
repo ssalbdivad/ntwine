@@ -104,7 +104,7 @@ test("a dispatch with NO caller title stores a guess that is likewise replaceabl
   assert.equal(row?.title_locked, 0)
 })
 
-// A SPINOFF's prompt opens with Ntwine's own "A spinoff of @parent…" line, so naming the child from the
+// A SPINOFF's prompt opens with ntwine's own "A spinoff of @parent…" line, so naming the child from the
 // prompt minted `a-spinoff-of-shell-budgets-thread-…` whenever the parent's worker gave no title or one
 // too long to type as a handle (2026-09-30). The router names it from the human's instructions and the
 // brief instead (`nameSource`), which feeds the fallback title, the slug, and the async mint alike.

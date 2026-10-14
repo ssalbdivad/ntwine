@@ -33,7 +33,7 @@ export function EditorLine({ box }: { box: ContextBox }) {
     queryKey: ["editorFront", box.projectDir ?? ""],
     queryFn: async () => (await rpc.editorFront({})).front,
     enabled: wanted,
-    // An Ntwine from before the procedure answers 404: no line, and no retry storm over it.
+    // An ntwine from before the procedure answers 404: no line, and no retry storm over it.
     retry: false,
     // The `editor-front` ping is what refreshes it (lib/editorBridge.ts editorFrontChanged), and a focus
     // back on the tab — the human returning from the editor — asks again as well (the query default).

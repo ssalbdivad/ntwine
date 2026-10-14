@@ -188,7 +188,7 @@ try {
     res.writeHead(200, { "content-type": "text/plain", "content-length": "13", "x-board": "yes" });
     res.end("BOARD-REACHED");
   });
-  // A REAL terminal on the board, because a relayed board you cannot type into is not Ntwine. This is
+  // A REAL terminal on the board, because a relayed board you cannot type into is not ntwine. This is
   // the seam nothing else exercises: the visitor's socket lives in workerd, this one is on loopback,
   // and every keystroke is a frame carried between two different runtimes.
   const wss = new WebSocketServer({ noServer: true });

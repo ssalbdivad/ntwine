@@ -937,7 +937,7 @@ test("displayTitle: a machine-generated session slug is never presented as a suc
   assert.equal(
     displayName(thread({ id: "internal-id", title: "internal-id", titleAuto: true, aiTitle: "conversation-summary-task" })),
     "Conversation summary task",
-    "a native backend slug is humanized (sentence case) even when it differs from the Ntwine thread id",
+    "a native backend slug is humanized (sentence case) even when it differs from the ntwine thread id",
   )
   // …and, being a real name of three words, it SHOWS as its handle.
   assert.equal(

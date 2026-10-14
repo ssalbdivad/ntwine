@@ -44,7 +44,7 @@ package.json.publish-backup
 # stale pre-hoist duplicate of packages/ (see ARCHITECTURE.md "Repo layout"); safe to delete
 /ui/
 
-# Secrets. Ntwine reads no dotenv file and should not start — this rule exists so that a stray one
+# Secrets. ntwine reads no dotenv file and should not start — this rule exists so that a stray one
 # never becomes committable, and it is deliberately broad. Real credentials belong OUTSIDE the repo
 # (~/.ntwine-cf-token, the login keychain) or in the platform's own secret store (`wrangler secret put`).
 .env

@@ -1,5 +1,5 @@
 // ── The launcher's terminal readout ────────────────────────────────────────────────────────────────
-// What the operator sees while Ntwine starts, and the block that stays on screen once it has.
+// What the operator sees while ntwine starts, and the block that stays on screen once it has.
 //
 // This replaces a single animated line that had to switch itself off (`beginConcurrentLogs`) as soon
 // as the forked control-plane child began writing to the same TTY — the launcher cannot clear another
@@ -375,7 +375,7 @@ export class Readout {
     }
     const lines = [
       "",
-      `  ${this.c(ANSI.red, "✗")}  ${this.c(ANSI.bold, "Ntwine could not start")}`,
+      `  ${this.c(ANSI.red, "✗")}  ${this.c(ANSI.bold, "ntwine could not start")}`,
       "",
       // Not truncated, for the same reason as `ready()`: the operator has to be able to read the whole
       // error and copy the whole path, and nothing repaints after this.
@@ -431,7 +431,7 @@ export function sliceVisible(line: string, limit: number): string {
  * A Readout that only ever prints notices, never a boot region.
  *
  * For a generation that inherited a live terminal mid-run — ntwine-dev re-execs itself in place when
- * Update Ntwine promotes a new artifact, so the successor owns the same tty with no boot to narrate.
+ * Update ntwine promotes a new artifact, so the successor owns the same tty with no boot to narrate.
  * Without one of these that successor is mute for the rest of its life, and every later restart it
  * performs is invisible again.
  */
@@ -444,8 +444,8 @@ export function noticeOnlyReadout(options: ReadoutOptions = {}): Readout {
 /**
  * Put a supervisor lifecycle beat on the launcher's terminal.
  *
- * Both launchers render these identically, and both had exactly nothing here before: Restart Ntwine
- * and Update Ntwine are clicked in a browser and a control-plane crash is clicked by nobody, so the
+ * Both launchers render these identically, and both had exactly nothing here before: Restart ntwine
+ * and Update ntwine are clicked in a browser and a control-plane crash is clicked by nobody, so the
  * foreground process took the board down and brought it back without ever saying so.
  */
 export function renderSupervisorActivity(readout: Readout | undefined, event: SupervisorActivity): void {

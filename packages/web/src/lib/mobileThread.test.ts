@@ -59,7 +59,7 @@ test("tokens and effort read in the phone footer's short grammar", () => {
   assert.equal(effortWord(undefined), undefined)
 })
 
-test("a link to the Ntwine machine is recognised as unreachable from a phone", () => {
+test("a link to the ntwine machine is recognised as unreachable from a phone", () => {
   assert.equal(isLoopbackUrl("http://localhost:5175/"), true)
   assert.equal(isLoopbackUrl("http://127.0.0.1:4930/x"), true)
   assert.equal(isLoopbackUrl("http://[::1]:8080/"), true)

@@ -11,7 +11,7 @@ import { CLI, TOOLS } from "../../../cc-worker/lib/ntwine-tools.mjs"
 import { buildWorkerPrompt } from "./workerPrompt.ts"
 
 // Drives the REAL cc-worker/bin/ntwinectl as a child process — its real argv, stdin, stdout and exit code
-// — against a REAL http server standing in for Ntwine's RPC surface. Nothing is imported from the command
+// — against a REAL http server standing in for ntwine's RPC surface. Nothing is imported from the command
 // line itself: a worker reaches it through a shell, so that is the only honest way to test it.
 
 // The module is run directly where a test only needs an answer; the tests that go through a real shell
@@ -80,13 +80,13 @@ async function fakeNtwine(answer: (procedure: string, body: any) => { status?: n
 
 interface Ran { code: number | null; stdout: string; stderr: string }
 
-/** The test runner's environment with every Ntwine identity removed. Left in, a leaked server lock or
+/** The test runner's environment with every ntwine identity removed. Left in, a leaked server lock or
  *  project id sends the test's calls to the live server instead of the fake one. */
 function hostEnv(): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^NTWINE_/.test(key)))
 }
 
-/** One invocation. `env` REPLACES the Ntwine identity a test runner inside a worker would leak in. */
+/** One invocation. `env` REPLACES the ntwine identity a test runner inside a worker would leak in. */
 function run(argv: string[], opts: { env?: Record<string, string>; stdin?: string; cwd?: string; holdStdinOpen?: boolean } = {}): Promise<Ran> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [NTWINECTL, ...argv], {
@@ -245,7 +245,7 @@ test("`ask` takes its questions as the object, as a bare list, or as one questio
 
 // THE REASON TEXT GOES THROUGH A FILE OR A QUOTED HEREDOC. A handoff is full of backticked commands and
 // paths; this is the path the contract teaches for them, driven through a real shell.
-test("a body through a quoted heredoc reaches Ntwine byte for byte — backticks, `$( )` and quotes unrun", async () => {
+test("a body through a quoted heredoc reaches ntwine byte for byte — backticks, `$( )` and quotes unrun", async () => {
   const fake = await fakeNtwine()
   try {
     const marker = join(mkdtempSync(join(tmpdir(), "ntwinectl-marker-")), "ran")
@@ -298,7 +298,7 @@ test("the caller is the environment's thread and nothing a command line can say"
   }
 })
 
-// A worker forked by an Ntwine that predates the command line was never handed NTWINE_STATE_DIR. Its shell
+// A worker forked by an ntwine that predates the command line was never handed NTWINE_STATE_DIR. Its shell
 // has had NTWINE_PERM_DIR all along, and that is enough to find the server and name the project.
 test("a shell that only has NTWINE_PERM_DIR still finds the server and its own project", async () => {
   const fake = await fakeNtwine()
@@ -309,7 +309,7 @@ test("a shell that only has NTWINE_PERM_DIR still finds the server and its own p
 
     const nowhere = await run(["activity"], { env: { NTWINE_THREAD: "lost" } })
     assert.equal(nowhere.code, 1)
-    assert.match(nowhere.stderr, /cannot locate the Ntwine server/)
+    assert.match(nowhere.stderr, /cannot locate the ntwine server/)
     assert.match(nowhere.stderr, /NOTHING WAS SAVED/)
   } finally {
     fake.close()
@@ -350,7 +350,7 @@ test("`watch-command` registers for the calling thread, reads a refusal as exit 
   const fake = await fakeNtwine((procedure, body) => {
     if (procedure !== "addOwnCommandWatch") return undefined
     if (mode === "refused") {
-      return { result: { refused: "Ntwine will not run a command watch for this thread: this thread runs in `default` permission mode. Run the check in a background shell instead.", alreadyArmed: false, passed: false, watches: [] } }
+      return { result: { refused: "ntwine will not run a command watch for this thread: this thread runs in `default` permission mode. Run the check in a background shell instead.", alreadyArmed: false, passed: false, watches: [] } }
     }
     if (mode === "passed") {
       return { result: { alreadyArmed: false, passed: true, firstRun: { at: "2026-10-11T14:00:00.000Z", outcome: "exit", exitCode: 0, output: "0.13.12\n" }, watches: [] } }
@@ -365,7 +365,7 @@ test("`watch-command` registers for the calling thread, reads a refusal as exit 
     const armed = await run(["watch-command", "add", "npm view ntwine@0.13.12 version", "--every", "5m", "--for", "6h"], { env: worker(fake) })
     assert.equal(armed.code, 0, armed.stderr)
     assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", command: "npm view ntwine@0.13.12 version", every: "5m", for: "6h" })
-    assert.match(armed.stdout, /^Watching as cmw_abc: Ntwine runs it every 5m until it exits 0/)
+    assert.match(armed.stdout, /^Watching as cmw_abc: ntwine runs it every 5m until it exits 0/)
     assert.match(armed.stdout, /Its first check exited 1\./)
     assert.match(armed.stdout, /`commands: \[cmw_abc\]`, `status: watching`/)
     assert.match(armed.stdout, /cmw_abc {2}every 5m, until 2026-10-11T20:00:00.000Z — 1 check, last check exited 1\n {4}\$ npm view ntwine@0\.13\.12 version/)
@@ -373,7 +373,7 @@ test("`watch-command` registers for the calling thread, reads a refusal as exit 
     mode = "refused"
     const refused = await run(["watch-command", "add", "true", "--every", "5m", "--for", "1h"], { env: worker(fake) })
     assert.equal(refused.code, 2)
-    assert.match(refused.stdout, /^NOT registered\. Ntwine will not run a command watch for this thread/)
+    assert.match(refused.stdout, /^NOT registered\. ntwine will not run a command watch for this thread/)
     assert.match(refused.stdout, /background shell instead/)
 
     mode = "passed"
@@ -428,7 +428,7 @@ test("a value is never read as a flag, a flag never as a value, and a JSON value
 })
 
 // A codex thread a human narrowed to `workspace-write` or `read-only` cannot open a socket, loopback
-// included, and codex says so in the shell's environment. "fetch failed" there reads as Ntwine being
+// included, and codex says so in the shell's environment. "fetch failed" there reads as ntwine being
 // down, which a worker answers by retrying; the message has to say that no retry can work.
 test("a shell sandboxed off the network is told so, and told not to retry", async () => {
   const fake = await fakeNtwine()

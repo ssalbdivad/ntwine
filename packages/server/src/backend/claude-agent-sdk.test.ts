@@ -167,7 +167,7 @@ test("real SDK + fake executable: init owns the requested session, input streams
       ntwineFakeInheritedPresent: false,
       ntwineFakeOverridePresent: false,
       clientApp: "ntwine/claude-agent-sdk-foundation",
-      // The SDK's own marker for how it launched the CLI, observed rather than set: Ntwine never reads
+      // The SDK's own marker for how it launched the CLI, observed rather than set: ntwine never reads
       // or writes CLAUDE_CODE_ENTRYPOINT, and the fixture only echoes it back. `sdk-ts` is the SDK's
       // default for a child whose env does not already carry the variable — which the harness now
       // guarantees (see the CLAUDE_CODE_ENTRYPOINT override above; the `sdk-cli` this pinned from
@@ -232,7 +232,7 @@ test("host runtime injection is stripped whatever case the OS spells its variabl
   }
 })
 
-test("listSkills offers the skills and the built-in commands an Ntwine thread can run", { timeout: 10_000 }, async () => {
+test("listSkills offers the skills and the built-in commands an ntwine thread can run", { timeout: 10_000 }, async () => {
   const harness = startHarness("basic")
   try {
     await withTimeout(harness.handle.ready(), "session init")
@@ -396,7 +396,7 @@ test("control frames that precede the session init are tolerated (same session) 
 })
 
 // The frame maps to a payload-free `kind:"other"`, so the plan windows it carries are read off the RAW
-// frame and handed to the observer — the only way a machine whose token Ntwine cannot read has a usage
+// frame and handed to the observer — the only way a machine whose token ntwine cannot read has a usage
 // reading at all (claude-quota-observed.ts). The observer here throws, because it runs inside the pump:
 // a telemetry consumer that fails must not take the session with it.
 test("a rate_limit_event hands its plan windows to the observer raw, and an observer that throws costs the session nothing", { timeout: 10_000 }, async () => {

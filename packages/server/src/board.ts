@@ -38,7 +38,7 @@ import { getSettings } from "./settings.ts"
 import { rowThreadName } from "./thread-names.ts"
 
 // The read model is provenance-bound to the durable session registry. A session row exists only after
-// Ntwine dispatches or explicitly adopts a thread, so unrelated legacy `.ntwine/*.md` files and raw
+// ntwine dispatches or explicitly adopts a thread, so unrelated legacy `.ntwine/*.md` files and raw
 // terminal transcripts never enter this board (or its queue/error surface). The tailer contributes
 // telemetry only for registered rows. Plan documents remain project artifacts and are read separately.
 
@@ -244,7 +244,7 @@ function effectiveSessionState(row: SessionRow, registeredLegacyTerminal: boolea
   return "open"
 }
 
-// Pre-session-first Ntwine rows may have state=NULL and derive their archived state from a paired
+// Pre-session-first ntwine rows may have state=NULL and derive their archived state from a paired
 // terminal thread document. Preserve that migration behavior without scanning the directory: open
 // only the canonical filename selected by a durable session row, reject symlinks at open time, and
 // read only whether status is `done`/`dismissed`. Malformed or missing files fail open as an active session and never
@@ -264,7 +264,7 @@ function registeredLegacyFileIsTerminal(projectDir: string, slug: string): boole
 // `.ntwine` itself). Everything else `assemble()` reads is ui.db and tailer state, and both arrive on
 // their own edges. So a full rebuild is warranted by a top-level `.md` and by nothing else down there.
 //
-// That distinction is worth money because `.ntwine/` is NOT only board state. Ntwine hands every
+// That distinction is worth money because `.ntwine/` is NOT only board state. ntwine hands every
 // dispatched worker `.ntwine/threads/<session-id>/` as a free-form scratch directory it may fill as it
 // likes (dispatch.ts), and the board CLI keeps a per-session sentinel plus a `.seen` liveness
 // heartbeat under `.ntwine/.session-state/` (board/config.mjs) — on this checkout, 715 scratch
@@ -454,7 +454,7 @@ export function stampShellBudgets(
 // THE FENCE REGISTERS NOTHING. It is display-only, and its whole job is to let a worker come to rest
 // without being bumped for a handoff. A background shell already wakes its agent when it finishes — the
 // harness reports the completion and the transcript carries a `wake` boundary for it, which is the
-// hairline you see in chat — and a sub-agent's return re-invokes its parent. Ntwine does not need to arm
+// hairline you see in chat — and a sub-agent's return re-invokes its parent. ntwine does not need to arm
 // anything for either, and an earlier version of this that did was solving a problem that does not
 // exist (maintainer 2026-08-14: "Any time a background shell completes, it should notify the agent…
 // Both subagents and background shells should be display-only here").
@@ -1111,7 +1111,7 @@ function bgSnoozeArmed(row: Pick<SessionRow, "bg_snooze_rested_at" | "rested_at"
 // and the human said which of the two they want to see: it leaves the queue and rests in Snoozed as a
 // `watching` rest, exactly where a worker's own `status: watching` park on a PR would put it, until the
 // watch reports — that wake starts a turn, the next rest is a different instant, and the park is spent,
-// so the worker's answer to the news decides the thread's place again. Ntwine parks nothing here on its
+// so the worker's answer to the news decides the thread's place again. ntwine parks nothing here on its
 // own: the snooze column is written only by the human's two clicks.
 //
 // Needs the armed watcher: a done the human parked on a watch that has since settled (merged, closed,
@@ -1364,7 +1364,7 @@ export function fenceWatchViews(
 // sub-agent phantom deriveRuntime's `headlessLostWork` fixed, and the same lesson.
 function hasFreshDelivery(row: SessionRow, processGone: boolean): boolean {
   if (processGone) return false
-  // `held` counts: Ntwine is keeping a message of the human's for exactly this rest and is about to
+  // `held` counts: ntwine is keeping a message of the human's for exactly this rest and is about to
   // deliver it (releaseHeldFollowUps), so the thread is not waiting on them either.
   return parseDeliveryLedger(row.delivery_ledger).some((d) => d.state === "sending" || d.state === "pending" || d.state === "enqueued" || d.state === "delivered" || d.state === "held")
 }
@@ -2029,7 +2029,7 @@ export function resolveSessionTitle(
   const locked = sessionTitleLocked(row)
   // Any non-zero value: rows written between 2026-09-29 14:0x and this line's revert carry
   // `title_agent = 2` (the retired setPeriodicTitle), and their titles are still the persisted ones. The
-  // name Ntwine MINTS at dispatch (thread-names.ts) persists the same way, so it too outranks the
+  // name ntwine MINTS at dispatch (thread-names.ts) persists the same way, so it too outranks the
   // transcript's live title the moment it lands.
   const persisted = row.title_agent ? row.title?.trim() || undefined : undefined
   // A CALLER's dispatch title (a spinoff's, a `spawn_thread` title: title_auto 0, unlocked) is a name too,
@@ -2850,7 +2850,7 @@ export function createBoard(
   // isBoardRelevantNtwinePath). Overlay-only refreshes remain filesystem-free.
   let legacyTerminalCache = new Set<string>()
 
-  // Build exactly the session-backed threads recorded by Ntwine. The registry is the provenance
+  // Build exactly the session-backed threads recorded by ntwine. The registry is the provenance
   // boundary: historical rows remain valid after migration/restart, and both Claude and Codex use the
   // same durable shape. Raw tailer discoveries never confer ownership.
   // Rows the human's own follow-up holds out of the queue (hasFreshDelivery, before any process check),

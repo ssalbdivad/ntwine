@@ -479,7 +479,7 @@ test("context window: latched — a later result that omits the row does not bla
 })
 
 // ---- the auto-compact ceiling ---------------------------------------------------------------------
-// Ntwine dispatches at the 1M window and then hands the worker a 500K CLAUDE_CODE_AUTO_COMPACT_WINDOW,
+// ntwine dispatches at the 1M window and then hands the worker a 500K CLAUDE_CODE_AUTO_COMPACT_WINDOW,
 // and Claude Code's effective window is the `min` of the two — its own /config help says so. The dial
 // divided by the model's number instead, so a session with 253,862 tokens of a 500K allowance rendered
 // "25% full" (maintainer 2026-09-01). The lowering lives here, once, so every reader downstream gets

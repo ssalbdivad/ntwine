@@ -1,7 +1,7 @@
 // Install the packaged extension (dist/ntwine-vscode-<version>.vsix — `nub run vscode:package` builds it)
 // into the VS Code whose windows will run it.
 //
-// The extension is `extensionKind: ["workspace"]`: it runs where the files and Ntwine are. Under WSL that
+// The extension is `extensionKind: ["workspace"]`: it runs where the files and ntwine are. Under WSL that
 // is NOT the Windows VS Code the `code` on PATH belongs to — a window on a WSL folder runs its workspace
 // extensions in the VS Code Server inside WSL, so the .vsix is installed there, with that server's own
 // CLI (the newest of `~/.vscode-server/bin/<commit>` and `~/.vscode-server/cli/servers/Stable-<commit>/server`).

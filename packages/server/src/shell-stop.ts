@@ -69,7 +69,7 @@ export function backgroundOpStoppable(deps: ShellStopDeps, slug: string, id: str
   if (row.backend === "codex") {
     return blocked(shell
       ? "Codex runs its background commands inside its own process and exposes no way to end one, so this terminal can't be stopped from here."
-      : "Codex does not expose per-sub-agent interruption to Ntwine, so this child can't be stopped from here.")
+      : "Codex does not expose per-sub-agent interruption to ntwine, so this child can't be stopped from here.")
   }
   if (row.claude_runtime !== "broker" || !deps.claudeBroker) {
     return blocked(`Stopping a ${noun} needs the Claude session broker; this thread predates it.`)
@@ -127,14 +127,14 @@ export async function noticeClaudeShellStopped(deps: ShellStopDeps, slug: string
       // Claude's `default` — see coldResumePermission.
       permissionMode: coldResumePermission(row, deps.getSettings()),
       // …and the same contract: a cold resume with no appendSystemPrompt rebuilt the worker with no
-      // Ntwine contract, scratch line or NTWINE.md (upstream affc40a2).
+      // ntwine contract, scratch line or NTWINE.md (upstream affc40a2).
       appendSystemPrompt: claudeWorkerSystemPrompt(row.session_id, deps.project, {
         capabilities: workerCapabilities(deps.editors, workDirOf(deps.project)),
         deadline: deadlineSection(row),
       }),
       model: row.model ?? undefined,
       effort: row.effort ?? undefined,
-      // Ntwine's own notice, not the operator's reply to anything: an open card stays open.
+      // ntwine's own notice, not the operator's reply to anything: an open card stays open.
       keepOpenCards: true,
     })
     return null
@@ -150,7 +150,7 @@ export interface ShellStopResult {
   dismissed: boolean
   /** Something the caller must pass on: the refusal's reason, or a notice that did not land. */
   note: string | null
-  /** Ntwine holds no way to end this shell (legacy transport, no task id yet, already finished) and did
+  /** ntwine holds no way to end this shell (legacy transport, no task id yet, already finished) and did
    *  NOTHING. The operator's × still retires such a row as a phantom; the budget leaves it alone. */
   refused?: true
 }

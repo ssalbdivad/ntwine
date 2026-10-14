@@ -5,7 +5,7 @@ import { ThreadSlug } from "./thread-slug.ts"
 //
 // A thread may carry one absolute instant by which its worker owes the best deliverable it can hand
 // over, rather than the complete one eventually. The human sets it when dispatching ("2h", "15:30") or
-// later from the drawer; a worker may set one on a thread that has none. Ntwine reminds the worker at
+// later from the drawer; a worker may set one on a thread that has none. ntwine reminds the worker at
 // fixed points in the budget, mid-turn, and the board shows the countdown and then the overrun.
 //
 // IT IS SOFT, and that is settled, not pending: running out of time never interrupts a turn and never

@@ -471,7 +471,7 @@ function InteractionApprovalCard({
 
   const mutation = useMutation<MutationResult, unknown, MutationAction>({
     mutationFn: async ({ decision, values, responseId }) => {
-      // An Ntwine-owned request has no provider delivery to acknowledge; its advertised cancel is a
+      // An ntwine-owned request has no provider delivery to acknowledge; its advertised cancel is a
       // journal cancellation. Provider-backed cancel choices travel through resolve so the provider
       // receives the exact advertised decision.
       if (decision.semantic === "cancel" && record.provider.kind === "ntwine") {
@@ -676,7 +676,7 @@ function InteractionApprovalCard({
               <KeyRound aria-hidden="true" size={14} className="mt-0.5 shrink-0" />
               <div>
                 <div className="font-medium">Secret input is unavailable in this page.</div>
-                <div className="mt-1 text-attention-soft-70">Ntwine will not persist or send secret values through the current RPC.</div>
+                <div className="mt-1 text-attention-soft-70">ntwine will not persist or send secret values through the current RPC.</div>
               </div>
             </div>
             <div className="mt-2 font-medium">Use the provider's trusted secret-input flow. The thread terminal cannot answer this typed request.</div>
@@ -686,7 +686,7 @@ function InteractionApprovalCard({
         {unavailableCount > 0 && (
           <div className="mt-3 flex items-start gap-2 rounded-md border border-attention-fill/25 bg-attention-fill/[0.05] px-3 py-2 text-[11px] leading-snug text-attention-soft-75">
             <AlertTriangle aria-hidden="true" size={13} className="mt-0.5 shrink-0" />
-            <span>{unavailableCount === 1 ? "One advertised choice" : `${unavailableCount} advertised choices`} cannot be safely labeled or delivered in Ntwine and is not shown.</span>
+            <span>{unavailableCount === 1 ? "One advertised choice" : `${unavailableCount} advertised choices`} cannot be safely labeled or delivered in ntwine and is not shown.</span>
           </div>
         )}
 

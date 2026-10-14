@@ -65,7 +65,7 @@ let listedCapabilities
 const absentPolls = {}
 
 /** The capability report for this thread, or undefined when it cannot be read — no server, a timeout,
- * or an Ntwine from before `workerCapabilities` (404). Never waits out a restart. */
+ * or an ntwine from before `workerCapabilities` (404). Never waits out a restart. */
 async function readCapabilities() {
   try {
     const slug = process.env.NTWINE_THREAD_SLUG || process.env.NTWINE_THREAD
@@ -84,7 +84,7 @@ async function readCapabilities() {
 }
 
 /** Whether `capability` counts as present: only an explicit `false` hides a tool, so a capability the
- * server does not report (an older Ntwine) keeps its tool listed. @param {Record<string, unknown> | undefined} caps
+ * server does not report (an older ntwine) keeps its tool listed. @param {Record<string, unknown> | undefined} caps
  * @param {string} capability */
 function hasCapability(caps, capability) {
   return caps?.[capability] !== false

@@ -1,5 +1,5 @@
 // THE SIDEBAR, END TO END, AS THE HUMAN USES IT — a real VS Code (under Xvfb), the extension as its .vsix
-// ships, a real disposable two-project Ntwine, and the REAL Ntwine page framed in the sidebar. Every seam is
+// ships, a real disposable two-project ntwine, and the REAL ntwine page framed in the sidebar. Every seam is
 // exercised the way a person crosses it: keys and clicks are trusted input on the workbench (Chromium
 // routes them through the webview into the page's frame), and what is asserted is read where it shows —
 // the page's own DOM, VS Code's own title row and editor, the simulated worker's socket.
@@ -23,11 +23,11 @@
 //   NTWINE_E2E_KEEP=1                    keep the scratch folder (logs, the stack's log) even on a pass.
 //
 // THE CHECKS (each one PASS/FAIL with its evidence in results.json, and a screenshot where it is visible):
-//   c1 the Ntwine icon in the activity bar, side and top, dark and light: its mask file loads, and its ink
+//   c1 the ntwine icon in the activity bar, side and top, dark and light: its mask file loads, and its ink
 //      is a line drawing the weight of the codicons beside it (within the bar's own spread of their mean)
 //      — not a blank, not a solid square
 //   c2 the view frames the real page, which says ntwine:ready and draws no header and no lone ⌨ row; VS
-//      Code's title row reads Ntwine, its buttons follow the page's view, the badge's tooltip carries the
+//      Code's title row reads ntwine, its buttons follow the page's view, the badge's tooltip carries the
 //      counts, and each button, clicked, does its thing in the page
 //   c3 the context bar follows the editor: a selection, no selection, another editor, the open files
 //   c4 Ctrl+L (Cursor's chord, the one the page names) in the editor: the sidebar revealed, the chip a pill
@@ -35,11 +35,11 @@
 //      worker, the context serialized and the transcript showing the chip; the context bar's click does the
 //      same; Alt+K with only a caret adds the whole file; Ctrl+L pressed in the reply box goes back to the
 //      editor, and Ctrl+L in the editor with nothing selected reveals the sidebar with the caret in the box
-//   c5 "Ask Ntwine to fix" on a real TypeScript error: chip + the problem as a note
+//   c5 "Ask ntwine to fix" on a real TypeScript error: chip + the problem as a note
 //   c6 a code-file link opens in the editor at its range; a web link goes to openExternal (a stub
-//      xdg-open, no browser); a Markdown link opens Ntwine's reader
+//      xdg-open, no browser); a Markdown link opens ntwine's reader
 //   c7 a VS Code theme switch re-themes the page live
-//   c8 keys with the frame focused: Ctrl+Shift+P is VS Code's palette, Ctrl+K Ntwine's, `?` the shortcuts
+//   c8 keys with the frame focused: Ctrl+Shift+P is VS Code's palette, Ctrl+K ntwine's, `?` the shortcuts
 //      sheet with its Editor group (Ctrl+L both ways first) and its VS Code group, the title row's ⋯
 //      Keyboard shortcuts opening the same sheet, Ctrl+1 back to the editor
 //   c9 the gallery: queue (dark, light), a thread with a selection and a chip, the open-files menu,
@@ -50,14 +50,14 @@
 //      VS Code turns the eye on, the tool reads the selection, a send quotes it, and the next send of the
 //      same selection names it instead of quoting it again
 //   c11 Claude Code: a stand-in extension with its id (anthropic.claude-code) and its Alt+K, installed
-//      live — Alt+K is then its (its binding answers, nothing reaches Ntwine) and the `?` sheet drops the
-//      row; uninstalled, Alt+K is Ntwine's again
+//      live — Alt+K is then its (its binding answers, nothing reaches ntwine) and the `?` sheet drops the
+//      row; uninstalled, Alt+K is ntwine's again
 //   c12 the window's own thread: a window opened on a thread's worktree opens the sidebar on that thread
 //      (--worktree); a window on the project itself opens on the queue (every other run, the control)
 //   c13 `@` in a prompt box offers the workspace's files as git and VS Code list them (a gitignored copy
 //      left out); Enter writes the whole-file reference where the `@` was
 //   c14 a file dragged from VS Code's explorer onto a prompt box, Shift held, lands as the same reference
-//      (the Ntwine view moved into the Explorer's side bar so both are in sight). The drag is VS Code's
+//      (the ntwine view moved into the Explorer's side bar so both are in sight). The drag is VS Code's
 //      own, started by a real press on the explorer's row and intercepted with its data; DevTools cannot
 //      route the drop into the webview's out-of-process frame, so the drop is dispatched, trusted, to the
 //      page's own frame. results.json's `explorerDrop` says which path landed it (synthesized is the
@@ -70,15 +70,15 @@
 //   c18 the editor's colours (ntwine.matchEditorTheme): through Dark Modern, Light Modern, Tomorrow Night
 //      Blue, Solarized Dark, Abyss and both High Contrasts, the page follows live, its painted background
 //      is the side bar's pixel for pixel (sampled from the screenshot, beside the side bar's title row),
-//      and its text, secondary text and accent read; the setting off puts Ntwine's palette back, on again
+//      and its text, secondary text and accent read; the setting off puts ntwine's palette back, on again
 //      the theme's. Shots of the side bar beside the editor: the queue, a thread with the reply box
 //      focused and a selection in the bar, the open-files menu. (Runs before c17, which ends the editor.)
-//   c19 the selection hint: lines selected by keys get `Ctrl+L to add to Ntwine` after their last line, in
+//   c19 the selection hint: lines selected by keys get `Ctrl+L to add to ntwine` after their last line, in
 //      the colour of VS Code's own inline blame, once the selection settles; gone when it empties, once Ctrl+L has
 //      added it, and with `ntwine.selectionHint` off. A 6x crop of the line for the eye
 //   c20 a thread in an editor tab: the title row's ⋯ (while the sidebar shows a thread) opens it beside the
 //      code, on the thread at the editor's width, titled by the page; its reply box sends to the simulated
-//      worker with the editor block; Ctrl+L in the editor then lands in the tab (the Ntwine used last), and
+//      worker with the editor block; Ctrl+L in the editor then lands in the tab (the ntwine used last), and
 //      Ctrl+L in the tab goes back to the code; asked again, the same tab
 //   c21 the bar's × (pointed at, the reading's glyph): this selection left out of a send while the eye
 //      stays on and the agents' tool still reads it; a new selection goes again and is quoted
@@ -89,7 +89,7 @@
 //      (a plain drag turns the webview's pointer events off, Shift keeps them on; `osDropRouting` records
 //      them), and the drop itself, trusted and carrying the file from disk, dispatched to the page's frame
 //      (DevTools cannot route a drop into the out-of-process frame, as c14 says), attaches it
-//   c24 a page that reloaded into an error page (a reload that landed while Ntwine was down): the sidebar
+//   c24 a page that reloaded into an error page (a reload that landed while ntwine was down): the sidebar
 //      stops calling it ready, the title row stops claiming its view, and the view frames the page again
 //      on its own, ready, on the queue
 //   c17 a restart and a window reload (last: the test runner's VS Code ends with a reload, so the same
@@ -328,14 +328,14 @@ const pageErrors: string[] = []
 /** VS Code's keybinding dispatch log (workbench.action.toggleKeybindingsLog), while it is on. */
 
 /**
- * Frames of Ntwine's page in a thread's editor tab (c20), never the sidebar's: the tab frames the same
+ * Frames of ntwine's page in a thread's editor tab (c20), never the sidebar's: the tab frames the same
  * thread's address the sidebar's page shows by then, so only the frame object tells the two apart.
  */
 const tabFrames = new Set<Frame>()
 const ntwineFrame = (): Frame | undefined => page.frames().find((frame) => frame.url().startsWith(`${origin}/`) && !tabFrames.has(frame) && !frame.detached)
-const frame = () => waitFor("the Ntwine frame in the sidebar", ntwineFrame, 30_000)
+const frame = () => waitFor("the ntwine frame in the sidebar", ntwineFrame, 30_000)
 
-/** Evaluate in the Ntwine page. */
+/** Evaluate in the ntwine page. */
 async function inPage<T, A extends unknown[]>(fn: (...args: A) => T, ...args: A): Promise<Awaited<T>> {
   return (await frame()).evaluate(fn as never, ...(args as unknown as never[])) as Promise<Awaited<T>>
 }
@@ -671,7 +671,7 @@ function traceInstaller() {
   document.addEventListener("focusin", (event) => push("focusin", event.target), true)
   document.addEventListener("focusout", (event) => push("focusout", event.target), true)
   window.addEventListener("focus", () => push("window-focus", null))
-  // The messages each document receives — VS Code's host channel or Ntwine's type (not the context feed,
+  // The messages each document receives — VS Code's host channel or ntwine's type (not the context feed,
   // which is every selection): a focus that arrives with no focus() in the page came with one of these.
   window.addEventListener("message", (event) => {
     const data = event.data as { channel?: unknown; type?: unknown; focus?: unknown } | null
@@ -767,7 +767,7 @@ async function focusTraceSince(since: number) {
 /** The extension's output channel, as VS Code writes it to the run's logs. */
 function ntwineLog(): string {
   try {
-    const found = execFileSync("find", [join(userData, "logs"), "-name", "Ntwine.log"], { encoding: "utf8" }).trim().split("\n").filter(Boolean)
+    const found = execFileSync("find", [join(userData, "logs"), "-name", "ntwine.log"], { encoding: "utf8" }).trim().split("\n").filter(Boolean)
     return found.map((file) => readFileSync(file, "utf8")).join("\n")
   } catch {
     return ""
@@ -840,7 +840,7 @@ function packClaudeCodeStandIn(): void {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, "package.json"), JSON.stringify({
     name: "claude-code", publisher: "anthropic", version: "0.0.1", displayName: "Claude Code (e2e stand-in)",
-    description: "Claude Code's id and its Alt+K, for Ntwine's end-to-end run.", engines: { vscode: "^1.90.0" },
+    description: "Claude Code's id and its Alt+K, for ntwine's end-to-end run.", engines: { vscode: "^1.90.0" },
     contributes: { keybindings: [{ command: "editor.action.selectAll", key: "alt+k", mac: "alt+k", when: "editorTextFocus" }] },
   }, null, 2))
   const packed = spawnSync("nubx", ["-y", "-p", "@vscode/vsce@3.9.2", "vsce", "package", "--no-dependencies", "--allow-missing-repository", "--skip-license", "--out", claudeCodeStandIn], { cwd: dir, stdio: "inherit" })
@@ -885,7 +885,7 @@ try {
   log(`stack up at ${origin}; the window's folder is ${worktreeThread ? `the worktree of ${worktreeThread.slug}` : "the tenant"} ${workspace.slug} (${windowFolder})`)
 
   // A cold dev server optimizes its dependencies on the first page load, which can take a minute — a
-  // stall no installed Ntwine has (it serves a build). One headless load first, so the sidebar's first
+  // stall no installed ntwine has (it serves a build). One headless load first, so the sidebar's first
   // page is the one a human would get.
   warmBrowser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"], userDataDir: join(scratch, "warm-profile") })
   {
@@ -955,7 +955,7 @@ try {
   await Promise.race([agentUp, suite.then(() => Promise.reject(new Error("VS Code exited before its agent asked for anything"))), sleep(180_000).then(() => Promise.reject(new Error("VS Code's agent never asked for anything within 180s")))])
   const first = await status()
   version = first.version
-  log(`the editor is up: ${first.appName} ${first.version}; Ntwine connection ${first.status.kind}`)
+  log(`the editor is up: ${first.appName} ${first.version}; ntwine connection ${first.status.kind}`)
 
   browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${debuggingPort}`, defaultViewport: null, protocolTimeout: 180_000 })
   page = await waitFor("the workbench page", async () => (await browser!.pages()).find((candidate) => /workbench(\.esm)?\.html/u.test(candidate.url())), 60_000)
@@ -968,7 +968,7 @@ try {
     if (message.type() === "error" && url.startsWith(origin) && !/control\/status/u.test(message.text())) pageErrors.push(`${message.text()} (${url})`)
   })
   page.on("pageerror", (error) => pageErrors.push(String(error)))
-  await waitFor("the extension connected to Ntwine", async () => (await status()).status.kind === "connected" || undefined, 60_000)
+  await waitFor("the extension connected to ntwine", async () => (await status()).status.kind === "connected" || undefined, 60_000)
 
   const run = async (id: string, title: string, fn: () => Promise<void>) => {
     if (!wanted(id)) return
@@ -982,7 +982,7 @@ try {
   }
 
   // ── c1: the icon ──
-  await run("c1", "the Ntwine icon renders in the activity bar", async () => {
+  await run("c1", "the ntwine icon renders in the activity bar", async () => {
     const before = flag("icon-before")
     try {
       for (const layout of [
@@ -996,7 +996,7 @@ try {
         const wantLight = layout.theme.includes("Light")
         const strip = await waitFor(`the activity bar ${layout.name}`, async () => {
           const state = await inWorkbench(() => {
-            const bar = [...document.querySelectorAll(".composite-bar")].find((candidate) => candidate.querySelector('.action-label[aria-label^="Ntwine"]'))
+            const bar = [...document.querySelectorAll(".composite-bar")].find((candidate) => candidate.querySelector('.action-label[aria-label^="ntwine"]'))
             const items = bar ? [...bar.querySelectorAll<HTMLElement>(".action-item")].map((item) => item.querySelector<HTMLElement>(".action-label")).filter((label): label is HTMLElement => !!label && label.getBoundingClientRect().width > 0) : []
             const rects = items.map((label) => {
               const r = label.getBoundingClientRect()
@@ -1010,10 +1010,10 @@ try {
               items: rects,
             }
           })
-          return state.items.some((item) => item.label.startsWith("Ntwine")) && state.top === (layout.location === "top") && state.light === wantLight ? state : undefined
+          return state.items.some((item) => item.label.startsWith("ntwine")) && state.top === (layout.location === "top") && state.light === wantLight ? state : undefined
         }, 30_000)
         await sleep(600)
-        const ntwine = strip.items.find((item) => item.label.startsWith("Ntwine"))!
+        const ntwine = strip.items.find((item) => item.label.startsWith("ntwine"))!
         // A codicon at rest beside it (Explorer is the active one, drawn brighter).
         const explorer = strip.items.find((item) => /^Search/u.test(item.label)) ?? strip.items[1]!
         // The mask is the icon file: it must load, and be the SVG the package carries.
@@ -1052,7 +1052,7 @@ try {
         // Every codicon at rest in the bar (Search, Source Control, Run and Debug, Extensions; Explorer is
         // the active one), unsaved.
         const neighbours: Record<string, number> = {}
-        for (const item of strip.items.filter((candidate) => !candidate.label.startsWith("Ntwine") && !candidate.active)) {
+        for (const item of strip.items.filter((candidate) => !candidate.label.startsWith("ntwine") && !candidate.active)) {
           neighbours[item.label] = inkOf(decodePng(await capture("", { x: item.x, y: item.y, width: item.w, height: item.h }, 8)), 8).mass
         }
         await unbadge.evaluate((el) => el.remove())
@@ -1085,10 +1085,10 @@ try {
 
   // ── c2: the view frames the real page ──
   const started = Date.now()
-  log("opening the Ntwine view from its activity-bar icon, with the mouse")
-  await waitFor("the Ntwine item in the activity bar", () => page.$('.part.activitybar .action-label[aria-label^="Ntwine"]'), 30_000)
-  await clickInWorkbench('.part.activitybar .action-label[aria-label^="Ntwine"]')
-  const framed = await waitFor("the Ntwine frame", ntwineFrame, 60_000)
+  log("opening the ntwine view from its activity-bar icon, with the mouse")
+  await waitFor("the ntwine item in the activity bar", () => page.$('.part.activitybar .action-label[aria-label^="ntwine"]'), 30_000)
+  await clickInWorkbench('.part.activitybar .action-label[aria-label^="ntwine"]')
+  const framed = await waitFor("the ntwine frame", ntwineFrame, 60_000)
   await waitFor("ntwine:ready", async () => (await status()).sidebar.ready || undefined, 90_000)
   notes.readyAfterMs = Date.now() - started
   await waitFor("the queue in the page", async () => (await inPage(() => document.querySelectorAll("[data-xq-thread-row]").length)) > 0 || undefined, 60_000)
@@ -1098,7 +1098,7 @@ try {
   notes.firstRoute = (await status()).sidebar.href ?? null
   await installFocusTrace()
   // What the first load cost: a dev server serves the page as hundreds of unbundled modules, where an
-  // installed Ntwine serves a build — so a slow first ready here is a fact about the stack, and the
+  // installed ntwine serves a build — so a slow first ready here is a fact about the stack, and the
   // number says how slow.
   notes.firstLoad = {
     readyAfterMs: notes.readyAfterMs,
@@ -1158,11 +1158,11 @@ try {
     }))
     expect("c2", "the page knows it is in VS Code, in VS Code's dark theme, in sans", boot.embed === "vscode" && boot.theme === "dark" && boot.font === "sans", boot)
     expect("c2", "the desktop page narrowed, not the phone page", boot.sidebarPage && boot.phone === 0 && boot.rowTitlePx === "13px", boot)
-    expect("c2", "no Ntwine header: no title, no gear, no header bar", !boot.statusTitle && !boot.gear && boot.header === 0, boot)
+    expect("c2", "no ntwine header: no title, no gear, no header bar", !boot.statusTitle && !boot.gear && boot.header === 0, boot)
     expect("c2", "no ⌨ over the prompt box, and no empty status row", !boot.keyboard && !boot.emptyStatusRow, boot)
     expect("c2", "nothing overflows sideways", boot.scrollWidth <= boot.width, { width: boot.width, scrollWidth: boot.scrollWidth })
 
-    // The row says Ntwine and nothing the page names: VS Code re-cases a view's title ("Ntwine: Marketing-Site"
+    // The row says ntwine and nothing the page names: VS Code re-cases a view's title ("ntwine: Marketing-Site"
     // on 1.140, all caps on 1.90) and drops its description in a one-view container, so the counts ride the
     // badge's tooltip and the names stay in the page (src/sidebar.ts applyRoute).
     const queueRow = await waitFor("the queue's buttons in the title row", async () => {
@@ -1174,7 +1174,7 @@ try {
       return snapshot.view === "queue" && /ready|need/iu.test(snapshot.badgeTooltip ?? "") ? snapshot : undefined
     }, 15_000).catch(async () => (await status()).sidebar)
     expect("c2", "queue: the page's counts ride the badge's tooltip", /ready|need/iu.test(queueSnapshot.badgeTooltip ?? ""), { badge: queueSnapshot.badge, badgeTooltip: queueSnapshot.badgeTooltip })
-    expect("c2", "queue: the title row reads Ntwine, with no page name in it to re-case", /ntwine/iu.test(queueRow.text) && !/marketing-site/iu.test(queueRow.text), { shown: queueRow.text, words: queueRow.words, transform: queueRow.transform })
+    expect("c2", "queue: the title row reads ntwine, with no page name in it to re-case", /ntwine/iu.test(queueRow.text) && !/marketing-site/iu.test(queueRow.text), { shown: queueRow.text, words: queueRow.words, transform: queueRow.transform })
     expect("c2", "queue: the buttons are New thread, Jump to a thread, Settings — no Back to queue", JSON.stringify(queueRow.buttons) === JSON.stringify(["New thread", "Jump to a thread", "Settings"]), queueRow.buttons)
     notes.titleRowQueue = queueRow
     await shot("c2-queue-dark-w300", { window: true })
@@ -1186,7 +1186,7 @@ try {
       return row.buttons.includes("Back to queue") ? row : undefined
     }, 10_000).catch(async () => titleRow())
     const named = await inPage((handle) => [...document.querySelectorAll<HTMLElement>(".ntwine-sheet-panel")].some((panel) => panel.getClientRects().length > 0 && panel.innerText.includes(handle)), seeded!.thread.handle)
-    expect("c2", "thread: the drawer names the thread, and the title row still reads Ntwine (no handle for VS Code to re-case)", named && !threadRow.text.toLowerCase().includes(seeded!.thread.handle.toLowerCase()), { named, shown: threadRow.text, words: threadRow.words, transform: threadRow.transform })
+    expect("c2", "thread: the drawer names the thread, and the title row still reads ntwine (no handle for VS Code to re-case)", named && !threadRow.text.toLowerCase().includes(seeded!.thread.handle.toLowerCase()), { named, shown: threadRow.text, words: threadRow.words, transform: threadRow.transform })
     expect("c2", "thread: the buttons are Back to queue, Jump to a thread, Settings — no New thread", JSON.stringify(threadRow.buttons) === JSON.stringify(["Back to queue", "Jump to a thread", "Settings"]), threadRow.buttons)
     notes.titleRowThread = threadRow
     await shot("c2-thread-dark-w300", { window: true })
@@ -1238,7 +1238,7 @@ try {
 
     await clickInWorkbench('.part.sidebar .title-actions .action-label[aria-label="Jump to a thread"]')
     const palette = await until(async () => (await inPage(() => !!document.querySelector("[cmdk-root]"))), 5_000)
-    expect("c2", "Jump to a thread opens Ntwine's palette", palette)
+    expect("c2", "Jump to a thread opens ntwine's palette", palette)
     await shot("c2-jump-palette-w300")
     await press("Escape")
     await until(async () => !(await inPage(() => !!document.querySelector("[cmdk-root]"))), 3_000)
@@ -1348,11 +1348,11 @@ try {
 
   // ── c4: Ctrl+L, the chip, a send to a simulated worker ──
   await run("c4", "Ctrl+L puts the selection in the front composer as a pill, and it sends", async () => {
-    // The thread in the drawer is the front composer; the Explorer takes the side bar, so Ctrl+L must reveal Ntwine.
+    // The thread in the drawer is the front composer; the Explorer takes the side bar, so Ctrl+L must reveal ntwine.
     await resetPage()
     await openThreadRow()
     await command("workbench.view.explorer")
-    await waitFor("the Ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
     await installFocusTrace()
     const editorAt = Date.now()
     await openInEditor(files.sample)
@@ -1453,7 +1453,7 @@ try {
     await press("Alt+KeyK")
     // A whole file goes in as a REFERENCE, `src/sample.ts` in code quotes — the item carries no text (the
     // extension's own suite pins that: e2e/suite.ts "Alt+K … the whole file"), and the page writes a text-less
-    // item as a reference to it (lib/editorCompose.ts composeEdit), as Add file to Ntwine prompt always has.
+    // item as a reference to it (lib/editorCompose.ts composeEdit), as Add file to ntwine prompt always has.
     const wholeFile = await waitFor("the file's reference from Alt+K", async () => {
       const state = await box("chatComposer")
       return state?.value.includes("`src/sample.ts`") ? state : undefined
@@ -1481,7 +1481,7 @@ try {
     // has it — with the caret in the box and nothing added.
     await agent({ op: "select", selection: [1, 2, 1, 2] })
     await command("workbench.view.explorer")
-    await waitFor("the Ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
     await openInEditor(files.sample)
     await agent({ op: "select", selection: [1, 2, 1, 2] })
     // The empty selection crosses to the renderer, where `editorHasSelection` is kept, on its own channel.
@@ -1496,8 +1496,8 @@ try {
     await shot("c4-ctrl-l-to-prompt-w300")
   })
 
-  // ── c5: Ask Ntwine to fix ──
-  await run("c5", "Ask Ntwine to fix on a real TypeScript error", async () => {
+  // ── c5: Ask ntwine to fix ──
+  await run("c5", "Ask ntwine to fix on a real TypeScript error", async () => {
     await resetPage()
     await openThreadRow()
     // A draft an earlier check left (the drawer keeps it) would ride along in front of the chip.
@@ -1518,7 +1518,7 @@ try {
     expect("c5", "the editor keeps the caret while the human reads the error (nothing pulls it into the sidebar)", kept.editor, notes.focusBeforeQuickFix)
     // The menu waits on every provider, tsserver's fixes included, which are slow on a first request. The
     // chord goes the instant the caret is set: a beat later the page may hold the keyboard (above).
-    const menuShows = () => until(async () => (await inWorkbench(() => [...document.querySelectorAll(".action-widget")].some((w) => (w as HTMLElement).offsetHeight > 0 && /Ask Ntwine to fix/u.test(w.textContent ?? "")))), 20_000)
+    const menuShows = () => until(async () => (await inWorkbench(() => [...document.querySelectorAll(".action-widget")].some((w) => (w as HTMLElement).offsetHeight > 0 && /Ask ntwine to fix/u.test(w.textContent ?? "")))), 20_000)
     let menu = false
     for (let attempt = 1; attempt <= 3 && !menu; attempt++) {
       if (!(await workbenchFocus()).editor) {
@@ -1534,11 +1534,11 @@ try {
         if ((await workbenchFocus()).editor) await press("Escape")
       }
     }
-    if (!menu) throw new Error(`no quick-fix menu with Ask Ntwine to fix after Ctrl+. three times: ${JSON.stringify(notes.quickFixTry3)}`)
+    if (!menu) throw new Error(`no quick-fix menu with Ask ntwine to fix after Ctrl+. three times: ${JSON.stringify(notes.quickFixTry3)}`)
     const widget = await rectOf(".action-widget")
     if (widget) await capture(join(out, `${version}-c5-quick-fix-menu.png`), { x: widget.x - 8, y: widget.y - 8, width: widget.width + 16, height: widget.height + 16 }, 2)
-    const item = (await page.evaluateHandle(() => [...document.querySelectorAll(".action-widget .monaco-list-row, .action-widget li")].find((row) => /Ask Ntwine to fix/u.test(row.textContent ?? "")) ?? null)).asElement() as ElementHandle | null
-    await clickHandle(item, "the Ask Ntwine to fix item")
+    const item = (await page.evaluateHandle(() => [...document.querySelectorAll(".action-widget .monaco-list-row, .action-widget li")].find((row) => /Ask ntwine to fix/u.test(row.textContent ?? "")) ?? null)).asElement() as ElementHandle | null
+    await clickHandle(item, "the Ask ntwine to fix item")
     const line = problem.range[0]! + 1
     const fixed = await waitFor("the chip and the note", async () => {
       const state = await box("chatComposer").catch(() => null)
@@ -1589,7 +1589,7 @@ try {
     notes.openExternal = { openers: stack!.openers(), outcome, dialog, log: line }
     expect("c6", "a web link goes to VS Code's openExternal — no window from the frame (VS Code's own 'open the external website?' prompt comes first)", reached, notes.openExternal)
 
-    // The drawer's ↗ (Open in browser): the page asks the host to open the thread's own page. Ntwine's
+    // The drawer's ↗ (Open in browser): the page asks the host to open the thread's own page. ntwine's
     // address is loopback, which VS Code's link protection trusts, so this one goes all the way to the
     // system opener — the stub `xdg-open`, which only writes down what it was asked.
     const fullUrl = `/thread/${seeded!.thread.slug}/full`
@@ -1598,11 +1598,11 @@ try {
     const toOpener = await until(() => stack!.openers().split("\n").some((line) => line.startsWith("xdg-open ") && line.includes(fullUrl)), 10_000)
     expect("c6", "the drawer's Open in browser goes through VS Code's openExternal to the system opener (a stub xdg-open)", toOpener, stack!.openers())
 
-    // A Markdown link: Ntwine's own reader.
+    // A Markdown link: ntwine's own reader.
     await clickInPage(`[data-local-path="${files.readme}"]`, "the README link")
     const reader = await until(async () => (await inPage((path) => !!document.querySelector(`button[aria-label="Open"][title^="Open ${path}"]`), files.readme)), 8_000)
     const front = (await editorState()).path
-    expect("c6", "a Markdown link opens Ntwine's reader, and nothing in the editor", reader && front !== files.readme, { reader, front })
+    expect("c6", "a Markdown link opens ntwine's reader, and nothing in the editor", reader && front !== files.readme, { reader, front })
     await shot("c6-markdown-reader-w300")
     notes.titleRowReader = await titleRow()
     await press("Escape")
@@ -1640,7 +1640,7 @@ try {
     const ntwinePalette = await until(async () => (await inPage(() => !!document.querySelector("[cmdk-root]"))), 5_000)
     await sleep(500)
     const forwarded = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").slice(before)
-    expect("c8", "Ctrl+K opens Ntwine's palette and is not forwarded to VS Code", ntwinePalette && forwarded.length === 0 && !(await paletteOpen()), forwarded)
+    expect("c8", "Ctrl+K opens ntwine's palette and is not forwarded to VS Code", ntwinePalette && forwarded.length === 0 && !(await paletteOpen()), forwarded)
     await press("Escape")
     await until(async () => !(await inPage(() => !!document.querySelector("[cmdk-root]"))), 3_000)
 
@@ -1715,7 +1715,7 @@ try {
   // ── c9: the gallery, at ~300px and ~450px ──
   const gallery = async (tag: string) => {
     await command("workbench.view.extension.ntwine")
-    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await openInEditor(files.sample)
     await selectLines23()
@@ -1883,7 +1883,7 @@ try {
   })
 
   // ── c11: Claude Code's Alt+K ──
-  await run("c11", "with Claude Code's extension installed, Alt+K is its: Ntwine steps aside, and takes it back when it goes", async () => {
+  await run("c11", "with Claude Code's extension installed, Alt+K is its: ntwine steps aside, and takes it back when it goes", async () => {
     await resetPage()
     await openThreadRow()
     await clearBox("chatComposer")
@@ -1897,7 +1897,7 @@ try {
     await sleep(1_500)
     const theirs = { box: await box("chatComposer"), editor: await editorState() }
     const lastLine = SAMPLE.split("\n").length - 1
-    expect("c11", "Alt+K adds nothing to Ntwine's prompt box", !/sample\.ts/u.test(theirs.box?.value ?? ""), theirs.box)
+    expect("c11", "Alt+K adds nothing to ntwine's prompt box", !/sample\.ts/u.test(theirs.box?.value ?? ""), theirs.box)
     expect("c11", "…it is Claude Code's: the stand-in's binding answered (Select All)", theirs.editor.selection?.start.join() === "0,0" && theirs.editor.selection.end[0] === lastLine, theirs.editor)
     await focusPageBody()
     await page.keyboard.type("?")
@@ -1919,7 +1919,7 @@ try {
       const state = await box("chatComposer")
       return /sample\.ts/u.test(state?.value ?? "") ? state : undefined
     }, 8_000).catch(async () => box("chatComposer"))
-    expect("c11", "…and Alt+K is Ntwine's again: the whole file into the reply box", /sample\.ts(?!:)/u.test(ours?.value ?? ""), ours)
+    expect("c11", "…and Alt+K is ntwine's again: the whole file into the reply box", /sample\.ts(?!:)/u.test(ours?.value ?? ""), ours)
     await clearBox("chatComposer")
   })
 
@@ -1948,7 +1948,7 @@ try {
     expect("c12", "the extension says why it opened there", !!said, said?.trim())
     await shot("c12-worktree-window-thread", { window: true })
     // A link the thread wrote into its worktree, to a file only the main checkout has (as every link is
-    // once Done removed the worktree): clicked in the sidebar, the extension finds it missing, asks Ntwine
+    // once Done removed the worktree): clicked in the sidebar, the extension finds it missing, asks ntwine
     // (settleLocalPath) and opens the main checkout's copy at the linked line — not "doesn't exist".
     const { linked, main } = worktreeThread.onlyMain
     await clickTextInPage("[data-local-path]", "only-main.ts")
@@ -1985,9 +1985,9 @@ try {
   // ── c13: `@` files ──
   await run("c13", "`@` in a prompt box offers the workspace's files", async () => {
     await command("workbench.view.extension.ntwine")
-    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
-    // A gitignored copy, where an Ntwine checkout keeps its threads' worktrees: never offered.
+    // A gitignored copy, where an ntwine checkout keeps its threads' worktrees: never offered.
     mkdirSync(join(workspace.dir, "ignored-copy"), { recursive: true })
     writeFileSync(join(workspace.dir, "ignored-copy", "sample.ts"), SAMPLE)
     appendFileSync(join(workspace.dir, ".git", "info", "exclude"), "\nignored-copy/\n")
@@ -2023,7 +2023,7 @@ try {
 
   // ── c14: a drag from the explorer ──
   await run("c14", "a file dragged from the explorer lands in the prompt box", async () => {
-    // Both in sight at once: the Ntwine view moved in as a pane of the Explorer's side bar.
+    // Both in sight at once: the ntwine view moved in as a pane of the Explorer's side bar.
     await command("vscode.moveViews", { viewIds: ["ntwine.sidebar"], destinationId: "workbench.view.explorer" })
     try {
       await command("ntwine.sidebar.focus")
@@ -2166,7 +2166,7 @@ try {
   // ── c15: the file's problems and the terminal's last command, from the bar's menu ──
   await run("c15", "the bar's menu adds the file's problems and the terminal's last command", async () => {
     await command("workbench.view.extension.ntwine")
-    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await clearBox("newComposer")
     await openInEditor(files.broken)
@@ -2237,7 +2237,7 @@ try {
   await run("c16", "a thread that needs you is a notification while the sidebar is hidden", async () => {
     await resetPage()
     await command("workbench.view.explorer")
-    await waitFor("the Ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view hidden", async () => !(await status()).sidebar.visible || undefined, 10_000)
     await command("notifications.clearAll")
     // The thread leaves the queue and comes back to it through the REAL server: snoozed, then woken
     // (the board's Wake now), so it enters the queue again needing the human — the server's own needs-you
@@ -2299,7 +2299,7 @@ try {
   })
 
   // ── c18: the editor's colours ──
-  await run("c18", "the page wears the editor theme's colours, and Ntwine's own with ntwine.matchEditorTheme off", async () => {
+  await run("c18", "the page wears the editor theme's colours, and ntwine's own with ntwine.matchEditorTheme off", async () => {
     // Where the page's background shows bare, in the WORKBENCH's pixels: a point whose element and every
     // ancestor paint no background but the page's own, in a 5x5 patch of one colour, in the frame's lower right (the list's
     // empty tail). The page's (0,0) is the sidebar webview element's corner: VS Code's host document and
@@ -2392,7 +2392,7 @@ try {
     const pageBackground = () => inPage(() => document.documentElement.style.getPropertyValue("--vscode-sideBar-background"))
 
     await command("workbench.view.extension.ntwine")
-    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await openInEditor(files.a)
     await openInEditor(files.sample)
@@ -2443,7 +2443,7 @@ try {
           await openInEditor(files.sample)
         }
       }
-      // ntwine.matchEditorTheme off, in the theme the user asked about's family (blue-black): Ntwine's own
+      // ntwine.matchEditorTheme off, in the theme the user asked about's family (blue-black): ntwine's own
       // palette, its #0d0e10 canvas, against the theme's side bar; on again, the theme's.
       await agent({ op: "config", section: "workbench", key: "colorTheme", value: "Abyss" })
       await until(async () => (await pageBackground()) === (await relayBackground()), 8_000)
@@ -2453,7 +2453,7 @@ try {
       const offShot = await capture("")
       const offPage = await pagePixels(offShot)
       const offBar = await sideBarPixel(offShot)
-      expect("c18", "matchEditorTheme off: the page is back in Ntwine's palette (#0d0e10), not the theme's", off && !!offPage && offPage.rgb.join() === "13,14,16" && offPage.rgb.join() !== offBar.rgb.join(), { page: offPage, sideBar: offBar })
+      expect("c18", "matchEditorTheme off: the page is back in ntwine's palette (#0d0e10), not the theme's", off && !!offPage && offPage.rgb.join() === "13,14,16" && offPage.rgb.join() !== offBar.rgb.join(), { page: offPage, sideBar: offBar })
       await beside("abyss-setting-off-queue")
       await agent({ op: "config", section: "ntwine", key: "matchEditorTheme", value: true })
       const on = await until(async () => (await hostColors()) === "sideBar", 8_000)
@@ -2472,7 +2472,7 @@ try {
   // ── c19: the selection hint ──
   /** The hint as the editor DRAWS it: the decoration's ::after, its colour, its line, its box. */
   const hintDrawn = () => inWorkbench(() => {
-    const span = [...document.querySelectorAll<HTMLElement>(".part.editor .view-lines span")].find((s) => getComputedStyle(s, "::after").content.includes("add to Ntwine"))
+    const span = [...document.querySelectorAll<HTMLElement>(".part.editor .view-lines span")].find((s) => getComputedStyle(s, "::after").content.includes("add to ntwine"))
     if (!span) return null
     const after = getComputedStyle(span, "::after")
     const line = span.closest<HTMLElement>(".view-line")
@@ -2497,7 +2497,7 @@ try {
   })
   await run("c19", "the selection hint beside a fresh selection", async () => {
     await command("workbench.view.extension.ntwine")
-    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await openInEditor(files.sample)
     await press("ArrowRight")
@@ -2508,7 +2508,7 @@ try {
     const latency = Date.now() - pressedAt
     const told = (await status()).selectionHint
     notes.selectionHint = { drawn, told, latency }
-    expect("c19", "lines 2-3 selected by keys: `Ctrl+L to add to Ntwine` after line 3's text, once the selection settled", drawn?.content === '"Ctrl+L to add to Ntwine"' && /for \(const x of xs\) \{$/u.test(drawn.line) && told?.line === 3 && latency >= 250, { drawn, told, latency })
+    expect("c19", "lines 2-3 selected by keys: `Ctrl+L to add to ntwine` after line 3's text, once the selection settled", drawn?.content === '"Ctrl+L to add to ntwine"' && /for \(const x of xs\) \{$/u.test(drawn.line) && told?.line === 3 && latency >= 250, { drawn, told, latency })
     expect("c19", "…in the colour VS Code draws its own inline blame in, not the code's", !!drawn && drawn.color === drawn.annotation, drawn && { color: drawn.color, annotation: drawn.annotation })
     if (drawn?.lineBox) {
       // The line from its start to past the hint, 6x: the gap and the weight are judged by eye on this.
@@ -2578,7 +2578,7 @@ try {
   // ── c20: a thread in an editor tab ──
   await run("c20", "a thread in an editor tab, from the title row's ⋯: on the thread, at the editor's width, and its reply box sends", async () => {
     await command("workbench.view.extension.ntwine")
-    await waitFor("the Ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
+    await waitFor("the ntwine view", async () => (await status()).sidebar.visible || undefined, 10_000)
     await resetPage()
     await openThreadRow()
     await waitFor("the sidebar on the thread", async () => (await status()).sidebar.view === "thread" || undefined, 8_000)
@@ -2610,7 +2610,7 @@ try {
     const tab = await waitFor("the tab's page ready", async () => (await status()).threadTabs.find((candidate: Tab) => candidate.ready), 60_000).catch(async () => (await status()).threadTabs[0])
     const tabUrl = tab?.url ? new URL(tab.url) : undefined
     expect("c20", "a tab opens beside the code, framing the thread's own address in embed mode", tab?.thread === seeded!.thread.slug && tab.project === workspace.slug && tabUrl?.pathname === `/all/${workspace.slug}/thread/${seeded!.thread.slug}` && tabUrl.searchParams.get("embed") === "vscode" && tab.viewColumn === 2, tab)
-    const tabFrame = await waitFor("the tab's Ntwine frame", () => page.frames().find((candidate) => candidate !== sidebarFrame && !candidate.detached && candidate.url().startsWith(`${origin}/`)), 20_000)
+    const tabFrame = await waitFor("the tab's ntwine frame", () => page.frames().find((candidate) => candidate !== sidebarFrame && !candidate.detached && candidate.url().startsWith(`${origin}/`)), 20_000)
     tabFrames.add(tabFrame)
     const inTab = <T>(fn: () => T) => tabFrame.evaluate(fn) as Promise<Awaited<T>>
     const shownInTab = await waitFor("the thread's drawer in the tab", async () => {
@@ -2684,7 +2684,7 @@ try {
       return value.includes("@sample.ts:2-3") ? value : undefined
     }, 8_000).catch(() => null)
     const sidebarBox = await box("chatComposer")
-    expect("c20", "Ctrl+L in the editor puts the selection in the tab's reply box — the Ntwine used last — not the sidebar's", !!chip && !sidebarBox?.value.includes("@sample.ts:2-3"), { tab: chip, sidebar: sidebarBox?.value })
+    expect("c20", "Ctrl+L in the editor puts the selection in the tab's reply box — the ntwine used last — not the sidebar's", !!chip && !sidebarBox?.value.includes("@sample.ts:2-3"), { tab: chip, sidebar: sidebarBox?.value })
     // Ctrl+L in the tab: back to the code.
     await press("Control+KeyL")
     const back = await until(async () => (await workbenchFocus()).editor && (await editorState()).path === files.sample, 5_000)
@@ -2897,8 +2897,8 @@ try {
     await openThreadRow()
     const lostFrame = await frame()
     const eventsBefore = (await status()).sidebar.events.length
-    // The frame navigates itself somewhere the relay's CSP refuses (frame-src names Ntwine's origin only):
-    // the browser's error page, blank in VS Code — what a page's reload that lands while Ntwine is down
+    // The frame navigates itself somewhere the relay's CSP refuses (frame-src names ntwine's origin only):
+    // the browser's error page, blank in VS Code — what a page's reload that lands while ntwine is down
     // leaves in the frame (2026-10-07). The extension is told nothing but that a document loaded.
     await lostFrame.evaluate(() => { location.href = "http://127.0.0.1:9/" }).catch(() => undefined)
     const lost = await until(async () => { const s = (await status()).sidebar; return !s.ready && s.view === "" }, 10_000)
@@ -2944,10 +2944,10 @@ try {
     cdp = await page.createCDPSession()
     await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true })
     page.on("pageerror", (error) => pageErrors.push(String(error)))
-    // The side bar comes back on Ntwine's view when the workspace remembers it; else, its icon, clicked.
+    // The side bar comes back on ntwine's view when the workspace remembers it; else, its icon, clicked.
     if (!(await until(async () => !!ntwineFrame(), 30_000))) {
-      await waitFor("the Ntwine item in the activity bar", () => page.$('.part.activitybar .action-label[aria-label^="Ntwine"]'), 30_000)
-      await clickInWorkbench('.part.activitybar .action-label[aria-label^="Ntwine"]')
+      await waitFor("the ntwine item in the activity bar", () => page.$('.part.activitybar .action-label[aria-label^="ntwine"]'), 30_000)
+      await clickInWorkbench('.part.activitybar .action-label[aria-label^="ntwine"]')
     }
     const pageUp = async (not?: Frame) => waitFor("the page framed and drawn", async () => {
       const framedNow = ntwineFrame()

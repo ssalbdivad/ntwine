@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 
-// Everything Ntwine serves lives under `/_ntwine/` (c34a7e2), and a page addresses its OWN project via
+// Everything ntwine serves lives under `/_ntwine/` (c34a7e2), and a page addresses its OWN project via
 // apiBase() — so a client URL built as a bare `/local-image?…` reaches the SPA shell instead of the
 // route, gets HTML back, and the <img> fires onError. That is invisible in review and invisible in
 // the type system: it presents as an attachment thumbnail that silently degrades to a file tile and a
@@ -35,7 +35,7 @@ function sourceFiles(dir: string): string[] {
   })
 }
 
-test("no client URL addresses an Ntwine route without the /_ntwine prefix", () => {
+test("no client URL addresses an ntwine route without the /_ntwine prefix", () => {
   const offenders: string[] = []
   for (const file of sourceFiles(SRC)) {
     const lines = stripComments(readFileSync(file, "utf8")).split("\n")

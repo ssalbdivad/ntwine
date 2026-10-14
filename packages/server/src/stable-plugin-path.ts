@@ -8,7 +8,7 @@ import { ntwinePaths } from "./ntwine-paths.ts"
 //
 // A worker is launched against a plugin directory and reads its HOOKS from there. The Claude Agent
 // SDK can re-read that directory on demand (`query.reloadPlugins()`), but the request takes NO
-// arguments: it re-reads whatever path the session started with. Ntwine's paths are the problem —
+// arguments: it re-reads whatever path the session started with. ntwine's paths are the problem —
 // dev workers point at `~/.ntwine/builds/<sha>/runtime/cc-worker` and production workers at
 // `<npm package>/runtime/cc-worker`, and BOTH are immutable and version-specific. Reloading one
 // re-reads the same old bytes, so the reload is a no-op and a worker can never move forward.

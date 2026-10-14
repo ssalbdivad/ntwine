@@ -1,5 +1,5 @@
 // SCHEDULED THREADS (ARCHITECTURE.md § Scheduled threads): the schedule service against the REAL dispatcher, the REAL
-// held-thread starter, the REAL router and real SQLite. Only the Claude broker is a recorder (what Ntwine
+// held-thread starter, the REAL router and real SQLite. Only the Claude broker is a recorder (what ntwine
 // asks it to start, and when) and the clock is injected, so every case below is the scheduler pass exactly
 // as production runs it, at an instant the test chooses.
 import { test } from "node:test"
@@ -227,7 +227,7 @@ test("a claim a dead process left behind is settled by what its thread shows", a
     assert.equal(h.spawned.length, 0, "a settled claim is never retried")
     const ha = h.service.get(a.id)
     assert.equal(ha.history[0]!.state, "failed")
-    assert.equal(ha.history[0]!.label, "Didn't start: Ntwine stopped")
+    assert.equal(ha.history[0]!.label, "Didn't start: ntwine stopped")
     assert.equal(ha.schedule.nextRun!.occurrenceAt, new Date(NEXT_MON_9AM).toISOString(), "the next occurrence is materialized")
     // The dead process may have handed that session id to a daemon before it died, so the next run is a
     // fresh held row under a fresh session id, never the same one re-snoozed.
@@ -242,7 +242,7 @@ test("a claim a dead process left behind is settled by what its thread shows", a
 })
 
 test("an occurrence missed past its lateness cap is skipped once, with the count, and never fires", async () => {
-  // Ntwine came up Thursday; the Monday run was due while it was off — 3 days late on a weekly rule.
+  // ntwine came up Thursday; the Monday run was due while it was off — 3 days late on a weekly rule.
   const h = harness({ bootAtMs: T("2026-10-08T12:00:00Z") })
   try {
     h.at(T("2026-10-04T12:00:00Z"))
@@ -251,7 +251,7 @@ test("an occurrence missed past its lateness cap is skipped once, with the count
     await h.tick()
     assert.equal(h.spawned.length, 0)
     const got = h.service.get(view.id)
-    assert.equal(got.history[0]!.label, "Skipped: Ntwine was off")
+    assert.equal(got.history[0]!.label, "Skipped: ntwine was off")
     assert.equal(got.schedule.nextRun!.occurrenceAt, new Date(NEXT_MON_9AM).toISOString())
   } finally {
     h.close()
@@ -265,7 +265,7 @@ test("an occurrence missed WITHIN the cap runs once, late, and says so", async (
     h.at(T("2026-10-05T11:10:00Z"))
     await h.tick()
     assert.equal(h.spawned.length, 1)
-    assert.match(h.spawned[0]!.prompt, /It started 2h 10m late, because Ntwine was off\./)
+    assert.match(h.spawned[0]!.prompt, /It started 2h 10m late, because ntwine was off\./)
   } finally {
     h.close()
   }
@@ -520,7 +520,7 @@ test("a worker proposes; only the human turns it on; skip_next and move_next act
     assert.equal(h.service.get(id).history[0]!.label, "Skipped: release freeze")
     const paused = await h.router.ownSchedule.handler({ input: { action: "pause", slug: caller.slug, id } })
     assert.equal(paused.schedule!.state, "paused")
-    assert.equal(paused.schedule!.attention, false, "a deliberate pause is not Ntwine's to flag")
+    assert.equal(paused.schedule!.attention, false, "a deliberate pause is not ntwine's to flag")
   } finally {
     h.close()
   }
@@ -584,7 +584,7 @@ test("ProviderAuthRequiredError reads as signed out", async () => {
 })
 
 test("after a long absence the newest occurrence still inside its own cap runs once; the older ones are skipped", async () => {
-  // Daily at 9. Ntwine went off on Friday after 10am and came back Monday at 9:19. Saturday's run, the one
+  // Daily at 9. ntwine went off on Friday after 10am and came back Monday at 9:19. Saturday's run, the one
   // materialized, is two days late; Monday's is twenty minutes late, well inside its 12h cap, and must run.
   const h = harness({ nowMs: T("2026-10-02T10:00:00Z"), bootAtMs: T("2026-10-05T09:19:00Z") })
   try {
@@ -593,13 +593,13 @@ test("after a long absence the newest occurrence still inside its own cap runs o
     h.at(T("2026-10-05T09:20:00Z"))
     await h.tick()
     assert.equal(h.spawned.length, 1, "Monday's run starts")
-    assert.match(h.spawned[0]!.prompt, /This run is for Mon Oct 5, 9am\. It started 20m late, because Ntwine was off\./)
+    assert.match(h.spawned[0]!.prompt, /This run is for Mon Oct 5, 9am\. It started 20m late, because ntwine was off\./)
     const got = h.service.get(view.id)
     assert.deepEqual(got.history.map((r) => [r.occurrenceAt, r.state]), [
       ["2026-10-05T09:00:00.000Z", "started"],
       ["2026-10-03T09:00:00.000Z", "skipped"],
     ])
-    assert.equal(got.history[1]!.label, "Skipped: Ntwine was off; 2 runs missed", "Saturday and Sunday")
+    assert.equal(got.history[1]!.label, "Skipped: ntwine was off; 2 runs missed", "Saturday and Sunday")
     assert.equal(got.schedule.nextRun!.occurrenceAt, "2026-10-06T09:00:00.000Z")
     await h.tick()
     assert.equal(h.spawned.length, 1, "and nothing more")

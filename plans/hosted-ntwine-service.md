@@ -1,4 +1,4 @@
-# Hosted Ntwine: `<name>.<zone>` as a paid service
+# Hosted ntwine: `<name>.<zone>` as a paid service
 
 > **2026-10-13:** a dated design record. The service it describes moved from the pre-rename domain to `ntwine.app`, on a new Cloudflare account with none of the ids below. Throughout, `<zone>` stands for that pre-rename domain; for the current setup see [`packages/registrar/README.md`](../packages/registrar/README.md).
 
@@ -36,7 +36,7 @@ One user costs one DNS record and one tunnel. So the runway is **200 names free 
 
 ## Why
 
-Ntwine runs on your machine and binds loopback. Reaching it from anywhere means a tunnel, and today
+ntwine runs on your machine and binds loopback. Reaching it from anywhere means a tunnel, and today
 that means the user brings their own Cloudflare or Tailscale account and their own domain. The product
 idea is to sell the part that is annoying: identity, a stable name, and auth in front of a board that
 otherwise has none. `npx ntwine --cloud` and you are at `dana.<zone>` from your phone.
@@ -57,7 +57,7 @@ These are the facts the design rests on. Each was checked, not recalled.
 | A **per-tunnel run token** is narrow — runs that tunnel, nothing else | this is what makes the vending-machine design safe |
 | A **remotely-managed** tunnel (`config_src: "cloudflare"`) needs no `cert.pem` | created + configured via API, run via `cloudflared tunnel run --token` |
 | Universal SSL covers `*.<zone>` **one level only** | deeper (`a.b.<zone>`) needs Advanced Certificate Manager, paid, wildcard-per-level, 50 SANs/cert |
-| ⇒ the namespace must be flat: `dana.<zone>` | fine now that Ntwine is one server per machine |
+| ⇒ the namespace must be flat: `dana.<zone>` | fine now that ntwine is one server per machine |
 | GitHub device flow needs only a **public `client_id`**, no secret | [octokit/auth-oauth-device](https://github.com/octokit/auth-oauth-device.js/) — the CLI can do the whole login itself |
 | Cloudflare Access free tier is **50 seats, then $7/user/mo** | [Access pricing](https://www.cloudflare.com/sase/products/access/) |
 | The Zero Trust reselling clause covers **Access, Gateway, RBI, email security, CASB, DLP** — **NOT Tunnel** | [Zero Trust service-specific terms](https://www.cloudflare.com/service-specific-terms-zero-trust-services/), product list read verbatim |
@@ -67,7 +67,7 @@ These are the facts the design rests on. Each was checked, not recalled.
 | **Cloudflare for SaaS** is the sanctioned "extend Cloudflare to your end customers" product | [docs](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/); Shopify, Webflow, Kinsta, Render ship on it |
 | DO **WebSocket hibernation applies to INCOMING connections** (`ctx.acceptWebSocket()`) | [Durable Objects WebSocket docs](https://developers.cloudflare.com/durable-objects/best-practices/websockets/) — the agent dials in, so this is the right direction |
 | `<zone>` moved to its own account on 2026-08-15 | zone `94acd4da90ceb813886c897e7f82a961`, account `dde3ec1f6b1f0a397ea82a9ed322f5ce`. The pre-move zone `2dc5dbf9…` in personal account `3eef35e2…` is DEAD — a token scoped to it authorizes nothing. |
-| Ntwine has **no authentication of any kind** today | reaching the port is the authorization; `EXPOSED_WARNING` says so |
+| ntwine has **no authentication of any kind** today | reaching the port is the authorization; `EXPOSED_WARNING` says so |
 | cloudflared's origin-facing contract | port-less `Host`, `x-forwarded-for`, `x-forwarded-proto: https`, `cf-*`; app reads carry no Origin + `sec-fetch-site: same-origin` |
 
 ## The decision that shapes everything: do NOT use Cloudflare Access
@@ -81,7 +81,7 @@ moment money is involved**, for two independent reasons:
    Access, Gateway, RBI, email security, CASB and DLP — so it says nothing about Tunnel, but a paid
    product whose access control *is* Cloudflare Access is squarely what it describes.
 
-So: **Ntwine grows its own auth layer.** That is a day or two of work, it removes the per-user cost
+So: **ntwine grows its own auth layer.** That is a day or two of work, it removes the per-user cost
 entirely, it is portable across tunnels (works for self-hosters on Tailscale or ssh too), and it is
 defense in depth regardless — today a misconfigured edge means total compromise.
 
@@ -100,7 +100,7 @@ new signups break. Getting this right is worth more than any other architectural
 POST /device/start      → GitHub device flow (public client_id, CLI shows the code)
 POST /device/poll       → exchange for a GitHub token; verify; read numeric user id
 POST /claim             → create tunnel via CF API, create CNAME, return the per-tunnel token
-GET  /jwks              → public keys, so Ntwine verifies sessions offline
+GET  /jwks              → public keys, so ntwine verifies sessions offline
 GET  /login?return=…    → browser GitHub OAuth → mint a short-lived JWT → redirect back
 POST /stripe/webhook    → subscription lifecycle → enable/disable
 ```
@@ -110,18 +110,18 @@ released; keying on the string means the next holder of `dana` inherits the subd
 the same shape as the documented tunnel-subdomain recycling hijacks. **Never release a claimed
 subdomain**, for the same reason.
 
-**Board auth: a signed session Ntwine verifies itself.**
+**Board auth: a signed session ntwine verifies itself.**
 
-1. Browser hits `dana.<zone>`, Ntwine sees no session cookie.
+1. Browser hits `dana.<zone>`, ntwine sees no session cookie.
 2. Redirect to `auth.<zone>/login?return=…`; GitHub OAuth; Worker mints a short-lived JWT naming the
    subdomain and the user.
-3. Redirect back; Ntwine validates the JWT against cached JWKS — **offline, no call to your Worker** —
+3. Redirect back; ntwine validates the JWT against cached JWKS — **offline, no call to your Worker** —
    and sets an `HttpOnly; Secure; SameSite=Lax` cookie.
 
-Ntwine's existing origin gate already refuses cross-site mutations, so CSRF is covered by machinery that
+ntwine's existing origin gate already refuses cross-site mutations, so CSRF is covered by machinery that
 exists. The new surface is the cookie and the JWT.
 
-## What Ntwine itself has to gain (the code work)
+## What ntwine itself has to gain (the code work)
 
 1. **Session layer** — JWT verify, JWKS cache, cookie, login redirect, logout. Gate every route the
    `--public-origin` path serves. *This is the prerequisite for everything.*
@@ -130,7 +130,7 @@ exists. The new surface is the cookie and the JWT.
 3. **A `cloudflared` binary** — bundle per platform (~30 MB each, ugly in an npm package) or download
    on first `--cloud` use with a pinned checksum. Prefer download-on-demand; the package stays small
    and self-hosters never pay for it.
-4. **Revocation** — the Worker says the subscription lapsed, Ntwine stops serving the public origin and
+4. **Revocation** — the Worker says the subscription lapsed, ntwine stops serving the public origin and
    says why. Must fail closed.
 5. **Local escape hatch** — `--public-origin` and loopback keep working with no account, forever. The
    free/self-host tier is what makes the paid tier feel like convenience rather than a toll booth.
@@ -163,7 +163,7 @@ The thing that would wreck this model is anything that puts you on the data plan
 
 ## Security: the part that deserves the most paranoia
 
-**An Ntwine board runs shell commands as its owner. An auth bug here is remote code execution on your
+**An ntwine board runs shell commands as its owner. An auth bug here is remote code execution on your
 customers' laptops, not a data leak.** That reframes several ordinary choices:
 
 - **Vanity subdomains advertise the target list.** `dana.<zone>` lets anyone enumerate your customers
@@ -184,7 +184,7 @@ customers' laptops, not a data leak.** That reframes several ordinary choices:
 **Stage 0 — done.** `--public-origin` + docs. Self-host tier: bring your own Cloudflare/Tailscale.
 Costs you nothing and is a real product on its own.
 
-**Stage 1 — Ntwine auth layer.** JWT sessions. Needed by every later stage, valuable standalone (it
+**Stage 1 — ntwine auth layer.** JWT sessions. Needed by every later stage, valuable standalone (it
 closes the "misconfigured edge = total compromise" hole for self-hosters today).
 
 **Stage 2 — free tier with subdomains.** Worker + D1 + GitHub device flow + tunnel vending. No billing.
@@ -222,7 +222,7 @@ precise about:
    describes using their supported product. Escaping §2.2.1(j) means moving the *data plane* off
    Cloudflare — which is a much bigger decision than which tunnel library to use.
 
-**What to do about it: do not let it block Stages 0–2.** Self-hosting, the Ntwine auth layer, and even a
+**What to do about it: do not let it block Stages 0–2.** Self-hosting, the ntwine auth layer, and even a
 free tier where users authenticate with their own GitHub are not "selling access to the Services." Ask
 Cloudflare before Stage 3, when there is a real product to describe and the question is concrete.
 
@@ -257,7 +257,7 @@ fortnight, then a long tail of edge cases," and it is where a DIY tunnel earns i
   infrastructure management.
 
 **The engineering conclusion, which is cheap and worth doing regardless: make the transport pluggable in
-Ntwine.** Do not hard-code `cloudflared`. If the tunnel is a strategy behind a small interface, then the
+ntwine.** Do not hard-code `cloudflared`. If the tunnel is a strategy behind a small interface, then the
 answer to the terms question — and any later cost or reliability surprise — becomes a swap rather than a
 rewrite. That is a day of design discipline now against a fortnight of migration later.
 
@@ -267,10 +267,10 @@ rewrite. That is a day of design discipline now against a fortnight of migration
 - **A proxy Worker in front of `*.<zone>`** — removes per-user DNS writes, but puts you on the data
   plane: their bandwidth on your bill, your uptime in front of every board, and you can see everything.
 - **Nested `<repo>.<user>.<zone>`** — needs paid ACM with a wildcard per user, 50 SANs per cert. Moot
-  now that Ntwine is one server per machine.
+  now that ntwine is one server per machine.
 - **Shipping a Cloudflare token in the client** — impossible to scope safely; see verified premises.
 - **Vercel as the front** — no tunnel product, and `vercel.json` rewrites do not proxy WebSocket
-  upgrades to an external destination. Ntwine's board and terminals are all WebSockets.
+  upgrades to an external destination. ntwine's board and terminals are all WebSockets.
 
 ## Stage 1, concretely: single-use codes instead of one standing secret
 
@@ -309,7 +309,7 @@ Tempting to print the QR in the launch readout. Don't:
 
 - The readout is scrollback. A QR sitting in scrollback is the same leak as the token today, just harder
   to grep for.
-- Ntwine deliberately degrades to plain parseable records when stdout is not a TTY (`if (!readout)`), and
+- ntwine deliberately degrades to plain parseable records when stdout is not a TTY (`if (!readout)`), and
   a permanent live region fights `--debug`, piping, and CI.
 
 So: keep the standing readout exactly as it is, and add a keypress (TTY only) that opens a temporary
@@ -389,7 +389,7 @@ after the code assumes it never will. Ask, then build.
 ## "Just give them a subdomain pointing at their own IP" — can we stay off the data path entirely?
 
 The instinct: provision `<name>.<zone>`, point it at the user's own public IP, and let their machine
-serve the traffic. Ntwine-the-company does DNS and nothing else. Worth taking seriously, because it is
+serve the traffic. ntwine-the-company does DNS and nothing else. Worth taking seriously, because it is
 the cheapest possible business and it fails for a reason that is easy to miss.
 
 ### First: the current design already keeps us off the data path
@@ -410,17 +410,17 @@ An A record pointing at the user's IP needs all of:
   NAT, where the user has no unique public address at all and no amount of configuration produces one.
 - **Inbound port forwarding**, configured on their router. This is the step that ends most self-hosting
   stories, and it is not something a CLI can do for them.
-- **A STABLE address.** This is the one that kills it outright for Ntwine. The product runs on a laptop
+- **A STABLE address.** This is the one that kills it outright for ntwine. The product runs on a laptop
   that moves between home, an office, a café, a hotel. Its public IP changes with every network — so the
   A record is stale minutes after it is written. Dynamic DNS (the machine reports its own IP and we
   update the record) fixes staleness but nothing else, and it cannot fix NAT.
 
-For a desktop with a static IP, or a VPS, DNS-only works fine. For the machine Ntwine actually runs on,
+For a desktop with a static IP, or a VPS, DNS-only works fine. For the machine ntwine actually runs on,
 it does not, and no amount of engineering on our side changes that.
 
 ### The certificate problem, which IS solvable
 
-Even where the IP works, an A record alone gets you `http://`. Ntwine over plain HTTP is not acceptable:
+Even where the IP works, an A record alone gets you `http://`. ntwine over plain HTTP is not acceptable:
 no secure context (so no clipboard), and the session cookie crosses the internet in the clear. A
 certificate for `<name>.<zone>` needs a private key on the USER's machine, so we cannot issue it
 centrally without shipping keys around.
@@ -459,7 +459,7 @@ POST /claim                       →  { name, port, pubkey, sig }
 
 The Worker verifies the signature over the request body, then issues. Re-registering from a second machine means copying the key file — the same mental model as an SSH key, and the same failure mode: lose the key, lose the name. A recovery address is an opt-in Stage 3 field, not a signup step.
 
-This is what lets the feature keep Ntwine's "no account" promise while still having an owner for every name.
+This is what lets the feature keep ntwine's "no account" promise while still having an owner for every name.
 
 ### Names are leases, not property
 
@@ -500,6 +500,6 @@ We hold the zone token, so any name is one `DELETE` away — record and tunnel b
 
 ### What is genuinely NOT solved
 
-- **The board behind the name is still shell access**, gated by Ntwine's single-use links. A leaked link is a leaked shell. This is the same exposure as the self-hosted path, but now under a name we handed out.
+- **The board behind the name is still shell access**, gated by ntwine's single-use links. A leaked link is a leaked shell. This is the same exposure as the self-hosted path, but now under a name we handed out.
 - **The 1,000-tunnel cap** arrives before any Enterprise conversation is scheduled. Plan the conversation for ~700.
 - **Port at claim time** assumes the board keeps that port. Re-claiming on a port change is one more signed call; the CLI should just do it rather than making it a user-visible step.

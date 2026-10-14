@@ -12,7 +12,7 @@ export function terminalStateLabel(terminal: ThreadTerminal): string {
   if (terminal.state === "running" && terminal.awaitingInput) return "waiting for input"
   if (terminal.state === "running") return "running"
   if (terminal.stopped) return "stopped"
-  // No code means the server went away under the process (an Ntwine restart takes its children with it).
+  // No code means the server went away under the process (an ntwine restart takes its children with it).
   if (terminal.exitCode === undefined) return "interrupted"
   return terminal.exitCode === 0 ? "finished" : `exit ${terminal.exitCode}`
 }

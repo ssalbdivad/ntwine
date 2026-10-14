@@ -29,7 +29,7 @@ other.
 ## Why `/docs` and not `docs.ntwine.app`
 
 The relay Worker owns `*.ntwine.app/*`, and a workers route beats a custom domain — a subdomain here is
-answered by the relay with *No Ntwine board has claimed this name*, which is exactly how the registrar's hostname
+answered by the relay with *No ntwine board has claimed this name*, which is exactly how the registrar's hostname
 went down the day the relay shipped. A path on the apex is not covered by that wildcard. A subdomain would
 work only with its own more-specific route, the way the registrar has one.
 

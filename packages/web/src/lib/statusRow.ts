@@ -24,7 +24,7 @@
 // carries a glyph whose ink does NOT reach lucide's outer 24-unit bound — this constant is one
 // number for both buttons only because their two glyphs happen to paint the same 12px:
 //   nub scripts/ink-gaps.mjs http://localhost:<vite>/status-row-fixture.html \
-//     '[data-status-row] button[aria-label="Settings"],[data-status-row] button[aria-label="Update Ntwine"]' \
+//     '[data-status-row] button[aria-label="Settings"],[data-status-row] button[aria-label="Update ntwine"]' \
 //     --dsf=4 --pad=0
 export const STATUS_ROW_ACTION =
   "-mx-1.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-fg/75 outline-none transition-colors hover:bg-elevated hover:text-fg focus-visible:ring-1 focus-visible:ring-border-strong disabled:opacity-55"

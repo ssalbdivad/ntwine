@@ -48,9 +48,9 @@ test("a launch's budget is only what it DECLARED: its `timeout`, clamped to [1m,
 })
 
 test("the kill notice says WHY: the operator's words stay put, a budget stop names the budget", () => {
-  assert.match(shellStopNotice("Watching CI"), /^\[ntwine\] The operator stopped your background command "Watching CI" from the Ntwine dashboard/)
+  assert.match(shellStopNotice("Watching CI"), /^\[ntwine\] The operator stopped your background command "Watching CI" from the ntwine dashboard/)
   const budget = shellStopNotice("npx vite", { kind: "budget", ranMs: HOUR + 10 * 60_000, budgetMs: HOUR })
-  assert.match(budget, /^\[ntwine\] Ntwine stopped your background command "npx vite" after 1h 10m: it ran past its 1h budget/)
+  assert.match(budget, /^\[ntwine\] ntwine stopped your background command "npx vite" after 1h 10m: it ran past its 1h budget/)
   assert.match(budget, /ntwinectl extend-shell/)
   assert.match(budget, /do not wait on it/)
 })
@@ -152,7 +152,7 @@ test("inside its budget a shell is left alone; past it, ONE warning — across p
     assert.equal(h.storage.getShellBudget("t", "toolu_sh")?.warned_deadline, START + HOUR, "the warning is durable on the budget row, not only in the outbox")
     const w = warnings(h.resumes)[0]!
     assert.match(w.message, /Your background shell `bvite1` \(npx vite --port 5231\) has been running 1h, past its 1h budget/)
-    assert.match(w.message, /Ntwine stops it in 10m unless you extend it/)
+    assert.match(w.message, /ntwine stops it in 10m unless you extend it/)
     assert.match(w.message, /`ntwinectl extend-shell bvite1 --for <duration>`/)
     assert.match(w.message, /TaskStop/)
     assert.match(w.message, /⏱ /, "ntwine-authored, so it carries the wall clock")
@@ -405,8 +405,8 @@ test("a shell ntwine cannot stop is WARNED, told ntwine cannot stop it, and neve
     h.clock.ms = START + HOUR + 1_000
     await s.tick()
     assert.equal(warnings(h.resumes).length, 1)
-    assert.match(warnings(h.resumes)[0]!.message, /Ntwine cannot stop this one for you/)
-    assert.doesNotMatch(warnings(h.resumes)[0]!.message, /Ntwine stops it in/)
+    assert.match(warnings(h.resumes)[0]!.message, /ntwine cannot stop this one for you/)
+    assert.doesNotMatch(warnings(h.resumes)[0]!.message, /ntwine stops it in/)
     h.clock.ms += 5 * SHELL_BUDGET_GRACE_MS
     await s.tick()
     assert.deepEqual(h.stops, [])

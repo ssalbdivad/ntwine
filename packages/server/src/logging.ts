@@ -14,8 +14,8 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { ntwinePaths } from "./ntwine-paths.ts"
 
-// ── Structured logging, shared by every Ntwine process ───────────────────────────────────────────────
-// Ntwine's readout used to be whatever each subsystem happened to console.log, printed straight to a TTY
+// ── Structured logging, shared by every ntwine process ───────────────────────────────────────────────
+// ntwine's readout used to be whatever each subsystem happened to console.log, printed straight to a TTY
 // that the launcher, the supervisor and the forked control-plane child all wrote to at once. Two
 // consequences, both of which the operator saw every launch: the launcher had to abandon its animated
 // progress line the moment the child started talking (it cannot clear another process' output), and a
@@ -50,11 +50,11 @@ export const LOG_PATH_ENV = "NTWINE_LOG_PATH"
 /** Both bounds apply: 20 runs is nothing to someone who restarts constantly, 14 days nothing to someone who runs it twice. */
 const RETAINED_RUNS = 20
 const RETAINED_DAYS = 14
-/** Ntwine's debug feed is chatty; a wedged subsystem must not be able to fill the disk. */
+/** ntwine's debug feed is chatty; a wedged subsystem must not be able to fill the disk. */
 const MAX_LOG_BYTES = 32 * 1024 * 1024
 
 export function defaultLogRoot(stateDir?: string, home = homedir()): string {
-  // Per PROJECT, because Ntwine serves one board per repository and a merged machine-wide log would
+  // Per PROJECT, because ntwine serves one board per repository and a merged machine-wide log would
   // interleave unrelated boards. Logs live beside the rest of a project's bookkeeping rather than
   // under a second convention imported for this one subsystem.
   //
@@ -337,7 +337,7 @@ export function ambientLogger(): Logger {
 }
 
 /**
- * The logger a top-level Ntwine entry point installs once it knows its project: ADOPT the run file a
+ * The logger a top-level ntwine entry point installs once it knows its project: ADOPT the run file a
  * parent named in the environment (a re-exec'd supervisor, a forked child), or OWN a fresh one beside
  * the project's state. Installed as the ambient logger, with the `--debug` terminal mirror attached.
  *

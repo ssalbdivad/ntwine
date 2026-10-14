@@ -7,8 +7,8 @@ import { invalidateUserCommands, useUserCommands } from "../hooks/useUserCommand
 import { SettingsField } from "./SettingsField.tsx"
 
 // Settings → Slash commands: every user command the prompt box offers (UserCommand in @ntwine/shared),
-// and an editor for the ones written here. Only Ntwine's own folder is written. A project's or the
-// machine-wide `~/.agents/commands` one opens as a COPY — saving it writes an Ntwine command of the same
+// and an editor for the ones written here. Only ntwine's own folder is written. A project's or the
+// machine-wide `~/.agents/commands` one opens as a COPY — saving it writes an ntwine command of the same
 // name, which then wins over the original — so nothing here ever edits a file another tool owns.
 //
 // Saved explicitly, not as-you-type like the project instructions: a command's NAME is its file name,
@@ -197,7 +197,7 @@ function CommandEditor({
       {error && <p role="alert" className="text-[11px] text-danger">{error}</p>}
       <div className="flex items-center gap-2">
         <span className="min-w-0 truncate text-[11px] text-muted-70" title={dir}>
-          Saved as <code className="font-mono-keep">{name || "name"}.md</code> in Ntwine's commands folder
+          Saved as <code className="font-mono-keep">{name || "name"}.md</code> in ntwine's commands folder
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-2">
           {onDelete && (

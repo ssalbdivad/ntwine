@@ -173,7 +173,7 @@ export function interactionProviderLabel(kind: InteractionProvider["kind"]): str
     case "claude": return "Claude"
     case "codex": return "Codex"
     case "acp": return "ACP agent"
-    case "ntwine": return "Ntwine"
+    case "ntwine": return "ntwine"
   }
 }
 
@@ -183,7 +183,7 @@ export function interactionSourceLabel(kind: InteractionSource["kind"]): string 
     case "agent": return "Agent"
     case "tool": return "Tool"
     case "mcp-server": return "MCP server"
-    case "ntwine": return "Ntwine"
+    case "ntwine": return "ntwine"
   }
 }
 
@@ -231,7 +231,7 @@ export function parseInteractionDraft(fields: readonly InteractionField[], draft
   if (fields.some((field) => field.secret)) {
     return {
       errors: {},
-      formError: "Secret responses cannot be sent through this Ntwine connection.",
+      formError: "Secret responses cannot be sent through this ntwine connection.",
     }
   }
   const values: Record<string, InteractionValue> = Object.create(null) as Record<string, InteractionValue>

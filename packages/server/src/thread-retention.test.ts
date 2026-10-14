@@ -1,7 +1,7 @@
 // DELETING THREADS at the RPC boundary — the real router against real SQLite and a real project folder.
 //
 // What a delete has to buy is the reason it exists: the slug is free again (the next "Shell budgets"
-// is `shell-budgets`, not `shell-budgets-2`), the `@handle` no longer resolves, and nothing Ntwine keeps
+// is `shell-budgets`, not `shell-budgets-2`), the `@handle` no longer resolves, and nothing ntwine keeps
 // for the thread survives it. The bulk and automatic doors must take exactly the done threads the
 // predicate names — counted from when the HUMAN last touched them, never the agent's own activity — and
 // nothing open, recently touched or pinned.
@@ -75,7 +75,7 @@ function seed(storage: ReturnType<typeof createStorage>, slug: string, opts: { d
   if (opts.done) storage.setState(slug, "archived")
 }
 
-test("deleting a thread frees its slug and its @handle, and removes everything Ntwine kept for it", async () => {
+test("deleting a thread frees its slug and its @handle, and removes everything ntwine kept for it", async () => {
   const h = harness()
   try {
     seed(h.storage, "shell-budgets", { done: true, title: "Shell budgets" })

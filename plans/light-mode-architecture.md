@@ -1,10 +1,10 @@
 ---
-title: Ntwine light-mode architecture
+title: ntwine light-mode architecture
 description: A two-theme design with browser-local preferences, flash-free startup, and explicit renderer adapters.
 tags: [design, web, themes]
 ---
 
-# Ntwine light-mode architecture
+# ntwine light-mode architecture
 
 Status: proposed architecture, not implemented. Written 2026-09-11 against `e330dbd1`. This is a design record under the [plans archive convention](./README.md).
 
@@ -12,9 +12,9 @@ Status: proposed architecture, not implemented. Written 2026-09-11 against `e330
 
 ## Decision
 
-Ntwine gets one interface with two color palettes. Components keep semantic names such as `bg-panel` and `text-muted`. The document root selects the palette. Theme selection must not reload the page, reconnect a terminal, or reset a transcript.
+ntwine gets one interface with two color palettes. Components keep semantic names such as `bg-panel` and `text-muted`. The document root selects the palette. Theme selection must not reload the page, reconnect a terminal, or reset a transcript.
 
-The preference offers **System**, **Light**, and **Dark**. It belongs to this browser, across every project on the same Ntwine origin. New and existing browsers without an explicit choice use System. This deliberately permits a light OS setting to change the appearance on upgrade. Explicit Dark remains available. There is no per-project override, server setting, account sync, or automatic time-of-day schedule.
+The preference offers **System**, **Light**, and **Dark**. It belongs to this browser, across every project on the same ntwine origin. New and existing browsers without an explicit choice use System. This deliberately permits a light OS setting to change the appearance on upgrade. Explicit Dark remains available. There is no per-project override, server setting, account sync, or automatic time-of-day schedule.
 
 The proposed data model separates intent from appearance:
 
@@ -25,7 +25,7 @@ type ResolvedTheme = "light" | "dark"
 
 Only the preference is persistent. The resolved theme is derived from the preference and the OS media query. A corrupt stored value resolves as System.
 
-## Why this fits Ntwine
+## Why this fits ntwine
 
 The existing [stylesheet](../packages/web/src/styles.css) already defines shared background, panel, text, status, and code tokens at lines 20-64. Both highlight.js and the diff scanner consume the code palette. A second set of values is smaller than a second set of components.
 
@@ -47,7 +47,7 @@ The [HTML entry point](../packages/web/index.html) hard-codes a dark canvas befo
 
 The feature includes the project grid, desktop and mobile boards, thread drawers and fullscreen threads, settings, dialogs, questions, code, diffs, GitHub cards, login terminal, Mermaid diagrams, embedded visualization host, and supervisor recovery pages.
 
-Source screenshots, videos, downloaded documents, remote pages, and user-authored colors are content. Ntwine does not recolor their pixels. Installed-app launch artwork is also distinct from the document's live theme.
+Source screenshots, videos, downloaded documents, remote pages, and user-authored colors are content. ntwine does not recolor their pixels. Installed-app launch artwork is also distinct from the document's live theme.
 
 ## Preference and first-paint contract
 
@@ -80,7 +80,7 @@ Keep the current dark values unchanged initially. Put both complete palettes in 
 
 CSS is the palette authority. Define the complete dark token set in `@theme static` so production CSS retains tokens read only by JavaScript and override every theme-dependent token under `:root[data-theme="light"]`. Add an OS-light fallback selector only when `data-theme` is absent. Theme adapters read computed CSS values after the root changes. They do not import independent RGB tables. Verify that compiled Tailwind utilities and arbitrary-value opacity modifiers resolve the selected values.
 
-The light palette uses a cool off-white page, white panels, darker separators, and dark neutral text. It preserves Ntwine's restrained density and yellow attention identity. It is not a new layout or a warm paper theme. Final numeric colors require rendered contrast and optical measurements during implementation.
+The light palette uses a cool off-white page, white panels, darker separators, and dark neutral text. It preserves ntwine's restrained density and yellow attention identity. It is not a new layout or a warm paper theme. Final numeric colors require rendered contrast and optical measurements during implementation.
 
 Several existing tokens need distinct roles rather than literal inversion:
 
@@ -108,7 +108,7 @@ Audit opacity too. `text-muted/60` can fail on white even when the opaque muted 
 
 Inspect every consumer. [GithubRefCardBody](../packages/web/src/components/GithubRefCardBody.tsx), line 113, appends `33` to a hex value. That is invalid after switching to a CSS variable. Replace the composition with an explicit neutral-fill token or `color-mix`. Convert `PRIMER_DANGER_LINK` too. State pills retain an explicit on-emphasis color rather than generic page text.
 
-GitHub label colors are external data. Keep their hue identity but derive accessible foreground, tinted background, and border treatments for each theme. Cover pale yellow, white, near-black, and malformed colors. Do not replace every GitHub hue with Ntwine's accent.
+GitHub label colors are external data. Keep their hue identity but derive accessible foreground, tinted background, and border treatments for each theme. Cover pale yellow, white, near-black, and malformed colors. Do not replace every GitHub hue with ntwine's accent.
 
 ### Code and diffs
 
@@ -120,7 +120,7 @@ Keep both existing highlighting engines. [diff.css](../packages/web/src/lib/diff
 
 The terminal stays mounted. Do not add theme to the effect that owns the WebSocket and terminal instance. Preserve buffer, scrollback, selection, focus, and connection across a switch. Remove the fixed dark login-terminal wrapper in [SignInModal](../packages/web/src/components/SignInModal.tsx).
 
-Explicit true-color output from a process remains process-owned. Ntwine themes xterm's default and indexed colors but does not rewrite terminal bytes.
+Explicit true-color output from a process remains process-owned. ntwine themes xterm's default and indexed colors but does not rewrite terminal bytes.
 
 ### Mermaid
 
@@ -132,7 +132,7 @@ A theme change schedules a new render. A generation identifier prevents older re
 
 ### Embedded visualizations
 
-[ChatView](../packages/web/src/components/ChatView.tsx), lines 3625-3711, already maps Ntwine tokens into an iframe message. It sends that message only on load. [local-visualization.ts](../packages/server/src/local-visualization.ts), lines 75-123, supplies dark defaults and chart-series colors that the current message does not replace.
+[ChatView](../packages/web/src/components/ChatView.tsx), lines 3625-3711, already maps ntwine tokens into an iframe message. It sends that message only on load. [local-visualization.ts](../packages/server/src/local-visualization.ts), lines 75-123, supplies dark defaults and chart-series colors that the current message does not replace.
 
 Extend the token map to include destructive and chart-series colors. Send the complete resolved palette on iframe readiness and on theme changes, without changing `src` or remounting. Add a ready/applied acknowledgement so the parent can keep the initial frame visually hidden until its first palette is applied. If no acknowledgement arrives within 5s after iframe load, display the existing unavailable state rather than an indefinitely hidden frame. Cancel the timer on acknowledgement or unmount.
 

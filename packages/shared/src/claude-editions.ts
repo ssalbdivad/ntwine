@@ -6,7 +6,7 @@
 export type ClaudeModelFamily = "fable" | "opus" | "sonnet" | "haiku"
 
 export interface ClaudeWireId {
-  /** The `claude --model` alias this id belongs to — the family Ntwine keys every preference on. */
+  /** The `claude --model` alias this id belongs to — the family ntwine keys every preference on. */
   alias: ClaudeModelFamily
   /** "5.5", "5", "4.5" — the edition within the family. */
   edition: string

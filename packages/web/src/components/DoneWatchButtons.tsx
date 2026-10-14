@@ -12,7 +12,7 @@ import { CARD_ACTION_RADIUS } from "./TranscriptCard.tsx"
 // blind), so threads vanished into Snoozed whether or not anyone wanted to follow them. It now signs off
 // `done`, and following the PR is the human's choice, made here whenever they read the card: the click
 // arms the same watcher the worker tools arm and snoozes the thread until it reports
-// (router.watchDoneRef). Ntwine parks nothing on the worker's behalf — the click is the human's.
+// (router.watchDoneRef). ntwine parks nothing on the worker's behalf — the click is the human's.
 //
 // OUTLINED, NOT THE WHITE CARD VERB. "Mark as done" is the card's verb and the default answer (it is the
 // header's check on the queue, and the white button beside these in the drawer); watching is the

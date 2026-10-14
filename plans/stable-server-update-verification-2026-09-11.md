@@ -68,7 +68,7 @@ The Windows VM experiment did not reach an initialized guest or working SSH conn
 
 The package name is `ntwine-server`, not `@ntwinesh/server`, following the explicit selection. Initial publication and npm Trusted Publisher setup are documented in [`stable-server-publishing.md`](stable-server-publishing.md): GitHub owner: the upstream account; repository `ntwine`, workflow filename `release.yml`, no environment. Ordinary server releases leave the launcher package version alone.
 
-The friend's `cd`/permission failure was not attributed to Ntwine, FNM or macOS permissions by this work. The diagnostic question was cancelled; no speculative permissions, shell configuration or TCC changes were made. The new installer avoids invoking interactive shell hooks, but that is a design property, not a diagnosis of the reported machine.
+The friend's `cd`/permission failure was not attributed to ntwine, FNM or macOS permissions by this work. The diagnostic question was cancelled; no speculative permissions, shell configuration or TCC changes were made. The new installer avoids invoking interactive shell hooks, but that is a design property, not a diagnosis of the reported machine.
 
 ## Local landing
 

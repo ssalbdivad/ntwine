@@ -10,7 +10,7 @@ import { embedded, postToHost } from "./embed.ts"
 //  - `@` in a prompt box offers the workspace's files beside the threads it always offered. The page has
 //    no index of the editor's workspace, so it asks the host (`ntwine:pick-context` with the query) and
 //    the host answers with the best matches (`ntwine:context-picks`). Choosing one writes the file as a
-//    whole-file reference — `` `src/a.ts` `` — the same text Add file to Ntwine prompt and the context
+//    whole-file reference — `` `src/a.ts` `` — the same text Add file to ntwine prompt and the context
 //    bar's open files write (lib/editorCompose.ts composeEdit), so an agent reads one shape for "this
 //    file" whichever way it came in.
 //  - files dragged in from VS Code's explorer: the drag carries URIs, not File objects, which the box's

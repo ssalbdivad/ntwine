@@ -227,7 +227,7 @@ function rollupEntrySkipped(conclusion: string | undefined): boolean {
 // terminal and none had failed, so the poll reported "✅ CI PASSED — 15 checks green" about a commit
 // whose real 29-check matrix had not been allowed to start and never did run on it.
 //
-// Ntwine was already fetching the answer: `defaultFetchPr` lists the head's workflow runs to name failed
+// ntwine was already fetching the answer: `defaultFetchPr` lists the head's workflow runs to name failed
 // jobs, and the gated ones are in that same list. `failedCheckNames` skips them because a pending
 // approval is not a failure, which is right — but until this they were then dropped on the floor rather
 // than reported as the distinct, and very actionable, state they are.
@@ -812,7 +812,7 @@ const STOP_HOOK_HINT_KEY = "stophook:rest"
 // The rest a delivery is bound to: the AGENT'S OWN last word.
 //
 // It was `lastActivityAt`, the thread's high-water mark over ANY record, and that was a self-feeding
-// loop for a thread whose worker is gone. Ntwine speaks as the USER, so a delivered bump lands in the
+// loop for a thread whose worker is gone. ntwine speaks as the USER, so a delivered bump lands in the
 // transcript and advances the high-water mark — minting a new "rest" that nobody rested, and with it a
 // new delivery id. Measured 2026-08-12 on a real stack with the worker absent: 10 bumps in 100 seconds,
 // climbing. It was survivable while a Goal was something an operator opted into on one thread; it stopped
@@ -1122,7 +1122,7 @@ function isOwnWatchExpiredFenceId(fenceId: string): boolean {
 }
 
 /** A COMMAND WATCH's wakes (SOURCE 16), one namespace per piece of news: it PASSED, its `for` ran out,
- *  or Ntwine stopped it because the thread may no longer have commands run for it. Each is one-shot — the
+ *  or ntwine stopped it because the thread may no longer have commands run for it. Each is one-shot — the
  *  row is settled by the time the wake is sent — so the id alone is the key, and three prefixes rather
  *  than one so a watch that is cancelled and later re-registered under the same id (it cannot be; ids are
  *  random) could never dedupe against the wrong news. Checked as THREE spellings for the reason
@@ -1283,7 +1283,7 @@ function timerIdOf(fenceId: string): string {
  *  required", "HTTP 404"); everything after it is stack and hint. */
 export function conciseGhError(err: unknown): string {
   const code = (err as NodeJS.ErrnoException)?.code
-  if (code === "ENOENT") return "the `gh` CLI is not installed on the PATH of the process Ntwine runs as"
+  if (code === "ENOENT") return "the `gh` CLI is not installed on the PATH of the process ntwine runs as"
   if ((err as { killed?: unknown })?.killed || code === "ETIMEDOUT") return "`gh` did not answer within 15s"
   const stderr = typeof (err as { stderr?: unknown })?.stderr === "string" ? (err as { stderr: string }).stderr : ""
   const line = stderr.trim().split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0)
@@ -2109,7 +2109,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (c.backend !== "claude" || (c.fault.window !== "session" && c.fault.window !== "weekly")) return undefined
     if (!deps.fableFallback?.() || !fableHasHeadroom(quota?.claude)) return undefined
     const row = deps.storage.getSession(c.slug)
-    // Broker rows only, and only a thread Ntwine may restart — the same gates modelFallbackFor states.
+    // Broker rows only, and only a thread ntwine may restart — the same gates modelFallbackFor states.
     if (!row || row.claude_runtime !== "broker") return undefined
     const tele = deps.tailer.get(c.slug)
     if (mayHaveLiveBackgroundWork(tele)) return undefined
@@ -2240,7 +2240,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // the row is its own durable registration, and "you asked to be woken at 15:00" does not stop being
   // true because the server restarted at 14:59. Unlike the snooze pass, it does not wait for rest.
   // ---- SOURCE 9: THE BUILT-IN SIGN-OFF NUDGE ---------------------------------------------------
-  // Ntwine's own stop hook. Always on, not disableable per-thread, and invisible in the UI — orthogonal
+  // ntwine's own stop hook. Always on, not disableable per-thread, and invisible in the UI — orthogonal
   // to the operator's Goal, which keeps its own three triggers.
   //
   // THE PER-THREAD OFF SWITCH WAS TRIED AND REVERTED (2026-08-13 → 2026-08-14): the Goal's then-existing
@@ -2286,7 +2286,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const tele = deps.tailer.get(row.slug)
       // THE AGENT MUST HAVE SPOKEN LAST, and this is the load-bearing guard rather than a nicety.
       //
-      // Ntwine's own delivery lands in the transcript as a USER record, so it advances `lastActivityAt`
+      // ntwine's own delivery lands in the transcript as a USER record, so it advances `lastActivityAt`
       // AND `lastUserAt`. Keying on either meant the nudge minted a fresh delivery id for a rest that
       // had not happened, and reset its own consecutive counter with its own message: measured on a real
       // stack, 22 deliveries in four minutes to one thread. The cap could not save it, because the thing
@@ -2434,7 +2434,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // The human working on the card holds it off, and the countdown's × turns it off (questionDefaultAtMs).
   // A thread's open questions go together (threadQuestionDefaults): one that waits holds them all.
   // The answer is stored exactly as the card would store it, so evalQuestionAnswers delivers it; its
-  // `text` says it was Ntwine's default, not the human's pick. A recommendation marked `external` (it
+  // `text` says it was ntwine's default, not the human's pick. A recommendation marked `external` (it
   // files, posts, merges or publishes) is never taken: the first option that stays on this machine is,
   // and with none the question waits. A question with nothing to take — free
   // text, `multi`, no recommendation, `danger` — waits for the human as before, and so does one they
@@ -2525,7 +2525,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   //     everything rather than the wait simply continuing, and re-parking on the same still-running
   //     items is UNLIMITED (maintainer 2026-08-15) — a three-hour build under a one-hour estimate is a
   //     bad estimate, not a failure, and each bump is a real checkpoint where it could decide otherwise.
-  /** Ntwine's own message, with the clock on it. Used ONLY where ntwine is the author — never on an
+  /** ntwine's own message, with the clock on it. Used ONLY where ntwine is the author — never on an
    *  operator-authored prompt (a Goal, a heartbeat, a snooze), whose text is delivered verbatim by
    *  invariant. A broker-run worker is told neither the date nor the time by its runtime, so without this
    *  it cannot tell a four-minute park from a four-hour one. */
@@ -2770,7 +2770,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // FINISHED IS NOT THE SAME AS MISSING, and conflating them is what drove the worst churn observed.
       // `read-the-file-read-up` wrote 284 awaiting fences: it parked on a build, the build FINISHED, and
       // ntwine answered "NOT RUNNING" — which reads as "your fence is broken", so the worker relaunched
-      // instead of reading the output it was waiting for, and went round again. Ntwine knows the
+      // instead of reading the output it was waiting for, and went round again. ntwine knows the
       // difference (the fold retires a shell with its finish instant), so it should say which.
       const finishedHandles = new Set<string>()
       for (const sh of tele.retiredShells ?? []) {
@@ -3685,7 +3685,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (outbox.get(deliveryId)) return
     const item = outbox.enqueue({
       id: deliveryId, slug: row.slug, sessionId: row.session_id, fenceId,
-      // Ntwine's own words about someone else's PR, so the clock rides along: a watcher wake is the one
+      // ntwine's own words about someone else's PR, so the clock rides along: a watcher wake is the one
       // most likely to land on a thread that has been parked for hours without knowing it.
       hintKey: `${PR_WATCH_FENCE_PREFIX}:${watchId}`, message: withClock(message, deps.tailer.get(row.slug)?.lastAssistantAt), reason,
     }, nowMs).delivery
@@ -4365,7 +4365,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // run row (thread_schedule_run), claimed in this tick and launched outside it (schedules.ts evalDue).
   //
   // THE ONE EXCEPTION TO "NEVER FIRES ON FIRST SIGHT" (start, below): an occurrence that came due while
-  // Ntwine was off does fire after a restart — once, and only within its lateness cap. It waits out a
+  // ntwine was off does fire after a restart — once, and only within its lateness cap. It waits out a
   // post-boot grace first, so the tailer has vouched for the previous run before the overlap check reads it.
   function evalScheduledThreads(nowMs: number): void {
     deps.scheduledThreads?.evalDue(nowMs)

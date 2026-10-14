@@ -48,7 +48,7 @@ export interface ContextFeedHost {
   onReady(listener: (ready: boolean) => void): void
   post(message: EmbedEditorContextMessage): Promise<boolean>
   projects(): readonly EditorProject[]
-  /** Whether the human shares the editor with Ntwine (ntwine.shareEditorState). */
+  /** Whether the human shares the editor with ntwine (ntwine.shareEditorState). */
   shared(): boolean
 }
 

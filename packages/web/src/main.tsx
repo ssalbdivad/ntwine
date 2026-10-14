@@ -11,6 +11,7 @@ import { initSupervisorStatus } from "./api/supervisorStatus.ts"
 import { initEditorBridge } from "./lib/editorBridge.ts"
 import { initEmbedHost } from "./lib/embedHost.ts"
 import { initFont } from "./lib/font.ts"
+import { setProjectMonograms } from "./lib/monograms.ts"
 import { initTheme } from "./lib/theme.ts"
 import { installExternalLinkInterceptor } from "./lib/external-links.ts"
 import { installLocalFileLinkInterceptor } from "./lib/local-file-links.ts"
@@ -97,8 +98,11 @@ if (!settingsFixture) {
   installPasteFallback()
   installThreadLinkInterceptor(queryClient)
   // The projects a `#slug` names (lib/projectMentions.ts): the machine's project list, the same cached
-  // read the switcher draws from, kept current as it is invalidated by an add, rename or removal.
-  new QueryObserver(queryClient, { queryKey: ["projectsList"], queryFn: () => rpc.projectsList() }).subscribe((result) => setProjectMentions(result.data))
+  // read the dock draws from, kept current as it is invalidated by an add, rename or removal.
+  new QueryObserver(queryClient, { queryKey: ["projectsList"], queryFn: () => rpc.projectsList() }).subscribe((result) => {
+    setProjectMentions(result.data)
+    setProjectMonograms(result.data)
+  })
   installViewTransitionRejectionFilter()
   // A reply still on the wire when the last page in this tab went away — see lib/pendingSends.ts.
   setTimeout(() => void replayPendingSends(), PENDING_SEND_REPLAY_DELAY_MS)

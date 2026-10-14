@@ -94,7 +94,7 @@ export interface DevBoot {
  *
  * Deliberately NOT the same channel as `log`/`error`, which carry the run log's full record: this is
  * the short list of moments a person watching the launcher must not miss, and every one of them is a
- * state change they did not start from that terminal. Restart Ntwine and Update Ntwine are clicked in a
+ * state change they did not start from that terminal. Restart ntwine and Update ntwine are clicked in a
  * browser, and a control-plane crash is nobody's click at all — before this, all three left the
  * foreground process silent while the board went down and came back, so the terminal that owns the
  * board said less about it than the tab did.
@@ -467,7 +467,7 @@ async function allocatePrivateDevPort(publicPort: number): Promise<number> {
     })
     if (candidate > 0 && candidate !== publicPort) return candidate
   }
-  throw new Error("could not allocate a private Ntwine control-plane port")
+  throw new Error("could not allocate a private ntwine control-plane port")
 }
 
 export function devReexecEnv(env: NodeJS.ProcessEnv): Record<string, string> {
@@ -729,7 +729,7 @@ class Supervisor implements DevSupervisor {
         const failed = this.child === null && this.boot === null
         const artifactDigest = this.activeChildEnvironment.NTWINE_STABLE_ARTIFACT
         return failed
-          ? { state: "failed" as const, message: "Ntwine application server is not ready", ...(artifactDigest ? { artifactDigest } : {}) }
+          ? { state: "failed" as const, message: "ntwine application server is not ready", ...(artifactDigest ? { artifactDigest } : {}) }
           : { state: "ready" as const, ...(artifactDigest ? { artifactDigest } : {}) }
       },
     })
@@ -781,7 +781,7 @@ class Supervisor implements DevSupervisor {
           if (result.status === "fulfilled") this.subscriptions.push(result.value)
           else this.errorLine(`[ntwine] dev watch failed: ${result.reason instanceof Error ? result.reason.message : result.reason}`)
         }
-        if (this.subscriptions.length === 0) throw new Error("no Ntwine server source tree could be watched")
+        if (this.subscriptions.length === 0) throw new Error("no ntwine server source tree could be watched")
       }
     } catch (err) {
       await this.publicProxy.close().catch(() => undefined)
@@ -845,7 +845,7 @@ class Supervisor implements DevSupervisor {
       // reads like something already went wrong. On the first boot there is nothing to restart.
       this.logLine(
         reason === INITIAL_BOOT_REASON
-          ? `[ntwine] starting Ntwine`
+          ? `[ntwine] starting ntwine`
           : `[ntwine] restarting ${scope} — ${reason}`,
       )
       this.writeStatus("restarting", reason)
@@ -910,7 +910,7 @@ class Supervisor implements DevSupervisor {
    */
   private missingLaunchFolder(): string | undefined {
     if (existsSync(this.cwd)) return undefined
-    return `Ntwine is running on ${this.cwd}, which no longer exists, so a new server cannot start there. Stop Ntwine and start it again.`
+    return `ntwine is running on ${this.cwd}, which no longer exists, so a new server cannot start there. Stop ntwine and start it again.`
   }
 
   /** Called only by the public supervisor control endpoint, never by ordinary document reloads. */
@@ -921,7 +921,7 @@ class Supervisor implements DevSupervisor {
     const previousBoot = this.boot?.bootId
     const work = (async (): Promise<RestartResult> => {
       this.lastRestartFailure = undefined
-      this.requestRestart("Restart Ntwine requested from browser", true)
+      this.requestRestart("Restart ntwine requested from browser", true)
       const deadline = Date.now() + 30_000
       while (!this.closed && Date.now() < deadline) {
         const boot = this.boot
@@ -933,8 +933,8 @@ class Supervisor implements DevSupervisor {
         await new Promise((resolveWait) => setTimeout(resolveWait, 50))
       }
       const message = this.closed
-        ? "Ntwine supervisor stopped while restarting"
-        : "Ntwine application server did not become ready within 30 seconds"
+        ? "ntwine supervisor stopped while restarting"
+        : "ntwine application server did not become ready within 30 seconds"
       this.writeStatus("failed", message)
       return { state: "failed", message }
     })().finally(() => { this.browserRestart = null })
@@ -957,7 +957,7 @@ class Supervisor implements DevSupervisor {
     // for a minute and then jump straight to "restarting". The copy names neither, because this
     // beat cannot know which: it read "preparing the new build" for the registry launcher's npm
     // install (audit 2026-09-11, finding 6). The hook's own message, which does know, follows it.
-    this.emitActivity("updating", "preparing the update — the running Ntwine is untouched until it is ready")
+    this.emitActivity("updating", "preparing the update — the running ntwine is untouched until it is ready")
     const candidate = await this.updateRestart()
     if (candidate.state !== "ready") {
       this.emitActivity("failed", candidate.message ?? "the update could not be prepared")
@@ -992,7 +992,7 @@ class Supervisor implements DevSupervisor {
 
   /**
    * Update only the disposable application server while retaining the public listener and launcher.
-   * There is deliberately no blue/green overlap: an Ntwine child opens SQLite, tailers and schedulers
+   * There is deliberately no blue/green overlap: an ntwine child opens SQLite, tailers and schedulers
    * before it can report ready, so a candidate is started only after the old child is fully gone.
    */
   private async updateChildFromBrowser(): Promise<RestartResult> {
@@ -1016,13 +1016,13 @@ class Supervisor implements DevSupervisor {
       if (prepared.state !== "ready") {
         return this.failChildUpdate(prepared.message ?? "the update could not be prepared", false)
       }
-      if (this.closed) return this.failChildUpdate("Ntwine supervisor stopped while preparing the update", false)
+      if (this.closed) return this.failChildUpdate("ntwine supervisor stopped while preparing the update", false)
       if (prepared.message) this.emitActivity("updating", prepared.message)
       // Do not run two server children. The old generation owns the shared runtime resources until
       // this exact drain completes; only then may the prepared launch provider select its candidate.
       this.handoffDraining = true
       await this.stopChild()
-      if (this.closed) return this.failChildUpdate("Ntwine supervisor stopped while starting the update", true)
+      if (this.closed) return this.failChildUpdate("ntwine supervisor stopped while starting the update", true)
       const ready = await this.spawnChild({
         updateCandidate: true,
         readinessTimeoutMs: this.updateReadyTimeoutMs,
@@ -1425,7 +1425,7 @@ class Supervisor implements DevSupervisor {
 
   private async reexecLauncher(): Promise<void> {
     if (!this.reexec) {
-      const message = "launcher source changed, but this Node runtime cannot re-exec; restart Ntwine once"
+      const message = "launcher source changed, but this Node runtime cannot re-exec; restart ntwine once"
       this.errorLine(`[ntwine] ${message}`)
       this.writeStatus("degraded", message)
       return
@@ -1472,7 +1472,7 @@ class Supervisor implements DevSupervisor {
     // execve never returns. A failed/injected return must release ownership through the caller's one
     // shutdown path; otherwise this live but watcherless PID would strand the project indefinitely.
     this.removeStatus()
-    this.errorLine("[ntwine] dev launcher re-exec returned unexpectedly; restart Ntwine once")
+    this.errorLine("[ntwine] dev launcher re-exec returned unexpectedly; restart ntwine once")
     // `closed` is already set, so close() would return without reaching the listener.
     await this.publicProxy.close().catch(() => undefined)
     this.resolveStopRequested()
@@ -1545,7 +1545,7 @@ class Supervisor implements DevSupervisor {
   /**
    * Second-Ctrl-C escalation. `stopChild` waits up to CHILD_STOP_TIMEOUT_MS for a clean drain; an
    * operator who signals again has withdrawn that patience, so take the control plane down now. The
-   * child owns only Ntwine's own handles — the detached worker daemons (a Claude thread's session
+   * child owns only ntwine's own handles — the detached worker daemons (a Claude thread's session
    * broker, the Codex app-server) are keyed project resources in their own process groups and
    * deliberately survive this.
    */

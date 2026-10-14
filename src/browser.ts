@@ -24,7 +24,7 @@ export interface BrowserTabLaunchOptions {
 /**
  * Build the shell-free platform command that asks the OS default browser to open a normal tab.
  * Keeping this separate from app-mode browser discovery is deliberate: the user's configured
- * browser owns ordinary Ntwine launches, while `launchApp` remains an explicit compatibility mode.
+ * browser owns ordinary ntwine launches, while `launchApp` remains an explicit compatibility mode.
  */
 export function defaultBrowserOpenCommand(
   rawUrl: string,
@@ -100,7 +100,7 @@ export function runUrlHandler(
   })
 }
 
-/** Ask the OS default URL handler to open Ntwine, and await acceptance of that request. */
+/** Ask the OS default URL handler to open ntwine, and await acceptance of that request. */
 export async function launchBrowserTab(
   rawUrl: string,
   options: BrowserTabLaunchOptions = {},
@@ -272,7 +272,7 @@ export async function launchApp(
       // Launch the shim bundle itself (what the Dock/Finder would do). The shim's app_mode_loader
       // is a universal Mach-O, so LaunchServices runs it native arm64 (verified: LSArchitecture=
       // arm64); it boots Chrome on this profile by itself when Chrome isn't running, and that Chrome
-      // holds the "Ntwine" identity (own Dock tile/icon) for the window's lifetime.
+      // holds the "ntwine" identity (own Dock tile/icon) for the window's lifetime.
       const shim = await ensureAppShim(browser.path, url, dataPath)
       // `open` is fire-and-forget and CAN silently no-op: a still-live register-only instance can
       // swallow it (LaunchServices "activates" the running instance instead of launching), the shim
@@ -303,8 +303,8 @@ export async function launchApp(
 //  · Bundle NAME: the .app filename and CFBundleName are both the manifest `name` — but only for the
 //    FIRST bundle of that name. Chrome disambiguates a collision by appending " 1", " 2", … and
 //    collisions are routine here, since manifestIdFor is origin-scoped and every project runs on its
-//    own port (verified on a real machine: Ntwine.app/4917, Ntwine 1.app/4918, Ntwine 2.app/4920,
-//    Ntwine 3.app/4921). EXPECTED_BUNDLE_NAME must therefore track
+//    own port (verified on a real machine: ntwine.app/4917, ntwine 1.app/4918, ntwine 2.app/4920,
+//    ntwine 3.app/4921). EXPECTED_BUNDLE_NAME must therefore track
 //    packages/web/public/manifest.webmanifest `name`, and the comparison must tolerate that numeric
 //    suffix — see bundleNameMatchesManifest. findAppShim matches on URL + data-dir (NOT name), so a
 //    bundle installed under an old name keeps launching under it forever; a name that is neither the
@@ -333,23 +333,23 @@ const CHROME_APPS_DIR = join(homedir(), "Applications", "Chrome Apps.localized")
 // here (not fetched from the manifest) because this launcher only ever has the origin URL, not the
 // manifest body — so KEEP THESE TWO IN LOCKSTEP: renaming the app means editing both, and the
 // mismatch drives the stale-shim reinstall that migrates an already-installed bundle to the new name.
-const EXPECTED_BUNDLE_NAME = "Ntwine"
+const EXPECTED_BUNDLE_NAME = "ntwine"
 
 /**
  * Does this bundle's CFBundleName belong to the CURRENT manifest name?
  *
  * Chrome DISAMBIGUATES a colliding bundle by appending " 1", " 2", … — and collisions are the norm
  * here, not the exception, because `manifestIdFor` is scoped to the ORIGIN and every project gets its
- * own port. So the second project to install a shim becomes "Ntwine 1", the third "Ntwine 2", and so on.
+ * own port. So the second project to install a shim becomes "ntwine 1", the third "ntwine 2", and so on.
  *
  * A bare `=== EXPECTED_BUNDLE_NAME` therefore judged every project after the first permanently STALE:
  * each `--app` launch uninstalled and reinstalled the shim, Chrome handed back the next number, and
  * the bundle count grew without the Dock identity ever sticking. Observed on a real machine as
- * Ntwine.app / Ntwine 1.app / Ntwine 2.app / Ntwine 3.app — four ports, four bundles, one working shim.
+ * ntwine.app / ntwine 1.app / ntwine 2.app / ntwine 3.app — four ports, four bundles, one working shim.
  *
  * Accepting the suffix costs nothing: findAppShim already matched this bundle on the AUTHORITATIVE
  * pair (shortcut URL + user-data-dir), so the name is a rename check, not an identity check. A real
- * manifest rename ("Ntwine" → something else) still fails this test and still heals by reinstalling.
+ * manifest rename ("ntwine" → something else) still fails this test and still heals by reinstalling.
  */
 export function bundleNameMatchesManifest(bundleName: string): boolean {
   if (bundleName === EXPECTED_BUNDLE_NAME) return true

@@ -4,7 +4,7 @@ Written 2026-09-03 as a design mockup, not a description of shipped behavior. It
 
 ## What it is, next to what already exists
 
-Ntwine has two ways to take a thread out of your way, and neither stops the worker. **Snooze** parks the CARD until an instant: the agent keeps running, its watchers keep waking it, and the card comes back on the clock. **Mark as done** ends the session and files the thread away. **Pause** is the missing third: the AGENT stops, and nothing Ntwine would otherwise send it reaches it until the human presses play. A pause has no clock. It ends when you end it.
+ntwine has two ways to take a thread out of your way, and neither stops the worker. **Snooze** parks the CARD until an instant: the agent keeps running, its watchers keep waking it, and the card comes back on the clock. **Mark as done** ends the session and files the thread away. **Pause** is the missing third: the AGENT stops, and nothing ntwine would otherwise send it reaches it until the human presses play. A pause has no clock. It ends when you end it.
 
 ## The verb
 
@@ -24,7 +24,7 @@ Everything below is a rule about the scheduler and the delivery path, not about 
 | Shell watchers, sub-agent returns, Monitor timeouts | Held, each; the shell itself keeps running | Delivered in arrival order |
 | PR watchers (`watch_pr`) | Held, each; the watcher keeps watching | Delivered in arrival order |
 | A snooze bump (a snooze carrying a prompt) | Held | Delivered in arrival order |
-| Ntwine's own sign-off nudge | DROPPED: a pause is not a rest to nudge | Nothing |
+| ntwine's own sign-off nudge | DROPPED: a pause is not a rest to nudge | Nothing |
 | Human follow-ups (Enter) | QUEUED, the existing queued-bubble mechanism | Delivered after the held wakes, as their own bubbles |
 | `⌘⏎` in the composer | Resumes AND sends | Same as Resume, then the message |
 | Answers to a registered question | Queued like a follow-up | Delivered after the held wakes |

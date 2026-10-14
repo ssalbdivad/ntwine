@@ -277,7 +277,7 @@ test("a declared public origin tolerates forwarded headers only on requests that
   const forwarded = { "x-forwarded-for": "203.0.113.7", "x-forwarded-proto": "https" }
   assert.equal(isTrustedLocalHttpRequest({ ...proxied, ...forwarded }, PORT, false, TUNNELLED), true)
   assert.equal(isTrustedLocalHttpRequest(proxied, PORT, false, TUNNELLED), true)
-  // Undeclared, this is exactly the shape Ntwine refuses — naming a proxy is what changes the answer.
+  // Undeclared, this is exactly the shape ntwine refuses — naming a proxy is what changes the answer.
   assert.equal(isTrustedLocalHttpRequest({ ...proxied, ...forwarded }, PORT, false), false)
 
   // The laundering case: a caller on the loopback port cannot borrow the proxy's licence by claiming
@@ -309,7 +309,7 @@ test("an https proxy origin still sends Fetch Metadata, so it never needs the LA
 
 test("public origins are validated at launch, where the message can say what is wrong", () => {
   assert.equal(normalizePublicOrigin(" https://ntwine.example.com "), "https://ntwine.example.com")
-  assert.equal(normalizePublicOrigin("https://Ntwine.Example.com"), "https://ntwine.example.com")
+  assert.equal(normalizePublicOrigin("https://ntwine.Example.com"), "https://ntwine.example.com")
   assert.equal(normalizePublicOrigin("http://box.local:8080"), "http://box.local:8080")
   assert.throws(() => normalizePublicOrigin(""), /requires a URL/)
   assert.throws(() => normalizePublicOrigin("ntwine.example.com"), /use a full URL/)

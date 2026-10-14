@@ -50,7 +50,7 @@ export async function signOutThisDevice(fetcher: typeof fetch = fetch): Promise<
   }
   const known = body?.protocol === 1
     && (body.result === "signed-out" || body.result === "cookie-cleared" || body.result === "no-remote-session")
-  if (!known || !body) throw new Error("This Ntwine cannot sign a device out from the browser")
+  if (!known || !body) throw new Error("This ntwine cannot sign a device out from the browser")
   return { signedOut: signedOutOutcome(response.status, body), result: body }
 }
 

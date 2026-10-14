@@ -52,7 +52,7 @@ test("Windows URL-shaped paths read, watch and open without bypassing trusted ro
 
 test("a Windows root and a path spelled in another case are one directory", { skip: process.platform !== "win32" }, (t) => {
   // `d:\dev\…` under a root git reported as `D:\Development\…` is the same file, and refusing it as
-  // "outside Ntwine's trusted roots" is how a live file link died for a difference of case alone.
+  // "outside ntwine's trusted roots" is how a live file link died for a difference of case alone.
   const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-local-case-")))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const file = join(root, "Plan.md")

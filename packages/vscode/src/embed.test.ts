@@ -16,20 +16,20 @@ test("the frame's URL is this window's project's board, carrying the embed switc
   assert.equal(odd.hash, "")
 })
 
-test("a host the window reaches Ntwine by is framed as such; a different port is refused, never framed", () => {
+test("a host the window reaches ntwine by is framed as such; a different port is refused, never framed", () => {
   assert.deepEqual(frameTarget("http://127.0.0.1:9393/?embed=vscode", "http://127.0.0.1:9393/?embed=vscode"), {
     kind: "frame",
     url: "http://127.0.0.1:9393/?embed=vscode",
     origin: "http://127.0.0.1:9393",
   })
-  // Cursor's Remote-WSL tunnel hands back localhost on the same port, which Ntwine accepts.
+  // Cursor's Remote-WSL tunnel hands back localhost on the same port, which ntwine accepts.
   assert.deepEqual(frameTarget("http://127.0.0.1:9393/?embed=vscode", "http://localhost:9393/?embed=vscode"), {
     kind: "frame",
     url: "http://localhost:9393/?embed=vscode",
     origin: "http://localhost:9393",
   })
   assert.deepEqual(frameTarget("http://127.0.0.1:9393/", "http://127.0.0.1:49152/"), { kind: "remapped", port: 9393, external: 49152 })
-  // A default port is a port: an https tunnel on 443 is not Ntwine's 9393, and an explicit :80 is http's 80.
+  // A default port is a port: an https tunnel on 443 is not ntwine's 9393, and an explicit :80 is http's 80.
   assert.deepEqual(frameTarget("http://127.0.0.1:9393/", "https://abc.tunnel.example/"), { kind: "remapped", port: 9393, external: 443 })
   assert.equal(frameTarget("http://ntwine.local/", "http://ntwine.local:80/").kind, "frame")
 })
@@ -199,10 +199,10 @@ test("a chord the allowlist does not name, or with one modifier more or less, ru
   for (const [key, mac] of none) assert.equal(chordCommand(key, mac), undefined, JSON.stringify({ key, mac }))
 })
 
-test("Add to Ntwine prompt goes to the sidebar whenever it is on and there is an Ntwine to frame, opened or not", () => {
+test("Add to ntwine prompt goes to the sidebar whenever it is on and there is an ntwine to frame, opened or not", () => {
   assert.equal(addRoute({ enabled: true, ntwine: true }), "sidebar", "a window that never opened the sidebar opens it")
   assert.equal(addRoute({ enabled: false, ntwine: true }), "server", "the setting keeps the browser flow")
-  assert.equal(addRoute({ enabled: true, ntwine: false }), "server", "no Ntwine: the server path, which says why")
+  assert.equal(addRoute({ enabled: true, ntwine: false }), "server", "no ntwine: the server path, which says why")
 })
 
 test("Ask and Send write in the sidebar unless it is off or the caller passed the text to send", () => {
@@ -241,12 +241,12 @@ test("a selection the page takes is done: revealed, waited for, posted, answered
 
 test("a page that never gets ready, never answers or refuses leaves the selection to the command's old path", async () => {
   const notReady = fakeSidebar({ ready: false })
-  assert.deepEqual(await composeInSidebar(notReady.sidebar, composeInput, timing), { ok: false, why: "The Ntwine sidebar didn't load in time." })
+  assert.deepEqual(await composeInSidebar(notReady.sidebar, composeInput, timing), { ok: false, why: "The ntwine sidebar didn't load in time." })
   assert.deepEqual(notReady.calls, ["reveal false", "wait 15000"], "nothing is posted to a page that is not listening")
   const silent = fakeSidebar({ ready: true })
-  assert.deepEqual(await composeInSidebar(silent.sidebar, composeInput, timing), { ok: false, why: "The Ntwine sidebar didn't answer." })
-  const refused = fakeSidebar({ ready: true, answer: { ok: false, error: "Its project isn't in Ntwine." } })
-  assert.deepEqual(await composeInSidebar(refused.sidebar, composeInput, timing), { ok: false, why: "The Ntwine sidebar couldn't take it: Its project isn't in Ntwine." })
+  assert.deepEqual(await composeInSidebar(silent.sidebar, composeInput, timing), { ok: false, why: "The ntwine sidebar didn't answer." })
+  const refused = fakeSidebar({ ready: true, answer: { ok: false, error: "Its project isn't in ntwine." } })
+  assert.deepEqual(await composeInSidebar(refused.sidebar, composeInput, timing), { ok: false, why: "The ntwine sidebar couldn't take it: Its project isn't in ntwine." })
 })
 
 test("a thread's tab frames the thread's own address in embed mode, with its project and theme", () => {

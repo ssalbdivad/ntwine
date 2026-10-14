@@ -1,12 +1,12 @@
 ---
 name: ntwine-stack
-description: Boot a REAL, fully-isolated, disposable Ntwine you can poke — `scripts/adhoc-stack.mjs` (own server, sandbox HOME, throwaway port, one or many projects) — and seed real state through its own RPC surface. LOAD THIS BEFORE HAND-ROLLING ANY VERIFICATION HARNESS: the sandbox HOME, real credentials, extra registered projects, the launcher's lock path and every tenant's id/slug are already flags, and rebuilding them by hand costs a boot cycle per mistake. Use it whenever the question is "does this actually work in a running Ntwine" — a new surface, live/timing/restart behavior, a seam between processes, a bug no test pins — and above all anything touching the SINGLETON: one Ntwine serving N projects, tenant routing (`/_ntwine/<project>/rpc/…`), a project the server did NOT launch from, dispatching a real worker, or the Ntwine MCP worker tools (`spawn_thread`, `recurring_prompt`, `timer`). Pair with `headless-browser` to LOOK at it and `real-subsystem-harness` for what a browser cannot reach.
+description: Boot a REAL, fully-isolated, disposable ntwine you can poke — `scripts/adhoc-stack.mjs` (own server, sandbox HOME, throwaway port, one or many projects) — and seed real state through its own RPC surface. LOAD THIS BEFORE HAND-ROLLING ANY VERIFICATION HARNESS: the sandbox HOME, real credentials, extra registered projects, the launcher's lock path and every tenant's id/slug are already flags, and rebuilding them by hand costs a boot cycle per mistake. Use it whenever the question is "does this actually work in a running ntwine" — a new surface, live/timing/restart behavior, a seam between processes, a bug no test pins — and above all anything touching the SINGLETON: one ntwine serving N projects, tenant routing (`/_ntwine/<project>/rpc/…`), a project the server did NOT launch from, dispatching a real worker, or the ntwine MCP worker tools (`spawn_thread`, `recurring_prompt`, `timer`). Pair with `headless-browser` to LOOK at it and `real-subsystem-harness` for what a browser cannot reach.
 version: 0.1.0
 metadata:
   internal: true
 ---
 
-# ntwine-stack — a real Ntwine that touches nothing real
+# ntwine-stack — a real ntwine that touches nothing real
 
 A throwaway instance, sandboxed on every axis, so you can verify against the running thing instead of
 reasoning about it. Booting it is cheap; being wrong in front of the maintainer is not.
@@ -70,10 +70,10 @@ restart before debugging.
 
 ## 2. TWO projects on one server — the singleton half most bugs hide in
 
-One Ntwine serves N projects, so "it works" in the LAUNCHING project proves almost nothing about the
+One ntwine serves N projects, so "it works" in the LAUNCHING project proves almost nothing about the
 others. A whole class of defect exists only in a *tenant* — a project the server did not launch from —
 because the launcher is the one that gets the `server.lock`, the unprefixed routes and the boot-time
-context. That is exactly where the Ntwine MCP tools broke (2026-08-08: every worker outside the launching
+context. That is exactly where the ntwine MCP tools broke (2026-08-08: every worker outside the launching
 project lost `spawn_thread`, `recurring_prompt` and `timer`, because it was reading a lock that only the
 launcher publishes, and POSTing an unprefixed RPC that means "the launching project" by definition).
 

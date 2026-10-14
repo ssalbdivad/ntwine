@@ -40,7 +40,7 @@ const ROWS: TopProc[] = [
   p(402, 1, "node vite", 70_000, "thread-c", 30_000),
   // a broker whose claude is gone
   p(600, 1, BROKER, 25_000, null, 400 * MIN),
-  // not Ntwine's
+  // not ntwine's
   p(700, 1, "/usr/bin/sshd", 9_000),
 ]
 
@@ -165,7 +165,7 @@ test("the readout says what it could not read, in sentence case and the house du
   assert.match(text, /running .*thread-a .*2\.1GB .*2\.5GB .*2m .*45s/)
   assert.match(text, /queued .*thread-b .*30s .*1 job ahead in the queue/)
   assert.match(text, /thread-a .*2\.8GB .*2h .* 2h 35m/)
-  assert.match(text, /Hibernated threads and unowned brokers not shown: no Ntwine server is running\./)
+  assert.match(text, /Hibernated threads and unowned brokers not shown: no ntwine server is running\./)
   assert.match(text, /Orphans .*: 1\n[\s\S]*thread-c .*273MB +3 +reaped on the next sweep/)
   for (const bad of [/\d+ ?min\b/, /\d+ ?hrs?\b/, /\d+ minutes/]) assert.doesNotMatch(text, bad)
 })

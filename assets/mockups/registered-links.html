@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ntwine — links and screenshot treatments</title>
+  <title>ntwine — links and screenshot treatments</title>
   <style id="shared-styles">
     /* Palette and type from packages/web/src/styles.css. The light palette is a comparison aid.
        Static composer/operation rows follow ChatView.tsx and ChildOpRow.tsx, not a new app shell. */
@@ -173,7 +173,7 @@
     <div id="screenshots" class="section-head"><div><h2>Screenshot fences</h2><p>Inline in the transcript. Try the arrows, thumbnails, dots, or horizontal scroll.</p></div></div>
     <div id="gallery-options" class="compare"></div>
     <details class="source" style="margin:30px 0 0"><summary>Shared CSS and sample registration data</summary><pre id="shared-source"></pre></details>
-    <p class="footer-note">Local paths keep their current opening behavior: Markdown in the Ntwine reader, with an external-open action. These mock links show their destination without opening a file or starting a server. Screenshot illustrations are embedded; this page needs no server or network.</p>
+    <p class="footer-note">Local paths keep their current opening behavior: Markdown in the ntwine reader, with an external-open action. These mock links show their destination without opening a file or starting a server. Screenshot illustrations are embedded; this page needs no server or network.</p>
   </main>
   <dialog id="preview"><button class="close" aria-label="Close preview">×</button><h2 id="preview-title"></h2><div id="preview-body"></div></dialog>
   <script>
@@ -264,7 +264,7 @@
       const bg=light?'#f3f4f6':'#0d0e10', panel=light?'#fff':'#181b20', line=light?'#dfe2e7':'#33363c', fg=light?'#24282f':'#e6e7e9', muted=light?'#707783':'#8b8f96';
       const x=i===1?185:115,w=i===1?270:470;
       const body=i===2?`<rect x="${x}" y="120" width="${w}" height="148" rx="10" fill="${panel}" stroke="${line}"/><text x="${x+w/2}" y="174" text-anchor="middle" fill="${fg}" font-size="15">No linked resources</text><text x="${x+w/2}" y="203" text-anchor="middle" fill="${muted}" font-size="11">Registered links will appear here.</text><rect x="${x+w/2-43}" y="221" width="86" height="25" rx="5" fill="${fg}"/><text x="${x+w/2}" y="238" text-anchor="middle" fill="${bg}" font-size="10">Add a link</text>`:[0,1,2].map((n)=>`<rect x="${x}" y="${114+n*57}" width="${w}" height="47" rx="7" fill="${panel}" stroke="${line}"/><text x="${x+15}" y="${134+n*57}" fill="${fg}" font-size="12">${['Appearance','Notifications','Local file links'][n]}</text><text x="${x+15}" y="${149+n*57}" fill="${muted}" font-size="9">${['Choose the font and color theme','Control desktop notifications','Choose an external editor'][n]}</text><path d="m${x+w-23} ${132+n*57} 4 4-4 4" fill="none" stroke="${muted}"/></svg>`.replace('</svg>','')).join('');
-      return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="${bg}"/><g font-family="system-ui,sans-serif"><text x="${x}" y="67" fill="${muted}" font-size="10">Ntwine / Preferences</text><text x="${x}" y="93" fill="${fg}" font-size="21" font-weight="550">Settings</text>${body}<text x="${x}" y="326" fill="${muted}" font-size="9">Illustrative screenshot · ${i+1} of 3</text></g></svg>`);
+      return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="${bg}"/><g font-family="system-ui,sans-serif"><text x="${x}" y="67" fill="${muted}" font-size="10">ntwine / Preferences</text><text x="${x}" y="93" fill="${fg}" font-size="21" font-weight="550">Settings</text>${body}<text x="${x}" y="326" fill="${muted}" font-size="9">Illustrative screenshot · ${i+1} of 3</text></g></svg>`);
     }
     const galleryVariants = [
       ['m','M','Image + counter','A single image, caption, and previous/next controls.'],
@@ -290,7 +290,7 @@
       const pick=event.target.closest('[data-pick]');
       if(pick) { const id=pick.dataset.pick; chosen.has(id)?chosen.delete(id):chosen.add(id); pick.setAttribute('aria-pressed',chosen.has(id)); pick.textContent=chosen.has(id)?'Shortlisted':'Shortlist'; if(onlyPicked&&!chosen.has(id)) pick.closest('.candidate').hidden=true; $('#shortlist-empty').hidden=!onlyPicked||chosen.size>0; return; }
       const resource=event.target.closest('[data-resource]');
-      if(resource) { event.preventDefault(); const d=links().find(d=>d.id===resource.dataset.resource); showPreview(d.label,`<p>Mock link destination</p><pre>${esc(d.target)}</pre><p>${d.target.endsWith('.md')?'This opens in the Ntwine Markdown reader, with an option to open externally.':d.target.startsWith('http')?'This opens the URL. Registration does not assert that a server is running.':'This uses the existing local-file opening behavior.'}</p>`); return; }
+      if(resource) { event.preventDefault(); const d=links().find(d=>d.id===resource.dataset.resource); showPreview(d.label,`<p>Mock link destination</p><pre>${esc(d.target)}</pre><p>${d.target.endsWith('.md')?'This opens in the ntwine Markdown reader, with an option to open externally.':d.target.startsWith('http')?'This opens the URL. Registration does not assert that a server is running.':'This uses the existing local-file opening behavior.'}</p>`); return; }
       const nav=event.target.closest('[data-slide]');
       if(nav) { const [v,i]=nav.dataset.slide.split(':'); setSlide(v,Number(i),nav.getAttribute('aria-label')); return; }
       const img=event.target.closest('[data-enlarge]');

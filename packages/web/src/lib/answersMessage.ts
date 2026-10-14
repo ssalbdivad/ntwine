@@ -232,7 +232,7 @@ export interface MsgLike {
 
 // THE HUMAN'S TURN IS READ THROUGH ITS DISPLAY PROJECTION, never the raw record. The raw `text` of an
 // answers turn is not only what the human typed: ntwine appends its own machine-facing tail to the copy
-// the worker receives — the clock note (`⏱ Ntwine: the message above arrived 4h9m after your last one…`)
+// the worker receives — the clock note (`⏱ ntwine: the message above arrived 4h9m after your last one…`)
 // on any reply landing after a long gap — and the transcript is read from the WORKER's record, so that
 // tail is part of `text`. The server strips it into `displayText` (see transcript.ts userDisplayText),
 // and the plain bubble renders that. This pairing used to read `text` instead, so the numbered parser
@@ -254,7 +254,7 @@ const answerKey = (a: PairedAnswer): string => `${a.question ?? ""} ${a.answer}`
  *  board.answersInFlight). It is spent by the worker RECEIVING the answer — the newest USER record — and
  *  that is deliberately later than the delivery being handed to a channel.
  *
- *  But the transcript reaches the same bytes FIRST. Ntwine's delivery lands in the worker's own queue the
+ *  But the transcript reaches the same bytes FIRST. ntwine's delivery lands in the worker's own queue the
  *  moment it is injected, and Claude Code writes a `queue-operation enqueue` for it — which the transcript
  *  renders as a queued bubble, i.e. as this very Answers card, while `lastUserAt` has not moved because no
  *  user record exists yet. So for the whole length of the turn that was in flight (minutes on a loaded

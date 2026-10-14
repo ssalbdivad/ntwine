@@ -84,7 +84,7 @@ export function pickFront<E extends EditorLike>(active: E | undefined, last: E |
 
 // ── secrets ───────────────────────────────────────────────────────────────────────────────────────────
 //
-// A selection's TEXT goes to Ntwine without the human asking in two ways: the block on every sidebar send,
+// A selection's TEXT goes to ntwine without the human asking in two ways: the block on every sidebar send,
 // and the agents' tool. Neither should carry the contents of a file that obviously holds credentials — a
 // selection left standing in `.env` while the human asks an unrelated question would put the keys into a
 // transcript, and from there into a provider's logs. The path is still named (the agent may need to know

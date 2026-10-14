@@ -54,7 +54,7 @@ test("any VCS marks a root — git, jj, hg, svn — so a non-colocated jj checko
   }
 })
 
-// An existing Ntwine project wins over the VCS or manifest it happens to sit inside.
+// An existing ntwine project wins over the VCS or manifest it happens to sit inside.
 test("a directory that already has an id is the root", () => {
   const home = sandbox("existing")
   try {
@@ -216,7 +216,7 @@ test("a seed that is not a UUID is refused rather than recorded", () => {
   }
 })
 
-// $HOME is where Ntwine keeps its OWN state (~/.ntwine), so adopting it as a project writes a project
+// $HOME is where ntwine keeps its OWN state (~/.ntwine), so adopting it as a project writes a project
 // id into the global state root — and from then on the walk-up finds it from every unmarked
 // directory under home. It happened on the maintainer's machine (2026-08-06).
 test("the home directory is recognised even when it is reached through a symlink", () => {

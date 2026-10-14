@@ -15,17 +15,17 @@ import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 // THE STATUS ROW — one loose line along the TOP OF THE PROMPT BOX: the page's title at the left, then,
 // pushed to the right end, the app's controls and its readouts:
 //
-//   ▣ acme-api ▾                settings · shortcuts · reload │ Claude 83% · Codex 59%
+//                               settings · shortcuts · reload │ Claude 83% · Codex 59%
 //
-// and on a project's BOARD (`/project/<slug>`), led by the door home and followed by the
-// project's repo — upstream's crumb and identity, which the board brought back on 2026-10-06:
+// and on a project's BOARD (`/project/<slug>`), led by the door home, the project's name and its
+// repo — upstream's crumb and identity, which the board brought back on 2026-10-06:
 //
-//   ⌂ │ ▣ acme-api ▾  acme/api …      settings · shortcuts · reload │ Claude 83% · Codex 59%
+//   ⌂ │ ▣ acme-api  acme/api …      settings · shortcuts · reload │ Claude 83% · Codex 59%
 //
-// THE TITLE is the project switcher (ProjectSwitcher.tsx), handed in as `title` — the page's one name for
-// what it shows, where a workspace switcher sits in Linear, Slack or Vercel (David 2026-09-29). It
-// sat over the queue until then, muted, and read as a filter on the cards rather than the scope of the
-// whole page; the list's own project header repeated the name 180px away.
+// THE TITLE, handed in as `title`, is plain: the project's square and name (AllQueues.tsx ProjectTitle).
+// It was a dropdown of every project from 2026-09-29 to 2026-10-14, the same choice the dock under the
+// prompt box offers (ProjectDock.tsx), and went as a second copy of it. All projects has no title: it
+// is the page with nothing narrowed, and the dock's All chip says so.
 //
 // It rides the page's prompt box, at the top of its left column (AllQueues.tsx).
 //
@@ -45,7 +45,7 @@ import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 // with ⌂, the way out to its projects page at `/` (upstream 0a3b9139 StatusRow.tsx) — a router
 // Link, so leaving keeps the socket and the query cache. A divider follows it: home LEAVES the board, the
 // rest act on what you are in. The
-// board's `identity` (BoardIdentity.tsx) rides beside the switcher: the project's owner/repo
+// board's `identity` (BoardIdentity.tsx) rides beside the title: the project's owner/repo
 // linking to it on GitHub (upstream maintainer 2026-08-28: "Perhaps it should actually be showing
 // owner/repo if a repo is detected"), and its ⋯ menu, which in All projects is the right-click on the project's square in the dock (ProjectDock.tsx). The
 // connection indicator went on 2026-08-28: its one informative state, disconnected, is one the page also
@@ -70,7 +70,7 @@ function Divider() {
  * drop the gear and the ⌨: in an editor's sidebar the title row VS Code draws over the frame carries both
  * (Settings as a button, Keyboard shortcuts under its ⋯), and the page's name (SidebarPage.tsx), so the
  * row there is the rest of it, at the right end — and NOTHING when there is no rest. With no supervisor to
- * restart (an Ntwine run from source) and no quota to read, the ⌨ stood alone on a 36px row above the prompt
+ * restart (an ntwine run from source) and no quota to read, the ⌨ stood alone on a 36px row above the prompt
  * box, a stray glyph the real-page run flagged as debris (scripts/e2e-sidebar.ts, 2026-10-01); a row of
  * nothing would still hold the box 10px down, so the row is not drawn at all.
  */

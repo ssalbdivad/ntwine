@@ -10,9 +10,9 @@ export interface LaunchPrerequisiteOptions {
 }
 
 /**
- * The Node releases Ntwine actually runs on, MEASURED rather than derived from dependency manifests.
+ * The Node releases ntwine actually runs on, MEASURED rather than derived from dependency manifests.
  *
- * Ntwine's database is `node:sqlite`, unflagged in v22.13.0 and v23.4.0. Below those the module does not
+ * ntwine's database is `node:sqlite`, unflagged in v22.13.0 and v23.4.0. Below those the module does not
  * exist at all — the import fails with "No such built-in module" — so the floor is simply the release
  * that shipped it. Verified by running the driver's own suite (`sqlite.test.ts`) on 22.12, 22.13,
  * 22.14, 23.4, 23.6, 24 and 26: every release from 22.13 up passes it whole, and 22.12 is the only
@@ -63,7 +63,7 @@ export function supportedNodeRange(): string {
   ).join(" || ");
 }
 
-/** Is this Node one Ntwine is known to run on? See SUPPORTED_NODE_LINES for how "known" was decided. */
+/** Is this Node one ntwine is known to run on? See SUPPORTED_NODE_LINES for how "known" was decided. */
 export function nodeVersionIsSupported(major: number, minor: number): boolean {
   if (!Number.isSafeInteger(major) || !Number.isSafeInteger(minor)) return false;
   const line = SUPPORTED_NODE_LINES.find((entry) => entry.major === major);
@@ -78,14 +78,14 @@ export interface ProviderReadiness {
 }
 
 /**
- * The executables every Ntwine launch shells out to, with the reason each one is needed. `git` is
+ * The executables every ntwine launch shells out to, with the reason each one is needed. `git` is
  * reached before any prerequisite check used to run (`resolveWorkspace` execs `git rev-parse`), so a
  * machine missing it was diagnosed by whichever caller happened to fail first, in that caller's
  * vocabulary — "ntwine-dev must be run inside a Git repository". Say what is actually wrong, and say it
  * before the work starts.
  *
  * `tmux` was here too, for "terminal panes and interactive provider logins". Neither is true any more:
- * agents run in the broker/app-server over pipes, and so does sign-in. Requiring it kept Ntwine
+ * agents run in the broker/app-server over pipes, and so does sign-in. Requiring it kept ntwine
  * off Windows, where tmux has no native build, for a dependency nothing used.
  */
 // Nothing here any more. Git was the only entry, and a project is no longer defined as a Git
@@ -99,7 +99,7 @@ export function assertRequiredExecutables(command: CommandProbe = commandIsAvail
     throw new Error(
       `required executable \`${name}\` is not available on PATH; ${need}. ` +
         `Install ${name} (\`brew install ${name}\` on macOS, \`apt install ${name}\` on Debian/Ubuntu) ` +
-        `and relaunch Ntwine`
+        `and relaunch ntwine`
     );
   }
 }
@@ -115,7 +115,7 @@ export function commandIsAvailable(command: string): boolean {
 }
 
 /**
- * Prerequisites shared by every local Ntwine launch. Provider CLIs are deliberately not included:
+ * Prerequisites shared by every local ntwine launch. Provider CLIs are deliberately not included:
  * a workstation may use one backend while the other is unavailable.
  *
  * The Node floor here is a genuine minimum, not a proxy for the older Node-26 gate: it is the lowest
@@ -132,8 +132,8 @@ export function assertLaunchPrerequisites(
   if (!nodeVersionIsSupported(major!, minor!))
     throw new Error(
       `Node.js ${supportedNodeRange()} is required (found ${version}); ` +
-        `Ntwine's database is Node's built-in node:sqlite, which older releases do not ship. ` +
-        `Install a newer Node release and relaunch Ntwine`
+        `ntwine's database is Node's built-in node:sqlite, which older releases do not ship. ` +
+        `Install a newer Node release and relaunch ntwine`
     );
   assertRequiredExecutables(options.command ?? commandIsAvailable);
 }

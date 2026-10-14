@@ -129,7 +129,7 @@ test("the resolver links the sending thread, and still does after the sender's p
     assert.deepEqual(first(peer, "p1"), { slug: "security-coordinator", title: "Security coordinator" }, "same project ⇒ no project slug")
     assert.deepEqual(first(peer, "p2"), { project: "ntwine", slug: "security-coordinator", title: "Security coordinator" }, "another project ⇒ its slug")
     rmSync(join(sessions, "2908.json"))
-    // A fresh resolver stands in for an Ntwine restart: the registry entry is gone, the memory is not.
+    // A fresh resolver stands in for an ntwine restart: the registry entry is gone, the memory is not.
     const later = createSessionPeerResolver({ findThread: (id) => threads[id], sessionDirs: () => [sessions], memoryFile })
     assert.equal(later(peer, "p1")?.slug, "security-coordinator")
     // Negative control: without the memory file nothing can be traced once the sender is gone.

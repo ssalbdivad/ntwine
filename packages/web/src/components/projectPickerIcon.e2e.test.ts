@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-// Opt-in like the other *.e2e.test.ts here. Needs a REAL Ntwine serving at least three projects that
+// Opt-in like the other *.e2e.test.ts here. Needs a REAL ntwine serving at least three projects that
 // each have an icon (`public/icon.svg` is enough), which `scripts/adhoc-stack.mjs` builds in one command:
 //   nub scripts/adhoc-stack.mjs --port=45782 --project=/abs/a --also-project=/abs/b --also-project=/abs/c > /tmp/stack.log 2>&1 &
 //   NTWINE_PICKER_ICON_E2E_URL=http://127.0.0.1:45782 nub --test --test-force-exit \

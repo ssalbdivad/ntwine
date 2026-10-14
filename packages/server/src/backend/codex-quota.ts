@@ -329,7 +329,7 @@ export function queryCodexRateLimits(
 
 // HOW OFTEN THAT PROCESS MAY START. Every live read is a whole `codex app-server`, and the read is
 // driven by a browser poll (every 30s, every 15s while EITHER provider's reading is degraded) on a
-// machine whose Codex runtime Ntwine itself provisioned — so it runs for people who have never used
+// machine whose Codex runtime ntwine itself provisioned — so it runs for people who have never used
 // Codex. Until 2026-10-11 the only bound was a 20s memo that treated a failed read like a good one:
 // a 30s poll always missed it, so one open tab started an app-server on every poll for as long as it
 // stayed open, signed in or not, and the same again for a read that could never succeed. Four bounds

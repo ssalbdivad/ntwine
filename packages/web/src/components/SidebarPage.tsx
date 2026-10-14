@@ -14,7 +14,7 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 // THE PAGE IN AN EDITOR'S SIDEBAR — the desktop app's left column, alone (ARCHITECTURE.md § VS Code extension
 // § The editor in the sidebar, and the app's own feel). The VS Code extension frames this page at any
 // width from ~250px up (lib/embed.ts), and it is the DESKTOP app narrowed, not the phone app: someone who
-// uses Ntwine in the browser must recognize every surface in it.
+// uses ntwine in the browser must recognize every surface in it.
 //
 // The desktop page is two columns: on the left the prompt box over the project list, on the right the
 // queue's cards, with a thread's drawer sliding over them. The left column is already a sidebar — it is
@@ -32,7 +32,7 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 //
 // NO HEADER. VS Code's title row above the frame is the header (lib/embedRoute.ts): the view's name and
 // its counts go there, and its buttons come back as `ntwine:command` (lib/embedCommand.ts). What the
-// desktop's status row carried that the title row cannot is kept in the page: the view's switcher heads
+// desktop's status row carried that the title row cannot is kept in the page: the dock heads
 // the list, in the slot the status row's title leaves empty on the desktop.
 //
 // THE COLUMN IS THE DESKTOP'S, scroll box and all: the prompt box stays put at the top and the list scrolls

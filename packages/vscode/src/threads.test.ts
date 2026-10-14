@@ -51,7 +51,7 @@ test("threadHandle matches @ntwine/shared's", () => {
   }
 })
 
-test("the picker offers open Ntwine sessions only: Ready first, then working, then the rest, newest first in each", () => {
+test("the picker offers open ntwine sessions only: Ready first, then working, then the rest, newest first in each", () => {
   const threads = [
     row("rest-old", { lastActivityAt: "2026-09-01T00:00:00Z" }),
     row("ready-old", { needsYou: true, lastActivityAt: "2026-09-02T00:00:00Z" }),

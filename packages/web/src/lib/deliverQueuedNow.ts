@@ -59,7 +59,7 @@ export function useDeliverQueuedNow(slug: string | null): {
         // bubbles un-gray on this round trip rather than on the tailer. Keeping the claim server-side
         // is what makes it survive a reload and reach every other open tab. A refusal is spoken, since
         // the operator asked for something and did not get it.
-        // `released`: messages Ntwine was holding for the rest went to the runtime. On a runtime with
+        // `released`: messages ntwine was holding for the rest went to the runtime. On a runtime with
         // no interrupt that is the whole of "send now", and it is not a refusal.
         if (!result.interrupted && !result.released) showToast(result.reason ?? "That message could not be pushed through")
       },

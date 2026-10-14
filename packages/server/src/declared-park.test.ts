@@ -734,7 +734,7 @@ test("a correction for a rest the worker has already moved past is not delivered
 //
 // `read-the-file-read-up` wrote 284 awaiting fences. Each one parked on a build; the build FINISHED; and
 // ntwine answered "NOT RUNNING", which reads as "your fence is broken" — so the worker relaunched the work
-// instead of reading the output it had been waiting for, and went round again. Ntwine has always known the
+// instead of reading the output it had been waiting for, and went round again. ntwine has always known the
 // difference: the fold retires a shell with its finish instant.
 test("a park whose work simply FINISHED is told to read the result, not that its fence is wrong", async () => {
   const h = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "2h" }], {
@@ -1032,7 +1032,7 @@ test("an ANSWERED question no longer refuses the park", async () => {
 
 // A TYPED MESSAGE LEAVES A QUESTION OPEN AND OWED. The human wrote past it, the worker rested again with a
 // fence that leaves it out: refused, exactly like any open question. Naming it takes the park, and so does
-// withdrawing it — the worker's own act, never Ntwine's.
+// withdrawing it — the worker's own act, never ntwine's.
 test("a question the human typed past still refuses a later fence that leaves it out", async () => {
   const typedPast = { shells: [LIVE_SHELL], lastHumanAt: new Date(Date.now() - 30 * 60_000).toISOString() }
   const askedAtMs = Date.now() - 90 * 60_000

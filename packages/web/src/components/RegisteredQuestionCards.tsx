@@ -79,7 +79,7 @@ export interface RegisteredAnswering {
   dismissing: boolean
   /** Questions the × took off the card, ahead of the board read that drops them. */
   dismissed: ReadonlySet<string>
-  /** The countdown's ×: Ntwine takes no recommended option on any of the thread's questions; they wait. */
+  /** The countdown's ×: ntwine takes no recommended option on any of the thread's questions; they wait. */
   cancelDefault: () => void
   /** The thread's questions default together (shared threadQuestionDefaults), so ONE countdown speaks for
    *  them, under the last of them: `ownerId` is the card that draws it, `count` how many it will answer. */

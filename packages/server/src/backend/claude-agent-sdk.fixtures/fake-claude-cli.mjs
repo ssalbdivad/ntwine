@@ -620,7 +620,7 @@ function initializationPayload() {
     // "review" and "explore" are also named by the init frame's `skills` array below; "compact" is
     // not — it stands in for a built-in command, which listSkills offers beside the skills. "clear",
     // "__remote-workflow" and "extra-usage" stand in for the built-ins it must NOT offer: one that would
-    // break an Ntwine thread, the CLI's internal plumbing, and a row kept only to name its successor.
+    // break an ntwine thread, the CLI's internal plumbing, and a row kept only to name its successor.
     commands: [
       // Real claude appends its own root to a skill description as a trailing parenthetical. "review"
       // carries the one that MATCHES its reported source and must lose it; "explore" carries one that

@@ -1,4 +1,4 @@
-// THE EDITOR, AS THE SIDEBAR SEES IT — the pure half of what the extension tells the Ntwine sidebar about
+// THE EDITOR, AS THE SIDEBAR SEES IT — the pure half of what the extension tells the ntwine sidebar about
 // the editor around it (`ntwine:editor-context`: the file in front, its selection with the selection's text
 // or else the caret's line, the other open files) and of the ways a piece of the editor gets into the
 // sidebar's prompt (a problem's quick fix, a terminal selection). No `vscode` here, so every rule is a
@@ -20,7 +20,7 @@ export interface Position {
 /**
  * The 1-based, inclusive lines a range covers, as the chip it would make reads them. A range that ends at
  * column 1 of a line — a whole-line drag, shift+down — does not include that line: the caret sits at its
- * start and nothing of it is selected. The context bar, "Add to Ntwine prompt" and the quick fix all count
+ * start and nothing of it is selected. The context bar, "Add to ntwine prompt" and the quick fix all count
  * lines with this, so the bar never promises a range the chip then disagrees with.
  */
 export function lineSpan(start: Position, end: Position): { startLine: number; endLine: number } {
@@ -141,7 +141,7 @@ export function editorContextMessage(active: EmbedEditorContextMessage["active"]
   }
 }
 
-// ── "Ask Ntwine to fix" ─────────────────────────────────────────────────────────────────────────────
+// ── "Ask ntwine to fix" ─────────────────────────────────────────────────────────────────────────────
 
 /** What a quick fix knows of a problem (vscode.Diagnostic, with `code` as the API spells it). */
 export interface Problem {
@@ -169,12 +169,12 @@ export function fixNote(problem: Problem): string {
 }
 
 /**
- * The quick fix's title. One problem under the caret is "Ask Ntwine to fix"; several each get their own
+ * The quick fix's title. One problem under the caret is "Ask ntwine to fix"; several each get their own
  * entry, told apart by the start of their message — a list of identical titles would make the human
  * guess which problem each one sends.
  */
 export function fixTitle(problem: Problem, several: boolean): string {
-  return several ? `Ask Ntwine to fix: ${clip(oneLine(problem.message), 60)}` : "Ask Ntwine to fix"
+  return several ? `Ask ntwine to fix: ${clip(oneLine(problem.message), 60)}` : "Ask ntwine to fix"
 }
 
 // ── the terminal ───────────────────────────────────────────────────────────────────────────────────
@@ -187,7 +187,7 @@ export function fixTitle(problem: Problem, several: boolean): string {
  */
 export function terminalText(raw: string): { ok: true; text: string } | { ok: false; why: string } {
   const text = normalizeNewlines(raw).replace(/\s+$/u, "")
-  if (!text.trim()) return { ok: false, why: "Select text in the terminal to add it to Ntwine's prompt box." }
+  if (!text.trim()) return { ok: false, why: "Select text in the terminal to add it to ntwine's prompt box." }
   const lines = text.split("\n").length
   if (!composable({ text, startLine: 1, endLine: lines })) return { ok: false, why: "That terminal selection is too long to add. Select less of it." }
   return { ok: true, text }

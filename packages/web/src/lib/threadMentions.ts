@@ -35,7 +35,7 @@ const DONE_CANDIDATES = 20
 
 /** The threads a prompt box can mention: every open thread with a handle, most recently active first,
  *  then the most recent done ones. `excludeSlug` drops the thread being written INTO — the prompt box
- *  re-adds it LAST (Composer `ownMention`), so it never outranks a thread the message means. External rows are never offered: Ntwine holds no name for them.
+ *  re-adds it LAST (Composer `ownMention`), so it never outranks a thread the message means. External rows are never offered: ntwine holds no name for them.
  *  `doneLimit` is the typeahead's bound; a surface that only RESOLVES what was already written (agent
  *  prose, lib/mentionAutolink.ts) lifts it, since an old thread named there is still that thread. */
 export function mentionCandidates(threads: readonly ThreadView[], excludeSlug?: string, doneLimit = DONE_CANDIDATES): MentionCandidate[] {
@@ -84,7 +84,7 @@ function computeMentionCandidates(threads: readonly ThreadView[], excludeSlug: s
 
 // ACROSS PROJECTS (David 2026-09-30: "tagging threads with @ should work cross project in cross
 // project mode"). Showing All projects, a prompt box offers every open project's threads, not only its
-// own: the worker resolves a handle its own project does not carry in the other projects Ntwine has open
+// own: the worker resolves a handle its own project does not carry in the other projects ntwine has open
 // (server router resolveElsewhere). Its OWN project still wins there — names are unique only within a
 // project — so another project's thread whose handle folds to one this project already has is not
 // offered: inserted, it would name this project's thread instead. Finished threads too (2026-09-30: "can

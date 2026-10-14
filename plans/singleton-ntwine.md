@@ -1,4 +1,4 @@
-# One Ntwine per machine — project grid, path routing, one port
+# One ntwine per machine — project grid, path routing, one port
 
 Design review, 2026-08-04. Prompted by: *"switch ntwine over to be a singleton, so only a single version of it runs on each computer… top-level interface be a grid of project cards… `localhost:NNNN/ntwine`, `localhost:NNNN/nub`… converge on a single port."*
 
@@ -7,7 +7,7 @@ Design review, 2026-08-04. Prompted by: *"switch ntwine over to be a singleton, 
 **Decided by the maintainer, 2026-08-04 — not open questions:**
 
 - **One unified process.** Not a front door proxying to per-project servers. This is a big refactor and that is accepted.
-- **Ntwine runs from real root repo directories only.** A worktree is not a project. Worktree management is something the *agent* does inside a project, with prompting; Ntwine has no special handling and needs none.
+- **ntwine runs from real root repo directories only.** A worktree is not a project. Worktree management is something the *agent* does inside a project, with prompting; ntwine has no special handling and needs none.
 - **Registration is automatic and silent.** Running the CLI inside a directory registers that path as a project with no approval step.
 - **The port is `9393`**, falling back to `19393`. Four-digit ABAB for memorability; IANA-unassigned, which is the only axis that actually separates candidates. See §5 — no four-digit port is safe from Windows Hyper-V reservations, so the fallback carries all the robustness.
 
@@ -15,7 +15,7 @@ Design review, 2026-08-04. Prompted by: *"switch ntwine over to be a singleton, 
 
 ## 1. Naming: the rule matters, the collision *rate* does not
 
-I originally measured slug collisions across 324 checkouts and reported repo-name-first at 34% versus directory-basename at 15%. **That was the wrong population** — it counted linked worktrees, which are never Ntwine projects. Corrected, over root checkouts only (a linked worktree has `.git` as a *file*, a real checkout has it as a *directory*):
+I originally measured slug collisions across 324 checkouts and reported repo-name-first at 34% versus directory-basename at 15%. **That was the wrong population** — it counted linked worktrees, which are never ntwine projects. Corrected, over root checkouts only (a linked worktree has `.git` as a *file*, a real checkout has it as a *directory*):
 
 | slug rule | distinct slugs | colliding names | root checkouts affected |
 | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ I originally measured slug collisions across 324 checkouts and reported repo-nam
 
 304 real root checkouts, 18 linked worktrees. The direction survives — repo-name still collides roughly twice as much, now driven by same-remote clones (`dpcweb` ×25, `zod` ×9, `scratch` ×8) rather than by worktrees.
 
-**But at the real scale this does not carry an argument.** Ntwine runs from three or four directories, growing to maybe a few dozen. At that size a collision is an edge case, not a rate — and for a root clone the repo name and the directory basename are usually the same string anyway. The original instinct ("repo name, then directory name") is fine. Prefer the **directory basename** on the tiebreak, for two small reasons: it needs no git remote (so it works for the gitless case), and it is the name already in your shell prompt.
+**But at the real scale this does not carry an argument.** ntwine runs from three or four directories, growing to maybe a few dozen. At that size a collision is an edge case, not a rate — and for a root clone the repo name and the directory basename are usually the same string anyway. The original instinct ("repo name, then directory name") is fine. Prefer the **directory basename** on the tiebreak, for two small reasons: it needs no git remote (so it works for the gitless case), and it is the name already in your shell prompt.
 
 What actually matters is that collisions are handled *correctly* when they happen, not that they are rare.
 
@@ -44,7 +44,7 @@ The derivation is order-dependent (whoever registers first gets the short name),
 
 Project slugs would share the top-level path namespace with the app's own routes. Today the client already hardcodes `/rpc`, `/events`, `/ws`, `/term/<slug>`, `/attach`, `/local-image`, `/local-visualization`, `/_ntwine/control/*`, plus root-absolute `/assets/…`, `/favicon*.png`, `/manifest.webmanifest`.
 
-`_ntwine` is already the convention (`packages/web/src/api/restart.ts:69`). **Formalize it: everything Ntwine itself serves moves under `/_ntwine/`, and every other top-level segment is a project slug.** Then the deny-list is one word plus the static asset names, instead of a growing list that breaks whenever a route is added.
+`_ntwine` is already the convention (`packages/web/src/api/restart.ts:69`). **Formalize it: everything ntwine itself serves moves under `/_ntwine/`, and every other top-level segment is a project slug.** Then the deny-list is one word plus the static asset names, instead of a growing list that breaks whenever a route is added.
 
 Two traps that follow:
 
@@ -102,7 +102,7 @@ Two things do break:
 - **Desktop notifications collapse.** `new Notification(title, { tag: event.slug })` (`packages/web/src/api/board-stream.ts:78`) uses the bare thread slug as the browser's replace-key. Two projects with a thread called `fix-queue-focus` would collapse into one notification, and the click handler runs `openThread` in whichever tab fired it. Needs `tag: project + slug`.
 - **`font` is per-project on the server but per-origin on the client** (`lib/font.ts:28` mirrors it to localStorage for the pre-paint FOUC guard). That is a latent inconsistency today; a singleton makes it visible as the previous project's font flashing on load. `font`, `notifications`, and `localFileOpener` are per-machine concepts currently stored per-project and should move.
 
-The **security** delta is smaller than it first appears but not zero. A fixed, well-known port does *not* meaningfully weaken CSRF: `packages/server/src/local-origin.ts` already requires an exact `Host` + `Origin` match and never trusts `X-Forwarded-*`, so a malicious page's `fetch` fails on Origin regardless of whether the port was guessable. What *is* lost is origin isolation *between projects* — markdown rendered from agent output in project A would execute in the same origin as project B's control plane, which can dispatch agents. Ntwine sanitizes markdown, so this is a raised stake rather than a new hole, but it should be a stated tradeoff rather than an accident.
+The **security** delta is smaller than it first appears but not zero. A fixed, well-known port does *not* meaningfully weaken CSRF: `packages/server/src/local-origin.ts` already requires an exact `Host` + `Origin` match and never trusts `X-Forwarded-*`, so a malicious page's `fetch` fails on Origin regardless of whether the port was guessable. What *is* lost is origin isolation *between projects* — markdown rendered from agent output in project A would execute in the same origin as project B's control plane, which can dispatch agents. ntwine sanitizes markdown, so this is a raised stake rather than a new hole, but it should be a stated tradeoff rather than an accident.
 
 **Subdomains (`ntwine.localhost:PORT`) would restore per-project origins — and are dead on arrival: Safari does not resolve `*.localhost`.** Chrome, Firefox and Edge do; Safari on macOS never implemented it. Wildcard-DNS services like `nip.io` would work but require a network round-trip, which is unacceptable for a local-first tool that must work offline.
 
@@ -140,12 +140,12 @@ Running the CLI inside a directory must be a one-step, no-prompt path to that pr
 
 1. Resolve the directory to its canonical root (`realpath`, then the repo root; for the gitless case, the marker walk-up from [`plans/gitless-projects.md`](gitless-projects.md) §4).
 2. Look that path up in the registry. **If it is unknown, register it immediately — no approval, no prompt, no "add this project?" step.** A path the user just ran the CLI inside is authorization enough; asking would be a dialog whose only sensible answer is yes.
-3. Health-check the machine's Ntwine. If it is up, do not start anything — just open `http://localhost:<port>/<slug>`. If it is down, start it, then open.
+3. Health-check the machine's ntwine. If it is up, do not start anything — just open `http://localhost:<port>/<slug>`. If it is down, start it, then open.
 4. Print the URL either way.
 
 Two consequences worth calling out because they invert today's behavior:
 
-- **`--stop` and Ctrl-C change meaning.** Both are per-workspace today (`src/index.ts:602-747`); under a singleton they stop the machine's Ntwine and every project's board with it. They need to either grow a scope or refuse to stop a server other projects are using.
+- **`--stop` and Ctrl-C change meaning.** Both are per-workspace today (`src/index.ts:602-747`); under a singleton they stop the machine's ntwine and every project's board with it. They need to either grow a scope or refuse to stop a server other projects are using.
 - **`/health` becomes a list.** It currently returns one `{projectId, projectDir, bootId, ownerProof}` and `probeNtwine` rejects any mismatch (`src/launcher.ts:593-630`) — a good guarantee that a fixed port can never silently serve the wrong project. Preserve it by having the probe assert the *machine* identity and then confirm the specific project is registered, rather than dropping the check.
 
 ---
@@ -205,7 +205,7 @@ The fallback has to land in a band the reservations do not reach:
 
 Distinguish the two errors. `EADDRINUSE` means something is listening and the user can go find it. `EACCES`/WSAEACCES on Windows means an invisible reservation — `netstat` will show the port free — and the honest advice there is `netsh int ipv4 show excludedportrange protocol=tcp`. A "port in use" message for a reserved port sends people hunting a process that does not exist.
 
-**Rejected from the earlier draft:** `3729` (F-R-A-Y on a keypad, but inside `3699-3798` and IANA `fksp-audit`), `4917` (Ntwine's current default, inside `4914-5013`, and unmemorable), `4242` (inside `4214-4313`; also Posit Package Manager and Orthanc), and the five-digit safe-band picks `13729`/`24729` — correct on every technical axis and rightly rejected as unmemorable, which was the whole brief.
+**Rejected from the earlier draft:** `3729` (F-R-A-Y on a keypad, but inside `3699-3798` and IANA `fksp-audit`), `4917` (ntwine's current default, inside `4914-5013`, and unmemorable), `4242` (inside `4214-4313`; also Posit Package Manager and Orthanc), and the five-digit safe-band picks `13729`/`24729` — correct on every technical axis and rightly rejected as unmemorable, which was the whole brief.
 
 ### Two things the fallback keeps
 
@@ -228,7 +228,7 @@ And keep the identity handshake exactly as it is. `/health` returns `ownerProof`
 
 ### Fold in while you are here: three un-namespaced `/tmp` directories
 
-Pre-existing and orthogonal to the singleton, but they are the same shared-resource bug class as the two-OS-users hazard in §3, and they already collide today between two Ntwine installs for *one* user. On macOS `$TMPDIR` is a per-user `/var/folders/…` path so these are latent; **on Linux `$TMPDIR` is normally unset, so all three land in a world-shared `/tmp`.**
+Pre-existing and orthogonal to the singleton, but they are the same shared-resource bug class as the two-OS-users hazard in §3, and they already collide today between two ntwine installs for *one* user. On macOS `$TMPDIR` is a per-user `/var/folders/…` path so these are latent; **on Linux `$TMPDIR` is normally unset, so all three land in a world-shared `/tmp`.**
 
 - `tmpdir()/ntwine-worker-logs/<slug>.stall.log` (`packages/server/src/tailer.ts:132,3555`) — the filename is a **bare thread slug**, no project or user component. Two projects with a thread named `fix-auth` overwrite each other's stall log, which contains up to 4000 chars of captured agent output. The write is `try`/`catch`-wrapped, so it fails silently.
 - `tmpdir()/ntwine-tool-images` (`packages/server/src/transcript.ts:1064`) — filenames are id-hashed and the temp-file publish is pid-safe, but `pruneScreenshotCache` (`:1086-1101`) `readdirSync`s the whole directory and unlinks the oldest past 200 entries, so **one install's prune deletes another's cached screenshots**. This one collides on every platform, including macOS.

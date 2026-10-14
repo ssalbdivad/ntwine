@@ -32,7 +32,7 @@ export async function measureTextContrast(page) {
       const style = getComputedStyle(element)
       let bg = [0, 0, 0, 0]
       // Clipped gradient text paints its stops, not its transparent CSS color. Check every
-      // stop; this is conservative for Ntwine's monotone muted-to-fg shimmer gradient.
+      // stop; this is conservative for ntwine's monotone muted-to-fg shimmer gradient.
       const colors = style.backgroundClip === "text" && style.backgroundImage !== "none"
         ? style.backgroundImage.match(/(?:rgba?|color)\([^)]*\)/g)
         : [style.color]

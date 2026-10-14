@@ -83,16 +83,16 @@ test("a Chrome-disambiguated shim bundle is the same app, not a stale one", () =
   // Chrome appends " 1", " 2", … when the bundle filename already exists, and that is the COMMON
   // case: manifestIdFor is origin-scoped, so every project's port installs its own bundle. Rejecting
   // the suffix made every project after the first reinstall its shim on each --app launch, which is
-  // how a real machine ended up with Ntwine.app, Ntwine 1.app, Ntwine 2.app and Ntwine 3.app.
-  assert.equal(bundleNameMatchesManifest("Ntwine"), true)
-  assert.equal(bundleNameMatchesManifest("Ntwine 1"), true)
-  assert.equal(bundleNameMatchesManifest("Ntwine 42"), true)
+  // how a real machine ended up with ntwine.app, ntwine 1.app, ntwine 2.app and ntwine 3.app.
+  assert.equal(bundleNameMatchesManifest("ntwine"), true)
+  assert.equal(bundleNameMatchesManifest("ntwine 1"), true)
+  assert.equal(bundleNameMatchesManifest("ntwine 42"), true)
 
   // A genuine rename must still read as stale so the bundle gets reinstalled under the new name.
   assert.equal(bundleNameMatchesManifest("Ntwineed"), false)
-  assert.equal(bundleNameMatchesManifest("Ntwine Board"), false)
-  assert.equal(bundleNameMatchesManifest("Ntwine "), false)
-  assert.equal(bundleNameMatchesManifest("Ntwine 1x"), false)
+  assert.equal(bundleNameMatchesManifest("ntwine Board"), false)
+  assert.equal(bundleNameMatchesManifest("ntwine "), false)
+  assert.equal(bundleNameMatchesManifest("ntwine 1x"), false)
   assert.equal(bundleNameMatchesManifest(""), false)
 })
 

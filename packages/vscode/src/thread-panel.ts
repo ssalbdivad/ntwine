@@ -1,11 +1,11 @@
-// A THREAD IN AN EDITOR TAB — Claude Code's "open in new tab": the same Ntwine page the sidebar frames,
+// A THREAD IN AN EDITOR TAB — Claude Code's "open in new tab": the same ntwine page the sidebar frames,
 // opened on one thread in a webview panel, so a long conversation gets the editor's width beside the code.
 // The sidebar stays the primary surface; this is the door for when it is too narrow to read in.
 //
 // One tab per thread: asking again for a thread that a tab already shows brings that tab forward. "Shows"
 // is what the tab's page says it shows (its `ntwine:route`), not what it was opened on — a link to another
 // thread followed inside the tab makes it that thread's, and a tab whose page went back to the queue
-// (its drawer closed) is nobody's, and reads "Ntwine".
+// (its drawer closed) is nobody's, and reads "ntwine".
 //
 // It is a full frame, not a picture: the relay and its checks are the sidebar's (sidebar-html.ts
 // frameDocument), and every page message is answered the way the sidebar answers it (framed-page.ts
@@ -14,7 +14,7 @@
 //  - Ctrl+L pressed in the tab goes back to the code (the sidebar's runs "focus the active editor group",
 //    which in a tab is the tab itself);
 //  - a click on the tab's context bar adds to the TAB's box (framed-page.ts PageHost.addContext `into`).
-// And the editor's own Ctrl+L comes to the tab when the tab is the Ntwine the human used last (app.ts).
+// And the editor's own Ctrl+L comes to the tab when the tab is the ntwine the human used last (app.ts).
 //
 // In the editor's colours (ntwine.matchEditorTheme, sidebar-html.ts § The editor's colours) as the sidebar is,
 // but on the EDITOR's surface: a tab sits among the code's tabs, so its page takes the editor's background,
@@ -40,15 +40,15 @@ export const THREAD_PANEL = "ntwine.thread"
 const READY_HINT_MS = 20_000
 const EVENTS_KEPT = 50
 /** A tab whose page shows no thread (it went back to the queue) — the product's name, as the sidebar's row reads. */
-const NO_THREAD_TITLE = "Ntwine"
-/** A tab with no Ntwine to frame yet (restored before discovery answered): it frames the page once there is one. */
+const NO_THREAD_TITLE = "ntwine"
+/** A tab with no ntwine to frame yet (restored before discovery answered): it frames the page once there is one. */
 
 export interface ThreadPanelsHost extends PageHost {
-  /** Where Ntwine is: the connected origin, else the last discovery's. */
+  /** Where ntwine is: the connected origin, else the last discovery's. */
   origin(): string | undefined
   /** Ctrl+L pressed in a tab: back to the code the human came from. */
   backToEditor(): Promise<void>
-  /** Open a page of Ntwine in the browser (the hint bar's Open in browser). */
+  /** Open a page of ntwine in the browser (the hint bar's Open in browser). */
   openInBrowser(url: string): void
 }
 
@@ -98,7 +98,7 @@ export interface ThreadPanels {
   post(message: EmbedHostMessage): Promise<boolean>
   /** The extension's state the pages show changed: tell every ready one. */
   pushState(): void
-  /** Ntwine may have moved (a new origin) or come back: frame again what shows another origin or none. */
+  /** ntwine may have moved (a new origin) or come back: frame again what shows another origin or none. */
   refresh(): void
   /** Called when a tab's page takes the keyboard: the human is using that tab. */
   onFocus(listener: (tab: ThreadTab) => void): void
@@ -184,7 +184,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
   async function render(tab: Tab): Promise<void> {
     const origin = host.origin()
     if (!origin) return showMessage(tab, LOOKING)
-    // A tab whose page left every thread (and is framed again: Reload, Ntwine on a new port) shows the
+    // A tab whose page left every thread (and is framed again: Reload, ntwine on a new port) shows the
     // project's queue, as its page last did.
     const wanted = tab.thread ? threadEmbedUrl(origin, theme(), tab.project, tab.thread) : embedUrl(origin, theme(), tab.project)
     const generation = ++tab.renders
@@ -197,7 +197,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
     }
     if (generation !== tab.renders || !tabs.has(tab)) return
     const target = frameTarget(wanted, external)
-    if (target.kind === "remapped") return showMessage(tab, "Ntwine can't load in this window. Open it in your browser instead.")
+    if (target.kind === "remapped") return showMessage(tab, "ntwine can't load in this window. Open it in your browser instead.")
     setReady(tab, false)
     tab.message = undefined
     tab.frameUrl = target.url
@@ -216,7 +216,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
 
   /**
    * Where the tab's page is. A thread: the tab is that thread's, titled as the page names it (VS Code does
-   * not re-case a tab's title, as it does the sidebar's row). Anything else: nobody's, and "Ntwine".
+   * not re-case a tab's title, as it does the sidebar's row). Anything else: nobody's, and "ntwine".
    */
   function applyRoute(tab: Tab, route: EmbedRouteMessage): void {
     tab.view = route.view
@@ -333,7 +333,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
         onPageMessage(tab, link, page).catch((error: unknown) => host.log.warn(`A tab couldn't act on ${page.type}: ${(error as Error).message}`))
       }),
     ]
-    // Which Ntwine the human used last (app.ts frontTab). The relay's `focused` alone is not enough here: a
+    // Which ntwine the human used last (app.ts frontTab). The relay's `focused` alone is not enough here: a
     // click inside the page fires the relay window's focus only when focus comes from OUTSIDE its chain, and
     // a tab opened with the keyboard has its relay in the chain before the relay's script listens — the human
     // who opened a tab and clicked straight into its reply box was never counted (e2e-sidebar c19, 1 of 1).
@@ -395,7 +395,7 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
         localResourceRoots: [],
       })
       const tab = adopt(panel, target)
-      // Opened with the keyboard in it: this tab is now the Ntwine used last.
+      // Opened with the keyboard in it: this tab is now the ntwine used last.
       for (const listener of focusListeners) listener(tab)
     },
     anyReady: () => [...tabs].some((tab) => tab.ready),
@@ -435,4 +435,4 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
   }
 }
 
-const LOOKING = "Looking for Ntwine…"
+const LOOKING = "Looking for ntwine…"

@@ -876,11 +876,11 @@ async function withConfigDir(configDir: string, run: () => Promise<void>) {
   }
 }
 
-// THE TOKEN-BROKER MACHINE. Claude Code is signed in by a route that leaves no token where Ntwine can
+// THE TOKEN-BROKER MACHINE. Claude Code is signed in by a route that leaves no token where ntwine can
 // read one, so the endpoint cannot be asked — and until 2026-10-11 the only other source was starting
 // Claude Code, which is the process storm that route was removed for. The workers there report the
 // plan's windows on every turn; that report is the reading.
-test("claude quota: a machine whose token Ntwine cannot read shows what its own sessions report — no request, no process", () => withCache(async (cacheDir) => {
+test("claude quota: a machine whose token ntwine cannot read shows what its own sessions report — no request, no process", () => withCache(async (cacheDir) => {
   const configDir = join(cacheDir, "config")
   await withConfigDir(configDir, async () => {
     let requests = 0
@@ -1075,7 +1075,7 @@ test("claude quota: with no readable token, the configured route is asked — ne
   })
 }))
 
-test("claude quota: a token Ntwine can read is still the first source — the configured route is not consulted", () => withCache(async (cacheDir) => {
+test("claude quota: a token ntwine can read is still the first source — the configured route is not consulted", () => withCache(async (cacheDir) => {
   let routeAsked = 0
   const q = await readClaudeQuota("claude-test", {
     cacheDir,

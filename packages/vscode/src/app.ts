@@ -42,10 +42,10 @@ export interface NtwineExtensionApi {
   status(): ConnectionStatus
   statusBar(): { text: string; tooltip: string; command: string }
   origin(): string | undefined
-  /** Where the last discovery found Ntwine, and how — set even when the editor connection was refused. */
+  /** Where the last discovery found ntwine, and how — set even when the editor connection was refused. */
   discovered(): FoundNtwine | undefined
   projects(): EditorProject[]
-  /** What the Ntwine sidebar shows and what its page asked of it. */
+  /** What the ntwine sidebar shows and what its page asked of it. */
   sidebar(): SidebarSnapshot
   /** The editor's context as the sidebar's page was last told it. */
   editorContext(): EmbedEditorContextMessage | undefined
@@ -57,7 +57,7 @@ export interface NtwineExtensionApi {
   build: string
   /** A different build found installed under this window, which it offered to reload into. */
   reloadOffered(): string | undefined
-  /** The hint beside the selection (`Ctrl+L to add to Ntwine`), as it is drawn now; undefined when none is. */
+  /** The hint beside the selection (`Ctrl+L to add to ntwine`), as it is drawn now; undefined when none is. */
   selectionHint(): SelectionHintShown | undefined
   /** Every thread open in an editor tab, as it is now. */
   threadTabs(): ThreadPanelSnapshot[]
@@ -83,7 +83,7 @@ const FLASH_MS = 1_500
 const INSTALL_POLL_MS = 4_000
 
 /** What Ask gives for a selection it cannot place; Send to thread says the same rather than dropping it. */
-const OPEN_A_FILE = "Open a file to ask Ntwine about it."
+const OPEN_A_FILE = "Open a file to ask ntwine about it."
 
 /**
  * How long Ask and Send to thread wait for the sidebar's page to be ready — a cold open of the view boots
@@ -99,7 +99,7 @@ const FIX_COMMAND = "ntwine.askToFix"
 const MAX_FIXES = 5
 
 export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): NtwineExtensionApi {
-  const log = api.window.createOutputChannel("Ntwine", { log: true })
+  const log = api.window.createOutputChannel("ntwine", { log: true })
   context.subscriptions.push(log)
   const windowId = randomUUID()
   // This build's label — the version, the commit and whether its sources were dirty (build-info.ts). Run
@@ -119,11 +119,11 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   // Its host reads the connection, the discovery and the openers below only when the view asks, which
   // is never before activation returns.
   const sidebar = registerSidebar(api, context, {
-    // Like the browser page, the sidebar needs no editor connection: an Ntwine discovery found serves its page.
+    // Like the browser page, the sidebar needs no editor connection: an ntwine discovery found serves its page.
     origin: () => connection.origin ?? found?.origin,
     projectSlug: () => workspaceProjects(folders(), projects)[0]?.slug,
     notFound: () => (status.kind === "offline" || status.kind === "incompatible" ? status.reason : undefined),
-    // An Ntwine whose welcome names neither the sidebar nor the editor's picture (which came after the
+    // An ntwine whose welcome names neither the sidebar nor the editor's picture (which came after the
     // sidebar), or that answered the editor socket with a 404, serves a page from before the sidebar.
     pageSupport: () => {
       const features = connection.features
@@ -163,7 +163,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   let lastFrame: "sidebar" | ThreadTab | undefined
   sidebar.onFocus(() => (lastFrame = "sidebar"))
   panels.onFocus((tab) => (lastFrame = tab))
-  /** The tab the editor's adds go to, when one does: the Ntwine used last, still on screen. */
+  /** The tab the editor's adds go to, when one does: the ntwine used last, still on screen. */
   const frontTab = (): ThreadTab | undefined => (lastFrame && lastFrame !== "sidebar" && lastFrame.visible() ? lastFrame : undefined)
 
   /**
@@ -183,7 +183,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     },
   }
   const useSidebar = () => config().get<boolean>("useSidebar", true)
-  // Whether the human shares the editor with Ntwine — THE switch: the page's feed carries the selection's
+  // Whether the human shares the editor with ntwine — THE switch: the page's feed carries the selection's
   // text and a send attaches the block only while it is on, and the agents' frame says only `shared: false`
   // while it is off. The bar's eye reads and writes it (`ntwine:host-state` / `ntwine:share-editor`).
   const shared = () => config().get<boolean>(SHARE_SETTING, true)
@@ -199,16 +199,16 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     try {
       await config().update(SHARE_SETTING, on, where)
     } catch (error) {
-      log.warn(`Couldn't ${on ? "turn on" : "turn off"} sharing the editor with Ntwine: ${(error as Error).message}`)
+      log.warn(`Couldn't ${on ? "turn on" : "turn off"} sharing the editor with ntwine: ${(error as Error).message}`)
       return "refused"
     }
-    log.info(on ? "Sharing the editor with Ntwine." : "Not sharing the editor with Ntwine: sends carry no editor context, and agents can't read it.")
+    log.info(on ? "Sharing the editor with ntwine." : "Not sharing the editor with ntwine: sends carry no editor context, and agents can't read it.")
     return shared() === on ? (on ? "on" : "off") : "overridden"
   }
 
   // CLAUDE CODE'S CHORD. Its VS Code extension (anthropic.claude-code) binds Alt+K with the same `when` as
-  // Ntwine's ("editorTextFocus"), so with both installed which one answered depended on the order the
-  // extensions loaded — on the maintainer's own machine (review-final.md, 2026-10-02). Ntwine steps aside:
+  // ntwine's ("editorTextFocus"), so with both installed which one answered depended on the order the
+  // extensions loaded — on the maintainer's own machine (review-final.md, 2026-10-02). ntwine steps aside:
   // its Alt+K binding is gated on this context key, set now and whenever the extension set changes, and
   // the page stops naming the chord. Ctrl+L, the chord the page teaches, is not Claude Code's.
   const CLAUDE_CODE = "anthropic.claude-code"
@@ -219,7 +219,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     const next = api.extensions.getExtension(CLAUDE_CODE) !== undefined
     if (next === claudeCode) return
     claudeCode = next
-    log.info(next ? "Claude Code's extension is installed: Alt+K is its, not Ntwine's." : "Claude Code's extension is gone: Alt+K adds to Ntwine's prompt again.")
+    log.info(next ? "Claude Code's extension is installed: Alt+K is its, not ntwine's." : "Claude Code's extension is gone: Alt+K adds to ntwine's prompt again.")
     applyClaudeCode()
     sidebar.pushState()
     panels.pushState()
@@ -239,13 +239,13 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     post: (message) => pages.post(message),
   })
   const workspaceFiles = registerWorkspaceFiles(api, context, { projects: () => projects })
-  // Cursor's "⌘L to chat" beside a fresh selection, for Ntwine's chord (selection-hint.ts says when, where
-  // and why not). Only while connected: the chord says Ntwine isn't running otherwise.
+  // Cursor's "⌘L to chat" beside a fresh selection, for ntwine's chord (selection-hint.ts says when, where
+  // and why not). Only while connected: the chord says ntwine isn't running otherwise.
   const hint = registerSelectionHint(api, context, { connected: () => status.kind === "connected", mac: () => sidebar.mac() })
 
   // ── status bar ───────────────────────────────────────────────────────────────────────────────────
   const item = api.window.createStatusBarItem("ntwine.status", api.StatusBarAlignment.Right, 100)
-  item.name = "Ntwine"
+  item.name = "ntwine"
   context.subscriptions.push(item)
   let shown = statusView(status, [])
   const renderStatus = () => {
@@ -270,25 +270,25 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   // bases (Cursor 3.11 is 1.125) — have no such command. After an OPEN the file has already opened by
   // the time the window is raised, so the answer is still ok: refusing would toast an error over a file
   // that opened. A FOCUS request is nothing but the raise, though, so it answers that it could not, and
-  // Ntwine falls back to the editor's own command line, which raises the window holding the folder.
+  // ntwine falls back to the editor's own command line, which raises the window holding the folder.
   let raiseMissing = false
   const focusWindow = async (): Promise<boolean> => {
     try {
       await api.commands.executeCommand("workbench.action.focusWindow")
       return true
     } catch (error) {
-      if (!raiseMissing) log.info(`${api.env.appName} ${api.version} can't bring its own window to the front (${(error as Error).message}); Ntwine's file links still open here.`)
+      if (!raiseMissing) log.info(`${api.env.appName} ${api.version} can't bring its own window to the front (${(error as Error).message}); ntwine's file links still open here.`)
       raiseMissing = true
       return false
     }
   }
 
-  // What this window shows — file, selection, tabs, problems — for Ntwine's agents to read
-  // (`mcp__ntwine__editor`), sent on every change to an Ntwine that takes it. `ntwine.shareEditorState` off
+  // What this window shows — file, selection, tabs, problems — for ntwine's agents to read
+  // (`mcp__ntwine__editor`), sent on every change to an ntwine that takes it. `ntwine.shareEditorState` off
   // sends that it is off, and nothing else.
   const editorState = registerEditorStateFeed(api, context, watcher, { send: () => connection.sendEditor(), shared })
 
-  // A thread's changes as a multi-file diff (review-view.ts): pushed by Ntwine when the human asks from a
+  // A thread's changes as a multi-file diff (review-view.ts): pushed by ntwine when the human asks from a
   // browser tab (the window then comes to the front), asked for by the sidebar's page, or picked here.
   const reviews = registerReviews(api, context, { info: (line) => log.info(line), warn: (line) => log.warn(line) })
 
@@ -301,7 +301,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       // Where it looked, in full the first time and whenever the answer changes; the same misses on
       // every retry are only for the debug level.
       const notes = result.notes.join("\n")
-      for (const note of result.notes) (notes === lastNotes ? log.debug : log.info).call(log, `Looked for Ntwine: ${note}`)
+      for (const note of result.notes) (notes === lastNotes ? log.debug : log.info).call(log, `Looked for ntwine: ${note}`)
       lastNotes = notes
       found = result.found
       return result.found ? { origin: result.found.origin, detail: `found through ${SOURCE_WORDS[result.found.source]}` } : undefined
@@ -347,7 +347,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     let path = message.path
     let entry = await stat(path).catch(() => undefined)
     if (!entry) {
-      // A link into a thread's worktree that Done has since removed: Ntwine names the main checkout's copy,
+      // A link into a thread's worktree that Done has since removed: ntwine names the main checkout's copy,
       // which the work was merged into (settleMissing). Asked only for a path that is not there, so an
       // ordinary open never waits on the server.
       const settled = await settleMissing(path)
@@ -416,7 +416,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   async function openWindowThread(): Promise<void> {
     const origin = connection.origin ?? found?.origin
     const project = workspaceProjects(folders(), projects)[0]
-    // Ntwine's project list has not arrived yet: try again when it does (the `projects` callback).
+    // ntwine's project list has not arrived yet: try again when it does (the `projects` callback).
     if (!origin || !project) {
       windowThreadCheck = undefined
       return
@@ -444,9 +444,9 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   /**
    * The main checkout's copy of a file in a worktree that is gone (the server's `settleLocalPath`), or
    * undefined. A file link the sidebar's page hands over (`ntwine:open-file`) comes straight here, not
-   * through Ntwine's opener, which settles its own; an agent that worked in `.ntwine/worktrees/<slug>` wrote
+   * through ntwine's opener, which settles its own; an agent that worked in `.ntwine/worktrees/<slug>` wrote
    * its links there, and Done removes the worktree. Asked of the project the path lies in, else the
-   * window's; an Ntwine too old for the procedure, or no answer within a moment, leaves the path missing.
+   * window's; an ntwine too old for the procedure, or no answer within a moment, leaves the path missing.
    */
   async function settleMissing(path: string): Promise<string | undefined> {
     const origin = connection.origin ?? found?.origin
@@ -495,7 +495,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     const label = buildLabel(next)
     offered = { id: next.id, label }
     log.info(`A different build of the extension is installed: ${label}. Reload the window to run it; this one runs ${extensionVersion}.`)
-    void api.window.showInformationMessage(`Ntwine's extension was updated to ${label}. Reload the window to use it.`, "Reload window").then((choice) => {
+    void api.window.showInformationMessage(`ntwine's extension was updated to ${label}. Reload the window to use it.`, "Reload window").then((choice) => {
       if (choice === "Reload window") void api.commands.executeCommand("workbench.action.reloadWindow")
     })
   }, INSTALL_POLL_MS)
@@ -580,15 +580,15 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
 
   /**
    * The project a file belongs to and how to show its path. A file no project's folder holds offers
-   * Home instead (labelled for the command at hand), or opening Ntwine's add-folder dialog on it.
+   * Home instead (labelled for the command at hand), or opening ntwine's add-folder dialog on it.
    */
   async function place(target: Target, origin: string, homeLabel: string): Promise<{ project: EditorProject; ref: FileRef } | undefined> {
     const match = projectForPath(target.path, projects)
     const ref = (path: string, display: string): FileRef => ({ path, display, selection: target.selection, cursorLine: target.cursorLine })
     if (match) return { project: match.project, ref: ref(match.path, match.relative || match.path) }
     const home = projects.find((project) => project.home)
-    const add = "Add folder to Ntwine"
-    const choice = await api.window.showWarningMessage(`${basename(target.path)} isn't in an Ntwine project.`, ...(home ? [homeLabel] : []), add)
+    const add = "Add folder to ntwine"
+    const choice = await api.window.showWarningMessage(`${basename(target.path)} isn't in an ntwine project.`, ...(home ? [homeLabel] : []), add)
     if (choice === homeLabel && home) return { project: home, ref: ref(target.path, target.path) }
     if (choice === add) {
       const folder = api.workspace.getWorkspaceFolder(target.uri)?.uri.fsPath ?? dirname(target.path)
@@ -622,7 +622,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   async function composeInTab(tab: ThreadTab, input: Omit<EmbedComposeMessage, "type" | "id">): Promise<EditorComposed | undefined> {
     const result = await composeVia(tab, input, { preserveFocus: false, readyMs: SIDEBAR_READY_MS, composeMs: SIDEBAR_COMPOSE_MS })
     if (result.ok) return { t: "composed", id: result.id, ok: true }
-    log.warn(result.why.replace("The Ntwine sidebar", "The thread's tab"))
+    log.warn(result.why.replace("The ntwine sidebar", "The thread's tab"))
     sidebarWhy = result.why
     return undefined
   }
@@ -655,7 +655,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     if (typeof named.thread === "string") {
       const project = typeof named.project === "string" ? named.project : windowProject()?.slug
       if (!project) {
-        void api.window.showInformationMessage("Open a folder that's an Ntwine project to open its threads here.")
+        void api.window.showInformationMessage("Open a folder that's an ntwine project to open its threads here.")
         return undefined
       }
       target = { thread: named.thread, project }
@@ -665,7 +665,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       else {
         const project = windowProject()
         if (!project) {
-          void api.window.showInformationMessage("Open a folder that's an Ntwine project to open its threads here.")
+          void api.window.showInformationMessage("Open a folder that's an ntwine project to open its threads here.")
           return undefined
         }
         let threads: PickerThread[]
@@ -720,29 +720,29 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     const question = typeof options.question === "string"
       ? options.question
       : await api.window.showInputBox({
-          title: "Ask Ntwine",
-          prompt: `Ask Ntwine about ${refLabel(ref)}`,
+          title: "Ask ntwine",
+          prompt: `Ask ntwine about ${refLabel(ref)}`,
           placeHolder: "What do you want to know or change?",
           ignoreFocusOut: true,
-          validateInput: (value) => (value.trim() ? undefined : "Type a question for Ntwine."),
+          validateInput: (value) => (value.trim() ? undefined : "Type a question for ntwine."),
         })
     if (question === undefined || !question.trim()) return undefined
     const rpc = new NtwineRpc(origin)
     try {
-      const result = await api.window.withProgress({ location: api.ProgressLocation.Notification, title: "Asking Ntwine…" }, async () => {
+      const result = await api.window.withProgress({ location: api.ProgressLocation.Notification, title: "Asking ntwine…" }, async () => {
         // The operator's saved backend, model and effort, as the page's prompt box sends them: a
         // dispatch with no backend means Claude whatever the preference says.
         const preferences = await rpc.query(project.id, "dispatchPreferencesGet")
         // No retry: a dispatch that timed out may still have started its thread.
         return rpc.mutation(project.id, "dispatch", { prompt: composeMessage(question, ref), ...dispatchProfile(preferences) }, 60_000)
       })
-      log.info(`Asked Ntwine in ${project.name}: thread ${result.slug}.`)
-      void api.window.showInformationMessage("Asked Ntwine.", "Open thread").then((choice) => {
+      log.info(`Asked ntwine in ${project.name}: thread ${result.slug}.`)
+      void api.window.showInformationMessage("Asked ntwine.", "Open thread").then((choice) => {
         if (choice) openUrl(threadUrl(origin, project, result.slug))
       })
       return { slug: result.slug }
     } catch (error) {
-      log.error(`Asking Ntwine failed: ${(error as Error).message}`)
+      log.error(`Asking ntwine failed: ${(error as Error).message}`)
       void api.window.showErrorMessage(describeRpcError(error, "ask"))
       return undefined
     }
@@ -768,7 +768,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       project = windowProject()
     }
     if (!project) {
-      void api.window.showInformationMessage("Open a file in an Ntwine project to send it to a thread.")
+      void api.window.showInformationMessage("Open a file in an ntwine project to send it to a thread.")
       return undefined
     }
     const rpc = new NtwineRpc(origin)
@@ -790,7 +790,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       }
     } else {
       if (!threads.length) {
-        void api.window.showInformationMessage(`${project.name} has no open threads. Ask Ntwine to start one.`)
+        void api.window.showInformationMessage(`${project.name} has no open threads. Ask ntwine to start one.`)
         return undefined
       }
       const picked = await api.window.showQuickPick(
@@ -851,11 +851,11 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   /**
-   * Put items into the prompt box the human looks at — the one way in for Add to Ntwine prompt, a file, a
+   * Put items into the prompt box the human looks at — the one way in for Add to ntwine prompt, a file, a
    * problem's quick fix and a terminal selection. With the sidebar (embed.ts addRoute): its FRONT composer
    * (the reply box of the thread it shows, else its new-thread box), the view revealed — opened, the first
    * time in a window — and the caret after the last chip, with `note` written after it. Otherwise, and for
-   * whatever the sidebar did not take (it never loaded, or refused), Ntwine holds each item for a browser
+   * whatever the sidebar did not take (it never loaded, or refused), ntwine holds each item for a browser
    * page to claim, the path from before the sidebar, so a selection is never simply lost — unless the item
    * means nothing outside the sidebar (`sidebarOnly`: a terminal selection). The note rides the sidebar
    * only; a held item has no place for one.
@@ -865,7 +865,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     const ntwine = (connection.origin ?? found?.origin) !== undefined
     if (addRoute({ enabled: useSidebar(), ntwine }) === "sidebar") {
       let composed: EditorComposed | undefined
-      // The thread's tab when that is the Ntwine used last and it is on screen (frontTab), else the sidebar.
+      // The thread's tab when that is the ntwine used last and it is on screen (frontTab), else the sidebar.
       const tab = frontTab()
       while (left.length) {
         const [item, ...rest] = left
@@ -877,15 +877,15 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
         left = rest
       }
       if (!left.length && composed) {
-        api.window.setStatusBarMessage("Added to Ntwine's prompt box", 4_000)
+        api.window.setStatusBarMessage("Added to ntwine's prompt box", 4_000)
         return composed
       }
-      if (!options.sidebarOnly) log.info("Handing it to Ntwine for its page instead.")
+      if (!options.sidebarOnly) log.info("Handing it to ntwine for its page instead.")
     }
     if (options.sidebarOnly) {
-      if (!useSidebar()) void api.window.showInformationMessage("Turn on the Ntwine sidebar (ntwine.useSidebar) to add this to Ntwine's prompt box.")
+      if (!useSidebar()) void api.window.showInformationMessage("Turn on the ntwine sidebar (ntwine.useSidebar) to add this to ntwine's prompt box.")
       else if (!ntwine) showNotConnected()
-      else void api.window.showErrorMessage(sidebarWhy || "The Ntwine sidebar couldn't take it.")
+      else void api.window.showErrorMessage(sidebarWhy || "The ntwine sidebar couldn't take it.")
       return undefined
     }
     const origin = requireOrigin()
@@ -895,13 +895,13 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       composed = await connection.compose(item)
       if (!composed.ok) {
         log.warn(`Adding to the prompt box failed: ${composed.error ?? "no reason given"}`)
-        void api.window.showErrorMessage(`Couldn't add to Ntwine's prompt box: ${composed.error ?? "Ntwine refused it."}`)
+        void api.window.showErrorMessage(`Couldn't add to ntwine's prompt box: ${composed.error ?? "ntwine refused it."}`)
         return composed
       }
     }
-    api.window.setStatusBarMessage("Added to Ntwine's prompt box", 4_000)
+    api.window.setStatusBarMessage("Added to ntwine's prompt box", 4_000)
     const project = left[0]?.projectId ? projects.find((candidate) => candidate.id === left[0]!.projectId) : undefined
-    void api.window.showInformationMessage("Added to Ntwine's prompt box.", "Open Ntwine").then((choice) => {
+    void api.window.showInformationMessage("Added to ntwine's prompt box.", "Open ntwine").then((choice) => {
       if (choice) openUrl(projectUrl(origin, project ?? windowProject()))
     })
     return composed
@@ -914,7 +914,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   /**
-   * Add to Ntwine prompt — Ctrl+L / ⌘L (Cursor's chord) or Ctrl+I / ⌘I with a selection, the editor's Ntwine
+   * Add to ntwine prompt — Ctrl+L / ⌘L (Cursor's chord) or Ctrl+I / ⌘I with a selection, the editor's ntwine
    * menu, the palette: the selection, else the caret's line.
    */
   async function addToPrompt(...args: unknown[]): Promise<EditorComposed | undefined> {
@@ -922,14 +922,14 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     hint.added()
     const target = targetOf(uri)
     if (!target) {
-      void api.window.showInformationMessage("Open a file to add it to Ntwine's prompt box.")
+      void api.window.showInformationMessage("Open a file to add it to ntwine's prompt box.")
       return undefined
     }
     return deliver([itemFor(target)])
   }
 
   /**
-   * Add file to Ntwine prompt — an editor tab's menu, the explorer (every file selected there), the palette
+   * Add file to ntwine prompt — an editor tab's menu, the explorer (every file selected there), the palette
    * (the file in front): a reference to each whole file. Folders are left out; a prompt names files.
    */
   async function addFileToPrompt(...args: unknown[]): Promise<EditorComposed | undefined> {
@@ -946,7 +946,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       items.push(itemFor({ path: uri.fsPath }))
     }
     if (!items.length) {
-      void api.window.showInformationMessage("Pick a file on disk to add it to Ntwine's prompt box.")
+      void api.window.showInformationMessage("Pick a file on disk to add it to ntwine's prompt box.")
       return undefined
     }
     return deliver(items)
@@ -954,8 +954,8 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
 
   /**
    * Alt+K (Option+K on a Mac) — Claude Code's chord for an @-mention of the code in front: the selection
-   * when there is one, as Add to Ntwine prompt adds it; with only a caret, the whole file, as Add file to
-   * Ntwine prompt adds it. Not the caret's line, which is what the palette's Add to Ntwine prompt falls back
+   * when there is one, as Add to ntwine prompt adds it; with only a caret, the whole file, as Add file to
+   * ntwine prompt adds it. Not the caret's line, which is what the palette's Add to ntwine prompt falls back
    * to: a mention with nothing selected names the file, which is what the human is looking at.
    */
   async function addSelectionOrFile(...args: unknown[]): Promise<EditorComposed | undefined> {
@@ -964,7 +964,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   /**
-   * Ask Ntwine to fix — the quick fix on a problem: the problem's lines with their text, and the problem
+   * Ask ntwine to fix — the quick fix on a problem: the problem's lines with their text, and the problem
    * itself written after the chip (`Fix: Cannot find name 'foo'. ts(2304)`), so the box reads as a request
    * the human can send as it is.
    */
@@ -997,7 +997,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     }
   }
 
-  /** Add to Ntwine prompt from the terminal's menu: its selection as an `@terminal` chip. Sidebar only; see deliver. */
+  /** Add to ntwine prompt from the terminal's menu: its selection as an `@terminal` chip. Sidebar only; see deliver. */
   async function addTerminalSelection(): Promise<EditorComposed | undefined> {
     const checked = terminalText((await readTerminalSelection()) ?? "")
     if (!checked.ok) {
@@ -1009,7 +1009,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   /**
-   * Add problems in this file — the palette, the editor's Ntwine menu: the file in front's errors and
+   * Add problems in this file — the palette, the editor's ntwine menu: the file in front's errors and
    * warnings, each with its line, as one `@problems` chip (extras.ts problemsText). Sidebar only, like a
    * terminal selection: the chip's text has no file to fall back to as a reference.
    */
@@ -1083,7 +1083,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   /**
-   * A thread's changes, by name: Ntwine says which checkouts it wrote in (`reviewTarget`), this window opens
+   * A thread's changes, by name: ntwine says which checkouts it wrote in (`reviewTarget`), this window opens
    * them. What went wrong is said here — the human is in the editor — and returned for the record.
    */
   async function reviewThread(project: EditorProject, slug: string, title?: string): Promise<string> {
@@ -1109,7 +1109,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   async function reviewFromPage(message: EmbedReviewMessage): Promise<string> {
     const project = projects.find((candidate) => candidate.slug === message.project) ?? projects.find((candidate) => candidate.id === message.project)
     if (!project) {
-      void api.window.showErrorMessage(`Ntwine has no project ${message.project}.`)
+      void api.window.showErrorMessage(`ntwine has no project ${message.project}.`)
       return "unknown project"
     }
     return reviewThread(project, message.thread, message.title)
@@ -1125,7 +1125,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     const { options } = splitArgs(args)
     const project = windowProject()
     if (!project) {
-      void api.window.showInformationMessage("Open a folder that's an Ntwine project to review its threads' changes.")
+      void api.window.showInformationMessage("Open a folder that's an ntwine project to review its threads' changes.")
       return undefined
     }
     let threads: PickerThread[]
@@ -1170,7 +1170,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     return false
   }
 
-  /** Ctrl+L with nothing selected: the prompt box of the Ntwine used last (frontTab), else the sidebar's. */
+  /** Ctrl+L with nothing selected: the prompt box of the ntwine used last (frontTab), else the sidebar's. */
   async function focusPrompt(): Promise<boolean> {
     const tab = frontTab()
     if (!tab) return sidebarCommand("prompt")
@@ -1181,12 +1181,12 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   function openNtwine(): void {
-    // The page needs no editor connection: an Ntwine that answered discovery but refused the socket (an
-    // older Ntwine, a version mismatch) still serves its page.
+    // The page needs no editor connection: an ntwine that answered discovery but refused the socket (an
+    // older ntwine, a version mismatch) still serves its page.
     const origin = connection.origin ?? found?.origin
     if (!origin) return showNotConnected()
     // What the sidebar shows, when it is in sight — a thread up in it opens as that thread — on this
-    // window's own address for Ntwine (under a remote window the frame's is the forwarded one); else this
+    // window's own address for ntwine (under a remote window the frame's is the forwarded one); else this
     // window's project.
     const shown = sidebar.href()
     const page = shown ? new URL(shown) : undefined
@@ -1209,12 +1209,12 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     api.commands.registerCommand("ntwine.sidebar.settings", () => sidebarCommand("settings")),
     api.commands.registerCommand("ntwine.sidebar.shortcuts", () => sidebarCommand("shortcuts")),
     // Ctrl+L / ⌘L in the editor with nothing selected: Cursor's chord to its chat, here the prompt box of the
-    // Ntwine used last — a thread's tab on screen, else the sidebar — revealed and focused, the caret at the
+    // ntwine used last — a thread's tab on screen, else the sidebar — revealed and focused, the caret at the
     // end of what it holds. Ctrl+L there comes back (embed.ts, thread-panel.ts).
     api.commands.registerCommand("ntwine.focusPrompt", () => focusPrompt()),
     api.commands.registerCommand("ntwine.openThreadInTab", openThreadInTab),
-    // "Ask Ntwine to fix" on any problem in a file on disk, in every language. Offered only with the sidebar
-    // on: without it the problem's message has nowhere to go, and a bare chip is Add to Ntwine prompt.
+    // "Ask ntwine to fix" on any problem in a file on disk, in every language. Offered only with the sidebar
+    // on: without it the problem's message has nowhere to go, and a bare chip is Add to ntwine prompt.
     api.languages.registerCodeActionsProvider({ scheme: "file" }, {
       provideCodeActions(document, _range, codeContext) {
         if (!codeContext.diagnostics.length || !useSidebar()) return []
@@ -1240,7 +1240,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     }),
   )
 
-  log.info(`Ntwine extension ${extensionVersion}${builtAt ? ` (built ${builtAt})` : ""} in ${api.env.appName} ${api.version}, window ${windowId}.`)
+  log.info(`ntwine extension ${extensionVersion}${builtAt ? ` (built ${builtAt})` : ""} in ${api.env.appName} ${api.version}, window ${windowId}.`)
   connection.start()
 
   return {

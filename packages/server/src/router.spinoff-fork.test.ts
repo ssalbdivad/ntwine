@@ -5,7 +5,7 @@
 // parent's session under a minted anchor, the edge is complete at birth, and the parent receives nothing
 // at all. Everything else — a Codex or ACP parent, a cross-project target, a Claude parent with nothing
 // on disk to fork yet — takes the SUMMARY route: a fresh child whose opening prompt carries the context
-// Ntwine assembled from the parent (spinoffContext), and again nothing reaches the parent.
+// ntwine assembled from the parent (spinoffContext), and again nothing reaches the parent.
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
@@ -132,7 +132,7 @@ test("a Claude parent is forked: the child starts from its session, the edge is 
     assert.equal(spawn.model, "opus[1m]", "the parent's model: the prompt cache is per model")
     assert.equal(spawn.effort, "high")
     // The parent by the handle the board shows for "Cache fix" (the router's own name registry).
-    assert.ok(spawn.prompt.includes(spinoffForkPrompt({ parentSlug: slug, parentTitle: "Cache fix", parentHandle: "cache-fix", instructions: "load test the fix" })), "the fork prompt, below Ntwine's envelope")
+    assert.ok(spawn.prompt.includes(spinoffForkPrompt({ parentSlug: slug, parentTitle: "Cache fix", parentHandle: "cache-fix", instructions: "load test the fix" })), "the fork prompt, below ntwine's envelope")
     assert.deepEqual(parseSpinoffChildPrompt(spawn.prompt.slice(spawn.prompt.indexOf("A spinoff of"))), { instructions: "load test the fix", brief: "" })
 
     const edge = h.storage.spinoffsOf(slug).find((r) => r.id === id)!
@@ -167,7 +167,7 @@ test("a fork that fails to start leaves no edge behind and says so", async () =>
 // The parent's own state, which a spinoff must never move.
 const PARENT_KEYS = ["state", "rested_at", "unread", "last_read_at", "snoozed_until", "delivery_ledger", "session_id"] as const
 
-test("a Codex parent gets a fresh child on Ntwine's context, and hears nothing", async () => {
+test("a Codex parent gets a fresh child on ntwine's context, and hears nothing", async () => {
   const h = harness({ backend: "codex" })
   try {
     const before = h.storage.getSession(slug)!

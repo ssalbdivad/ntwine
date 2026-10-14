@@ -34,7 +34,7 @@ export class RpcError extends Error {
   }
 }
 
-/** A client bound to one running Ntwine server, optionally its project id/slug. Results are UNWRAPPED. */
+/** A client bound to one running ntwine server, optionally its project id/slug. Results are UNWRAPPED. */
 export function createRpcClient(baseUrl, project) {
   const origin = new URL(baseUrl).origin
   const prefix = project ? `${NTWINE_ROUTE_PREFIX}/${encodeURIComponent(project)}` : NTWINE_ROUTE_PREFIX

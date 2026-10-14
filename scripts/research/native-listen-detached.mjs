@@ -18,7 +18,7 @@ const child = spawn("codex", ["app-server", "--listen", `unix://${sock}`], { std
 console.log("[p4] runDir", runDir, "serverPid", child.pid)
 process.on("exit", () => { try { child.kill("SIGKILL") } catch {} })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const INIT = { clientInfo: { name: "ntwine", title: "Ntwine", version: "0.0.1" }, capabilities: { experimentalApi: true } }
+const INIT = { clientInfo: { name: "ntwine", title: "ntwine", version: "0.0.1" }, capabilities: { experimentalApi: true } }
 
 class Conn {
   constructor(tag) { this.tag = tag; this.notes = []; this.serverRequests = []; this.next = 1; this.pending = new Map() }

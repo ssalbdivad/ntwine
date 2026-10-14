@@ -33,7 +33,7 @@ export interface ServeOptions {
   /**
    * The public origin the visitor used, so the board's own gate sees the request as arriving there.
    *
-   * WITHOUT THIS THE BOARD REFUSES EVERY RELAYED REQUEST. Ntwine's origin gate keys on the request
+   * WITHOUT THIS THE BOARD REFUSES EVERY RELAYED REQUEST. ntwine's origin gate keys on the request
    * having arrived AS the declared public origin; a request forwarded to loopback with a loopback Host
    * would be judged local and skip the access gate entirely, which is the opposite of what anyone
    * wants for a board on the internet.
@@ -190,7 +190,7 @@ export function serveRelayRequest(frame: Extract<RelayDownFrame, { t: "req" }>, 
         id: frame.id,
         status: 502,
         headers: [["content-type", "text/plain; charset=utf-8"]],
-        body: encodeBody(new TextEncoder().encode(`Ntwine is not answering on this machine: ${error.message}`)),
+        body: encodeBody(new TextEncoder().encode(`ntwine is not answering on this machine: ${error.message}`)),
         end: true,
       });
       resolve();
@@ -240,7 +240,7 @@ const HANDSHAKE_HEADERS: ReadonlySet<string> = new Set([
  * a frame. Returns a handle the caller drives when frames arrive for this session.
  *
  * THE VISITOR'S HEADERS ARE THE WHOLE POINT OF THIS FUNCTION'S SHAPE, and getting them wrong fails in
- * both directions. Ntwine gates an upgrade on three of them together: the `Host` decides whether the
+ * both directions. ntwine gates an upgrade on three of them together: the `Host` decides whether the
  * request arrived publicly and so whether the access gate applies at all, the `Origin` has to agree
  * with it, and the session cookie is what proves the visitor redeemed an access code. Forward none of
  * them and the board destroys the socket, because a browser always sends an Origin and this would not.

@@ -5,51 +5,51 @@ description: What leaves your machine, what lands in your repo, and the rest.
 
 <Accordions>
 
-<Accordion title="Does Ntwine run its own agent or model?">
+<Accordion title="Does ntwine run its own agent or model?">
 
-No. It drives Claude Code, Codex or an ACP agent under the account you're signed in to on your machine, with your subscription, your rate limits and your settings. Ntwine does make a few short calls of its own on that same Claude sign-in: naming a thread, writing its status line, choosing an effort for auto, and reading a schedule from a prompt. **Settings → Background summaries** turns them all off.
+No. It drives Claude Code, Codex or an ACP agent under the account you're signed in to on your machine, with your subscription, your rate limits and your settings. ntwine does make a few short calls of its own on that same Claude sign-in: naming a thread, writing its status line, choosing an effort for auto, and reading a schedule from a prompt. **Settings → Background summaries** turns them all off.
 
-Ntwine runs its own pinned copy of Claude Code and Codex, the exact build it was tested against, rather than whichever version is on your PATH. Set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another one.
+ntwine runs its own pinned copy of Claude Code and Codex, the exact build it was tested against, rather than whichever version is on your PATH. Set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another one.
 
 </Accordion>
 
 <Accordion title="Does anything leave my machine?">
 
-Nothing from Ntwine. There's no account and no telemetry, and the server binds to `127.0.0.1`. Reaching it from another device is something you switch on yourself. The agents talk to their providers, and `gh` talks to GitHub, but Ntwine is a local process looking at local files.
+Nothing from ntwine. There's no account and no telemetry, and the server binds to `127.0.0.1`. Reaching it from another device is something you switch on yourself. The agents talk to their providers, and `gh` talks to GitHub, but ntwine is a local process looking at local files.
 
 </Accordion>
 
 <Accordion title="What happens if I close the tab?">
 
-Nothing. Each thread's agent runs in its own detached background process, independent of the browser and of Ntwine itself. You can stop Ntwine entirely and your agents will keep working. When you relaunch, it reconnects to the sessions that are still running.
+Nothing. Each thread's agent runs in its own detached background process, independent of the browser and of ntwine itself. You can stop ntwine entirely and your agents will keep working. When you relaunch, it reconnects to the sessions that are still running.
 
 </Accordion>
 
 <Accordion title="Does it put junk in my repo?">
 
-Barely. Starting a thread doesn't write a thread file into your repo. All Ntwine adds is a `.ntwine/` directory with a scratch folder per thread (empty unless the agent writes something) and a couple of small state files.
+Barely. Starting a thread doesn't write a thread file into your repo. All ntwine adds is a `.ntwine/` directory with a scratch folder per thread (empty unless the agent writes something) and a couple of small state files.
 
-Everything durable lives outside your checkout. That's `~/.ntwine/` if you already have one, and otherwise your platform's data directory (`~/Library/Application Support/Ntwine` on macOS, `$XDG_DATA_HOME/ntwine` on Linux, LocalAppData on Windows). You can delete `.ntwine/` and keep every thread and setting.
+Everything durable lives outside your checkout. That's `~/.ntwine/` if you already have one, and otherwise your platform's data directory (`~/Library/Application Support/ntwine` on macOS, `$XDG_DATA_HOME/ntwine` on Linux, LocalAppData on Windows). You can delete `.ntwine/` and keep every thread and setting.
 
-Ntwine never touches your `.gitignore`. `.ntwine/` ignores itself with a `.gitignore` of its own, so it stays out of `git status`.
+ntwine never touches your `.gitignore`. `.ntwine/` ignores itself with a `.gitignore` of its own, so it stays out of `git status`.
 
 </Accordion>
 
 <Accordion title="Do I have to use worktrees?">
 
-No. Ntwine doesn't own your git workflow and won't create branches or worktrees behind your back. Tell your agents what you want in [`NTWINE.md`](/docs/ntwine-md). If they put worktrees in `.ntwine/worktrees`, Ntwine removes one once it has been idle for 7d and is clean, keeping its branch and anything git can't restore, like a `.env`; **Settings → Remove idle worktrees after** changes the wait or turns it off. If you do run Ntwine inside a linked worktree, it isolates that worktree's state from its siblings automatically.
+No. ntwine doesn't own your git workflow and won't create branches or worktrees behind your back. Tell your agents what you want in [`NTWINE.md`](/docs/ntwine-md). If they put worktrees in `.ntwine/worktrees`, ntwine removes one once it has been idle for 7d and is clean, keeping its branch and anything git can't restore, like a `.env`; **Settings → Remove idle worktrees after** changes the wait or turns it off. If you do run ntwine inside a linked worktree, it isolates that worktree's state from its siblings automatically.
 
 </Accordion>
 
 <Accordion title="Can I run it on several repos at once?">
 
-Yes. One Ntwine server serves every project on your machine. Run `npx ntwine` in any of them and each one gets its own board, with its own threads, settings and state. **All projects** shows them together.
+Yes. One ntwine server serves every project on your machine. Run `npx ntwine` in any of them and each one gets its own board, with its own threads, settings and state. **All projects** shows them together.
 
 </Accordion>
 
 <Accordion title="Can I reach it from my phone, or from anywhere?">
 
-Yes. Press <kbd>R</kbd> in the terminal running Ntwine and pick a private ntwine.app name (no account), a Cloudflare Tunnel, Tailscale, or a proxy of your own. Ntwine stays on `127.0.0.1` in every case, and the first visit from each device needs a single-use sign-in link. See [remote access](/docs/remote-access).
+Yes. Press <kbd>R</kbd> in the terminal running ntwine and pick a private ntwine.app name (no account), a Cloudflare Tunnel, Tailscale, or a proxy of your own. ntwine stays on `127.0.0.1` in every case, and the first visit from each device needs a single-use sign-in link. See [remote access](/docs/remote-access).
 
 </Accordion>
 
@@ -61,7 +61,7 @@ macOS, Linux and Windows, in a browser or in VS Code, Cursor and Windsurf.
 
 <Accordion title="How is this different from other agent orchestrators?">
 
-Ntwine doesn't wrap your agents in a workflow of its own. It's a viewer and a queue over the CLIs you already run, and every piece of orchestration judgment lives in text you can edit rather than inside the binary.
+ntwine doesn't wrap your agents in a workflow of its own. It's a viewer and a queue over the CLIs you already run, and every piece of orchestration judgment lives in text you can edit rather than inside the binary.
 
 </Accordion>
 

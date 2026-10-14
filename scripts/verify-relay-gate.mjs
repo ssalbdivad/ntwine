@@ -3,7 +3,7 @@
  * A relayed terminal against the REAL access gate.
  *
  * `verify-relay-e2e.mjs` proves the frames reach a socket server. It cannot prove the thing that
- * matters most about a terminal on the public internet: that Ntwine's own gate stands in front of it.
+ * matters most about a terminal on the public internet: that ntwine's own gate stands in front of it.
  * Its board is a toy that accepts every upgrade, so a relay forwarding NO identity at all passes there
  * and fails against the real thing — in whichever direction is worse.
  *

@@ -61,16 +61,16 @@ test("lastHumanTurnIndex: an answer to a REGISTERED question is an interaction, 
   // whole already-answered iteration above the one the answer produced.
   assert.equal(lastHumanTurnIndex([ask, reply, answer, reply]), 2)
   // …and it still wins over everything ntwine genuinely wrote after it.
-  const goal = delivered("⏰ Ntwine: your goal is still armed — keep going.")
+  const goal = delivered("⏰ ntwine: your goal is still armed — keep going.")
   assert.equal(lastHumanTurnIndex([ask, reply, answer, reply, goal, reply]), 2)
 })
 
 test("lastHumanTurnIndex: every other user record ntwine or a child wrote is skipped", () => {
-  const goal = delivered("⏰ Ntwine: your goal is still armed — keep going.")
+  const goal = delivered("⏰ ntwine: your goal is still armed — keep going.")
   const report = { role: "user" as const, text: "child reporting in", peerFrom: "ntwine:high" }
   const instruction = { role: "user" as const, text: "coordinator follow-up", agentInstruction: true as const }
   const queued = { role: "user" as const, text: "and one more thing", queued: true }
-  // Nobody answered — the autonomous-thread cancellation. Ntwine's own news, in ntwine's own voice, so it
+  // Nobody answered — the autonomous-thread cancellation. ntwine's own news, in ntwine's own voice, so it
   // is not an interaction however close its delivery path is to the answer above.
   const cancelled = delivered(questionsCancelledWakeMessage(2))
 

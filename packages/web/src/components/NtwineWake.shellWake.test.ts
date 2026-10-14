@@ -28,7 +28,7 @@ test("the wake line's name is the link to its terminal, and only the name trunca
   assert.equal(renderToStaticMarkup(createElement(ShellWakeText, { text: "Context compacted" })), '<span class="min-w-0 truncate">Context compacted</span>')
 })
 
-test("Ntwine's own relay of a finished shell finds that terminal by its task id and opens it", () => {
+test("ntwine's own relay of a finished shell finds that terminal by its task id and opens it", () => {
   const thread = { id: "fix-auth", bgShells: [], endedShells: [{ id: "toolu_q", taskId: "b1", label: "quick build", status: "completed" }] } as unknown as ThreadView
   store.board = { threads: [thread], projectSlug: "ntwine" } as unknown as BoardSnapshot
   const wake = "⏰ Your background shell finished: `b1` — quick build."

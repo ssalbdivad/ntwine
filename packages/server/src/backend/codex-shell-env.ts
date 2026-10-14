@@ -18,7 +18,7 @@ import { ntwineCliEnv, withNtwineCliOnPath, type NtwineCli } from "./types.ts"
  *     threads on one app-server each seeing their own value, with concurrent turns;
  *   - a `spawn_agent` child's shell INHERITS it, so a sub-agent acts as its parent's thread;
  *   - it adds to the process environment rather than replacing it;
- *   - it is NOT stored in the rollout: a resume without the bag has none of it. Every resume Ntwine
+ *   - it is NOT stored in the rollout: a resume without the bag has none of it. Every resume ntwine
  *     issues carries the bag (threadConfig).
  *
  * THE DOTTED SPELLING, one key per variable, is one of three that worked and the only one that
@@ -31,7 +31,7 @@ import { ntwineCliEnv, withNtwineCliOnPath, type NtwineCli } from "./types.ts"
  *
  * WHAT THIS CANNOT DO: a thread narrowed to `workspace-write` or `read-only` has no network, loopback
  * included (curl exit 7 on both a TCP listener and a unix socket), so the command runs and cannot
- * reach the server. Every thread Ntwine creates is `danger-full-access`; the command says so plainly
+ * reach the server. Every thread ntwine creates is `danger-full-access`; the command says so plainly
  * when it finds itself in the other case.
  */
 export function codexThreadShellConfig(

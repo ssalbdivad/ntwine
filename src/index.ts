@@ -99,8 +99,8 @@ function printFarewell(code: number): void {
   const suffix = logger.file ? `\n  log: ${tildePath(logger.file, homedir())}` : "";
   process.stdout.write(
     code === 0
-      ? `\n  Ntwine stopped. Running agents keep going — they are detached daemons.${suffix}\n\n`
-      : `\n  Ntwine stopped with errors (exit ${code}).${suffix}\n\n`
+      ? `\n  ntwine stopped. Running agents keep going — they are detached daemons.${suffix}\n\n`
+      : `\n  ntwine stopped with errors (exit ${code}).${suffix}\n\n`
   );
 }
 
@@ -126,7 +126,7 @@ if (argv[0] === "top") {
 }
 /**
  * build/promote/restart are ARTIFACT verbs: they suppress the readout and the foreground hold, do one
- * job and exit. Launching is not one of them — there is exactly one way to start Ntwine, and it is the
+ * job and exit. Launching is not one of them — there is exactly one way to start ntwine, and it is the
  * bare command with flags. `up` used to be a fourth verb here, sugar for `--cloud`; it was removed
  * because a second spelling of "start the server" is a second thing to explain, and because it read as
  * a per-project command on a server that has never been per-project.
@@ -184,7 +184,7 @@ const readout = interactiveLaunch
 
 /**
  * Where supervisor lifecycle beats print. Normally the boot readout — but a launcher that re-execed
- * itself through Update Ntwine has no boot to narrate and still owns the operator's terminal, so it
+ * itself through Update ntwine has no boot to narrate and still owns the operator's terminal, so it
  * gets a notice-only one rather than falling silent for the rest of the session.
  */
 const activityReadout =
@@ -214,7 +214,7 @@ try {
     throw new Error("internal launch is missing its pinned project identity");
   // Resolving a workspace opens this project's database, so check first and name what is wrong. The
   // Node floor is the live half for a real launch: on an unsupported release SQLite SEGFAULTS rather
-  // than erroring, and a segfault mid-boot reads as "Ntwine is broken" instead of "upgrade Node".
+  // than erroring, and a segfault mid-boot reads as "ntwine is broken" instead of "upgrade Node".
   // `--stop`/`--status` and the repair commands keep the executables-only check, since they only read a
   // status file and signal a process — that list is EMPTY today (nothing shells out to `git` or `tmux`
   // any more; see preflight.ts) and survives as the seam for the next hard dependency.
@@ -223,8 +223,8 @@ try {
     else assertRequiredExecutables();
   }
   // Running the command never ADOPTS the directory it was run in — see resolveLaunchIntent. A
-  // directory that is not already a project hosts the server on Ntwine's own stand-in folder and
-  // lands on `/all`, or on `/` (the add-project dialog) when it is a repository Ntwine has not seen.
+  // directory that is not already a project hosts the server on ntwine's own stand-in folder and
+  // lands on `/all`, or on `/` (the add-project dialog) when it is a repository ntwine has not seen.
   let hosted: Workspace | undefined;
   if (!internal) {
     const intent = resolveLaunchIntent();
@@ -368,7 +368,7 @@ async function runSupervisor(
           firstChildLaunch = false;
           if (!artifact)
             throw new Error(
-              "the currently promoted Ntwine artifact is missing or failed verification"
+              "the currently promoted ntwine artifact is missing or failed verification"
             );
           assertArtifactHostCompatible(artifact);
           return {
@@ -430,7 +430,7 @@ async function runSupervisor(
                   );
                   if (!artifact)
                     throw new Error(
-                      "the promoted Ntwine artifact is missing or failed verification"
+                      "the promoted ntwine artifact is missing or failed verification"
                     );
                   assertArtifactHostCompatible(artifact);
                   const env = projectLaunchEnvironment(
@@ -550,7 +550,7 @@ async function runSupervisor(
       // option can quietly take it away.
       dev: true,
       // The terminal that owns the board says so when the board goes down and comes back. Restart
-      // Ntwine and Update Ntwine are clicked in a browser and a control-plane crash is clicked by
+      // ntwine and Update ntwine are clicked in a browser and a control-plane crash is clicked by
       // nobody, so without this the foreground process is the last place to learn what happened.
       onActivity: (event) => renderSupervisorActivity(activityReadout, event),
       // Every child leaves the terminal as it found it at its own fork, and the first one was forked
@@ -607,7 +607,7 @@ async function runSupervisor(
   await supervisor.firstBoot;
   // The re-exec'd generation prints no boot block (it is not an interactive launch), so this one line
   // is the only thing that tells the operator the handoff finished. Two different things arrive here:
-  // Update Ntwine execs into a promoted artifact and names its digest, while `--dev` re-execs this
+  // Update ntwine execs into a promoted artifact and names its digest, while `--dev` re-execs this
   // launcher whenever its own source changes, where there is no artifact and nothing was updated.
   if (process.env.NTWINE_DEV_REEXEC === "1") {
     const digest = process.env.NTWINE_STABLE_ARTIFACT?.slice(0, 12);
@@ -640,7 +640,7 @@ if (command === "build") {
       { onProgress: (message) => logger.info("artifact", message) }
     );
     logger.info("artifact", `built ${artifact.digest}`);
-    console.log(`built Ntwine artifact ${artifact.digest}`);
+    console.log(`built ntwine artifact ${artifact.digest}`);
     console.log(`web: ${artifact.webDir}`);
     process.exit(0);
   } catch (error) {
@@ -662,7 +662,7 @@ if (command === "promote") {
       defaultArtifactRoot()
     );
     console.log(
-      `promoted Ntwine artifact ${pointer.current}${
+      `promoted ntwine artifact ${pointer.current}${
         pointer.previous ? ` (rollback ${pointer.previous})` : ""
       }`
     );
@@ -754,10 +754,10 @@ function ownSlug(launched = false): string | undefined {
 }
 
 /**
- * Where an Ntwine that could already be serving this project would be listening.
+ * Where an ntwine that could already be serving this project would be listening.
  *
  * An explicit `--port` is asked FIRST, for the same reason the well-known ones are asked at all: if a
- * Ntwine is already serving this project there, joining it is the answer and starting a rival is not.
+ * ntwine is already serving this project there, joining it is the answer and starting a rival is not.
  * Without it `--port N` skipped the join outright and then died at allocation, because the port it was
  * told to use was held by the very server it should have been using.
  */
@@ -807,7 +807,7 @@ async function joinRunningNtwine(): Promise<
 }
 
 /**
- * Say it on screen when this launch is about to become the machine's SECOND Ntwine.
+ * Say it on screen when this launch is about to become the machine's SECOND ntwine.
  *
  * Falling past the join is right when nothing is running and wrong in every other case: two Ntwinees
  * means two schedulers, and one board's timers and recurring prompts firing twice. Until now the only
@@ -818,7 +818,7 @@ async function joinRunningNtwine(): Promise<
 async function warnAboutStartingASecondNtwine(): Promise<void> {
   for (const port of joinCandidatePorts()) {
     if (await canBindPort(port)) continue;
-    const detail = `port ${port} is in use but did not answer for ${workspace.root}; starting a SECOND Ntwine`;
+    const detail = `port ${port} is in use but did not answer for ${workspace.root}; starting a SECOND ntwine`;
     logger.warn("launcher", detail);
     console.warn(`warning: ${detail}`);
     return;
@@ -831,7 +831,7 @@ let cachedSlugPath: string | undefined;
  *
  *   - run in a project: `/`, the browser's own last view (All projects for a new browser), with the
  *     project registered and stamped as the prompt box's pick (noteLaunchedHere);
- *   - run in a repository Ntwine has not seen (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
+ *   - run in a repository ntwine has not seen (`offer`): the add-project dialog asking about it, `/?add=<dir>`, over
  *     whichever view this browser was on last (web routes.tsx LastViewRedirect);
  *   - run anywhere else (`everything`, $HOME included): All projects, `/all` — upstream's dashboard at `/`;
  *   - no intent (a supervisor child, an update re-exec): `/`, the browser's own last view.
@@ -856,7 +856,7 @@ function landingPath(): string {
  * Record in the machine's registry that `ntwine` was just run in THIS project, cold or joining: the
  * project All projects' prompt box aims a new thread at when this browser has neither picked nor focused
  * one (web lib/crossProject.ts defaultCrossProjectFocus). Only an `open` launch is from a project: an
- * `everything` or `offer` launch is hosted on Ntwine's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
+ * `everything` or `offer` launch is hosted on ntwine's own stand-in folder (launcher.ts hostWorkspace), not where it was run.
  * Internal relaunches (a supervisor child, an update re-exec) carry no intent, so a restart never
  * re-stamps the host over a later launch elsewhere.
  */
@@ -872,7 +872,7 @@ async function openOrPrint(
   noteLaunchedHere();
   const url = `http://127.0.0.1:${port}${path}`;
   const home = homedir();
-  logger.info("launcher", `${reused ? "reusing" : "started"} Ntwine at ${url} for ${workspace.root}`);
+  logger.info("launcher", `${reused ? "reusing" : "started"} ntwine at ${url} for ${workspace.root}`);
   if (reused) {
     // Nothing was built and nothing was started. Settle those steps for what they are, or a reuse
     // paints as a cold boot whose artifact and server rows simply never happened.
@@ -885,7 +885,7 @@ async function openOrPrint(
     try {
       if (options.appMode) {
         await launchApp(url, { dataPath: join(workspace.stateDir, "browser-profile") });
-        browser = reused ? "focused the Ntwine app window" : "opened the Ntwine app window";
+        browser = reused ? "focused the ntwine app window" : "opened the ntwine app window";
       } else {
         await launchBrowserTab(url);
         browser = "opened in your default browser";
@@ -908,7 +908,7 @@ async function openOrPrint(
   if (sessionNotice && !reused) warnings.push(sessionNotice);
   if (!readout) {
     // `--status`, internal launches and pipes keep the plain, parseable records.
-    console.log(`${reused ? "reusing" : "started"} Ntwine for ${workspace.root}`);
+    console.log(`${reused ? "reusing" : "started"} ntwine for ${workspace.root}`);
     console.log(`source: ${sourceLabel()}`);
     console.log(url);
     if (publicOrigin) console.log(accessLink?.url ?? `${publicOrigin}/`);
@@ -950,14 +950,14 @@ async function openOrPrint(
 // This line used to claim tmux preserved them, which has been false since the runtime moved and had
 // operators reaching for a pane that does not exist.
 function stoppedMessage(): string {
-  return `stopped Ntwine for ${workspace.root}; detached agent daemons were preserved`;
+  return `stopped ntwine for ${workspace.root}; detached agent daemons were preserved`;
 }
 
 async function stopWorkspace(): Promise<void> {
   const target = launchTarget;
   const owner = readProjectLaunchOwner(workspace.stateDir);
   if (!owner) {
-    console.log(`Ntwine is not running for ${workspace.root}`);
+    console.log(`ntwine is not running for ${workspace.root}`);
     return;
   }
   const status = liveWorkspaceOwner(workspace.stateDir, target);
@@ -975,7 +975,7 @@ async function stopWorkspace(): Promise<void> {
   // below while registered children self-exit on supervisor IPC disconnect.
   if (!controlled && !processGenerationIsStale(owner)) {
     throw new Error(
-      "Ntwine refused to stop a live owner without authenticated token-bound control; the owner was left untouched"
+      "ntwine refused to stop a live owner without authenticated token-bound control; the owner was left untouched"
     );
   }
   const deadline = Date.now() + 10_000;
@@ -1066,7 +1066,7 @@ if (options.link) {
 
 
   if (command === "restart") {
-    if (!before.port) throw new Error("Ntwine is not running for this workspace");
+    if (!before.port) throw new Error("ntwine is not running for this workspace");
     const response = await fetch(
       `http://127.0.0.1:${before.port}/_ntwine/control/restart`,
       {
@@ -1080,10 +1080,10 @@ if (options.link) {
     };
     if (!response.ok || result.state !== "ready")
       throw new Error(
-        result.message ?? "Ntwine did not become ready after restart"
+        result.message ?? "ntwine did not become ready after restart"
       );
     console.log(
-      `restarted Ntwine artifact ${
+      `restarted ntwine artifact ${
         readStableArtifact(workspace.stateDir)?.digest ?? "unknown"
       }`
     );
@@ -1188,7 +1188,7 @@ if (options.link) {
   }
   const launchOwner = projectClaim;
   const target = workspaceLaunchTarget(workspace);
-  // Another Ntwine under this home already has this project open as one of its many — the installed
+  // Another ntwine under this home already has this project open as one of its many — the installed
   // one, whose dev port this launch does not probe. Its server would refuse to boot on it anyway; say
   // so now, naming that server, rather than after a build and a boot. Checked once the launch lease is
   // ours: an ntwine-dev of this project that is still starting has had its chance to be reused above.

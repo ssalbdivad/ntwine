@@ -1,7 +1,7 @@
 import { isDevNtwineBuild } from "../api/restart.ts"
 import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 
-// "Is Ntwine itself a development build?" — the one answer every dev-only affordance in the UI asks for.
+// "Is ntwine itself a development build?" — the one answer every dev-only affordance in the UI asks for.
 //
 // It is a RUNTIME question, not a build-time one, and that distinction is the whole reason this file
 // exists. `import.meta.env.DEV` is a Vite compile-time constant that is true only under `vite dev`
@@ -28,8 +28,8 @@ import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 /**
  * Starts false and flips true once the supervisor answers. A dev-only control therefore appears a
  * beat after first paint rather than being present in the initial HTML — the same shape as the
- * Restart Ntwine button in the status bar, and the correct bias: an affordance that must never show up
- * in a published Ntwine should render only once the server has affirmatively said "development build".
+ * Restart ntwine button in the status bar, and the correct bias: an affordance that must never show up
+ * in a published ntwine should render only once the server has affirmatively said "development build".
  */
 export function useDevNtwineBuild(): boolean {
   return isDevNtwineBuild(useSupervisorStatus().data ?? null)

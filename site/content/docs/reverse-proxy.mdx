@@ -3,7 +3,7 @@ title: Any reverse proxy
 description: Caddy, nginx, ngrok, or whatever you run.
 ---
 
-Every proxy works the same way. Terminate TLS wherever you like, proxy to the board's loopback port, and give Ntwine the public origin.
+Every proxy works the same way. Terminate TLS wherever you like, proxy to the board's loopback port, and give ntwine the public origin.
 
 ```text
   press R, choose Something else
@@ -11,7 +11,7 @@ Every proxy works the same way. Terminate TLS wherever you like, proxy to the bo
   Origin  https://whatever-that-proxy-serves
 ```
 
-Ntwine checks that a request's `Host` matches the origin you gave it, so the value has to be the exact origin a browser sees: scheme included, no trailing slash.
+ntwine checks that a request's `Host` matches the origin you gave it, so the value has to be the exact origin a browser sees: scheme included, no trailing slash.
 
 ## Caddy
 
@@ -27,7 +27,7 @@ board.example.com {
 
 - **WebSocket upgrades.** The board's terminals are WebSockets. A proxy that doesn't forward `Upgrade` serves the page and then goes silent.
 - **Server-sent events, unbuffered.** The board's live feed is a stream that never ends, so behind a proxy that buffers responses, the board never updates. In nginx, that's `proxy_buffering off`.
-- **The original `Host`.** Ntwine judges the origin from it. A proxy that rewrites it to `127.0.0.1` makes every request look local and skips the access gate.
+- **The original `Host`.** ntwine judges the origin from it. A proxy that rewrites it to `127.0.0.1` makes every request look local and skips the access gate.
 
 <Callout type="warn">
   That last one is the whole security boundary. If your proxy can't preserve the `Host`, don't put the board on the internet behind it.

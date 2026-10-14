@@ -10,7 +10,7 @@ import { promoteCurrentSourceArtifact } from "./artifacts.ts";
  * signal handlers, so for the whole build:
  *
  * - the board stopped answering: the supervisor's proxy could not forward a single request, though
- *   the readout promised "the running Ntwine is untouched until it is ready";
+ *   the readout promised "the running ntwine is untouched until it is ready";
  * - SIGINT/SIGTERM/SIGHUP queued unhandled. A worker's `TaskStop` on a sandbox mid-update sat for
  *   6m24s, and Ctrl-C in the terminal did nothing until the build finished.
  *

@@ -2,7 +2,7 @@
 //
 // Every build said `0.1.0`, and the server dropped the hello's version on the floor, so when the
 // maintainer asked "is this window running the fix?" nobody could say: not the output channel, not the
-// status bar, not Ntwine (review-final.md item 7). Now each build carries its version, the commit it was
+// status bar, not ntwine (review-final.md item 7). Now each build carries its version, the commit it was
 // built from (and whether the tree had uncommitted changes in what the bundle is made of), when it was
 // built, and a random id. The label — `0.1.0+1a2b3c4d`, `0.1.0+1a2b3c4d-dirty` — is what the hello, the
 // log and the status bar's tooltip say; the id is what tells two builds apart, since two builds of one

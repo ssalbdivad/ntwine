@@ -1,5 +1,5 @@
 // Immutable web artifacts are deliberately tooling-owned. The stable control plane never watches
-// the Ntwine checkout; ordinary stopped-then-fresh launches select or build and promote one digest.
+// the ntwine checkout; ordinary stopped-then-fresh launches select or build and promote one digest.
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -77,7 +77,7 @@ export function assertArtifactHostCompatible(
   const built = artifact.manifest.host;
   if (!built)
     throw new Error(
-      `Ntwine artifact ${artifact.digest} does not record host compatibility; stop Ntwine and rerun ntwine-dev on this machine to build a compatible immutable artifact`
+      `ntwine artifact ${artifact.digest} does not record host compatibility; stop ntwine and rerun ntwine-dev on this machine to build a compatible immutable artifact`
     );
   const mismatches: string[] = [];
   if (built.platform !== host.platform) mismatches.push(`platform ${built.platform} != ${host.platform}`);
@@ -86,7 +86,7 @@ export function assertArtifactHostCompatible(
   if (built.nodeModules !== host.nodeModules) mismatches.push(`Node ABI ${built.nodeModules} != ${host.nodeModules}`);
   if (mismatches.length > 0)
     throw new Error(
-      `Ntwine artifact ${artifact.digest} is incompatible with this host (${mismatches.join(", ")}); stop Ntwine and rerun ntwine-dev on this machine to build a compatible immutable artifact`
+      `ntwine artifact ${artifact.digest} is incompatible with this host (${mismatches.join(", ")}); stop ntwine and rerun ntwine-dev on this machine to build a compatible immutable artifact`
     );
 }
 
@@ -154,7 +154,7 @@ interface SourceArtifactIdentity {
   fingerprint: string;
 }
 
-/** CACHE: every artifact here is rebuildable from source, and this is the biggest thing Ntwine stores. */
+/** CACHE: every artifact here is rebuildable from source, and this is the biggest thing ntwine stores. */
 export function defaultArtifactRoot(home = homedir()): string {
   return join(ntwinePaths({ home }).cache, "builds");
 }
@@ -301,7 +301,7 @@ function assertNoExternalArtifactSymlinks(
     const target = resolve(dirname(file), readlinkSync(file));
     if (!containedPath(root, target) && target !== allowedExternalTarget)
       throw new Error(
-        `Ntwine artifact contains a symlink outside its immutable closure: ${relative(root, file)}`
+        `ntwine artifact contains a symlink outside its immutable closure: ${relative(root, file)}`
       );
   }
 }
@@ -374,7 +374,7 @@ function assertDetachedDaemonClosure(runtimeSrc: string): void {
     const emitted = detachedDaemonOutputName(entry);
     if (!existsSync(join(runtimeSrc, emitted)))
       throw new Error(
-        `Ntwine runtime bundle is missing the detached daemon ${emitted} (built from ${entry}); it is spawned as its own node process and must exist beside index.js`
+        `ntwine runtime bundle is missing the detached daemon ${emitted} (built from ${entry}); it is spawned as its own node process and must exist beside index.js`
       );
   }
 }
@@ -501,12 +501,12 @@ function cloneRelevantSourceTree(
     if (stat.isSymbolicLink()) {
       const target = readlinkSync(sourcePath);
       if (isAbsolute(target))
-        throw new Error(`Ntwine source snapshot cannot retain absolute symlink ${sourcePath}`);
+        throw new Error(`ntwine source snapshot cannot retain absolute symlink ${sourcePath}`);
       const resolvedTarget = resolve(dirname(sourcePath), target);
       const targetTree = trees.find((candidate) => containedPath(candidate.source, resolvedTarget));
       if (!targetTree)
         throw new Error(
-          `Ntwine source snapshot cannot retain symlink ${sourcePath} outside the captured source closure`
+          `ntwine source snapshot cannot retain symlink ${sourcePath} outside the captured source closure`
         );
       const snapshotTarget = join(
         targetTree.destination,
@@ -530,7 +530,7 @@ function cloneRelevantSourceTree(
 function attachInstalledDependencyClosure(source: string, snapshot: string): void {
   const installed = join(source, "node_modules");
   if (!existsSync(installed))
-    throw new Error("Ntwine source dependencies are not installed; run the project install first");
+    throw new Error("ntwine source dependencies are not installed; run the project install first");
   symlinkSync(installed, join(snapshot, "node_modules"), "dir");
   const packages = join(source, "packages");
   if (!existsSync(packages)) return;
@@ -652,7 +652,7 @@ export function captureNtwineSourceSnapshot(
     }
   }
   throw new Error(
-    `Ntwine source did not remain stable long enough to capture after ${SOURCE_SNAPSHOT_MAX_ATTEMPTS} attempts: ${lastFailure}`
+    `ntwine source did not remain stable long enough to capture after ${SOURCE_SNAPSHOT_MAX_ATTEMPTS} attempts: ${lastFailure}`
   );
 }
 
@@ -819,29 +819,29 @@ function validDependencyCellManifest(
 }
 
 function readNtwineDependencyCell(digest: string, root: string): NtwineDependencyCell {
-  if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error("invalid Ntwine dependency cell digest");
+  if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error("invalid ntwine dependency cell digest");
   const dir = join(dependencyCellRoot(root), digest);
   let manifest: NtwineDependencyCellManifest;
   try {
     manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
   } catch {
-    throw new Error(`Ntwine dependency cell ${digest} is missing its manifest`);
+    throw new Error(`ntwine dependency cell ${digest} is missing its manifest`);
   }
   if (!validDependencyCellManifest(manifest, digest) ||
     dependencyCellDigest(manifest.inputs, manifest.files) !== digest ||
     !existsSync(join(dir, "node_modules")))
-    throw new Error(`Ntwine dependency cell ${digest} failed manifest validation`);
+    throw new Error(`ntwine dependency cell ${digest} failed manifest validation`);
   try {
     assertNoExternalArtifactSymlinks(join(dir, "node_modules"));
   } catch {
-    throw new Error(`Ntwine dependency cell ${digest} failed immutable closure validation`);
+    throw new Error(`ntwine dependency cell ${digest} failed immutable closure validation`);
   }
   for (const [file, expected] of Object.entries(manifest.files)) {
     const path = join(dir, file);
     const valid = expected.startsWith("link:")
       ? (() => { try { return lstatSync(path).isSymbolicLink() && `link:${manifestLinkTarget(path)}` === expected; } catch { return false; } })()
       : existsSync(path) && digestFile(path) === expected;
-    if (!valid) throw new Error(`Ntwine dependency cell ${digest} has a changed or missing file: ${file}`);
+    if (!valid) throw new Error(`ntwine dependency cell ${digest} has a changed or missing file: ${file}`);
   }
   return { digest, dir, modulesDir: join(dir, "node_modules"), manifest };
 }
@@ -1004,7 +1004,7 @@ export function buildNtwineArtifact(
   root = defaultArtifactRoot(),
   options: BuildNtwineArtifactOptions = {}
 ): NtwineArtifact {
-  options.onProgress?.("Capturing current Ntwine source");
+  options.onProgress?.("Capturing current ntwine source");
   const snapshot = captureNtwineSourceSnapshot(sourceDir, root);
   const source = snapshot.sourceDir;
   const workerPlugin = workerPluginSourceDir(source);
@@ -1020,15 +1020,15 @@ export function buildNtwineArtifact(
     // Vite/Rolldown transpiles TypeScript but does not typecheck it. Validate the coherent captured
     // snapshot — not the mutable checkout before capture — so an intermediate edit with a missing
     // import can never become a valid immutable artifact and fail later as a browser global.
-    options.onProgress?.("Type-checking captured Ntwine source");
+    options.onProgress?.("Type-checking captured ntwine source");
     typecheckCapturedSource(snapshot, runCommand);
     options.onProgress?.("Building immutable artifact: web UI");
     runCommand(["run", "--filter", "@ntwine/web", "build"], source);
     const webSource = join(source, "packages", "web", "dist");
     if (!existsSync(webSource))
-      throw new Error("Ntwine web build did not produce packages/web/dist");
+      throw new Error("ntwine web build did not produce packages/web/dist");
     mkdirSync(staging, { mode: 0o700 });
-    // esbuild absorbs Ntwine's CLI, server and workspace code into one Node 26 ESM entry. Only the
+    // esbuild absorbs ntwine's CLI, server and workspace code into one Node 26 ESM entry. Only the
     // native loaders stay external; their complete host-specific closure lives in an immutable cell
     // below, never in the mutable source checkout or an enormous deploy tree. The detached daemons
     // are the one exception: ntwine spawns them as their own node processes, so each is bundled as a
@@ -1136,7 +1136,7 @@ export function readNtwineArtifact(
 ): NtwineArtifact {
   const checkWorkerPluginClosure = options.workerPluginClosure ?? true;
   if (!/^[a-f0-9]{64}$/.test(digest))
-    throw new Error("invalid Ntwine artifact digest");
+    throw new Error("invalid ntwine artifact digest");
   const dir = join(root, digest);
   const manifestPath = join(dir, "manifest.json");
   let manifest: NtwineArtifactManifest;
@@ -1145,7 +1145,7 @@ export function readNtwineArtifact(
       readFileSync(manifestPath, "utf8")
     ) as NtwineArtifactManifest;
   } catch {
-    throw new Error(`Ntwine artifact ${digest} is missing its manifest`);
+    throw new Error(`ntwine artifact ${digest} is missing its manifest`);
   }
   if (!validArtifactManifest(manifest, digest) ||
     (manifest.version === 2 && !manifest.dependencyCell) ||
@@ -1154,13 +1154,13 @@ export function readNtwineArtifact(
     !existsSync(join(dir, "web")) ||
     !existsSync(join(dir, "runtime", "src", "index.js"))
   ) {
-    throw new Error(`Ntwine artifact ${digest} failed manifest validation`);
+    throw new Error(`ntwine artifact ${digest} failed manifest validation`);
   }
   const calculated = artifactDigestFromIdentity(manifest);
   // Existing v1 artifacts used the checkout basename. They remain readable, but source matching
   // below still requires the canonical path, so a collision cannot be selected for a new checkout.
   if (calculated !== digest && legacyArtifactDigest(manifest) !== digest)
-    throw new Error(`Ntwine artifact ${digest} failed root digest validation (calculated ${calculated})`);
+    throw new Error(`ntwine artifact ${digest} failed root digest validation (calculated ${calculated})`);
   try {
     if (checkWorkerPluginClosure) assertWorkerPluginClosure(join(dir, "runtime"));
     const cell = manifest.dependencyCell
@@ -1173,7 +1173,7 @@ export function readNtwineArtifact(
     assertNoExternalArtifactSymlinks(join(dir, "runtime"), join(dir, "runtime"), cell?.modulesDir);
     assertNoExternalArtifactSymlinks(join(dir, "web"));
   } catch {
-    throw new Error(`Ntwine artifact ${digest} failed immutable closure validation`);
+    throw new Error(`ntwine artifact ${digest} failed immutable closure validation`);
   }
   for (const [file, expected] of Object.entries(manifest.webFiles)) {
     const path = join(dir, "web", file);
@@ -1191,7 +1191,7 @@ export function readNtwineArtifact(
       : existsSync(path) && digestFile(path) === expected;
     if (!valid)
       throw new Error(
-        `Ntwine artifact ${digest} has a changed or missing web file: ${file}`
+        `ntwine artifact ${digest} has a changed or missing web file: ${file}`
       );
   }
   for (const [file, expected] of Object.entries(manifest.runtimeFiles)) {
@@ -1210,7 +1210,7 @@ export function readNtwineArtifact(
       : existsSync(path) && digestFile(path) === expected;
     if (!valid)
       throw new Error(
-        `Ntwine artifact ${digest} has a changed or missing runtime file: ${file}`
+        `ntwine artifact ${digest} has a changed or missing runtime file: ${file}`
       );
   }
   return {

@@ -45,16 +45,16 @@ export function initEmbedHost(): void {
   // Capture, because stopping a key is not taking it: a question's answer box stops every key it sees
   // (QuestionBlockCard), so that its letters never reach the page's shortcuts — and a listener on the
   // window's bubble phase then never heard Ctrl+Shift+P, Ctrl+B or Ctrl+` typed there, while the options
-  // grid and the prompt box forwarded them (sweep 2026-10-01). What Ntwine handles itself still stays home:
+  // grid and the prompt box forwarded them (sweep 2026-10-01). What ntwine handles itself still stays home:
   // ⌘K, ⌘I, ⌘, and Ctrl+Enter in a box are prevented by their handlers, and so is a chord the ? sheet is
   // recording.
   //
   // Asked after dispatch, because neither phase is late enough by itself: the shortcut runtime listens on
   // the window too (keyboardRuntime useShortcutListener), and a listener installed at boot runs before
-  // it — so every chord Ntwine binds went to VS Code as well as to Ntwine (driven 2026-10-01,
+  // it — so every chord ntwine binds went to VS Code as well as to ntwine (driven 2026-10-01,
   // build2-shell.md). The next task runs after dispatch has finished, and the event keeps its
-  // `defaultPrevented` after it. A chord Ntwine binds stays home even where nothing prevented it — the
-  // answer box stops ⌘K before the shortcut runtime can hear it — since it is Ntwine's, not VS Code's.
+  // `defaultPrevented` after it. A chord ntwine binds stays home even where nothing prevented it — the
+  // answer box stops ⌘K before the shortcut runtime can hear it — since it is ntwine's, not VS Code's.
   window.addEventListener("keydown", (event) => {
     setTimeout(() => {
       const chord = hostKeyChord(event)
@@ -192,7 +192,7 @@ async function handle(message: EmbedHostMessage): Promise<void> {
       // the drawer that says so, as a link to it does; another project's is a toast.
       if (await threadIsThere(to.thread, to.project)) openNamedThread(to.thread, to.project, "open")
       else if (holdsBoardOf(to.project)) pushDrawer("thread", to.thread)
-      else showToast("That thread isn't in Ntwine.")
+      else showToast("That thread isn't in ntwine.")
     }
     else spaNavigate(projectViewHref(to.project))
     return
@@ -210,6 +210,6 @@ async function handle(message: EmbedHostMessage): Promise<void> {
   postToHost(
     outcome.ok
       ? { type: "ntwine:composed", id: message.id, ok: true }
-      : { type: "ntwine:composed", id: message.id, ok: false, error: `Couldn't add ${what} to Ntwine's prompt box. ${outcome.reason}` },
+      : { type: "ntwine:composed", id: message.id, ok: false, error: `Couldn't add ${what} to ntwine's prompt box. ${outcome.reason}` },
   )
 }

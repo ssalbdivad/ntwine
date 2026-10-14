@@ -219,7 +219,7 @@ test("a failed broker delivery is not journaled as a steer the child received", 
   }
 })
 
-test("a provider-recorded Claude steer and Ntwine's delivery journal render once", async () => {
+test("a provider-recorded Claude steer and ntwine's delivery journal render once", async () => {
   let outputFile = ""
   const h = harness(() => ({ ...RUNNING_DIRECT, outputFile }))
   try {
@@ -878,7 +878,7 @@ test("a BUDGET stop kills through the same provider control and tells the worker
     assert.deepEqual(h.stops, [{ threadSlug: "t", sessionId: "sid-t", taskId: "bshell1" }])
     assert.deepEqual(h.dismissals, [{ slug: "t", id: "toolu_sh" }])
     assert.equal(h.notices.length, 1)
-    assert.match(h.notices[0]!.text, /^\[ntwine\] Ntwine stopped your background command "Run vite dev server" after 1h 10m: it ran past its 1h budget/)
+    assert.match(h.notices[0]!.text, /^\[ntwine\] ntwine stopped your background command "Run vite dev server" after 1h 10m: it ran past its 1h budget/)
     assert.doesNotMatch(h.notices[0]!.text, /operator/, "the operator did not do this, and the worker must not be told they did")
   } finally {
     h.cleanup()

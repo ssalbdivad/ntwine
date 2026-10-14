@@ -1103,7 +1103,7 @@ test("stopping the control plane asks over IPC first, so the child's own shutdow
       log: () => {}, error: (line) => { errors.push(line) },
     })
     const first = await supervisor.firstBoot
-    // Restart Ntwine: the old generation was asked, not shot.
+    // Restart ntwine: the old generation was asked, not shot.
     const restart = await fetch(`http://127.0.0.1:${port}/_ntwine/control/restart`, {
       method: "POST", headers: { origin: `http://127.0.0.1:${port}` },
     })
@@ -1684,7 +1684,7 @@ test("a forced supervisor stop still exits when releasing launch ownership throw
   const stop = createSupervisorShutdownHandler({
     close: () => new Promise<void>(() => {}),
     force: () => {},
-    release: () => { throw new Error("timed out waiting for the Ntwine project ownership guard") },
+    release: () => { throw new Error("timed out waiting for the ntwine project ownership guard") },
     exit: (code) => { exits.push(code) },
     error: (line) => { errors.push(line) },
     now: () => clock,

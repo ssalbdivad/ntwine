@@ -6,7 +6,7 @@
 //     sat at pids 4555 and 4774 — exactly the range a fresh boot hands out in its first hour. A record
 //     that a stranger's pid keeps "alive" is then adopted, hibernated, or SIGTERMed on Stop.
 //  2. Every one of the 277 recorded exits read `signal-SIGTERM`, so a Stop, a hibernation and an
-//     operator's `kill` were indistinguishable. Ntwine now says why before it signals.
+//     operator's `kill` were indistinguishable. ntwine now says why before it signals.
 import { chmodSync, copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { spawn } from "node:child_process"
 import { tmpdir } from "node:os"

@@ -3,7 +3,7 @@ title: NTWINE.md
 description: Tell every agent in a project how you want things done.
 ---
 
-`NTWINE.md` is an optional file at the root of a project. Ntwine injects it into the system prompt of every thread in that project, Claude Code and Codex alike. Where it disagrees with Ntwine's own defaults for how a worker goes about its job, it wins.
+`NTWINE.md` is an optional file at the root of a project. ntwine injects it into the system prompt of every thread in that project, Claude Code and Codex alike. Where it disagrees with ntwine's own defaults for how a worker goes about its job, it wins.
 
 It's the place for anything you want every agent in the project to do, like how to land work, what to verify before calling something done, or how much to ask before acting.
 
@@ -15,7 +15,7 @@ It's the place for anything you want every agent in the project to do, like how 
 - Decide reversible calls yourself. Ask only before something destructive.
 ```
 
-Ntwine doesn't assume anything about your git workflow, so this is where you spell yours out. By default, a worker only commits, pushes or opens a pull request when your request or this file asks it to.
+ntwine doesn't assume anything about your git workflow, so this is where you spell yours out. By default, a worker only commits, pushes or opens a pull request when your request or this file asks it to.
 
 ## Editing it
 
@@ -25,6 +25,6 @@ Changes take effect on the next thread you start, and on any existing thread the
 
 ## Alongside AGENTS.md and CLAUDE.md
 
-A worker still reads your `AGENTS.md`, `CLAUDE.md` and skills, the same way it would in a session you started yourself. `NTWINE.md` is just for what applies when an agent runs under Ntwine.
+A worker still reads your `AGENTS.md`, `CLAUDE.md` and skills, the same way it would in a session you started yourself. `NTWINE.md` is just for what applies when an agent runs under ntwine.
 
-If you want a worked example, Ntwine's own repository keeps [its `NTWINE.md`](https://github.com/ssalbdivad/ntwine/blob/main/NTWINE.md).
+If you want a worked example, ntwine's own repository keeps [its `NTWINE.md`](https://github.com/ssalbdivad/ntwine/blob/main/NTWINE.md).

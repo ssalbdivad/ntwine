@@ -274,7 +274,7 @@ export function agentTerminalEmpty(meta: Pick<BackgroundShellOutputResult, "stat
   if (received > 0) return undefined
   if (!meta) return error ? "Could not read this terminal's output. Retrying…" : "Waiting for the first output…"
   if (meta.state === "gone") return "This terminal is closed."
-  if (meta.outputUnavailable) return "Codex hands this command's output to the agent when it checks in, so Ntwine can't show it here."
+  if (meta.outputUnavailable) return "Codex hands this command's output to the agent when it checks in, so ntwine can't show it here."
   if (meta.missing) return "The output file is gone."
   return meta.state === "running" ? "Waiting for the first output…" : "No output was captured."
 }
@@ -400,7 +400,7 @@ function AgentTerminalSheet({ id, slug, shellId, label, startedAt, depth, widthD
             </Suspense>
           )}
           {/* Whose it is, said once, at the foot where your own terminal's next command would go. A running
-              shell Ntwine cannot reach says why instead, because no control and no explanation is what sent
+              shell ntwine cannot reach says why instead, because no control and no explanation is what sent
               the maintainer looking for a Stop in the first place. */}
           <footer
             data-agent-terminal-footer

@@ -3,7 +3,7 @@ import type { Storage } from "./storage.ts"
 import { decodeDeliveryMarkers, deliveryTag, stripDeliveryMarkers } from "./delivery-marker.ts"
 
 // ── The Claude follow-up delivery ledger ───────────────────────────────────────────────────────────────
-// Ntwine's Claude steer path used to be fire-and-forget: keystrokes went into the worker's own terminal
+// ntwine's Claude steer path used to be fire-and-forget: keystrokes went into the worker's own terminal
 // and the ONLY record that a follow-up existed was the CLIENT's optimistic gray bubble, reconciled by
 // exact text match against whatever later appeared in the JSONL. That made the queued/delivered
 // rendering an inference — a mangled injection (the multiline split), a slash command, or a plain
@@ -110,7 +110,7 @@ export const SENDING_STALL_ERROR = "No answer after 2m. It may still arrive, so 
 //
 // ── HELD: a message the operator sent TO THE QUEUE ("Send to queue" in the prompt box's Send menu) ──
 // Every state above describes a send some transport has, or was handed. `held` is the one that describes
-// a send NOTHING has been handed yet: the operator asked Ntwine to keep the words until the agent comes
+// a send NOTHING has been handed yet: the operator asked ntwine to keep the words until the agent comes
 // to rest, so they open its next turn instead of steering the one it is running. The router writes the
 // item instead of delivering (holdDelivery), and releases it through the ordinary follow-up path when
 // the thread rests (releaseHeldFollowUps in router.ts → beginDelivery with `release`), under the SAME
@@ -228,7 +228,7 @@ export function trimLedger(items: DeliveryLedgerItem[]): DeliveryLedgerItem[] {
   for (const item of items) over[bucket(item)]++
   if (over.cancelled <= 0 && over.failed <= 0 && over.live <= 0) return items
   return items.filter((item) => {
-    // A HELD send is never evicted: Ntwine is the only place its words exist.
+    // A HELD send is never evicted: ntwine is the only place its words exist.
     if (item.state === "held") return true
     const b = bucket(item)
     if (over[b] > 0) { over[b]--; return false }
@@ -430,7 +430,7 @@ export function holdDelivery(storage: Storage, slug: string, send: { id: string;
   return true
 }
 
-/** Every send Ntwine is holding for this thread's next rest, oldest first — the order they release in. */
+/** Every send ntwine is holding for this thread's next rest, oldest first — the order they release in. */
 export function heldDeliveries(storage: Storage, slug: string): DeliveryLedgerItem[] {
   const row = storage.getSession(slug)
   if (!row?.delivery_ledger) return []

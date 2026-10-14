@@ -573,7 +573,7 @@ test("no injected preflight (unit-test composition) leaves dispatch untouched", 
 test("adoptSession: a claude terminal keeps its id and its transcript, and no worker is started", async () => {
   const h = harness()
   const EXTERNAL = "6543d3fb-e38e-461a-b10a-9c78261b67b2"
-  const res = await h.dispatcher.adoptSession({ sessionId: EXTERNAL, backend: "claude", title: "Debug Ntwine thread startup issue" })
+  const res = await h.dispatcher.adoptSession({ sessionId: EXTERNAL, backend: "claude", title: "Debug ntwine thread startup issue" })
 
   // THE ID DOES NOT CHANGE — slug and session_id are both the id the session was discovered under.
   // That is what lets promotion happen under a mounted composer: every piece of optimistic client
@@ -588,7 +588,7 @@ test("adoptSession: a claude terminal keeps its id and its transcript, and no wo
   assert.equal(row?.thread_name, `ntwine-${EXTERNAL}`)
   // The name the human just read in the rail, kept — and NOT marked provisional, because it is a real
   // name (Claude's own ai-title) rather than the dispatch chop that placeholder exists for.
-  assert.equal(row?.title, "Debug Ntwine thread startup issue")
+  assert.equal(row?.title, "Debug ntwine thread startup issue")
   assert.equal(row?.title_auto, 0)
   assert.equal(h.spawned.length, 0, "promotion starts no worker; the follow-up that triggered it resumes")
 })

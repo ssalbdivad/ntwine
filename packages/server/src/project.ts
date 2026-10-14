@@ -52,7 +52,7 @@ export interface Project {
    * Where this project's AGENTS run, when that is not `dir`. Absent for every registered project,
    * whose agents run in the checkout that also holds its board. Set only for the Home workspace
    * (home-workspace.ts): its agents run in the operator's home folder, but its board cannot live in
-   * `~/.ntwine` — that path is Ntwine's own legacy data root — so `dir` is its state directory instead.
+   * `~/.ntwine` — that path is ntwine's own legacy data root — so `dir` is its state directory instead.
    * Read it through workDirOf; a site that means "the board" keeps reading `dir`.
    */
   workDir?: string
@@ -142,7 +142,7 @@ function isMissingGitBinary(error: unknown): boolean {
 // stays readable forever. Nothing migrates away from it, so a board cannot be lost by this.
 //
 // A plain directory used to get `randomUUID()` per launch — a fresh, empty board every time you ran
-// Ntwine there. That is what made a non-repo unusable rather than merely unsupported.
+// ntwine there. That is what made a non-repo unusable rather than merely unsupported.
 function resolveProjectIdentity(
   dir: string,
   home = homedir(),
@@ -327,9 +327,9 @@ export function projectFromLaunchTarget(
   try {
     dir = realpathSync(target.projectDir)
   } catch {
-    throw new Error("pinned Ntwine project directory is no longer available")
+    throw new Error("pinned ntwine project directory is no longer available")
   }
-  if (dir !== target.projectDir) throw new Error("pinned Ntwine project directory is not canonical")
+  if (dir !== target.projectDir) throw new Error("pinned ntwine project directory is not canonical")
   const name = basename(dir) || dir
   return {
     dir,

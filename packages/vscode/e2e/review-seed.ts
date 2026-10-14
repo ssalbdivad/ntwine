@@ -1,4 +1,4 @@
-// A THREAD THAT WORKED IN A WORKTREE, seeded into a disposable Ntwine (e2e/stack.ts) the ntwine-stack way —
+// A THREAD THAT WORKED IN A WORKTREE, seeded into a disposable ntwine (e2e/stack.ts) the ntwine-stack way —
 // a session row and a JSONL transcript the REAL server reads, never a worker. Its agent moved into
 // `.ntwine/worktrees/<branch>` and edited files there with its tools, so the server's whole chain is the
 // thing under test: the transcript's edits read as the rail's edited files (which, before 11f327a0, came

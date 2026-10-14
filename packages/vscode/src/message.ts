@@ -30,7 +30,7 @@ import { formatFileReference } from "@ntwine/shared/file-position"
 export const QUOTE_MAX_LINES = 400
 export const QUOTE_MAX_BYTES = 32 * 1024
 /**
- * Bytes a compose's text may take ONCE JSON-ENCODED. Ntwine's socket closes a frame over 128 KiB
+ * Bytes a compose's text may take ONCE JSON-ENCODED. ntwine's socket closes a frame over 128 KiB
  * (editor-bridge.ts EDITOR_MAX_PAYLOAD_BYTES) with 1009 before any schema sees it, and JSON writes each
  * control character other than \n and \t as six bytes (`\u0000`): 32 KiB of NUL-padded text, which
  * QUOTE_MAX_BYTES admits, is a 196 KB frame. 96 KiB leaves room for the path (at most 4096 UTF-16 units,
@@ -76,7 +76,7 @@ export function composable(selection: Selected | undefined): selection is Select
 }
 
 /**
- * What "Add to Ntwine prompt" hands Ntwine: the selection's text and range, or — too large to carry — the
+ * What "Add to ntwine prompt" hands ntwine: the selection's text and range, or — too large to carry — the
  * range alone, which the page writes as a reference. Still a place in a file, never a refusal.
  */
 export function composeInput(target: { path: string; projectId?: string; selection?: Selected; cursorLine?: number }): EditorComposeInput {

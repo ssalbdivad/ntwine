@@ -1,7 +1,7 @@
 // The detached ACP agent daemon: ONE per ACP thread. It owns the agent child (`opencode acp`,
 // `gemini --acp`, …) and serves its JSON-RPC over a local socket, so the agent OUTLIVES the disposable
 // ntwine runtime that spawned it — which is what lets an in-flight ACP turn, and every sub-agent the
-// agent runs inside its own process, survive an Ntwine restart or crash. It buys an ACP thread the same
+// agent runs inside its own process, survive an ntwine restart or crash. It buys an ACP thread the same
 // immunity a Codex thread gets from the app-server daemon (codex-app-server-daemon.ts) and a Claude
 // thread from its session broker (claude-agent-broker.ts): forked `detached: true` into its own process
 // group, not a child of ntwine.

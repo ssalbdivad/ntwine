@@ -121,7 +121,7 @@ test("a handoff is the last assistant message that says something, and the human
     msg("assistant", "Reading the cursor."),
     msg("user", "Also check the tie-break.", { displayText: "Also check the tie-break." }),
     msg("assistant", "Working on it."),
-    // A wake, a sub-agent steer and a peer's report are Ntwine or another agent speaking, not the human.
+    // A wake, a sub-agent steer and a peer's report are ntwine or another agent speaking, not the human.
     msg("user", "PR #12 has new review activity", { wake: true }),
     msg("user", "<agent-message from=\"Explore\">found it</agent-message>", { peerFrom: "Explore" }),
     // …and so is another thread messaging this one (it projects as `sessionPeer`, with no `peerFrom`).
@@ -135,7 +135,7 @@ test("a handoff is the last assistant message that says something, and the human
   assert.equal(handoff.asked, "Also check the tie-break.")
 })
 
-test("an ANSWER to a registered question is the human's turn, though Ntwine delivered it as a wake", () => {
+test("an ANSWER to a registered question is the human's turn, though ntwine delivered it as a wake", () => {
   const answered = questionAnswerMessage([{ questionId: "qst_1", question: "Seconds or epoch?", chosen: ["Seconds"] }])
   const handoff = handoffOf([
     msg("user", "TASK:\nAdd the rate-limit headers."),
@@ -161,7 +161,7 @@ test("an \"Ask for update\" click is the human's turn, quoted by its head line a
   assert.equal(parseParkWake(handoff.asked!)?.kind, "requested", "the card can still tell it is the click")
   assert.equal(handoff.text, "Progress since my last note: the second review pass is running.")
   assert.equal(handoff.answer, undefined)
-  // The expiry the same park reaches on its own clock is Ntwine's, not the human's.
+  // The expiry the same park reaches on its own clock is ntwine's, not the human's.
   const expired = handoffOf([msg("user", "Go."), msg("user", parkExpiredWakeMessage([], true), { wake: true }), msg("assistant", "Still going.")])
   assert.equal(expired.asked, "Go.")
 })

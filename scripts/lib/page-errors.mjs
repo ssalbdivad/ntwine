@@ -3,7 +3,7 @@
 // A disposable stack (scripts/adhoc-stack.mjs) runs no supervisor, so the page's poll of
 // `/_ntwine/control/status` 404s on every load, and a project with no icon answers its square's
 // `/_ntwine/project-icon?…` request with a 404 (the square falls back to its monogram). Both are the
-// harness, not the product: a supervised Ntwine answers the first and the second is by design. Every
+// harness, not the product: a supervised ntwine answers the first and the second is by design. Every
 // OTHER failed response and every console error still counts. The console's "Failed to load resource"
 // line is the echo of a failed response and carries no URL, so it is dropped here and the response
 // listener records the same failure once, WITH the URL that failed.

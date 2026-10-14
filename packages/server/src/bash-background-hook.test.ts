@@ -117,13 +117,13 @@ test("an untimed run_in_background call gets ONE non-blocking line; a timed one,
   assert.equal(decision("server &", true, { run_in_background: true }).hookSpecificOutput?.permissionDecision, "deny")
 })
 
-test("Bash background hook is inert outside an Ntwine worker", () => {
+test("Bash background hook is inert outside an ntwine worker", () => {
   assert.deepEqual(decision("cargo test &", false), {})
 })
 
 test("Bash denial tells the worker the tracked replacement", () => {
   const reason = decision("cargo test & disown").hookSpecificOutput?.permissionDecisionReason ?? ""
-  assert.match(reason, /^Ntwine blocked an untracked shell background job/)
+  assert.match(reason, /^ntwine blocked an untracked shell background job/)
   assert.match(reason, /run_in_background:true/)
   assert.match(reason, /Claude task ID/)
   assert.match(reason, /finish with `wait`/)
@@ -147,7 +147,7 @@ test("Codex Bash denial points at the managed yield_control lifecycle", () => {
   assert.doesNotMatch(reason, /run_in_background/)
 })
 
-test("bundling the detector into Ntwine cannot turn the server entry into the hook executable", () => {
+test("bundling the detector into ntwine cannot turn the server entry into the hook executable", () => {
   const serverEntry = "/artifact/runtime/src/index.js"
   assert.equal(isDirectHookExecution(serverEntry, "file:///artifact/runtime/src/index.js"), false)
   assert.equal(isDirectHookExecution(hook, pathToFileURL(hook).href), true)

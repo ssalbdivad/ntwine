@@ -2,7 +2,7 @@
 name: gcloud-vm
 description: >-
   Provision, start, reach and use Google Cloud VMs — for any real-OS work the macOS host and Docker
-  cannot do. Above all: REAL WINDOWS, which is the only way to check that Ntwine still runs there now
+  cannot do. Above all: REAL WINDOWS, which is the only way to check that ntwine still runs there now
   that tmux is gone. Invoke whenever you think "I need a Windows box" or "I need a Linux box": you can
   START the standing `nub-linux`/`nub-win` instances or CREATE a fresh one on demand. Carries the
   gotchas that each cost a cycle — IPs change on every restart, the SSH user is `nub` with key
@@ -20,7 +20,7 @@ You have `gcloud` and can create/start/stop VMs yourself. Any time a task needs 
 and Docker cannot give you, spin one up. Project `pullfrog`, zone **`us-central1-a`** — gcloud's default
 zone is `us-west1-a`, so **always pass `--zone us-central1-a` explicitly**.
 
-**For Ntwine specifically, the case that matters is Windows.** tmux is gone, so Windows is a supported
+**For ntwine specifically, the case that matters is Windows.** tmux is gone, so Windows is a supported
 platform on paper; the only way to keep that true is to actually run there. See the Windows section
 below — the bring-up is fiddly and the recipe here is the one that works.
 

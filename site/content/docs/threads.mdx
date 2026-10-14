@@ -13,13 +13,13 @@ A worker keeps going until it hits something only you can settle: a product call
 
 ## They run without the tab
 
-Every worker runs in its own detached background process, independent of the browser and of Ntwine itself. You can close the tab, quit the browser, stop the server or reboot, and your threads will still be there when you come back. Ntwine reconnects to the ones that are still running rather than replaying them from disk.
+Every worker runs in its own detached background process, independent of the browser and of ntwine itself. You can close the tab, quit the browser, stop the server or reboot, and your threads will still be there when you come back. ntwine reconnects to the ones that are still running rather than replaying them from disk.
 
-While an agent is working, Ntwine keeps the machine from idle-sleeping, so an overnight run doesn't stall because the laptop decided nobody was around. Closing the lid or pressing sleep still works.
+While an agent is working, ntwine keeps the machine from idle-sleeping, so an overnight run doesn't stall because the laptop decided nobody was around. Closing the lid or pressing sleep still works.
 
 ## Sub-agents
 
-A worker can dispatch **sub-agents** for independent parts of its task. Ntwine binds each one back to its parent, so the fan-out is listed under the parent on its board and on its card. A parent waiting on them wakes as each one returns, and you can [snooze](/docs/snooze#until-its-sub-agents-return) a queued parent until all of them are back.
+A worker can dispatch **sub-agents** for independent parts of its task. ntwine binds each one back to its parent, so the fan-out is listed under the parent on its board and on its card. A parent waiting on them wakes as each one returns, and you can [snooze](/docs/snooze#until-its-sub-agents-return) a queued parent until all of them are back.
 
 ## Names and status lines
 
@@ -37,4 +37,4 @@ A thread's <kbd>⋯</kbd> menu has **Thread info**, which shows its tokens, turn
 
 ## Pinning and deleting
 
-Pin a thread to keep it at the very top of the list. You can delete a thread you no longer need from its menu, or have Ntwine delete done threads you haven't touched in a while under **Settings**. Pinned threads are never deleted.
+Pin a thread to keep it at the very top of the list. You can delete a thread you no longer need from its menu, or have ntwine delete done threads you haven't touched in a while under **Settings**. Pinned threads are never deleted.

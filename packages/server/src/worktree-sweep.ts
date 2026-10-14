@@ -5,7 +5,7 @@ import { promisify } from "node:util"
 import { log as ntwineLog } from "./logging.ts"
 
 // REMOVING IDLE WORKTREES (Settings → Remove idle worktrees after, `removeIdleWorktreesDays`, 7 by
-// default, 0 = never). Ntwine creates no worktree, mandates no folder for one and removes none on done
+// default, 0 = never). ntwine creates no worktree, mandates no folder for one and removes none on done
 // (ARCHITECTURE.md § No worktree opinions). But agents that follow the common convention leave
 // `<main checkout>/.ntwine/worktrees/<slug>` behind once their branch is merged, and nothing ever comes
 // back for them. So once shortly after boot and daily after, every registered project's repository is
@@ -20,20 +20,20 @@ import { log as ntwineLog } from "./logging.ts"
 //   1. It is a LINKED worktree git knows (`git worktree list --porcelain`), inside `.ntwine/worktrees`
 //      of its repository's main checkout. Not locked (`git worktree remove` would refuse one anyway),
 //      not already prunable.
-//   2. NO REGISTERED PROJECT IS IN IT. A worktree opened as an Ntwine project has its own board and
+//   2. NO REGISTERED PROJECT IS IN IT. A worktree opened as an ntwine project has its own board and
 //      threads, which another tenant's view of "in use" does not cover.
 //   3. NO OPEN THREAD IS WORKING IN IT. Any thread on this server that is Running, in the Queue, Pinned
 //      or Snoozed — every thread but an unpinned, resting Done one — whose working folder (the tailer's
 //      checkout reading, its background shells' folders, its recent sub-agents' folders) is the
 //      worktree or inside it. Read from EVERY open project, since a thread may work in another
 //      project's worktree; and a repository with a registered project this server has not opened (one
-//      served by another Ntwine) is skipped whole, because that server's threads are invisible here.
+//      served by another ntwine) is skipped whole, because that server's threads are invisible here.
 //   4. GIT SAYS IT IS CLEAN: no modified, staged or untracked file (`git status --porcelain`).
 //   5. EVERY IGNORED FILE IS REGENERABLE. `git worktree remove` without --force refuses modified and
 //      untracked files but deletes IGNORED ones silently, and a `.env`, a local database or a hand-made
 //      fixture is ignored precisely because it is not in git. An ignored entry may go only when it is,
 //      or lies under, a dependency or build folder named in REGENERABLE_DIRS, or is a file named in
-//      REGENERABLE_FILES, or is a `.ntwine/` folder holding only Ntwine's own `.id` / `.gitignore`
+//      REGENERABLE_FILES, or is a `.ntwine/` folder holding only ntwine's own `.id` / `.gitignore`
 //      markers. A NAME list, not a size or age heuristic: what makes a file safe to delete is that a
 //      command rebuilds it, and the name is the only evidence of that git gives. A build output this
 //      list does not know keeps its worktree, which is the cheap direction to be wrong in.
@@ -55,7 +55,7 @@ export const WORKTREE_SWEEP_INTERVAL_MS = DAY_MS
 /** The boot pass waits ten minutes: long enough for every registered project to be opened and its
  *  threads folded (tenant-prime.ts), so the in-use check reads a complete board. */
 export const WORKTREE_FIRST_SWEEP_MS = 10 * 60_000
-/** The folder, relative to a repository's main checkout. The one convention Ntwine recognizes (board.ts
+/** The folder, relative to a repository's main checkout. The one convention ntwine recognizes (board.ts
  *  ignores it too; router.ts settleWorktreePath repairs links into it). */
 export const WORKTREE_FOLDER = path.join(".ntwine", "worktrees")
 
@@ -66,7 +66,7 @@ export const REGENERABLE_DIRS: ReadonlySet<string> = new Set([
   "target", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".gradle",
 ])
 const REGENERABLE_FILES = [/\.tsbuildinfo$/, /^\.DS_Store$/, /\.py[co]$/, /^\.eslintcache$/]
-/** What Ntwine itself writes into a folder it resolves as a project (project-root.ts). */
+/** What ntwine itself writes into a folder it resolves as a project (project-root.ts). */
 const NTWINE_MARKERS: ReadonlySet<string> = new Set([".id", ".gitignore"])
 
 /** Whether an ignored entry (a `git status --ignored` path relative to the worktree; a trailing `/` is a
@@ -101,7 +101,7 @@ export interface WorktreeFacts {
   path: string
   locked?: boolean
   prunable?: boolean
-  /** A registered Ntwine project at or under the worktree (check 2). */
+  /** A registered ntwine project at or under the worktree (check 2). */
   project?: string
   /** An open thread working in it (check 3). */
   inUseBy?: FolderInUse
@@ -267,7 +267,7 @@ export interface RepoSweepInput {
   days: number
   /** Folders open threads are working in (check 3). */
   inUse: readonly FolderInUse[]
-  /** Registered Ntwine projects, by display name and folder (check 2). */
+  /** Registered ntwine projects, by display name and folder (check 2). */
   projects: readonly { name: string; dir: string }[]
   now?: number
   /** Asked between worktrees: a stopping server ends the pass early. */

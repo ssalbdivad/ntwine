@@ -627,7 +627,7 @@ function gerundDescription(description: string | undefined, fallback: string): s
  * Stripping the project root leaves `Editing packages/web/src/App.tsx`.
  *
  * The root is the board's `projectDir`, which is the git toplevel of the dir the server was launched in
- * — so when Ntwine runs on a linked worktree that IS the worktree root, and no separate detection is
+ * — so when ntwine runs on a linked worktree that IS the worktree root, and no separate detection is
  * needed. A worktree a worker created underneath the project keeps its own directory in the relative
  * path (`wt-fix/ui/…`), which is exactly the disambiguation you want. Paths outside the project are left
  * absolute: there is no root that makes them both shorter and honest.

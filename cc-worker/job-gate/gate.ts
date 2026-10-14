@@ -4,7 +4,7 @@
 // WHY. RAM is the bottleneck on a box running a dozen agent sessions. An arktype mocha suite peaks at
 // 2.2–3.2GB RSS, a native tsc at 1.3–2.4GB, and one session launching four suites at once sent a 31GiB
 // WSL box into swap thrash that stalled every other agent. Each agent sees only its own commands, so
-// the only place a "not now" can be said is the host. Nothing here talks to the Ntwine server: the
+// the only place a "not now" can be said is the host. Nothing here talks to the ntwine server: the
 // state is a directory every wrapper on the machine reads and writes under one lock.
 //
 // STATE DIRECTORY: `$NTWINE_GATE_DIR`, else `$XDG_STATE_HOME/ntwine/job-gate`, else
@@ -139,7 +139,7 @@ export function readSettings(env: Env = process.env, opts: { honorEnvOffSwitch?:
   }
 }
 
-/** Who a job belongs to for the per-session cap: the Ntwine thread (sub-agents share it), else the Claude session. */
+/** Who a job belongs to for the per-session cap: the ntwine thread (sub-agents share it), else the Claude session. */
 export function sessionOf(env: Env = process.env, ppid = process.ppid): string {
   return env.NTWINE_THREAD?.trim() || env.CLAUDE_CODE_SESSION_ID?.trim() || `ppid:${ppid}`
 }

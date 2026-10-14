@@ -72,7 +72,7 @@ async function fixture(name: string): Promise<QuotaSnapshot | undefined> {
   }
 }
 
-// `codexBin` must be the runtime Ntwine dispatches with, never a bare `codex`: each live read starts a
+// `codexBin` must be the runtime ntwine dispatches with, never a bare `codex`: each live read starts a
 // `codex app-server`, which refreshes the machine-wide ~/.codex/models_cache.json with ITS OWN version's
 // catalogue. An older CLI on PATH, polled every ~20s, overwrote the pinned runtime's catalogue and made
 // newer models (gpt-6-sol, gpt-6.1-sol) flicker out of the model picker.

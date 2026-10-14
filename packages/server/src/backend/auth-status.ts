@@ -109,7 +109,7 @@ export function readCodexAuthState(codexHome = defaultCodexHome()): ProviderAuth
  * The ChatGPT account Codex would load from auth.json at process start.
  *
  * Codex's AuthManager intentionally keeps one in-memory credential snapshot for the life of an
- * app-server. Ntwine uses this non-secret identifier to notice when an account switch replaced the
+ * app-server. ntwine uses this non-secret identifier to notice when an account switch replaced the
  * file underneath a long-lived listener. Environment authentication takes precedence over the file,
  * so there is no meaningful ChatGPT account identity to track in that mode.
  */

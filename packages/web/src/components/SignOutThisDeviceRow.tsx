@@ -68,7 +68,7 @@ export function SignOutThisDeviceRow({ className = "" }: { className?: string })
         }
       >
         <div className="flex flex-col gap-2 p-4 text-[12.5px] leading-relaxed text-muted">
-          <p>This browser will need a new access link to open Ntwine again. Your other devices stay signed in.</p>
+          <p>This browser will need a new access link to open ntwine again. Your other devices stay signed in.</p>
           {error ? <p className="text-[11.5px] text-danger">{error}</p> : null}
         </div>
       </Dialog>

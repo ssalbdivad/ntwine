@@ -19,7 +19,7 @@ import { stopThreadRuntime } from "./router.ts"
 /**
  * Kill every live worker daemon in one project.
  *
- * An Ntwine worker is a DETACHED daemon in its own process group — that is the whole point, and it is
+ * An ntwine worker is a DETACHED daemon in its own process group — that is the whole point, and it is
  * why Ctrl-C on the server leaves a running turn alone. Deactivating a tenant therefore stops the
  * board, the tailer and the scheduler and touches no worker at all, which is exactly right for a
  * shutdown and exactly wrong for a delete: the daemon keeps running against a state directory that
@@ -48,14 +48,14 @@ export async function stopProjectWorkers(ctx: AppContext): Promise<number> {
 }
 
 /**
- * Delete everything Ntwine holds ON DISK for one project: `~/.ntwine/projects/<id>/`.
+ * Delete everything ntwine holds ON DISK for one project: `~/.ntwine/projects/<id>/`.
  *
  * ONE DIRECTORY IS THE FILES — attachments, logs, permission markers, the broker's and app-server's
  * sockets and records, and the pre-unification `ui.db` if the project predates the unified
  * database (left in place for an older build to find — see ntwine-db.ts). The project's ROWS live in that database (ntwine-db.ts) and are purged by the caller
  * through `purgeProject`, before this runs; the registry index is forgotten separately too.
  *
- * THE PROJECT'S OWN FOLDER IS NEVER TOUCHED. Deleting a project deletes Ntwine's record of it, not the
+ * THE PROJECT'S OWN FOLDER IS NEVER TOUCHED. Deleting a project deletes ntwine's record of it, not the
  * operator's code; `.ntwine/.id` is left in the tree, so adding the folder back keeps the same id and
  * simply starts a fresh board under it.
  *

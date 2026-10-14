@@ -312,7 +312,7 @@ try {
       }
       check(
         "a gh-scoped token is refused, telling the person to update",
-        refused instanceof ClaimError && refused.code === "github-token-scoped" && /update Ntwine/.test(refused.message),
+        refused instanceof ClaimError && refused.code === "github-token-scoped" && /update ntwine/.test(refused.message),
         refused ? `${refused.code}: ${refused.message}` : "it was ALLOWED"
       );
       check("nothing was recorded for it", !st.rows.has("old-client"));

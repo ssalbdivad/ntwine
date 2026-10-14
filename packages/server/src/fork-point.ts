@@ -10,7 +10,7 @@ import { closeSync, fstatSync, openSync, readSync } from "node:fs"
 //     mode · atis-latch · queue-operation enqueue/dequeue (the child's own prompt, queued)
 //     … every record of the parent's conversation, rewritten under the CHILD's session id …
 //     attachment hook_success (the child's own SessionStart)
-//     user  ← the child's first prompt, `uuid` = the id Ntwine sent it under   ◀── the fork point
+//     user  ← the child's first prompt, `uuid` = the id ntwine sent it under   ◀── the fork point
 //     … the child's own work, including the CLI re-appending the INHERITED `ai-title` …
 //
 // Nothing marks a copied record as inherited, and a reader that folds the file from byte 0 hands the
@@ -20,7 +20,7 @@ import { closeSync, fstatSync, openSync, readSync } from "node:fs"
 // the child's `fork_anchor` (storage.ts) — and reads NOTHING until that record has landed. That makes a
 // fork look, to every fold, exactly like a fresh dispatch whose transcript opens on its prompt.
 //
-// The anchor is a uuid Ntwine minted for the child's opening prompt, which the CLI echoes onto the
+// The anchor is a uuid ntwine minted for the child's opening prompt, which the CLI echoes onto the
 // record (the same echo the delivery ledger correlates on), so no copied record can carry it — however
 // the CLI treats the copied records' own uuids (2.1.284 keeps them; the run that motivated this change
 // reported them re-minted). The records the child wrote BEFORE its prompt (the queue pair, its

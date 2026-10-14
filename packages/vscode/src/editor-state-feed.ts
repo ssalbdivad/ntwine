@@ -33,7 +33,7 @@ export const SHARE_SETTING = "shareEditorState"
 export interface EditorStateFeedHost {
   /** Send the current snapshot now (the connection pulls it through `snapshot()`). */
   send(): void
-  /** Whether the human shares the editor with Ntwine (ntwine.shareEditorState). */
+  /** Whether the human shares the editor with ntwine (ntwine.shareEditorState). */
   shared(): boolean
 }
 

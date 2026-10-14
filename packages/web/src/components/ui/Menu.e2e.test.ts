@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-// Opt-in because this drives a real Ntwine server and Chrome. The live seam is intentional: the
+// Opt-in because this drives a real ntwine server and Chrome. The live seam is intentional: the
 // regression came from Radix's portal/focus/outside-pointer side effects, which SSR cannot observe.
 // TWO slugs: _SLUG is a QUEUED (needs-you) thread — it has a card in the main column; _DRAWER_SLUG is a
 // NON-queued session thread, deep-linked to raise the modal thread drawer. They must differ, because a

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A packed Ntwine on a clean Linux box: the real launcher (`npm exec ntwine`) installs the real server
+// A packed ntwine on a clean Linux box: the real launcher (`npm exec ntwine`) installs the real server
 // generation from a registry, boots it, and answers a real RPC. scripts/verify-server-package.mjs is
 // the full macOS run (browser, update, worker); this is the part nothing else ran on Linux, where
 // node-pty's missing prebuild killed every boot (#42). The server resolves the provider CLIs from PATH

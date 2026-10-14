@@ -5,7 +5,7 @@ import test from "node:test"
 import type { Page } from "puppeteer"
 
 // The picture viewer and the file reader, driven by real clicks on the real components and the real
-// drawer stack (image-viewer-fixture.tsx). The pictures are REAL screenshots of an Ntwine surface, taken
+// drawer stack (image-viewer-fixture.tsx). The pictures are REAL screenshots of an ntwine surface, taken
 // first and served back through request interception — an <img> load is not a fetch the fixture could
 // stub — so the fit/actual-size geometry is measured on the shape of picture a worker actually sends.
 //
@@ -49,7 +49,7 @@ async function shot(page: Page, name: string) {
   writeFileSync(join(shots, name), await page.screenshot({ type: "png" }))
 }
 
-test("a picture opens in Ntwine's viewer: fit, actual size, its card's gallery, and Escape that leaves the drawer beneath", { skip: !baseUrl, timeout: 180_000 }, async () => {
+test("a picture opens in ntwine's viewer: fit, actual size, its card's gallery, and Escape that leaves the drawer beneath", { skip: !baseUrl, timeout: 180_000 }, async () => {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
   const browser = await launchHeadless()
   try {
@@ -233,7 +233,7 @@ test("a picture opens in Ntwine's viewer: fit, actual size, its card's gallery, 
     await page.keyboard.press("Escape")
     await page.waitForFunction(() => !document.querySelector("[data-drawer-layer]"))
 
-    // ── A PDF is the one thing here Ntwine cannot draw: it goes to the desktop opener ──
+    // ── A PDF is the one thing here ntwine cannot draw: it goes to the desktop opener ──
     await page.click('button[data-local-path="/fixture/contract.pdf"]')
     await page.waitForFunction(() => (window as unknown as { __imageViewerFixture: { opened: unknown[] } }).__imageViewerFixture.opened.length === 1)
     assert.deepEqual(await opened(page), [{ path: "/fixture/contract.pdf" }])

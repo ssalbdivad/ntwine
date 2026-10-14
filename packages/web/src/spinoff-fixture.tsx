@@ -20,7 +20,7 @@ import "./styles.css"
 //                   a `<spinoff-request>` turn that never started: the envelope must draw as the card, and
 //                   the worker's failed spawn_thread call under it is an ordinary tool line.
 //   ?panel=child    the CHILD: the header's "Spinoff of @parent", then its first turn as the origin card
-//                   with the context Ntwine assembled folded beneath (`&open=1` opens it on load).
+//                   with the context ntwine assembled folded beneath (`&open=1` opens it on load).
 //   ?panel=queue    the child's QUEUE CARD, whose meta line names its parent too.
 //   (default)       all three, stacked.
 //   &w=<px>         the panel width — 560 is the drawer's, 420 a phone / narrow card. Default 560.
@@ -53,7 +53,7 @@ const A = edge("spn_a000000000000001", "sub-agent-liveness", "evaluate-addresses
 const B = edge("spn_b000000000000002", "sub-agent-liveness", "audit-projection-paths", "Audit every place the transcript projection reads a tool call's input.")
 const C = edge("spn_c000000000000003", "sub-agent-liveness", null, "Write a migration that backfills the child slugs.")
 
-// The parent's own words, as Ntwine quotes them into the child's context (spinoffContext).
+// The parent's own words, as ntwine quotes them into the child's context (spinoffContext).
 const REQUEST = "Why do live sub-agents read as not running in the rail?"
 const HANDOFF = `## Where this stands
 

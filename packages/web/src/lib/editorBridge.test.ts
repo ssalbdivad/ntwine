@@ -67,7 +67,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 test("the offer's action reports a failed settings write", async () => {
   for (const fail of ["settingsGet", "settingsSet"]) {
     const calls = await withFetch((url) => {
-      if (procedure(url) === fail) return json({ error: "Ntwine is restarting" }, 500)
+      if (procedure(url) === fail) return json({ error: "ntwine is restarting" }, 500)
       return json({ result: settings })
     }, () => sendCodeFilesTo("vscode"))
     assert.equal(calls.map(procedure).at(-1), fail, "the failure is the one this case meant")

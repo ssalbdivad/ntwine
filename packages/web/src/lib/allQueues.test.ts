@@ -114,12 +114,12 @@ test("a handoff splits into prose, its signal fences, and the question fences no
 // the frontmatter has to survive the split: a steps fence's BODY is empty by design, and the card drew a
 // bare "Awaiting" over nothing when only the body came through (2026-10-06).
 test("an awaiting fence keeps its frontmatter, so a steps-only fence still carries its title and steps", () => {
-  const parts = handoffParts("You can use it two ways.\n\n```awaiting\ntitle: Restart Ntwine\nsteps:\n  - Restart Ntwine.\n  - Start a new thread.\n```")
+  const parts = handoffParts("You can use it two ways.\n\n```awaiting\ntitle: Restart ntwine\nsteps:\n  - Restart ntwine.\n  - Start a new thread.\n```")
   assert.equal(parts.prose, "You can use it two ways.")
   assert.deepEqual(parts.fences, [{
     kind: "awaiting",
     body: "",
-    hints: [{ kind: "title", value: "Restart Ntwine" }, { kind: "step", value: "Restart Ntwine." }, { kind: "step", value: "Start a new thread." }],
+    hints: [{ kind: "title", value: "Restart ntwine" }, { kind: "step", value: "Restart ntwine." }, { kind: "step", value: "Start a new thread." }],
   }])
 })
 

@@ -4,7 +4,7 @@ import { store } from "../store.ts"
 
 // ── ONE reader of /_ntwine/control/status, for every consumer ───────────────────────────────────────────
 // Three call sites used to ask the supervisor the same question on three private schedules: App's
-// hand-rolled control-plane loop, the Restart Ntwine button's mount probe, and the dev-build probe behind
+// hand-rolled control-plane loop, the Restart ntwine button's mount probe, and the dev-build probe behind
 // the worker-restart verb. Measured on the maintainer's board (2026-09-04) they fired at t+58ms, t+61ms
 // and t+63ms of ONE navigation — three of the ~11 RPCs starting within 5ms of each other, into a browser
 // HTTP/1.1 pool of six, in the burst that left a threadTranscript reporting `stall: 1978ms` before it was

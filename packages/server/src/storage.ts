@@ -8,7 +8,7 @@ import { log } from "./logging.ts"
 // The UI-state store (never .ntwine/): session registry + settings. ONE SQLite file for the whole
 // machine, `<data>/ui.db` (ntwine-db.ts), every row tagged with its project and every statement here
 // scoped to one (project-scope.ts) — it was one file per project until 2026-08-27. WAL for concurrent
-// read while the watcher writes. Ntwine thread files stay the source of truth for STATUS; this DB
+// read while the watcher writes. ntwine thread files stay the source of truth for STATUS; this DB
 // holds only runtime overlay (which worker session backs a thread, unread, last-read) and settings.
 
 export interface SessionRow {
@@ -57,7 +57,7 @@ export interface SessionRow {
   // discarding a perfectly good persisted title (maintainer 2026-08-07). Cleared by every other title
   // writer (human rename, re-dispatch) so it always describes the CURRENT text.
   // Optional in the TS shape for the same reason as `title_locked`: pre-existing row literals.
-  // Since 2026-09-29 it also marks the name Ntwine MINTS at dispatch (thread-names.ts): any non-zero value
+  // Since 2026-09-29 it also marks the name ntwine MINTS at dispatch (thread-names.ts): any non-zero value
   // is a persisted machine name that outranks the transcript's live title, and the dispatch-time writers
   // (the mint, the Codex marker CAS) land only while it is still 0 — the first name to land stands.
   title_agent?: number
@@ -257,7 +257,7 @@ export interface SessionRow {
   // Durable Claude follow-up delivery ledger (delivery-ledger.ts): small JSON array of not-yet-
   // delivered sends, correlated by the tailer and projected into the rendered transcript.
   delivery_ledger?: string | null
-  // Monotonic process incarnation for this Ntwine session. Incremented atomically before every
+  // Monotonic process incarnation for this ntwine session. Incremented atomically before every
   // respawn/reattach so output or async completion from an older process cannot mutate the new one.
   runtime_generation?: number
   // Durable, mutually-exclusive native runtime control. The revision prevents ABA when one control
@@ -595,7 +595,7 @@ export interface ThreadSpinoffRow {
   /** Where the child starts when that is ANOTHER project (a cross-project spinoff); null for this one. */
   child_project_id: string | null
   /** 1 when the child is a FORK of the parent's session (the Claude route, router.ts forkSpinoff), 0 when
-   *  it started fresh on the context Ntwine assembled (router.ts summarySpinoff) — or, on an older row,
+   *  it started fresh on the context ntwine assembled (router.ts summarySpinoff) — or, on an older row,
    *  when the parent's worker briefed it. */
   forked: number
 }
@@ -604,7 +604,7 @@ export interface ThreadSpinoffRow {
  *  exits 0 (2026-10-11, `ntwinectl watch-command`).
  *
  *  ONE-SHOT like a timer, unlike a PR watcher: the first passing run settles it (`passed`) and wakes the
- *  thread once. `expired` is its own `for:` running out, `cancelled` is Ntwine stopping it because the
+ *  thread once. `expired` is its own `for:` running out, `cancelled` is ntwine stopping it because the
  *  thread's permission mode or sandbox changed under it, `dropped` is the worker withdrawing it. The
  *  `last_*` columns are the most recent check, kept so the worker's read-back and the expiry wake can say
  *  WHY it has not passed — a command failing on a missing binary looks exactly like one still waiting. */
@@ -725,7 +725,7 @@ export interface ThreadQuestionRow {
   default_off?: number | null
 }
 
-/** One operator-authored steer that Ntwine delivered into a sub-agent from its drawer.
+/** One operator-authored steer that ntwine delivered into a sub-agent from its drawer.
  *
  * The Claude broker accepts the plaintext but does not write a user record into the child's JSONL,
  * so without this tiny delivery journal the drawer permanently forgets the operator's own message.
@@ -796,7 +796,7 @@ export interface Storage extends ScheduleStore {
   allAdoptionClaims(): AdoptionClaimRow[]
   allRetiredAdoptionAttempts(): RetiredAdoptionAttemptRow[]
   // INSERT ... WHERE no session owner exists. The slug PK and token UNIQUE constraint serialize
-  // separate Ntwine processes/connections; a loser never reaches the spawn.
+  // separate ntwine processes/connections; a loser never reaches the spawn.
   reserveAdoptionClaim(reservation: AdoptionReservation): boolean
   recordAdoptionPane(
     slug: string,
@@ -978,7 +978,7 @@ export interface Storage extends ScheduleStore {
   recordCommandWatchRun(id: string, run: CommandWatchRunRecord): boolean
   /** The worker's own withdrawal. Scoped to the slug, so one thread can never drop another's. */
   dropCommandWatch(slug: string, id: string, settledAtMs: number): boolean
-  /** Terminal: the command passed, ran out of time, or Ntwine may no longer run it. Guarded on `armed`. */
+  /** Terminal: the command passed, ran out of time, or ntwine may no longer run it. Guarded on `armed`. */
   settleCommandWatch(id: string, state: "passed" | "expired" | "cancelled", settledAtMs: number): boolean
   // A label is a stable slot: re-registering it updates the destination without moving the row.
   /** `childProjectId` names the project the child is to start in when that is not this one. */
@@ -1147,7 +1147,7 @@ export interface Storage extends ScheduleStore {
   // change the row's display provenance, and leaving it set is what keeps a human rename outranking.
   // Refused the same way when the thread already has a name: this only names a thread nothing else could.
   setAgentTitle(slug: string, title: string): boolean
-  // Persist the name Ntwine MINTED at dispatch (thread-names.ts). Lands only on the same session, only
+  // Persist the name ntwine MINTED at dispatch (thread-names.ts). Lands only on the same session, only
   // while no human has claimed the name and no machine name is persisted yet — the first name stands.
   setMintedTitle(slug: string, sessionId: string, title: string): boolean
   // Write the thread's live status line (periodic-status.ts, live-status.ts), keyed on the session it was
@@ -1292,7 +1292,7 @@ export type SessionLifecycleEvent =
   | { type: "deleted"; previous: SessionRow }
 
 /**
- * Every table Ntwine keeps for a project, in ONE database shared by every project (2026-08-27).
+ * Every table ntwine keeps for a project, in ONE database shared by every project (2026-08-27).
  *
  * Complete AS OF the 2026-08-27 unification: this schema is only ever created by this code, into a
  * file this code owns, so there is no PRE-unification shape to reconcile with. Columns added since
@@ -1565,7 +1565,7 @@ export const STORAGE_SCHEMA = `
       ON command_watch(project_id, thread_slug, state, created_at);
     -- Saved destinations have no liveness or expiry. The label is a stable slot within one thread.
     -- A SPINOFF (2026-09-29): the human asked for a NEW thread from this one ("fix this", "investigate
-    -- perf"). The row is the request, and the link it becomes: Ntwine starts the child itself (router.ts
+    -- perf"). The row is the request, and the link it becomes: ntwine starts the child itself (router.ts
     -- spinoff) and writes the row with CHILD_SLUG already stamped, the edge both threads render (the
     -- parent's card links forward, the child's header links back). A row with no child is a request an
     -- older build handed to the parent's worker that never became a thread.
@@ -1691,7 +1691,7 @@ export const STORAGE_SCHEMA = `
       PRIMARY KEY (project_id, thread_slug)
     );
     -- Operator-authored steers sent from a sub-agent drawer. The Claude broker intentionally does not
-    -- persist these as user records in the child's provider transcript, but Ntwine possesses the text
+    -- persist these as user records in the child's provider transcript, but ntwine possesses the text
     -- at delivery time and the drawer must not forget what the operator sent.
     CREATE TABLE IF NOT EXISTS subagent_steer (
       project_id  TEXT NOT NULL,
@@ -1915,7 +1915,7 @@ export function ensureStorageSchema(db: Database): void {
   // written under the old name — a worker told its sub-agent's address a second before it renamed the
   // thread kept writing that address in every handoff, and none of them linked. So the old name is kept
   // and mentions resolve it too (ThreadView.formerTitles). A TRIGGER rather than one more clause on each
-  // statement: five writers change `title` (human rename and its CAS, the Codex marker, Ntwine's mint, the
+  // statement: five writers change `title` (human rename and its CAS, the Codex marker, ntwine's mint, the
   // worker's own rename), and a sixth must not be able to forget. Only a NAME is kept: a dispatch guess
   // (title_auto = 1 with no persisted name, title_agent = 0) is a chop of the prompt nobody addressed
   // anything by. A re-dispatch over the slug is a new thread: it moves `session_id`, which the trigger
@@ -2885,14 +2885,14 @@ export function createStorage(source: string | Database, projectId: string): Sto
   // name. It is what lets the display trust a persisted codex title once the live telemetry is gone.
   //
   // Lands only while the row carries NO persisted name yet (`title_agent = 0`): the Codex marker is a
-  // DISPATCH-TIME name, and so is Ntwine's own mint (setMintedTitle), so whichever lands first stands and
+  // DISPATCH-TIME name, and so is ntwine's own mint (setMintedTitle), so whichever lands first stands and
   // the other never renames the thread behind it (thread-names.ts — a name is stable).
   const autoTitleCasStmt = scope.prepare(`
     UPDATE session SET title = ?, title_agent = 1
     WHERE project_id = @project_id AND slug = ? AND session_id = ? AND agent_session_id IS ?
       AND runtime_generation = ? AND title_locked = 0 AND title_auto = 1 AND title_agent = 0 AND title_worker_renamed = 0
   `)
-  // Ntwine's dispatch-time NAME (thread-names.ts mint). Same gate as the marker CAS above, keyed on the
+  // ntwine's dispatch-time NAME (thread-names.ts mint). Same gate as the marker CAS above, keyed on the
   // session id so a mint that finishes after a re-dispatch over the slug cannot name the new session.
   const mintedTitleStmt = scope.prepare(`
     UPDATE session SET title = ?, title_agent = 1

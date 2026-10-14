@@ -271,7 +271,7 @@ function LightboxViewer({ images, index }: { images: readonly LightboxImage[]; i
   // On a phone the viewer takes a history entry of its own, so Back closes it and not the thread under
   // it (lib/backDismiss) — the same rule every sheet over a phone thread follows.
   useBackClosesLayer(useIsMobile(), false, closeLightbox)
-  // Ntwine opens this by writing store state, not through a Radix Trigger, so Radix has no element to
+  // ntwine opens this by writing store state, not through a Radix Trigger, so Radix has no element to
   // hand focus back to on close. Remember the thumbnail that opened it, as NewThreadDialog does.
   const opener = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const contentRef = useRef<HTMLDivElement>(null)

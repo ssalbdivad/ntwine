@@ -116,7 +116,7 @@ test("removing a project forgets the registry entry and leaves its threads alone
   assert.equal(existsSync(join(dir, "README.md")), true)
 })
 
-test("deleteData stops the project's workers and removes everything Ntwine holds for it", async (t) => {
+test("deleteData stops the project's workers and removes everything ntwine holds for it", async (t) => {
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
   // `.ntwine/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
@@ -136,7 +136,7 @@ test("deleteData stops the project's workers and removes everything Ntwine holds
   assert.equal(existsSync(join(dir, "README.md")), true)
 })
 
-test("deleting the data of the project Ntwine is hosted on is refused, and nothing is torn down", async (t) => {
+test("deleting the data of the project ntwine is hosted on is refused, and nothing is torn down", async (t) => {
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
   // `.ntwine/.id` and a file of the operator's own, so "the folder is never touched" is a real assertion.
@@ -159,7 +159,7 @@ test("deleting the data of the project Ntwine is hosted on is refused, and nothi
 // A `ntwine` run from $HOME was hosted on the most recently opened project until 2026-10-11, so the
 // host was routinely a project nobody launched from — and refusing to forget it left a card the
 // operator could not remove by any restart that did not start inside a DIFFERENT project (2026-10-10).
-test("the project Ntwine is hosted on can still be forgotten, without a teardown", async (t) => {
+test("the project ntwine is hosted on can still be forgotten, without a teardown", async (t) => {
   const home = homeSandbox(t)
   const dir = join(home, "code", "alpha")
   mkdirSync(join(dir, ".ntwine"), { recursive: true })

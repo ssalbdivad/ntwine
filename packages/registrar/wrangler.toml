@@ -2,7 +2,7 @@ name = "ntwine-registrar"
 main = "src/worker.ts"
 compatibility_date = "2026-08-24"
 
-# The Ntwine account, not the personal one. Without this a non-interactive `wrangler deploy` fails with
+# The ntwine account, not the personal one. Without this a non-interactive `wrangler deploy` fails with
 # "More than one account available but unable to select one" — a machine with several accounts cannot
 # guess, and CI has nobody to ask. An account id is not a secret; the API token is, and that stays out.
 #
@@ -19,7 +19,7 @@ account_id = "824d4f37d82bfacfe20fbd8cfa8aaaff"
 # AN EXPLICIT ROUTE, NOT JUST A CUSTOM DOMAIN.
 #
 # The relay owns `*.ntwine.app/*`, and a WORKERS ROUTE BEATS A CUSTOM DOMAIN — so once the relay shipped,
-# the wildcard swallowed the registrar's hostname and signup started answering "No Ntwine board has claimed
+# the wildcard swallowed the registrar's hostname and signup started answering "No ntwine board has claimed
 # this name." A more specific route wins over the wildcard and puts this back. Both are declared: the
 # custom domain provisions the hostname, the route decides who serves it.
 [[routes]]

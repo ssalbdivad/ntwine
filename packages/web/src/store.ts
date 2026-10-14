@@ -80,7 +80,7 @@ export const store = proxy({
   // The PHONE layout's New thread sheet (components/PhonePage.tsx), open or not — and whether it takes
   // the caret as it opens. Its own button opens it focused; a selection an editor sends to the prompt
   // box (lib/editorBridge.ts composeInto) opens it to SHOW the chip, focused only when the human writes
-  // next: "Add to Ntwine prompt" from an editor's sidebar leaves the caret in the editor.
+  // next: "Add to ntwine prompt" from an editor's sidebar leaves the caret in the editor.
   phoneNewThread: null as { focus: boolean } | null,
   // The SIDE-DRAWER STACK — arbitrary depth. `thread` layers are full thread views (the Open-thread
   // sheet); `doc` layers are the ntwine-document markdown; `file` layers are the built-in reader for a
@@ -164,7 +164,7 @@ export const store = proxy({
   // 2026-10-01; they are keyed by draft and persisted with it now — lib/stagedContext.ts.)
   //
   // The EDITOR WINDOWS connected over the editor bridge (packages/vscode): which app each is and whether
-  // it takes file opens. MACHINE-WIDE — one Ntwine, every project — so a project switch leaves it alone.
+  // it takes file opens. MACHINE-WIDE — one ntwine, every project — so a project switch leaves it alone.
   // Read at boot (`editorWindows`) and replaced whole by every `editors` event (lib/editorBridge.ts);
   // the settings drawer marks the Local file links app that is connected, and the first connection offers it.
   editorWindows: [] as EditorWindowSummary[],
@@ -483,7 +483,7 @@ export function primeFullscreenReturn(routedSlug: string | undefined): boolean {
   return true
 }
 
-// Open a file that lives on disk in Ntwine's OWN reader — a `.md` rendered, anything else as source —
+// Open a file that lives on disk in ntwine's OWN reader — a `.md` rendered, anything else as source —
 // rather than handing the path to the desktop opener. Every link to one routes here
 // (lib/local-file-links.ts): agent prose citing a repo doc, an inline-code path that resolved to a
 // file, an attached log. `path` is the absolute path the server will re-gate; the basename is the

@@ -246,7 +246,7 @@ class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess
         cwd,
         errors: [],
         skills: [
-          { name: "ntwine-stack", description: "Boot a disposable Ntwine", enabled: true, path: `${cwd}/.agents/skills/ntwine-stack/SKILL.md`, scope: "repo" },
+          { name: "ntwine-stack", description: "Boot a disposable ntwine", enabled: true, path: `${cwd}/.agents/skills/ntwine-stack/SKILL.md`, scope: "repo" },
           { name: "agent-browser", description: "Drive a browser", enabled: true, path: "/home/x/.agents/skills/agent-browser/SKILL.md", scope: "user" },
           { name: "imagegen", description: "Generate an image", enabled: true, path: "/home/x/.codex/skills/.system/imagegen/SKILL.md", scope: "system" },
           { name: "from-the-future", description: "Resolved from a root ntwine has no name for", enabled: true, path: "/elsewhere/SKILL.md", scope: "someFutureRoot" },
@@ -1265,7 +1265,7 @@ test("only locally witnessed turn ids may own provider requests and notification
 })
 
 // A codex thread goal makes the app-server open a continuation turn BY ITSELF the instant the previous
-// one completes, on the connection Ntwine holds. Ignoring that `turn/started` left `current_turn_id`
+// one completes, on the connection ntwine holds. Ignoring that `turn/started` left `current_turn_id`
 // null for the turn's whole life: the operator's steer was refused as an outside writer and the board
 // saw no bridge turn (live 2026-09-10). Such a turn is adopted, steered, and retired like a local one.
 test("a turn the app-server starts on its own is adopted as the current turn and steerable", async () => {
@@ -1301,7 +1301,7 @@ test("listSkills asks the app-server for the session cwd's skills and drops disa
   // Codex's own scope vocabulary, normalized: repo→project, user→user, system→builtin. A scope ntwine
   // has no mapping for keeps its row and loses only its label — a wrong label is worse than none.
   assert.deepEqual(skills, [
-    { name: "ntwine-stack", description: "Boot a disposable Ntwine", source: "project" },
+    { name: "ntwine-stack", description: "Boot a disposable ntwine", source: "project" },
     { name: "agent-browser", description: "Drive a browser", source: "user" },
     { name: "imagegen", description: "Generate an image", source: "builtin" },
     { name: "from-the-future", description: "Resolved from a root ntwine has no name for", source: undefined },
@@ -1470,11 +1470,11 @@ test("a fresh bridge inherits no active bindings: boot detaches what a SIGKILLed
   h.close()
 })
 
-// The resume an Ntwine RESTART issues: the fresh bridge's warmUp() reconciles every row that was mid-turn
+// The resume an ntwine RESTART issues: the fresh bridge's warmUp() reconciles every row that was mid-turn
 // when its app-server died. That `thread/resume` carried no per-thread ntwine mount until 2026-09-18, so
 // a codex worker that was working through a restart came back onto the new app-server with no
 // `mcp__ntwine__*` at all and could neither ask nor sign off (hypergres/this-is-a-fresh-project-i: "The
-// restart removed Ntwine's question-registration tool"). The argv mount is no fallback on that path —
+// restart removed ntwine's question-registration tool"). The argv mount is no fallback on that path —
 // see codexThreadMcpConfig — so the mount has to ride this resume exactly as it rides the lazy one.
 test("a mid-turn thread reconciled onto a FRESH app-server carries the per-thread ntwine mount on its thread/resume", async () => {
   const h = harness(undefined, undefined, undefined, undefined, undefined, undefined, {
@@ -1559,7 +1559,7 @@ test("the Codex context window from Settings rides thread/start AND a cold threa
   assert.equal(startConfig.model_reasoning_summary, "detailed")
 
   // The operator raises the window while the thread is detached; the resume by a FRESH app-server (the
-  // one after a daemon death or an Ntwine restart) is exactly when a thread would otherwise keep the old
+  // one after a daemon death or an ntwine restart) is exactly when a thread would otherwise keep the old
   // window for the rest of its life.
   settings.codexContextWindow = 1_000_000
   const restarted = h.newBridge()
@@ -2567,7 +2567,7 @@ test("a reattach that lost events is not a rejoin: the thread resumes instead of
 
 // ---- a background exec survives a rejoin, and so must its row -----------------------------------
 // A yielded exec keeps running in the app-server's PTY after the turn that started it, and the
-// app-server outlives both an Ntwine restart and a dropped socket. Its `item/started` went to the client
+// app-server outlives both an ntwine restart and a dropped socket. Its `item/started` went to the client
 // that is gone and is never sent again, so the row (and its ×) used to vanish on every rejoin until the
 // exec ended. These pin the re-seed from `thread/backgroundTerminals/list`, and the cases that must NOT
 // seed.
@@ -2591,7 +2591,7 @@ async function threadWithBackgroundExec(h: ReturnType<typeof scriptedHostHarness
   return { binding, terminal }
 }
 
-test("an Ntwine restart that rejoins the same app-server re-learns a background exec that is still running", async () => {
+test("an ntwine restart that rejoins the same app-server re-learns a background exec that is still running", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
   const h = scriptedHostHarness(() => plan)
   try {
@@ -2809,7 +2809,7 @@ test("the MCP mount rides only the threads whose contract taught it", async () =
   } finally { h.close() }
 })
 
-test("a thread idle at an Ntwine restart is released and resumed with the new server's bag before its next turn", async () => {
+test("a thread idle at an ntwine restart is released and resumed with the new server's bag before its next turn", async () => {
   let plan = { generation: "gen-A", reattached: false, droppedWhileDetached: 0 }
   const h = scriptedHostHarness(() => plan, { ntwineMcp: WORKER_MCP, workerConfig: workerHooks })
   try {

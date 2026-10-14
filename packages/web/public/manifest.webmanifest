@@ -1,7 +1,7 @@
 {
-  "name": "Ntwine",
-  "short_name": "Ntwine",
-  "description": "Ntwine — local agent orchestration surface",
+  "name": "ntwine",
+  "short_name": "ntwine",
+  "description": "ntwine — local agent orchestration surface",
   "id": "/",
   "start_url": "/",
   "scope": "/",

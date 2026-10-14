@@ -142,7 +142,7 @@ export function connectClaudeBroker(
   // Operator-facing: the router toasts these after "Steer failed — " and cuts at 160 characters.
   const undelivered = (written: boolean): Error => new Error(written
     ? "The Claude session did not confirm it received this message. Check the thread before resending."
-    : "Ntwine could not reach this thread's Claude session, so the message was not delivered. Resend it.")
+    : "ntwine could not reach this thread's Claude session, so the message was not delivered. Resend it.")
   // A client that is closing for good fails every delivery still waiting on it: nothing will ever
   // answer, and a caller left to its deadline would hold the operator's send for 30s to learn that.
   const failPendingInputs = (): void => {

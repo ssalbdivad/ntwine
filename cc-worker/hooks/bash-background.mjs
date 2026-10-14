@@ -213,13 +213,13 @@ export function hasEscapingBackgroundJob(raw, depth = 0) {
 // launched exactly as the contract says died half an hour in (yes thread 4f19c4e3, 2026-10-08). The
 // hook raises it to the ceiling through `updatedInput`, with no permission decision — measured on
 // 2.1.287 under `--permission-mode default`: a hook-set 61s cap killed an untimed `sleep 200` at 61s, and
-// the transcript kept the model's original input, so Ntwine still reads the shell as unbudgeted
+// the transcript kept the model's original input, so ntwine still reads the shell as unbudgeted
 // (shell-budget.ts). 24h is a hard ceiling here; nothing longer can be asked for.
 export const BACKGROUND_UNTIMED_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 export const BACKGROUND_NO_TIMEOUT_CONTEXT =
-  '⟦background shell with no `timeout`⟧ Ntwine never stops this shell on a clock; Claude Code stops it after 24h. ' +
+  '⟦background shell with no `timeout`⟧ ntwine never stops this shell on a clock; Claude Code stops it after 24h. ' +
   'Right for a dev server or watcher meant to keep running. If it is a poller, build or one-off check, give it an end — ' +
-  '`ntwinectl extend-shell <id> --for <duration>` sized to it now (Ntwine warns you past it, then stops it), or a ' +
+  '`ntwinectl extend-shell <id> --for <duration>` sized to it now (ntwine warns you past it, then stops it), or a ' +
   '`timeout` (ms, max 24h) on the call next time. Either way, `TaskStop` it once you no longer need it.';
 
 /** @param {unknown} toolInput */
@@ -230,7 +230,7 @@ function isUntimedBackgroundCall(toolInput) {
   return !(typeof timeout === 'number' && Number.isFinite(timeout) && timeout > 0);
 }
 
-// THE LONG-FOREGROUND PROMPT. Ntwine lifted the foreground ceiling to 24h on purpose (server
+// THE LONG-FOREGROUND PROMPT. ntwine lifted the foreground ceiling to 24h on purpose (server
 // backend/types.ts BASH_MAX_TIMEOUT_MS: "a worker can block on anything it chooses"), so a long call is
 // never refused. But a foreground call holds the whole turn: no transcript record until it returns, so
 // the thread sits in Running with nothing moving, and the human reads a worker that is running a gate
@@ -278,7 +278,7 @@ function longForegroundTimeout(toolInput) {
 //   transcript (router extendOwnShell → tailer bgShells, which skips sidechain records), so a sub-agent's
 //   shell is never found. Both `extend_shell` failures in three days of worker transcripts (2026-09-29..
 //   10-01) were sub-agents obeying this line 3s after launching the shell, told "it has already finished
-//   … or the id is wrong" about a shell that was running. Nor does Ntwine own that shell's clock: Claude
+//   … or the id is wrong" about a shell that was running. Nor does ntwine own that shell's clock: Claude
 //   itself kills a sub-agent's background shell when the sub-agent returns.
 // - the long-foreground line says "run it with `run_in_background: true`", while the sub-agent's own
 //   dispatch epilogue (agent-dispatch.mjs) tells it the opposite — "run long commands in the FOREGROUND",
@@ -316,8 +316,8 @@ export function evaluateBashBackgroundHook(input, env = process.env) {
       permissionDecision: 'deny',
       permissionDecisionReason:
         codex
-          ? 'Ntwine blocked an untracked shell background job (`&`). Shell job control can return without a Codex lifecycle handle, so Ntwine cannot report completion or wake this agent. For work that must continue while you do something else, remove `&` and use the managed unified exec pattern: start `tools.exec_command(...)`, call `yield_control()`, then await and fully drain that same process. A returned `session_id` alone is only foreground continuation. For bounded parallel work inside one shell call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.'
-          : 'Ntwine blocked an untracked shell background job (`&`). Shell job control can return from Bash without a Claude task ID, so Ntwine cannot report completion or wake this agent. For a long-running local command, remove `&` and call Bash with `run_in_background:true`. For bounded parallel work inside one Bash call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.',
+          ? 'ntwine blocked an untracked shell background job (`&`). Shell job control can return without a Codex lifecycle handle, so ntwine cannot report completion or wake this agent. For work that must continue while you do something else, remove `&` and use the managed unified exec pattern: start `tools.exec_command(...)`, call `yield_control()`, then await and fully drain that same process. A returned `session_id` alone is only foreground continuation. For bounded parallel work inside one shell call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.'
+          : 'ntwine blocked an untracked shell background job (`&`). Shell job control can return from Bash without a Claude task ID, so ntwine cannot report completion or wake this agent. For a long-running local command, remove `&` and call Bash with `run_in_background:true`. For bounded parallel work inside one Bash call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.',
     },
   };
 }
@@ -361,7 +361,7 @@ if (isDirectHookExecution(process.argv[1], import.meta.url)) {
   // It is a `.ts` module loaded on demand, and every way that can fail — a Node that cannot strip
   // types, a copy installed under node_modules (where Node refuses to), a throw inside the rewrite —
   // lands in the catch and emits this hook's own result unchanged. Never for a denied call, never for
-  // Codex (`--ntwine-thread`: it has no `updatedInput`), never outside an Ntwine thread.
+  // Codex (`--ntwine-thread`: it has no `updatedInput`), never outside an ntwine thread.
   if (
     result.hookSpecificOutput?.permissionDecision === 'deny' ||
     process.argv.includes('--ntwine-thread') ||

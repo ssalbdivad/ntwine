@@ -1,4 +1,4 @@
-// `ntwine top` — one terminal readout of the machine's memory and Ntwine's share of it.
+// `ntwine top` — one terminal readout of the machine's memory and ntwine's share of it.
 //
 // Four readings, each from the module that already owns it, so this file adds grouping and rendering
 // and no new parser of anyone's format:
@@ -175,7 +175,7 @@ export function groupThreadTrees(procs: readonly TopProc[], opts: { selfPid?: nu
     }
     // A codex or a second claude root under one slug is possible; the oldest names the thread.
     const root = roots.reduce((a, b) => (b.ageMs > a.ageMs ? b : a))
-    // Its OWN broker is the root's parent; another broker in the list belongs to an Ntwine this thread
+    // Its OWN broker is the root's parent; another broker in the list belongs to an ntwine this thread
     // launched (an adhoc stack inherits the launching worker's marker) and counts as its work.
     const broker = list.find((p) => p.pid === root.ppid && isBrokerDaemon(p.command))
     const agent = list.filter((p) => p === root || p === broker || (isNtwineMcp(p.command) && p.ppid === root.pid))
@@ -520,7 +520,7 @@ export function renderTop(reading: TopReading, opts: { width?: number } = {}): s
   out.push(`Memory  ${sizeLabel(h.availableMB * 1024)} available of ${sizeLabel(h.totalMB * 1024)} (${usedPct}% used) · swap ${sizeLabel(h.swapUsedMB * 1024)} of ${sizeLabel(h.swapTotalMB * 1024)} · ${pressure}`)
   const f = reading.ntwine
   const share = h.totalMB ? ` (${Math.round((f.totalKB / 1024 / h.totalMB) * 100)}% of memory)` : ""
-  out.push(`Ntwine   ${sizeLabel(f.totalKB)}${share} · server ${sizeLabel(f.serverKB)} · ${reading.threads.length} threads ${sizeLabel(f.threadsKB)}${reading.orphans.length ? ` · orphans ${sizeLabel(f.orphansKB)}` : ""}`)
+  out.push(`ntwine   ${sizeLabel(f.totalKB)}${share} · server ${sizeLabel(f.serverKB)} · ${reading.threads.length} threads ${sizeLabel(f.threadsKB)}${reading.orphans.length ? ` · orphans ${sizeLabel(f.orphansKB)}` : ""}`)
 
   // ── gate
   out.push("")
@@ -563,7 +563,7 @@ export function renderTop(reading: TopReading, opts: { width?: number } = {}): s
     out.push("")
     out.push(reading.server
       ? "Hibernated threads and unowned brokers not shown: the server did not return any project's board."
-      : "Hibernated threads and unowned brokers not shown: no Ntwine server is running.")
+      : "Hibernated threads and unowned brokers not shown: no ntwine server is running.")
   } else {
     out.push("")
     out.push(`Hibernated (no process; a reply resumes it): ${reading.hibernated.length}`)
@@ -597,7 +597,7 @@ export function renderTop(reading: TopReading, opts: { width?: number } = {}): s
 
 export const TOP_USAGE = `Usage: ntwine top [--json] [--watch]
 
-Memory on this machine and Ntwine's share of it: the host, the job gate's queue,
+Memory on this machine and ntwine's share of it: the host, the job gate's queue,
 RSS per thread, hibernated threads, and processes no thread owns.
 
   --json    print the reading as JSON
