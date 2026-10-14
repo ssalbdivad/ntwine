@@ -207,79 +207,30 @@ function persistedSet(key: string) {
     else next.delete(id)
     write(next)
   }
-  const setMany = (entries: readonly string[], on: boolean): void => {
-    const current = read()
-    if (entries.every((id) => current.has(id) === on)) return
-    const next = new Set(current)
-    for (const id of entries) {
-      if (on) next.add(id)
-      else next.delete(id)
-    }
-    write(next)
-  }
   const subscribe = (listener: () => void) => {
     listeners.add(listener)
     return () => {
       listeners.delete(listener)
     }
   }
-  return { read, set, setMany, subscribe }
+  return { read, set, subscribe }
 }
 
 const NONE: ReadonlySet<string> = new Set()
-const collapsed = persistedSet("ntwine.collapsedProjects")
-const openBands = persistedSet("ntwine.openBands")
-
-/** Fold one project away in the list, or back open; `on` omitted toggles it. */
-export function setProjectCollapsed(projectId: string, on?: boolean): void {
-  collapsed.set(projectId, on)
-}
-
-/** The projects folded away in the list, by id — live, and a stable Set between changes. */
-export function useCollapsedProjects(): ReadonlySet<string> {
-  return useSyncExternalStore(collapsed.subscribe, collapsed.read, () => NONE)
-}
-
-/** The list's quiet bands, which open one at a time. `schedules` is the one band that is not threads: the
- *  project's schedules (ARCHITECTURE.md § Scheduled threads), opened in place from the row's fourth count. */
-export type QuietBandKey = "snoozed" | "done" | "external" | "schedules"
-
-/** The key a project's quiet band is remembered under. */
-export function bandKey(projectId: string, band: QuietBandKey): string {
-  return `${projectId}:${band}`
-}
-
-/** Open or close one of a project's quiet bands; `on` omitted toggles it. */
-export function setBandOpen(projectId: string, band: QuietBandKey, on?: boolean): void {
-  openBands.set(bandKey(projectId, band), on)
-}
-
-/** Open or close several of a project's quiet bands together — a quiet project's row opens all of its. */
-export function setBandsOpen(projectId: string, bands: readonly QuietBandKey[], on: boolean): void {
-  openBands.setMany(bands.map((band) => bandKey(projectId, band)), on)
-}
-
-/** The open quiet bands, as `bandKey`s — live, and a stable Set between changes. */
-export function useOpenBands(): ReadonlySet<string> {
-  return useSyncExternalStore(openBands.subscribe, openBands.read, () => NONE)
-}
-
-// ---- A project board's folds ---------------------------------------------------------------------------
+// ---- All projects' tiers -------------------------------------------------------------------------------
 //
-// THE BOARD'S QUIET BANDS — Snoozed, Done, External and Schedules under their own headers on a project's
-// board (ProjectBoard.tsx), collapsed to start as upstream's sidebar had them (upstream store.ts
-// `sidebarCollapsed`: snoozed, inactive and external true). A set of the OPEN ones, `<projectId>:<band>`,
-// per browser like every other fold here — and its own set, not All projects' `openBands`: a band opened
-// on a project's board is a header the human clicked, while one open in All projects lists that band
-// under the project's row among every other project's, and opening one should not reshape the other.
-const boardOpenBands = persistedSet("ntwine.boardOpenBands")
+// THE TIER LIST'S FOLDS (TierList.tsx), per browser like every fold here. A key is present when the human
+// FLIPPED that tier from how it starts — Snoozed and Done start folded, the rest open — so a new tier's
+// default needs no migration. `run:<projectId>` is a Working rollup the human expanded (lib/sidebarBudget.ts):
+// an expanded run is never rolled up again until they fold it.
+const tierFolds = persistedSet("ntwine.tierFolds")
 
-/** Open or close one of a project board's quiet bands; `on` omitted toggles it. */
-export function setBoardBandOpen(projectId: string, band: QuietBandKey, on?: boolean): void {
-  boardOpenBands.set(bandKey(projectId, band), on)
+/** Flip one tier fold, or set it; `on` means "flipped from its default". */
+export function setTierFold(key: string, on?: boolean): void {
+  tierFolds.set(key, on)
 }
 
-/** A project board's open quiet bands, as `bandKey`s — live, and a stable Set between changes. */
-export function useBoardOpenBands(): ReadonlySet<string> {
-  return useSyncExternalStore(boardOpenBands.subscribe, boardOpenBands.read, () => NONE)
+/** The flipped tier folds — live, and a stable Set between changes. */
+export function useTierFolds(): ReadonlySet<string> {
+  return useSyncExternalStore(tierFolds.subscribe, tierFolds.read, () => NONE)
 }

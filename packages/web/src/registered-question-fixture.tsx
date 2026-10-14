@@ -287,7 +287,7 @@ const project: QueuesProject = {
   queued: keys ? [thread, gatesThread] : [thread],
   running: [],
   snoozed: [],
-  pinnedDone: [],
+  pinnedDone: [], recentDone: [],
   doneCount: 0,
 }
 

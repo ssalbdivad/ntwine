@@ -155,7 +155,7 @@ function useProjectBinding(slug: string | undefined): boolean {
  * it, so the prompt box dispatches into it and a thread drawer of it opens in place with the whole drawer
  * stack. On a board the page project IS the board's project; showing All projects, it is the prompt box's
  * PICK (lib/crossProject.ts); under an All-projects drawer, the drawer's project. The list and the queue
- * read machine-wide data and name their project on every call (AllQueues.tsx, ProjectList.tsx).
+ * read machine-wide data and name their project on every call (AllQueues.tsx, TierList.tsx).
  *
  * ONE component for every address, at the same depth, so react-router keeps the one instance mounted
  * across a drawer opening or closing, and across a change of view — the page must not remount under the

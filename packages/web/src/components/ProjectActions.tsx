@@ -37,7 +37,7 @@ export function shortPath(path: string, home: string | undefined): string {
  * `/slug` when that is not simply its name — a directory called "app" under "pullfrog" lives at
  * `/pullfrog-app`, worth saying, while "nub" would just repeat itself — and when it was last opened, in the
  * house age grammar (`Opened 2h ago`), or that its directory is missing. Its path is the line above it,
- * wherever it is drawn: the project row's hover (ProjectList.tsx ProjectRow) and the head of its menu.
+ * wherever it is drawn: the head of its menu.
  */
 export function projectFacts(project: Pick<ProjectCard, "slug" | "name" | "lastOpenedAt" | "stale">, nowMs = Date.now()): string {
   const opened = relativeAge(project.lastOpenedAt || undefined, nowMs)
@@ -54,7 +54,7 @@ const MENU_ITEM = "block cursor-default rounded px-2 py-1.5 text-[12.5px] text-f
  * ONE MENU, on the project's row on the cross-project page. The grid split these between an image
  * overlay on the square ("change the picture") and an ellipsis ("rename, delete"), because a 34px square
  * had room for a control of its own; a 16px one does not, and two menus on one row is the clutter the
- * merge was for. Clicking the row itself opens the project in place (ProjectList.tsx). Its repo on GitHub
+ * merge was for. It rides the project's square in the dock (ProjectDock.tsx), on right-click. Its repo on GitHub
  * leads the menu when it has one — the link a project view's status row carried, which went with it on
  * 2026-09-28 when the project view folded into Everything. Delete is
  * last and red, the one irreversible act here, kept apart from those that only change what Ntwine calls
@@ -76,6 +76,8 @@ export function ProjectMenu({
   focused = false,
   onFocus,
   onOpenChange,
+  open,
+  align = "end",
   children,
 }: {
   project: ProjectCard
@@ -86,6 +88,9 @@ export function ProjectMenu({
   focused?: boolean
   onFocus?: () => void
   onOpenChange?: (open: boolean) => void
+  /** Held open from outside — the dock opens it on a right-click, not from its trigger. */
+  open?: boolean
+  align?: "start" | "end"
   children: ReactNode
 }) {
   const [renaming, setRenaming] = useState(false)
@@ -138,9 +143,9 @@ export function ProjectMenu({
       {/* Opening the menu is the cue: "Choose an icon…" is one move away, and on macOS a panel built at the
           click took most of a second to draw (server/directory-picker.ts). Speculative, so a failed
           request is dropped — the click builds its own panel. */}
-      <RadixDropdown.Root onOpenChange={(open) => {
-        if (open) rpc.projectIconPickWarm({ id: project.id }).catch(() => {})
-        onOpenChange?.(open)
+      <RadixDropdown.Root open={open} onOpenChange={(next) => {
+        if (next) rpc.projectIconPickWarm({ id: project.id }).catch(() => {})
+        onOpenChange?.(next)
       }}>
         <RadixDropdown.Trigger asChild>{children}</RadixDropdown.Trigger>
         <RadixDropdown.Portal>
@@ -148,7 +153,7 @@ export function ProjectMenu({
               content has a min width and no max, so a long one would stretch the menu past its row. The
               row is the subject and each dialog names it in full. */}
           <RadixDropdown.Content
-            align="end"
+            align={align}
             sideOffset={6}
             className="z-[220] min-w-[190px] max-w-[280px] rounded-lg border border-border bg-panel p-1 shadow-xl shadow-shadow-ink/40"
           >

@@ -37,6 +37,10 @@ export interface QueuesProject {
    *  like the project's own board files them (groups.ts sectionThreads) — and are not in `doneCount`. */
   pinnedDone: ThreadView[]
   doneCount: number
+  /** Its most recently rested Done threads, newest first, capped by the server (router.ts
+   *  RECENT_DONE_THREADS) — the sidebar's Done-today tail (TierList.tsx). Pinned ones included; the
+   *  tail leaves them to the Pinned band. */
+  recentDone: ThreadView[]
   /** Its schedules' count, and whether one wants the human (paused by Ntwine, or a proposal to turn on) —
    *  the row's fourth quiet count. Absent when it has none. */
   schedules?: ProjectSchedules
@@ -98,8 +102,9 @@ export function queuesProjects(
   const build = (card: ProjectCard | undefined, queue: ProjectQueue | undefined): QueuesProject => {
     // SAME INPUTS, SAME OBJECT. The poll's cache shares every project the server answered unchanged
     // (react-query's structural sharing), and handing that on as the same QueuesProject is what lets the
-    // list skip re-rendering it (ProjectList.tsx ProjectGroup's memo). Rebuilt fresh, every 3s poll
-    // re-rendered every project's group whenever ANY one of them had changed — ~85ms of main thread per
+    // list keep its per-project row scopes (TierList.tsx useRowScopes) and memoized rows (Sidebar.tsx
+    // ThreadRow). Rebuilt fresh, every 3s poll re-rendered every project's group whenever ANY one of them
+    // had changed — ~85ms of main thread per
     // poll on an 8-project dev page (measured 2026-10-01 with react-scan).
     const memo = buildMemo.get(card ?? NO_CARD)?.get(queue ?? NO_QUEUE)
     if (memo && memo.direction === direction) return memo.project
@@ -135,6 +140,7 @@ export function queuesProjects(
       // The server counts archived rows itself; any that still arrive (an older server, the live board)
       // are Done too — all but the pinned ones, which are rows above.
       doneCount: (queue?.doneCount ?? 0) + threads.filter((t) => !isPinned(t) && sectionOf(t) === "inactive").length,
+      recentDone: queue?.recentDone ?? [],
       ...(queue?.schedules && queue.schedules.count > 0 ? { schedules: queue.schedules } : {}),
     }
   }

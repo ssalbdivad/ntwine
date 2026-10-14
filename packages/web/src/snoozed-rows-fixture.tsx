@@ -6,7 +6,7 @@ import { TooltipProvider } from "./components/Tooltip.tsx"
 import { store } from "./store.ts"
 import "./styles.css"
 
-// Where a row's click leads. This page only draws rows; every real row has a scope (ProjectList.tsx).
+// Where a row's click leads. This page only draws rows; every real row has a scope (TierList.tsx useRowScopes).
 const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 
 // Reproduces the HELD band from the maintainer's screenshot: a user-snoozed thread and an

@@ -32,15 +32,14 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
   // `/`, in whatever view this tab last showed. The checks read the fixture project's live board, so they
   // land on `/?project=<slug>` — the page focused on it, the launcher's own way in (lib/pageView.ts).
   const home = new URL(`/?project=${new URL(url).pathname.split("/")[2]}`, url).href
-  // A project's Snoozed and Done bands open in place under its row in the project list (ProjectList.tsx);
-  // until 2026-09-28 they were the board sidebar's collapsible bands, opened through the store.
+  // Snoozed and Done today are the list's folded tiers (TierList.tsx), each opened by its header; until
+  // 2026-10-14 they opened in place under the project's row, and until 2026-09-28 they were the board
+  // sidebar's collapsible bands, opened through the store.
   const openBands = async () => {
-    await page.waitForSelector("[data-xq-project-row]")
-    // Each quiet band opens by its own count — on the project's row while it lists nothing, under its
-    // threads (the footer) while it does.
-    await page.$$eval('[data-xq-project-row] button[aria-expanded="false"]', buttons => buttons.forEach(button => button.click()))
-    await page.waitForSelector('[data-xq-drill-band="snoozed"] [data-sidebar-item="theme-snoozed"]')
-    await page.waitForSelector('[data-xq-drill-band="done"] [data-sidebar-item="theme-done"]')
+    await page.waitForSelector("[data-xq-tiers]")
+    await page.$$eval('[data-xq-tier="snoozed"] [data-band-header][aria-expanded="false"], [data-xq-tier="done"] [data-band-header][aria-expanded="false"]', buttons => buttons.forEach(button => button.click()))
+    await page.waitForSelector('[data-xq-tier="snoozed"] [data-sidebar-item="theme-snoozed"]')
+    await page.waitForSelector('[data-xq-tier="done"] [data-sidebar-item="theme-done"]')
   }
   await page.setViewport({ width: 1440, height: 1000, deviceScaleFactor: 1 })
   await page.goto(home, { waitUntil: "networkidle2" })
@@ -49,7 +48,7 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
   await shot("expanded-bands")
   const running = await page.evaluate(async () => (await import("/src/store.ts")).store.board.threads.find(t => t.id === "theme-running").runtime)
   assert.equal(running, "running")
-  check(`${name} real Rested, Active, Snoozed and Done rows in the project list`)
+  check(`${name} real Rested, Active, Snoozed and Done rows in the list`)
 
   for (const width of [1440, 390]) {
     await page.setViewport({ width, height: 1000, deviceScaleFactor: 1 })

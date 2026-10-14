@@ -40,6 +40,10 @@ import { OFFSCREEN, landing, snapToPixels, threadPath, twist, type ThreadGeometr
 
 /** How far each strand bows out either side of the icon column: narrow, so a crossing reads as a twist of thread rather than as an x. */
 const CORD_REACH = 2.5
+/** Row pitch under which the bow narrows: the tier list's one-line rows (23px) leave ~4px between icons, where
+ *  a 2.5px bow shows only its crossing, and reads as an x. */
+const TIGHT_PITCH = 26
+const TIGHT_REACH = 1
 /** Past an icon's box, a strand passing behind it stays hidden for this much more, so it never touches the icon. */
 const ICON_CLEAR = 1.5
 /** Past the row's box, whose own 6px right padding already clears the rest time. */
@@ -98,11 +102,9 @@ interface Rail {
 }
 
 /**
- * The rail's icon column: a project's square, then the glyph of each band name and the indicator of each
- * thread row listed under it (`data-xq-indicator`, ProjectList.tsx and Sidebar.tsx) — so a band's name is
- * strung on its project's cord like a row, and the names cost the cord nothing. Only rows that TOUCH are
- * strung together, so whatever sits between two of them — a thread's sub-agents — cuts the cord there, and
- * an open project's quiet bands, in a container of their own below the counts, are never on it. Rows
+ * The rail's icon column: the indicator of each thread row in a project's run (`data-xq-indicator`,
+ * TierList.tsx and Sidebar.tsx). Only rows that TOUCH are strung together, so whatever sits between two of
+ * them — a thread's sub-agents — cuts the cord there. Rows
  * scrolled out of the list count too: a cord runs on past the list's edge and is cut there, as the rows are.
  */
 function readRail(dpr: number): Rail | null {
@@ -233,7 +235,7 @@ export function ThreadConnector({ activeKey }: { activeKey: string | null }) {
 
       // The cords: there whenever a project has threads, whether or not a thread leaves the rail. The mask
       // is the rail's list with every icon's box cut out of it.
-      const cords = rail?.cords.map((cord) => twist(cord.crossings, cord.span, rail.x, CORD_REACH)) ?? []
+      const cords = rail?.cords.map((cord) => twist(cord.crossings, cord.span, rail.x, pitchOf(cord.crossings, cord.span) < TIGHT_PITCH ? TIGHT_REACH : CORD_REACH)) ?? []
       set(strandA, "d", cords.map((cord) => cord[0]).join(""))
       set(strandB, "d", cords.map((cord) => cord[1]).join(""))
       if (rail) {
@@ -381,4 +383,9 @@ export function ThreadConnector({ activeKey }: { activeKey: string | null }) {
       </g>
     </svg>
   )
+}
+
+/** A cord's row pitch: twice the distance from its first icon to its first crossing. */
+function pitchOf(crossings: readonly number[], span: readonly [number, number]): number {
+  return crossings.length > 0 ? 2 * (Math.min(...crossings) - span[0]) : Infinity
 }

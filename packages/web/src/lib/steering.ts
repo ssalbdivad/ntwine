@@ -42,10 +42,10 @@ export function clearSteered(slug: string): void {
   delete steering.at[slug]
 }
 
-// A steer sent to a thread of a NAMED project — from a card or a project-list row on the one page, whose
+// A steer sent to a thread of a NAMED project — from a card or a list row on the one page, whose
 // thread is usually not the page project's. A bare slug is ambiguous there (two projects can both have a
 // `fix-auth`), so this is filed under the thread's key (lib/allQueues.ts threadKey), which no bare slug
-// can collide with, and read back by the project list for that project's rows (ProjectList.tsx loudBands).
+// can collide with, and read back by the list for that project's rows (TierList.tsx, through listOverlay).
 // The bare-slug record above stays the PAGE project's: its drawer's composer and cards write it.
 export function markSteeredIn(projectId: string, slug: string, nowMs = Date.now()): void {
   markSteered(threadKey(projectId, slug), nowMs)

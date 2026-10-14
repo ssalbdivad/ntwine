@@ -45,6 +45,10 @@ import type {
   ThreadWorkingDir,
   ThreadStats,
   ProjectQueue,
+  ProjectsDoneInput,
+  ProjectsDonePage,
+  ThreadsSearchInput,
+  ThreadSearchEntry,
   ThreadHandoff,
   UpsertOwnLinkInput,
   UpsertOwnLinkResult,
@@ -482,6 +486,12 @@ export interface Api {
   // project with no board here is absent. Each entry names its project, which is what every action
   // the page takes is addressed by.
   projectsQueues(): Promise<ProjectQueue[]>
+  // Done threads across every open project, newest rest first, a page at a time — the History tab.
+  // Pass `nextBefore` back as `before` for the next page. Machine-scoped, from the same open boards.
+  projectsDone(input: ProjectsDoneInput): Promise<ProjectsDonePage>
+  // Every open project's threads, open and Done, whose name or slug contains `query` — the palette's
+  // cross-project section and History's search. Open first, then newest rest.
+  threadsSearch(input: ThreadsSearchInput): Promise<ThreadSearchEntry[]>
   // SCHEDULED THREADS (ARCHITECTURE.md § Scheduled threads; shared schedules.ts holds every shape). Project-scoped
   // like everything else: call them through projectRpc(projectId) for a schedule in another project —
   // each ScheduleView names its own projectId. `listSchedules({ allProjects: true })` is the palette's
@@ -679,6 +689,8 @@ export const PROCEDURES = {
   projectRemove: "mutation",
   projectsRailCounts: "query",
   projectsQueues: "query",
+  projectsDone: "query",
+  threadsSearch: "query",
   listSchedules: "query",
   getSchedule: "query",
   interpretSchedule: "mutation",

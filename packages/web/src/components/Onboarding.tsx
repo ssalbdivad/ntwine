@@ -59,11 +59,11 @@ const STEPS: TourStepSpec[] = [
     target: select("[data-inbox-header] h2"),
   },
   {
-    title: (all) => (all ? "Your projects" : "Your threads"),
+    title: "Your threads",
     body: (all) =>
       all
-        ? "Every project, with its running and waiting threads under it. “N more” beside a name lists its snoozed and done ones."
-        : "Every thread, grouped by where it stands: waiting on you, running, snoozed or done.",
+        ? "Every project's threads, by what they need: pinned, waiting on you, working, then snoozed and done today. A row's square is its project, and the squares on top are your projects."
+        : "This project's threads, by what they need: pinned, waiting on you, working, then snoozed and done today.",
     target: select("[data-xq-rail]"),
   },
   {

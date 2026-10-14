@@ -63,9 +63,9 @@ These are Colin's design principles from Frizz, and Ntwine keeps all of them. I 
 
 **The board shows what's true, densely.**
 
-- There are five bands: Pinned, Ready, Working, Snoozed and Done. Every thread is in exactly one, no view loses that, and on a board the first three never fold.
-- Projects stay separate. All projects is the default view and never interleaves them, and each project's board is one click away.
-- Density over decoration, and few settings. The default view shows at least as much as the original board at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/capacityParity.e2e.test.ts) holds it there.
+- There are five bands: Pinned, Ready, Working, Snoozed and Done. Every thread is in exactly one, no view loses that, and the first three never fold.
+- All projects first. The default view is one list of every project's threads by what they need, each wearing its project's square; one project, or a set of them, is one click away.
+- Density over decoration, and few settings. The list never scrolls: it gives up the least useful lines first, even at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/sidebarFit.e2e.test.ts) holds it there.
 
 **Ntwine is the process that outlives the agent.**
 
@@ -122,7 +122,7 @@ Here's what I've built on top of the original design so far:
 - **Files and pictures.** A reader that follows a file as it's saved, and a viewer that zooms, pans and pages through an agent's screenshots.
 - **Usage.** A quota chip that warns you before your plan runs out, and an optional Fable fallback for new Claude threads.
 - **Housekeeping.** Thread info (tokens, turns, cost), deleting done threads you haven't touched in a while, and keeping the machine awake while an agent works.
-- **All projects** at `/all`. This builds on the original project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. It's the default view, and each project's board is one click away.
+- **All projects** at `/`. Every project's threads down the left in one list, by what they need, and every waiting card beside them. A dock of project squares heads the list: click one for that project's board, shift-click several to see just those.
 - **[ntwine.app/docs](https://ntwine.app/docs)**, the full docs, with one page per feature.
 
 <br/>
@@ -147,7 +147,7 @@ Options are numbered. Press a number or click to pick one, then Enter to send. T
 
 Each project's **board**, at `/project/<name>`, lists its threads under the five named bands, its cards beside them, and a prompt box that starts threads in it. A working thread's status shows when you point at it. `npx ntwine` in a project opens its board, and `http://127.0.0.1:9393/` opens whichever view you had last.
 
-**All projects**, at `/all`, is the first choice in the switcher above the prompt box. It lists your projects with the threads in flight under each, and every waiting card beside them. Each row still says its band by its mark: a pin, a rest time, a spinner. A project's snoozed and done threads are counts on its row; click one to list them in place.
+**All projects**, at `/`, is the first choice in the switcher above the prompt box. It lists every project's threads by band — Pinned, Ready, Working, then Snoozed and Done today, folded or short — with each row wearing its project's square, and every waiting card beside them. The list never scrolls: when it is short of room it counts what it cannot show. Older done threads, and sessions Ntwine did not start, are under History beside the queue, with search across every project.
 
 <p align="center">
   <img src="assets/projects.png" alt="The All projects page: billing-worker, marketing-site and acme-api each list their threads on the left, and the cards from every project are queued on the right." width="100%">
@@ -271,7 +271,7 @@ In the terminal running Ntwine, **R** sets up remote access and **L** shows a fr
 
 | Term | What it means |
 | --- | --- |
-| **Project** | A folder you added, with its own board at `/project/<name>`. **All projects**, at `/all`, shows every one. |
+| **Project** | A folder you added, with its own board at `/project/<name>`. **All projects**, at `/`, shows every one. |
 | **Thread** | One effort, start to finish. The agent's session *is* the thread. |
 | **Worker** | The agent driving a thread: a real Claude Code, Codex or ACP process, running as you. |
 | **Sub-agent** | A helper a worker dispatches for one prong of its task, listed under its parent as `@parent.child`. |

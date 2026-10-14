@@ -815,7 +815,7 @@ export function offersRetry(t: ThreadView): boolean {
 }
 
 // This section is TWO rule-separated bands (the project board's Sidebar drew the rule, until that board
-// went on 2026-09-28; ProjectList.tsx now draws Ready and Working from the server's queued and running
+// went on 2026-09-28; TierList.tsx now draws Ready and Working from the server's queued and running
 // lists): the RESTED band (a.k.a. the
 // queue, a.k.a. the cue) on TOP, directly beneath the prompt box, then the ACTIVE band — everything the
 // human has nothing to answer, spinning or merely in flight — BELOW it. Rested is ordered by the EXACT

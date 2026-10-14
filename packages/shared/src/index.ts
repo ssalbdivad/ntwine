@@ -8168,6 +8168,52 @@ export const ProjectQueue = z.object({
 export type ProjectQueue = z.infer<typeof ProjectQueue>
 
 /**
+ * One thread with the project it belongs to — a row of a list merged across projects (History, the
+ * palette's cross-project search). The project travels with the thread for the reason `ProjectQueue`
+ * gives: a slug is unique only within one project, so a merged row is only safe to act on while it says
+ * whose it is.
+ */
+export const ProjectThreadEntry = z.object({
+  projectId: z.string(),
+  projectSlug: z.string(),
+  projectName: z.string(),
+  thread: ThreadView,
+})
+export type ProjectThreadEntry = z.infer<typeof ProjectThreadEntry>
+
+/**
+ * `projectsDone` — Done threads across every open project, newest rest first, a page at a time.
+ *
+ * `before` is the opaque cursor a previous page returned as `nextBefore`; a bare ISO instant also works
+ * and means "rested strictly before this". The cursor carries a tie-break (project id, thread id) beside
+ * the instant, so two threads that rested in the same millisecond are neither repeated nor skipped
+ * across a page boundary. `projectIds` is the lens (absent = every project); `external` adds the
+ * project's foreign sessions (ones Ntwine did not start) that are at rest.
+ */
+export const ProjectsDoneInput = z.object({
+  before: z.string().min(1).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+  projectIds: z.array(z.string()).optional(),
+  external: z.boolean().optional(),
+})
+export type ProjectsDoneInput = z.infer<typeof ProjectsDoneInput>
+export const ProjectsDonePage = z.object({
+  entries: z.array(ProjectThreadEntry),
+  /** Present when there may be more: pass it back as `before`. */
+  nextBefore: z.string().optional(),
+})
+export type ProjectsDonePage = z.infer<typeof ProjectsDonePage>
+
+/** `threadsSearch` — every project's threads, open and Done, whose name or slug contains the query. */
+export const ThreadsSearchInput = z.object({
+  query: z.string(),
+  limit: z.number().int().min(1).max(200).optional(),
+})
+export type ThreadsSearchInput = z.infer<typeof ThreadsSearchInput>
+export const ThreadSearchEntry = ProjectThreadEntry.extend({ done: z.boolean() })
+export type ThreadSearchEntry = z.infer<typeof ThreadSearchEntry>
+
+/**
  * A resting thread's handoff, whole: the text a queue card is built around.
  *
  * The board carries only a ~200-character, whitespace-collapsed preview (`ThreadView.lastAssistant`),

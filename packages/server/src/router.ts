@@ -275,7 +275,7 @@ import { clearProjectIcon, customIconPath, findById, forgetProject, listProjects
 import { HOME_WORKSPACE_NAME, isHomeWorkspace, listWorkspaces, reorderWorkspaces } from "./home-workspace.ts"
 import { basename, dirname, isAbsolute, relative } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, ProjectQueue, ProjectRailCounts, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
+import { ProjectCard, ProjectQueue, ProjectRailCounts, ProjectsDoneInput, ProjectsDonePage, ThreadSearchEntry, ThreadsSearchInput, isActivelyRunning, type ProjectThreadEntry, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
 import { EditorComposeInputSchema, EditorReviewTargetSchema, EditorSnapshotSchema, type EditorKind, type EditorReviewTarget, type EditorStateCheckout, type FilePosition } from "@ntwine/shared"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
@@ -1294,6 +1294,50 @@ const RECENT_DONE_THREADS = 20
 function recentDoneThreads(done: readonly ThreadView[]): ThreadView[] {
   const at = (t: ThreadView) => t.lastAssistantAt ?? t.lastActivityAt ?? t.spawnedAt ?? ""
   return [...done].sort((a, b) => at(b).localeCompare(at(a))).slice(0, RECENT_DONE_THREADS)
+}
+
+/** A thread's rest instant — `recentDoneThreads`'s key, the one every Done listing orders by. */
+const restAt = (t: ThreadView): string => t.lastAssistantAt ?? t.lastActivityAt ?? t.spawnedAt ?? ""
+
+/** Where a merged cross-project row sits in History's order: its rest instant, then (for a tie) its
+ *  project id and thread id, so the order is total and a page boundary can name an exact position. */
+type DoneKey = { at: string; projectId: string; threadId: string }
+
+/** Newest first; a tie on the instant goes by project id, then thread id, ascending. */
+function compareDoneKeys(a: DoneKey, b: DoneKey): number {
+  if (a.at !== b.at) return a.at < b.at ? 1 : -1
+  if (a.projectId !== b.projectId) return a.projectId < b.projectId ? -1 : 1
+  return a.threadId < b.threadId ? -1 : a.threadId > b.threadId ? 1 : 0
+}
+
+/** `projectsDone`'s cursor: the last row's key, each part URI-encoded and joined by `|` (an ISO instant
+ *  has no `|`, and encoding keeps an id that does from splitting). A bare instant — no `|` — is the
+ *  documented "rested strictly before this" form, and sorts after every id at that instant. */
+export function encodeDoneCursor(key: DoneKey): string {
+  return [key.at, key.projectId, key.threadId].map(encodeURIComponent).join("|")
+}
+export function decodeDoneCursor(cursor: string): DoneKey {
+  const [at = "", projectId, threadId] = cursor.split("|").map((part) => decodeURIComponent(part))
+  // A bare instant puts the cursor after every row AT that instant (a project id above any real one), so
+  // the next page starts strictly before it.
+  if (projectId === undefined || threadId === undefined) return { at, projectId: "\uffff", threadId: "" }
+  return { at, projectId, threadId }
+}
+
+/** Whether a thread belongs in History: a Done session Ntwine started, or — when External is on — a
+ *  foreign session (one Ntwine did not start) that is at rest. A foreign row never carries a state, so it
+ *  is never `inactive`; at rest is all History can say about it. */
+function historyThread(thread: ThreadView, external: boolean): boolean {
+  if (thread.kind !== "session") return false
+  if (thread.foreign) return external && !isActivelyRunning(thread)
+  return sectionOf(thread) === "inactive"
+}
+
+/** Whether a thread's name or slug contains the (already lower-cased) query. Every name it has had
+ *  counts: an old name still finds it, the way an old `@handle` still resolves. */
+function threadMatches(thread: ThreadView, needle: string): boolean {
+  const names = [thread.title, thread.aiTitle, thread.id, ...(thread.formerTitles ?? [])]
+  return names.some((name) => typeof name === "string" && name.toLowerCase().includes(needle))
 }
 
 // Each project's router, by its context — so a handle another project answers (resolveElsewhere) is read
@@ -6225,6 +6269,94 @@ export function createRouter(ctx: AppContext) {
           }
         }
         return out
+      },
+    }),
+
+    /**
+     * Done threads across every open project, newest rest first, a page at a time — the History tab.
+     *
+     * Answered from the boards this process has OPEN, like `projectsQueues`: a project with no board here
+     * is absent, and one whose board throws mid-walk is skipped rather than failing the page. Each page
+     * re-walks the snapshots and slices after the cursor, which is cheap (the snapshot is cached) and
+     * keeps no server-side cursor state to expire. The cursor names an exact position — instant, then
+     * project id, then thread id — so rows that rested in the same instant are neither repeated nor
+     * skipped across a page. A thread that rests or is reopened between pages moves; a log over a live
+     * board cannot promise otherwise, and History only promises not to duplicate across one boundary.
+     */
+    projectsDone: query({
+      input: ProjectsDoneInput,
+      output: ProjectsDonePage,
+      handler: async ({ input }) => {
+        const limit = input.limit ?? 50
+        const lens = input.projectIds ? new Set(input.projectIds) : undefined
+        const cursor = input.before ? decodeDoneCursor(input.before) : undefined
+        const rows: (ProjectThreadEntry & { key: DoneKey })[] = []
+        const open = ctx.activeTenants?.() ?? [{ project: ctx.project, board: ctx.board }]
+        for (const { project, board } of open) {
+          if (lens && !lens.has(project.id)) continue
+          try {
+            const snapshot = await board.snapshot()
+            const projectSlug = snapshot.projectSlug ?? project.id
+            const projectName = snapshot.projectName || project.name
+            for (const thread of snapshot.threads) {
+              if (!historyThread(thread, input.external === true)) continue
+              const key = { at: restAt(thread), projectId: project.id, threadId: thread.id }
+              if (cursor && compareDoneKeys(key, cursor) <= 0) continue
+              rows.push({ projectId: project.id, projectSlug, projectName, thread, key })
+            }
+          } catch {
+            // A board stopping mid-walk is a project missing from this page (projectsQueues' rule).
+          }
+        }
+        rows.sort((a, b) => compareDoneKeys(a.key, b.key))
+        const page = rows.slice(0, limit)
+        const last = page.at(-1)
+        return {
+          entries: page.map(({ key: _key, ...entry }) => entry),
+          ...(rows.length > limit && last ? { nextBefore: encodeDoneCursor(last.key) } : {}),
+        }
+      },
+    }),
+
+    /**
+     * Every open project's threads whose name or slug contains the query, open and Done — the palette's
+     * and History's search. Case-insensitive substring over the title, the worker's own title, the slug
+     * and every former name. Open threads rank before Done (the one you are after is more often
+     * live), then newest rest first. Foreign sessions are left out: they are not threads Ntwine can act on.
+     */
+    threadsSearch: query({
+      input: ThreadsSearchInput,
+      output: z.array(ThreadSearchEntry),
+      handler: async ({ input }) => {
+        const needle = input.query.trim().toLowerCase()
+        if (!needle) return []
+        const limit = input.limit ?? 30
+        const hits: ThreadSearchEntry[] = []
+        const open = ctx.activeTenants?.() ?? [{ project: ctx.project, board: ctx.board }]
+        for (const { project, board } of open) {
+          try {
+            const snapshot = await board.snapshot()
+            const projectSlug = snapshot.projectSlug ?? project.id
+            const projectName = snapshot.projectName || project.name
+            for (const thread of snapshot.threads) {
+              if (thread.kind !== "session" || thread.foreign) continue
+              const section = sectionOf(thread)
+              if (section === null || !threadMatches(thread, needle)) continue
+              hits.push({ projectId: project.id, projectSlug, projectName, thread, done: section === "inactive" })
+            }
+          } catch {
+            // projectsQueues' rule: one stopping board is not a failed search.
+          }
+        }
+        hits.sort((a, b) =>
+          a.done !== b.done
+            ? (a.done ? 1 : -1)
+            : compareDoneKeys(
+                { at: restAt(a.thread), projectId: a.projectId, threadId: a.thread.id },
+                { at: restAt(b.thread), projectId: b.projectId, threadId: b.thread.id },
+              ),
+        )
+        return hits.slice(0, limit)
       },
     }),
 

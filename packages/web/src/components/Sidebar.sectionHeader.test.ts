@@ -4,10 +4,10 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { SectionHeader } from "./Sidebar.tsx"
 
-// A band's header on a project's board (ProjectBoard.tsx): Pinned, Queue and Running are static lines that
-// nothing folds (upstream 2026-09-19: they "should not be collapsible"); a quiet band's header is its fold.
-// Each says its band's name from the band table and carries `data-band-header`, and its glyph stands in the
-// rows' indicator column, where the project's cord strings it (ThreadConnector).
+// A band's header in the list (TierList.tsx): Pinned, Ready and Working are static lines that nothing
+// folds (upstream 2026-09-19: they "should not be collapsible"); a quiet band's header is its fold. Each
+// says its band's name from the band table and carries `data-band-header`, and its glyph stands in the
+// rows' indicator column.
 
 const html = (props: Parameters<typeof SectionHeader>[0]) => renderToStaticMarkup(createElement(SectionHeader, props))
 

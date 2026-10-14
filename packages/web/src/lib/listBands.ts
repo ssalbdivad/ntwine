@@ -4,7 +4,7 @@ import { threadKey, type QueuesProject } from "./allQueues.ts"
 import { optimisticallyArchived } from "./optimisticArchive.ts"
 import { optimisticallySteered } from "./steering.ts"
 
-// THE PROJECT LIST'S LOUD BANDS — a project's work in flight, as its rows list it (components/ProjectList.tsx).
+// THE LIST'S LOUD BANDS — a project's work in flight, as the tier list lists it (components/TierList.tsx).
 // Pure, so the banding and the optimism over it are tested without a component around them.
 
 export interface LoudBands {

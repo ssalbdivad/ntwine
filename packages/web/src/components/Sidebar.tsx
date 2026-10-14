@@ -1,7 +1,7 @@
 import { Fragment, memo, useCallback, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { AlarmClock, Bot, Check, ChevronRight, Ellipsis, Github, Hourglass, Loader2, Pin, PinOff, Repeat, RotateCcw } from "lucide-react"
-import type { ThreadView } from "@ntwine/shared"
+import type { ProjectCard, ThreadView } from "@ntwine/shared"
 import { pushSubAgentDrawer, showToast } from "../store.ts"
 import { displayTitle, subAgentName, titleIsProvisional, isPinned, isSnoozed, sessionIndicatorKind, offersRetry, futureSnoozedUntil, queueLabelAt, waitNamesPr, prChecksRunning, restingOnSubAgents, restIsWorking, workingWithOpenQuestion } from "../groups.ts"
 import { ageSpan, relativeAge } from "../lib/activityTime.ts"
@@ -15,6 +15,7 @@ import { childOpDismisser } from "../lib/dismissChildOp.ts"
 import { ChildOpRow } from "./ChildOpRow.tsx"
 import { Tooltip } from "./Tooltip.tsx"
 import { ProviderMark } from "./ProviderMark.tsx"
+import { ProjectSquare } from "./ProjectSquare.tsx"
 import { STALLED_RETRY_MESSAGE, retrySession } from "../lib/retrySession.ts"
 import { deliverProjectFollowUp } from "../lib/projectFollowUp.ts"
 import { useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
@@ -32,14 +33,13 @@ import { prefs } from "../lib/prefs.ts"
 import { RailDeadline } from "./DeadlineControl.tsx"
 
 // THE THREAD ROW — one thread as a line of a list, with its indicator, its title and trailers, and the
-// verbs it offers on hover (pin, Retry, reopen). Everything's project list draws
-// every project's threads with these (ProjectList.tsx), each group under its project's ThreadProjectScope.
+// verbs it offers on hover (pin, Retry, reopen). The tier list draws every project's threads with these
+// (TierList.tsx), each row under its project's ThreadProjectScope.
 //
 // The file is named for the column it was written for: a project's own board, whose floating sidebar
 // listed these rows in named bands. The board went with the project view on 2026-09-28 and came back
-// on 2026-10-06 as `/project/<slug>` (ProjectBoard.tsx), banded under upstream's names — Pinned, Queue,
-// Running, Snoozed, Done, External — with SectionHeader below over each band. All projects lists every
-// project's current work with the same rows (ProjectList.tsx), and ARCHITECTURE.md § Board nomenclature
+// on 2026-10-06 as `/project/<slug>`, banded under upstream's names. Since 2026-10-14 one list draws both
+// views (TierList.tsx), with SectionHeader below over each band, and ARCHITECTURE.md § Board nomenclature
 // fixes the bands' names.
 //
 // ENTIRELY MOUSE-DRIVEN: no arrow-walk, no selection chevron. A row CLICK opens the thread — in the list,
@@ -105,7 +105,7 @@ export const SIDEBAR_COLUMN_CLASS =
   "fixed top-0 h-screen w-[clamp(272px,34vw,680px)] flex flex-col justify-center max-[800px]:static max-[800px]:h-auto max-[800px]:w-full max-[800px]:justify-start max-[800px]:pt-16"
 
 /**
- * Where a row's "open" leads. Every row is drawn in Everything's project list (ProjectList.tsx), where the
+ * Where a row's "open" leads. Every row is drawn in the tier list (TierList.tsx), where the
  * page project is the prompt box's pick and the row is usually another project's. Its verbs must not ask
  * the page: the row sits under a ThreadProjectScope, so pin, reopen and Retry go through its project's
  * own client (api/threadApi.tsx), and this says where "open" leads. Required: until 2026-09-28 a row
@@ -123,8 +123,8 @@ export interface RowScope {
 // board passes `subAgentRows` so the count is not said twice. Its TERMINALS get no row and no mark
 // (ThreadTerminals.tsx): the status dot, the queue and the thread's own strip already say everything one
 // could (a title-trailing terminal glyph was dropped 2026-09-30 as noise).
-export function RailRow({ t, active, open = false, restedAge = false, scope, cardKey, band, held = false, subAgentRows = false }: { t: ThreadView; active: boolean; open?: boolean; restedAge?: boolean; scope: RowScope; cardKey?: string; band?: BandKey; held?: boolean; subAgentRows?: boolean }) {
-  return <ThreadRow t={t} active={active} open={open} restedAge={restedAge} scope={scope} cardKey={cardKey} band={band} held={held} subAgentRows={subAgentRows} />
+export function RailRow({ t, active, open = false, restedAge = false, scope, cardKey, band, held = false, subAgentRows = false, leadProject, statusAlways = false, oneLine = false }: { t: ThreadView; active: boolean; open?: boolean; restedAge?: boolean; scope: RowScope; cardKey?: string; band?: BandKey; held?: boolean; subAgentRows?: boolean; leadProject?: ProjectCard; statusAlways?: boolean; oneLine?: boolean }) {
+  return <ThreadRow t={t} active={active} open={open} restedAge={restedAge} scope={scope} cardKey={cardKey} band={band} held={held} subAgentRows={subAgentRows} leadProject={leadProject} statusAlways={statusAlways} oneLine={oneLine} />
 }
 
 // A BAND'S HEADER — its glyph, its NAME and its count, over its rows. ONE source of truth for every band
@@ -147,15 +147,20 @@ export function RailRow({ t, active, open = false, restedAge = false, scope, car
 // touching the titles and 19px (a row's line) read as an empty row. It is also what lets the board carry
 // a header over each band and still show upstream's 22 rows at 1440x900 (capacityParity.e2e.test.ts):
 // upstream's headers were 24.5px, and the board has no room for that.
-export function SectionHeader({ band, count, collapsed, onToggle, attention = false }: {
+export function SectionHeader({ band, count, collapsed, onToggle, attention = false, label: named, tail }: {
   band: BandKey | "schedules"
   count: number
   collapsed?: boolean
   onToggle?: () => void
   /** The count in the warning tone: one of the band's rows wants the human (a paused schedule). */
   attention?: boolean
+  /** A name other than the band's own — the tier list's "Done today". */
+  label?: string
+  /** Right-aligned beside the header, outside its fold button: a reading or a link (TierList.tsx). */
+  tail?: ReactNode
 }) {
-  const { Icon, label } = band === "schedules" ? SCHEDULES_BAND : BANDS[band]
+  const { Icon, label: own } = band === "schedules" ? SCHEDULES_BAND : BANDS[band]
+  const label = named ?? own
   const body = (
     <>
       {onToggle && (
@@ -179,14 +184,15 @@ export function SectionHeader({ band, count, collapsed, onToggle, attention = fa
   )
   const className = `${BAND_HEADER} ${BAND_LABEL_TYPE}`
   if (!onToggle) {
-    return (
-      <div data-band-header={band} data-xq-band-label={band} className={className}>
+    const line = (
+      <div data-band-header={band} data-xq-band-label={band} className={`${className} ${tail ? "flex-1" : ""}`}>
         {body}
       </div>
     )
+    return tail ? <div className="flex min-w-0 items-baseline">{line}<HeaderTail>{tail}</HeaderTail></div> : line
   }
   const verb = collapsed ? "Show" : "Hide"
-  return (
+  const button = (
     <button
       type="button"
       data-band-header={band}
@@ -201,6 +207,13 @@ export function SectionHeader({ band, count, collapsed, onToggle, attention = fa
       {body}
     </button>
   )
+  return tail ? <div className="flex min-w-0 items-baseline">{button}<HeaderTail>{tail}</HeaderTail></div> : button
+}
+
+/** A header's right-hand reading, in the rows' reading type and on their right edge (pr-1.5), on the
+ *  header's own line: the header is 15px with its name 4px down (pt-1), so the tail takes the same. */
+function HeaderTail({ children }: { children: ReactNode }) {
+  return <span data-band-tail className="flex h-[15px] shrink-0 items-baseline whitespace-nowrap pl-3 pr-1.5 pt-1 text-[10.5px] text-muted-55">{children}</span>
 }
 
 /** The header's line — see SectionHeader. `pl-5` and `gap-2` put the glyph in the indicator column and the
@@ -315,6 +328,9 @@ export const ThreadRow = memo(function ThreadRow({
   band,
   held = false,
   subAgentRows = false,
+  leadProject,
+  statusAlways = false,
+  oneLine = false,
 }: {
   t: ThreadView
   active?: boolean
@@ -328,7 +344,7 @@ export const ThreadRow = memo(function ThreadRow({
    *  (ThreadConnector). */
   cardKey?: string
   /** The band the list drew this row in, as `data-xq-band` — Ready and Working carry no name over their
-   *  rows (ProjectList.tsx), so this is how a script tells them apart. */
+   *  rows (TierList.tsx), so this is how a script tells them apart. */
   band?: BandKey
   /** Drawn where the list last put it, not where it now belongs: the list is held under the pointer
    *  (lib/listHold.ts). Drawn exactly like any row; `data-xq-held` is for scripts. */
@@ -336,6 +352,16 @@ export const ThreadRow = memo(function ThreadRow({
   /** Its sub-agents are rows of their own under it (a project's board, SubAgentRows), so it draws no
    *  count of them. */
   subAgentRows?: boolean
+  /** All projects' tier list (TierList.tsx): the project's square in the row's left gutter, on the first
+   *  row of each run of one project's threads — the rows interleave projects, so the square is what says
+   *  whose a row is. Beside the scroll marker, which sits at the gutter's left edge. */
+  leadProject?: ProjectCard
+  /** Draw a working row's status inline always, not only on hover — the tier list, which spends the width
+   *  the project headings used to take on the most useful thing a working row can say. */
+  statusAlways?: boolean
+  /** One line: the title truncates rather than wraps, so every row is one line tall and the tier list can
+   *  budget its height (lib/sidebarBudget.ts). */
+  oneLine?: boolean
 }) {
   const foreign = t.foreign === true
   // Snoozed rows are uniformly grayed as a whole; provisional titles retain their local dim treatment.
@@ -358,7 +384,8 @@ export const ThreadRow = memo(function ThreadRow({
   // time (ThreadStatusLine.tsx statusElapsed). The status is drawn inline in grey after the name while the
   // row is pointed at, or always with Settings → Always show status lines (prefs `alwaysShowStatusLines`).
   const nowMs = useNowMs()
-  const { alwaysShowStatusLines } = useSnapshot(prefs)
+  const { alwaysShowStatusLines: statusPref } = useSnapshot(prefs)
+  const alwaysShowStatusLines = statusPref || statusAlways
   const elapsed = statusElapsed(t, nowMs)
   const working = elapsed && t.statusLine ? { status: t.statusLine.trim(), elapsed } : undefined
   const inlineStatus = working?.status
@@ -418,13 +445,22 @@ export const ThreadRow = memo(function ThreadRow({
           while the fixed rail keeps it from shifting content or relying on clipped overflow. */}
       <span aria-hidden="true" data-sidebar-marker-rail className="pointer-events-none absolute inset-y-0 left-0 w-5">
         {active && <span data-sidebar-scroll-marker className="absolute inset-y-0 left-1 w-[2px] rounded-full bg-accent" />}
+        {/* 12px, right of the marker and 2px clear of the indicator column (pl-5), level with the title's
+            first line: pt-1 plus half of what the 19px line leaves around it. */}
+        {leadProject && (
+          <span data-xq-row-project className={`absolute left-[6px] flex ${oneLine ? "top-[5.5px]" : "top-[7.5px]"}`}>
+            <ProjectSquare project={leadProject} size={12} />
+          </span>
+        )}
       </span>
       <button
         // The row cannot measure its card or open a drawer by slug — both would be the page project's,
         // and the row is usually another project's — so its scope says where it goes.
         onClick={() => scope.open(t)}
         aria-current={active ? "location" : undefined}
-        className="min-w-0 flex-1 flex items-start gap-2 pb-1 pl-5 pr-1.5 pt-1 text-left"
+        // One-line rows (the tier list) are 23px, not 27: nothing in them wraps, so the 4px a side a
+        // wrapped title needs to breathe is density the budget can spend on another row.
+        className={`min-w-0 flex-1 flex items-start gap-2 pl-5 pr-1.5 text-left ${oneLine ? "py-0.5" : "pb-1 pt-1"}`}
       >
         {/* h-[19px] so the indicator centers on the title's FIRST line, not the middle of a wrapped row. */}
         <span data-xq-indicator className="w-4 h-[19px] shrink-0 flex items-center justify-center">
@@ -445,7 +481,7 @@ export const ThreadRow = memo(function ThreadRow({
             <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
               {/* With a working status beside it the title keeps its whole width (and wraps if it must)
                   and the status truncates into what is left; without one the title fills the line. */}
-              <span className={`min-w-0 break-words text-[13px] leading-[19px] ${inlineStatus ? "max-w-full shrink-0" : "flex-1"} ${dimLabel ? "text-provisional" : dim ? "text-fg/75" : "text-fg/90"}`}>
+              <span className={`min-w-0 ${oneLine ? "truncate" : "break-words"} text-[13px] leading-[19px] ${inlineStatus ? `max-w-full ${oneLine ? "shrink" : "shrink-0"}` : "flex-1"} ${dimLabel ? "text-provisional" : dim ? "text-fg/75" : "text-fg/90"}`}>
                 <TitleWithTrailers title={displayTitle(t)}>
                   {/* A schedule's run, or its next run: the repeat glyph, before the provider (ScheduleMark). */}
                   {t.schedule && <ScheduleMark schedule={t.schedule} className="ml-1" />}
@@ -507,7 +543,7 @@ export const ThreadRow = memo(function ThreadRow({
           keyboard-focused or snoozed. The old opaque `bg-panel` pill sat UNDER the wash and read as a
           darker box on the lit row. */}
       {hoverActions && (
-        <div className="absolute right-1.5 top-1 hidden items-center gap-0.5 bg-bg group-hover:flex group-focus-within:flex before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-linear-to-r before:from-transparent before:to-bg">
+        <div className={`absolute right-1.5 ${oneLine ? "top-0.5" : "top-1"} hidden items-center gap-0.5 bg-bg group-hover:flex group-focus-within:flex before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-linear-to-r before:from-transparent before:to-bg`}>
           {/* The pin sits LEFT on a row that can be pinned (the approved mockup's order). On a PINNED row
               the same button is the unpin and goes RIGHTMOST — after Retry too —
               because it is the hover form of the mark in the row's right-edge column: the mark fades and
@@ -826,9 +862,7 @@ export function awaitingReason(t: Pick<ThreadView, "lastFence">): string | null 
 // ride the tooltip; the children themselves are one click away on the card and in the drawer, which is
 // where the row's own click already goes.
 //
-// THE PROJECT ROW'S COUNTS, SPOKEN THE SAME WAY (ProjectList QuietToggles): glyph first, then digits,
-// a 10px glyph 3px from them, in the column's type and grey — so the robot here and the Working count's
-// robot on a folded project are one mark. It yields to the hover actions as the clock does.
+// SPOKEN AS A COUNT: glyph first, then digits, a 10px glyph 3px from them, in the column's type and grey. It yields to the hover actions as the clock does.
 //
 // THE BOT'S FACE SITS ON THE DIGITS' CAP BAND, NOT ITS INK BOX: the antenna is a hairline and the eye
 // reads the face, so centring the whole ink (antenna included) left the face riding low beside the

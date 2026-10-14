@@ -62,11 +62,11 @@ export function BandCount({ count }: { count: number }) {
  * and the thread header's stamp render THIS; the rail's headers render the same three pieces around
  * their collapse caret (SectionHeader).
  */
-export function BandLabel({ band, count, className = "", ...data }: { band: BandKey; count?: number; className?: string; [data: `data-${string}`]: string }) {
+export function BandLabel({ band, count, label, className = "", ...data }: { band: BandKey; count?: number; /** In place of the band's name, in its glyph — the center column's History tab. */ label?: string; className?: string; [data: `data-${string}`]: string }) {
   return (
     <span {...data} className={`inline-flex items-center gap-1 ${BAND_LABEL_TYPE} ${className}`}>
       <BandGlyph band={band} />
-      <span>{BANDS[band].label}</span>
+      <span>{label ?? BANDS[band].label}</span>
       {count !== undefined && <BandCount count={count} />}
     </span>
   )
