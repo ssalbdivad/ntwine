@@ -18,6 +18,7 @@ import { AcpModelSelect } from "./AcpModelSelect.tsx"
 import { MakeDefaultButton } from "./MakeDefaultButton.tsx"
 import { LogoutConfirmModal, SignInModal } from "./SignInModal.tsx"
 import { dispatchProfileGroups } from "../lib/dispatchPreferences.ts"
+import { stepProfileGridEffort } from "../lib/profileGrid.ts"
 import { useDispatchProfile, useDraftDispatchPick } from "../hooks/useDispatchProfile.ts"
 import { focusedEscapeClaim, handleDialogEscape, registerEscapeClaim } from "../lib/selectOverlay.ts"
 import { draftKey, draftStore, mergeIntoDraft, useDraft, useProjectDir } from "../lib/drafts.ts"
@@ -503,6 +504,14 @@ function PromptForm({
     )
   }, [resolved, defaultResolved, picked, codexList, claudeList, acpList, profileLoadError, choose, chooseAcpModel, makeDefault, target, limitKey])
 
+  // ⌥⇧↑/↓ in the box: the picker's next effort for the model it shows (lib/keybindings.ts EFFORT_STEP_CHORDS).
+  const stepEffort = (step: 1 | -1) => {
+    if (!resolved) return
+    const groups = dispatchProfileGroups(codexList, acpList, claudeList)
+    const next = stepProfileGridEffort(groups, { provider: resolved.backend, model: resolved.pickerModel, effort: resolved.effort }, step)
+    if (next) choose(next)
+  }
+
   return (
     <div ref={rootRef} className="w-full flex flex-col gap-3">
       <Composer
@@ -531,6 +540,7 @@ function PromptForm({
         busy={dispatch.isPending || savingSettings}
         onUploadingChange={setUploading}
         footer={footer}
+        onEffortStep={stepEffort}
         leftAction={githubTriggerVisible ? <GithubTrigger /> : undefined}
       />
       {/* THE ONE SLOT under the box: the schedule strip, or a line about the schedule (ScheduleComposer.tsx).

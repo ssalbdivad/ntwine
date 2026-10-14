@@ -11,6 +11,7 @@ import { AcpModelSelect } from "../components/AcpModelSelect.tsx"
 import { Select } from "../components/ui/Select.tsx"
 import { CLAUDE_DISPATCH_PERMISSION_OPTIONS, claudePermValue } from "../lib/options.ts"
 import { threadProfileControlState } from "../lib/threadProfile.ts"
+import { stepProfileGridEffort } from "../lib/profileGrid.ts"
 import { ownedByThisPage } from "../lib/projectOwnership.ts"
 
 // One control strip for every place a registered thread can be steered: the model/effort selector, and
@@ -41,7 +42,7 @@ import { ownedByThisPage } from "../lib/projectOwnership.ts"
 //
 // ON A PHONE the strip is `phoneTools`: the model chip alone (it opens the phone's model sheet — the
 // ProfileGridSelector's own phone branch), with no permission picker. Permissions stay on the desktop.
-export function useThreadComposerControls(slug: string, scopedThread?: ThreadView): { busy: boolean; footer: ReactNode; phoneTools: ReactNode; status: ReactNode } {
+export function useThreadComposerControls(slug: string, scopedThread?: ThreadView): { busy: boolean; footer: ReactNode; phoneTools: ReactNode; status: ReactNode; stepEffort?: (step: 1 | -1) => void } {
   const snap = useSnapshot(store)
   // The page's project is read either way: a valtio snapshot that reads nothing re-renders on every store
   // change. The board's threads only without a scoped thread — reading them subscribed every queue card's
@@ -180,12 +181,23 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
     })
   }
 
+  // The box's ⌥⇧↑/↓ (Composer `onEffortStep`): the grid picker's next cell along the row, gated exactly
+  // as the picker is, so a key never changes what a click could not.
+  const gridProfile = backend !== "acp" || Boolean(acpPreset)
+  const profileDisabled = busy || !catalogLoaded || !modelSelectable || profiles.isError
+  const stepEffort = gridProfile && !profileDisabled && model
+    ? (step: 1 | -1) => {
+        const next = stepProfileGridEffort(profileGroups, { provider: backend, model, effort: effort ?? "" }, step)
+        if (next) changeProfile({ model: next.model, effort: next.effort })
+      }
+    : undefined
+
   // The model control, shared by the desktop strip and the phone's tools: the grid selector for a
   // Claude or Codex thread (a chip and a sheet on the phone — ProfileGridSelector branches itself),
   // the agent's model dropdown for an ACP thread.
   const profileControl = (
     <>
-      {(backend !== "acp" || acpPreset) && (
+      {gridProfile && (
         <ProfileGridSelector
           groups={profileGroups}
           value={{ provider: backend, model, effort }}
@@ -201,7 +213,7 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
               ? "Saved per thread and applied when this conversation resumes"
               : "Change this idle conversation's model and reasoning effort"
             : "The current live backend profile is unavailable; controls fail closed"}
-          disabled={busy || !catalogLoaded || !modelSelectable || profiles.isError}
+          disabled={profileDisabled}
           compact
           side="top"
           className="min-w-0 max-w-[min(72%,20rem)] px-1.5 py-0.5"
@@ -283,6 +295,7 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
       </div>
     ),
     phoneTools: profileControl,
+    stepEffort,
     status: composerStatus ? (
           <div
             data-thread-control-error=""

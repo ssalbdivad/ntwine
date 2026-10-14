@@ -7,6 +7,7 @@ import {
   chordFromEvent,
   chordKeycaps,
   chordProblem,
+  effortStepOf,
   effectiveBindings,
   formatChord,
   matchAction,
@@ -171,4 +172,14 @@ test("no two defaults share a chord", () => {
     assert.ok(!seen.has(action.defaultChord), action.defaultChord)
     seen.add(action.defaultChord)
   }
+})
+
+test("the effort step is the project step with Shift, and only that", () => {
+  const arrow = (init: Partial<KeyboardEvent> & { key: string }) => ({ altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, isComposing: false, ...init })
+  assert.equal(effortStepOf(arrow({ key: "ArrowUp", altKey: true, shiftKey: true })), 1)
+  assert.equal(effortStepOf(arrow({ key: "ArrowDown", altKey: true, shiftKey: true })), -1)
+  assert.equal(effortStepOf(arrow({ key: "ArrowUp", altKey: true })), 0, "⌥↑ alone steps the project")
+  assert.equal(effortStepOf(arrow({ key: "ArrowUp", shiftKey: true })), 0, "⇧↑ alone extends the selection")
+  assert.equal(effortStepOf(arrow({ key: "ArrowUp", altKey: true, shiftKey: true, metaKey: true })), 0)
+  assert.equal(effortStepOf(arrow({ key: "ArrowUp", altKey: true, shiftKey: true, isComposing: true })), 0)
 })

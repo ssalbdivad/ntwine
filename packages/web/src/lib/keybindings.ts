@@ -123,6 +123,22 @@ export const GROUP_LABELS: Record<ActionGroup, string> = {
  */
 export const PROJECT_STEP_CHORDS = { next: "alt+arrowdown", previous: "alt+arrowup" } as const
 
+/**
+ * The effort of the box's model, stepped from inside a prompt box that carries the model picker — the
+ * new-thread box, a queue card's reply box, a drawer's (Composer `onEffortStep`): the project chord with
+ * Shift, ↑ for the next effort up the model's ladder, ↓ for the one below, stopping at either end rather
+ * than wrapping (a wrap would turn "one more" into the cheapest). Bound by no browser; what it displaces
+ * is macOS's own ⌥⇧↑/↓ inside that box, which extends the selection a paragraph. Not rebindable, for the
+ * reason the project chord is not.
+ */
+export const EFFORT_STEP_CHORDS = { up: "alt+shift+arrowup", down: "alt+shift+arrowdown" } as const
+
+/** ⌥⇧↑ is a step up the effort ladder, ⌥⇧↓ one down (EFFORT_STEP_CHORDS); 0 for any other key. */
+export function effortStepOf(event: Pick<KeyboardEvent, "key" | "altKey" | "shiftKey" | "ctrlKey" | "metaKey" | "isComposing">): 1 | -1 | 0 {
+  if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey || event.isComposing) return 0
+  return event.key === "ArrowUp" ? 1 : event.key === "ArrowDown" ? -1 : 0
+}
+
 // The keys the prompt boxes own. Listed on the sheet so it is the whole keyboard in one place, but not
 // rebindable: composerKeyboard.ts is the contract for the first group, every box in the app shares it;
 // the thread box's `$` line is lib/threadTerminals.ts composerTerminalLine; the last group is the page's
@@ -149,6 +165,13 @@ export const FIXED_SHORTCUTS: readonly { heading: string; keys: readonly { label
     keys: [
       { label: "Next project", chord: PROJECT_STEP_CHORDS.next },
       { label: "Previous project", chord: PROJECT_STEP_CHORDS.previous },
+    ],
+  },
+  {
+    heading: "Effort — in a prompt box with a model picker",
+    keys: [
+      { label: "More effort", chord: EFFORT_STEP_CHORDS.up },
+      { label: "Less effort", chord: EFFORT_STEP_CHORDS.down },
     ],
   },
 ]

@@ -1358,6 +1358,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
         slashSuggestVersion={userCommandsQuery.dataUpdatedAt}
         busy={controls.busy}
         footer={controls.footer}
+        onEffortStep={controls.stepEffort}
         // THE GOAL at the rail's left end, as on every thread prompt box (ThreadComposerBox) — for a
         // Ntwine-owned session. It reaches the card's project through the scope this box renders in.
         railLead={thread.kind === "session" && thread.foreign !== true ? <RecurringPromptControl thread={thread} /> : undefined}

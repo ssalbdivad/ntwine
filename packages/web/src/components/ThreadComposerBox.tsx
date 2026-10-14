@@ -345,6 +345,7 @@ export function ThreadComposerBox({
         onSubmit={() => send()}
         onInterruptSubmit={canInterrupt ? () => send(true) : undefined}
         onPushQueued={canInterrupt ? pushQueued : undefined}
+        onEffortStep={controls.stepEffort}
         slashSuggest={slashSuggest}
           // A command saved in Settings refreshes the menu on the next `/`.
           slashSuggestVersion={userCommandsQuery.dataUpdatedAt}

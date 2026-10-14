@@ -17,6 +17,7 @@ import {
   profileGridSelections,
   profileGridStacks,
   profileGridTemplateColumns,
+  stepProfileGridEffort,
   type ProfileGridGroup,
 } from "./profileGrid.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "./promptControlTypography.ts"
@@ -88,6 +89,16 @@ test("profile grid keyboard movement follows rows and supported effort columns",
     { provider: "codex", model: "gpt-5.6-sol", effort: "xhigh" },
   )
   assert.equal(moveProfileGridSelection(groups, { provider: "claude", model: "sonnet", effort: "low" }, "ArrowLeft"), null)
+})
+
+test("the prompt box's effort step climbs the model's own ladder and stops at either end", () => {
+  const sonnet = { provider: "claude", model: "sonnet" }
+  assert.deepEqual(stepProfileGridEffort(groups, { ...sonnet, effort: "low" }, 1), { ...sonnet, effort: "high" }, "skips a rung the model lacks")
+  assert.deepEqual(stepProfileGridEffort(groups, { ...sonnet, effort: "high" }, -1), { ...sonnet, effort: "low" })
+  assert.equal(stepProfileGridEffort(groups, { ...sonnet, effort: "max" }, 1), null, "no wrap to the cheapest")
+  assert.equal(stepProfileGridEffort(groups, { ...sonnet, effort: "low" }, -1), null)
+  const agent: ProfileGridGroup[] = [{ id: "acp", label: "Agent", options: [{ model: "acp:muse", label: "Muse", efforts: [] }] }]
+  assert.equal(stepProfileGridEffort(agent, { provider: "acp", model: "acp:muse", effort: "" }, 1), null, "an agent with no effort axis has nothing to step")
 })
 
 test("profile grid triggers match the adjacent prompt-control type scale in every context", () => {

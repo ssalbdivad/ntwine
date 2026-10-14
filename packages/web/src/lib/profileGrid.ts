@@ -260,3 +260,15 @@ export function moveProfileGridSelection(
   }, undefined)
   return effort !== undefined ? { provider: nextRow.provider, model: nextRow.option.model, effort } : null
 }
+
+// One rung up (1) or down (-1) the current model's own effort ladder — the prompt box's ⌥⇧↑/↓
+// (lib/keybindings.ts EFFORT_STEP_CHORDS). The ladder is the row's left-to-right order, so "up" is the
+// same direction as → in the open menu. Null at either end, and for a model with no effort axis.
+export function stepProfileGridEffort(
+  groups: readonly ProfileGridGroup[],
+  current: ProfileGridSelection,
+  step: 1 | -1,
+): ProfileGridSelection | null {
+  const next = moveProfileGridSelection(groups, current, step === 1 ? "ArrowRight" : "ArrowLeft")
+  return next && next.effort !== current.effort ? next : null
+}

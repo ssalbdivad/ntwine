@@ -17,7 +17,7 @@ import { useDictation } from "../lib/dictation.ts"
 import { prefs } from "../lib/prefs.ts"
 import { DictationLevel } from "./DictationLevel.tsx"
 import { apiBase } from "../lib/base-path.ts"
-import { detectPlatform } from "../lib/keybindings.ts"
+import { detectPlatform, effortStepOf } from "../lib/keybindings.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
 import { DROPPED_URI_TYPES, droppedUris, fileQueryAt, insertFileReference, insertReferencesAt, isVscodeDrag, type FileMentionSource } from "../lib/editorReach.ts"
 import { basename, dirnameLike } from "../lib/paths.ts"
@@ -292,6 +292,7 @@ export function Composer({
   fileMentions,
   onInterruptSubmit,
   onPushQueued,
+  onEffortStep,
   marks,
   onInputEvent,
   onEscape,
@@ -342,6 +343,9 @@ export function Composer({
   // A small action rendered just LEFT of the send button (the dispatch composer's GitHub-picker icon).
   // Only surfaces that pass it get it; reply/queue composers omit it.
   leftAction?: React.ReactNode
+  // ⌥⇧↑ / ⌥⇧↓ in the box: one effort up or down the ladder of the model its footer picker shows
+  // (lib/keybindings.ts EFFORT_STEP_CHORDS). Only boxes that carry a model picker pass it.
+  onEffortStep?: (step: 1 | -1) => void
   // A control at the rail's LEFT end, beyond the paperclip — the thread composer's Goal
   // (ThreadComposerBox). It owns its own popover; this component only places it.
   railLead?: React.ReactNode
@@ -1053,6 +1057,12 @@ export function Composer({
         requestAnimationFrame(() => el.setSelectionRange(start, start))
         return
       }
+    }
+    const effortStep = onEffortStep ? effortStepOf(e.nativeEvent) : 0
+    if (effortStep) {
+      e.preventDefault()
+      onEffortStep!(effortStep)
+      return
     }
     if (queueComposerHandlesOptionEnter(surface, e.key, e.altKey)) {
       // Option-Enter inserts a newline EXPLICITLY (Claude Code muscle memory). Merely exempting it
