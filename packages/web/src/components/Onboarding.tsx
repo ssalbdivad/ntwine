@@ -13,9 +13,12 @@ interface Callout {
   label: string
 }
 
+/** Copy that depends on the view the tour is running over: All projects, or one project's board. */
+type ViewText = string | ((allProjects: boolean) => string)
+
 interface TourStepSpec {
-  title: string
-  body: string
+  title: ViewText
+  body: ViewText
   /** What the card points at, and the spotlight's hole. None for the closing card, which points at nothing. */
   target?: () => Element | null
   /** A second hole in the spotlight, with no arrow of its own. */
@@ -26,35 +29,56 @@ interface TourStepSpec {
 
 const select = (selector: string) => () => document.querySelector(selector)
 
-// The steps, in order. Every target is on both a board and All projects, so the tour runs on either. The
-// first holds the switcher's menu open (lib/tour.ts SWITCHER_STEP), so its arrows have its rows to point at;
-// it must stay first. The last points at nothing: it is the closing card, and says how little there was.
+/** Whether the page is All projects — the switcher says which view it is showing (ProjectSwitcher.tsx). */
+const onAllProjects = () => document.querySelector('[data-xq-switcher="all"]') !== null
+const textOf = (text: ViewText) => (typeof text === "string" ? text : text(onAllProjects()))
+
+// The steps, in order. Every target is on both a board and All projects, so the tour runs on either, and the
+// copy that differs between them says so. All projects is where a new browser lands (lib/tour.ts), so the
+// tour teaches it first: what to do (start a thread, in which project), where results land, and what the
+// list shows — and only then the switcher, which is how to LEAVE it for one project. The switcher's step
+// holds its menu open (lib/tour.ts SWITCHER_STEP), so its arrows have its rows to point at. The last points
+// at nothing: it is the closing card, and says how little there was.
 const STEPS: TourStepSpec[] = [
   {
-    title: "Switch projects",
-    body: "This menu at the top of the page is how you move between projects.",
-    target: () => document.querySelector('[data-tour="switcher-all"]')?.closest('[role="menu"]') ?? null,
-    also: select("[data-xq-switcher]"),
-    callouts: [
-      { target: select('[data-tour="switcher-all"]'), label: "See every project on one page" },
-      { target: select('[data-tour="switcher-projects"]'), label: "Go to another project" },
-      { target: select('[data-tour="switcher-add"]'), label: "Add another folder as a project" },
-    ],
-  },
-  {
     title: "Start a thread",
-    body: "Describe a task and press Enter. An agent picks it up and works on it here.",
+    body: (all) =>
+      all
+        ? "Describe a task, pick its project in the box's corner, and press Enter. An agent picks it up and works on it there."
+        : "Describe a task and press Enter. An agent picks it up and works on it here.",
+    // No callout on the project picker: it sits at the box's left, so any arrow from the label column on the
+    // right strikes through the model pill on its way there (drawn 2026-10-14). The copy names it instead.
     target: select('[data-tour="composer"]'),
   },
   {
     title: "Your queue",
-    body: "When a thread finishes or needs an answer from you, it waits here.",
+    body: (all) =>
+      all
+        ? "When a thread in any project finishes or needs an answer from you, it waits here."
+        : "When a thread finishes or needs an answer from you, it waits here.",
     target: select("[data-inbox-header] h2"),
   },
   {
-    title: "Your threads",
-    body: "Every thread, grouped by where it stands: waiting on you, running, snoozed or done.",
+    title: (all) => (all ? "Your projects" : "Your threads"),
+    body: (all) =>
+      all
+        ? "Every project, with its running and waiting threads under it. “N more” beside a name lists its snoozed and done ones."
+        : "Every thread, grouped by where it stands: waiting on you, running, snoozed or done.",
     target: select("[data-xq-rail]"),
+  },
+  {
+    title: (all) => (all ? "One project at a time" : "Switch projects"),
+    body: (all) =>
+      all
+        ? "This page shows every project. This menu focuses it on one, or adds another folder."
+        : "This menu at the top of the page is how you move between projects.",
+    target: () => document.querySelector('[data-tour="switcher-all"]')?.closest('[role="menu"]') ?? null,
+    also: select("[data-xq-switcher]"),
+    callouts: [
+      { target: select('[data-tour="switcher-all"]'), label: "Every project on one page" },
+      { target: select('[data-tour="switcher-projects"]'), label: "Just one project" },
+      { target: select('[data-tour="switcher-add"]'), label: "Add another folder as a project" },
+    ],
   },
   {
     title: "That's it!",
@@ -180,7 +204,7 @@ export function Tour() {
       data-tour-overlay
       role="dialog"
       aria-modal="true"
-      aria-label={`Tour, step ${step + 1} of ${POINTED}: ${spec.title}`}
+      aria-label={`Tour, step ${step + 1} of ${POINTED}: ${textOf(spec.title)}`}
       className="fixed inset-0 z-[400] cursor-pointer select-none"
       onPointerDown={(event) => event.preventDefault()}
       onClick={() => go(step + 1)}
@@ -234,8 +258,8 @@ function TourCard({ step, spec, left, top, onGo }: { step: number; spec: TourSte
       <div className="text-[11px] font-medium tabular-nums text-muted-55">
         {step + 1} of {POINTED}
       </div>
-      <h2 className="mt-1 text-[15px] font-semibold text-fg">{spec.title}</h2>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{spec.body}</p>
+      <h2 className="mt-1 text-[15px] font-semibold text-fg">{textOf(spec.title)}</h2>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{textOf(spec.body)}</p>
       <div className="mt-4 flex items-center gap-2">
         <button type="button" onClick={() => endTour()} className="rounded-md px-1.5 py-1 text-[12px] text-muted-70 outline-none transition-colors hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60">
           Skip tour
@@ -280,7 +304,7 @@ function Finale({ spec, step, onGo }: { spec: TourStepSpec; step: number; onGo: 
       data-tour-overlay
       role="dialog"
       aria-modal="true"
-      aria-label={`Tour: ${spec.title}`}
+      aria-label={`Tour: ${textOf(spec.title)}`}
       className="tour-fade-in fixed inset-0 z-[400] flex cursor-pointer select-none items-center justify-center bg-scrim-55"
       onPointerDown={(event) => event.preventDefault()}
       onClick={() => onGo(step + 1)}
@@ -301,8 +325,8 @@ function Finale({ spec, step, onGo }: { spec: TourStepSpec; step: number; onGo: 
           </svg>
           <img src="/favicon.svg" width={56} height={56} alt="" className="absolute left-[36px] top-[36px] rounded-[13px]" />
         </div>
-        <h2 className="text-[19px] font-semibold tracking-[-0.01em] text-fg">{spec.title}</h2>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{spec.body}</p>
+        <h2 className="text-[19px] font-semibold tracking-[-0.01em] text-fg">{textOf(spec.title)}</h2>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{textOf(spec.body)}</p>
         <div className="mt-5 flex w-full items-center gap-2">
           <button type="button" onClick={() => onGo(step - 1)} className="rounded-md px-2.5 py-1 text-[12px] text-muted outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60">
             Back
