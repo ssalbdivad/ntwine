@@ -25,7 +25,8 @@ import { log as ntwineLog } from "./logging.ts"
 // any of the three platform APIs, and a child ties the request's lifetime to its own. Each helper
 // below notices when its stdin closes — a release, a shutdown, a crash or a SIGKILL alike — and then
 // keeps holding for WAKE_LOCK_LINGER_S before it exits, so the OS never sees an orphaned hold, only a
-// bounded one.
+// bounded one. (On Windows and WSL a lingering helper also exits as soon as another one holds; see
+// WINDOWS_HOLD_SCRIPT.)
 //
 // The linger is the fix for the second overnight stop (2026-10-03): with agents running and Windows
 // past its idle timeout since 08:23, the dev supervisor restarted the control plane at 10:15:40 on
@@ -100,11 +101,21 @@ export function isWsl(p: Pick<WakeLockPlatform, "platform" | "env" | "kernelRele
 // is cleared or the thread exits — and nothing ever clears it, so it lasts exactly as long as the
 // process. Measured on the maintainer's machine with CallNtPowerInformation(SystemExecutionState):
 // 0x0 before, 0x1 while held, 0x0 once the process exited. ES_DISPLAY_REQUIRED is left out on purpose.
-const WINDOWS_HOLD_SCRIPT =
+//
+// The linger ends early once ANOTHER helper holds, because then nothing is bridged by it. Every
+// control-plane generation left one lingering helper behind, so a dev session recycling on each commit
+// to main stacked them up (four at once on 2026-10-13) — each holding a request already held by its
+// successor. A new holder sets a named session-wide event right after taking its request; a lingering
+// helper resets the event when its stdin closes and waits on it instead of sleeping. The one race —
+// a successor's Set landing between a lingerer's Reset and its wait — costs a full linger, never a gap.
+const WINDOWS_HOLD_SCRIPT = (lingerS: number) =>
   `$k=Add-Type -Name WakeLock -Namespace Ntwine -PassThru -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);';` +
   `[void]$k::SetThreadExecutionState([uint32]2147483649);` +
+  `$h=New-Object System.Threading.EventWaitHandle($false,[System.Threading.EventResetMode]::ManualReset,'Local\\NtwineWakeLockHolder');` +
+  `[void]$h.Set();` +
   `[void][Console]::In.ReadToEnd();` +
-  `Start-Sleep -Seconds ${WAKE_LOCK_LINGER_S}`
+  `[void]$h.Reset();` +
+  `[void]$h.WaitOne(${lingerS * 1000})`
 
 /** The POSIX helpers' body: wait for stdin to close, then linger. */
 const POSIX_HOLD_SCRIPT = `cat >/dev/null; sleep ${WAKE_LOCK_LINGER_S}`
@@ -122,8 +133,8 @@ const POSIX_HOLD_SCRIPT = `cat >/dev/null; sleep ${WAKE_LOCK_LINGER_S}`
  * - Linux: `systemd-inhibit --what=idle` around the same shell. `idle` and not `sleep`: a sleep
  *   inhibitor would also block a suspend the human asks for.
  */
-export function wakeLockCommand(p: WakeLockPlatform): [string, string[]] | undefined {
-  const encoded = Buffer.from(WINDOWS_HOLD_SCRIPT, "utf16le").toString("base64")
+export function wakeLockCommand(p: WakeLockPlatform, lingerS = WAKE_LOCK_LINGER_S): [string, string[]] | undefined {
+  const encoded = Buffer.from(WINDOWS_HOLD_SCRIPT(lingerS), "utf16le").toString("base64")
   const psArgs = ["-NoProfile", "-NonInteractive", "-NoLogo", "-EncodedCommand", encoded]
   if (p.platform === "win32") {
     return [win32.join(p.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"), psArgs]

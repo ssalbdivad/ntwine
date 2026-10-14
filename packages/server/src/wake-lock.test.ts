@@ -43,7 +43,9 @@ test("each platform gets the helper that reaches the thing that actually sleeps"
   assert.equal(winCmd, "D:\\Win\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
   const script = Buffer.from(winArgs.at(-1)!, "base64").toString("utf16le")
   assert.match(script, /SetThreadExecutionState\(\[uint32\]2147483649\)/) // ES_CONTINUOUS | ES_SYSTEM_REQUIRED
-  assert.match(script, /ReadToEnd\(\);Start-Sleep -Seconds 300$/) // released a linger after stdin closes
+  // Announces its hold, then lingers after stdin closes — until the linger runs out or another helper announces.
+  assert.match(script, /SetThreadExecutionState\(\[uint32\]2147483649\);\$h=New-Object System\.Threading\.EventWaitHandle\(\$false,\[System\.Threading\.EventResetMode\]::ManualReset,'Local\\NtwineWakeLockHolder'\);\[void\]\$h\.Set\(\);/)
+  assert.match(script, /ReadToEnd\(\);\[void\]\$h\.Reset\(\);\[void\]\$h\.WaitOne\(300000\)$/)
   // WSL: the HOST sleeps, so the request goes to Windows through interop — by kernel string or by env.
   assert.equal(wakeLockCommand({ ...base, platform: "linux", kernelRelease: "5.15.153.1-microsoft-standard-WSL2" })![0], "powershell.exe")
   assert.equal(wakeLockCommand({ ...base, platform: "linux", env: { WSL_DISTRO_NAME: "Ubuntu" } })![0], "powershell.exe")
