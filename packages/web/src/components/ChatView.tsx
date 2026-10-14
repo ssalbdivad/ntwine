@@ -122,7 +122,7 @@ import { takeFullscreenEnterAnchor } from "../lib/fullscreenHandoff.ts"
 import { prependEarlierPage } from "../lib/transcriptPagination.ts"
 import { buildVirtualTranscriptMessageRows, earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
 import { withoutRedundantRestDividers } from "../lib/restDividers.ts"
-import { coalesceToolActivityMessages, editedFileCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
+import { coalesceToolActivityMessages, editedFileCount, failedToolCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, settledToolActivityParts, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
 import { CodexDirectiveCard, MermaidDiagram } from "./CodexRichOutput.tsx"
 import { LightboxGallery } from "./Lightbox.tsx"
 import { META_CARD_STEP, PICTURE_STEP, STEP, TIME_BREAK_ABOVE, TIME_BREAK_BELOW, USER_TAIL_EXTRA, VSpace } from "./rhythm.tsx"
@@ -2397,7 +2397,10 @@ function MinimalToolActivity({ tools, slots, at }: { tools: CollapsedTool[]; slo
   const [expanded, setExpanded] = useState(false)
   const cardsId = useId()
   const total = tools.reduce((n, t) => n + t.count, 0)
-  const label = settledToolActivityLabel(total, editedFileCount(tools))
+  const edited = editedFileCount(tools)
+  const failed = failedToolCount(tools)
+  const label = settledToolActivityLabel(total, edited, failed)
+  const parts = settledToolActivityParts(total, edited, failed)
   return (
     <div data-tool-activity data-tool-activity-state="settled" className="flex min-w-0 flex-col">
       <button
@@ -2417,7 +2420,11 @@ function MinimalToolActivity({ tools, slots, at }: { tools: CollapsedTool[]; slo
           title={label}
           className="min-w-0 truncate text-muted"
         >
-          {label}
+          {parts.ran}
+          {/* The failure count in the failed tone — the red a failed card's own reading wears — so a
+              failure folded inside the digest reads at a glance without opening it. Inside the same
+              truncating span: the clause is part of the label, and gives way with it. */}
+          {parts.failed && <>, <span data-tool-activity-failed className="ntwine-tool-failed">{parts.failed}</span></>}
         </span>
         <ChevronRight data-tool-activity-chevron aria-hidden="true" size={13} className={transcriptMetaChevronClass(expanded)} />
       </button>

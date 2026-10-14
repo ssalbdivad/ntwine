@@ -48,8 +48,9 @@ test("the parent draws each request as its card, an older build's delivered requ
       { state: "started", link: "@audit-every-transcript-projection-path", header: "Spinoff@audit-every-transcript-projection-path" },
       { state: "unstarted", link: null, header: "Spinoffdidn't start" },
     ])
-    // The two ordinary runs keep their digests, and the older build's spawn_thread call is an ordinary line.
-    assert.deepEqual(read.digests, ["Ran 2 tool calls", "Ran 2 tool calls, edited 1 file", "Ran 1 tool call"])
+    // The two ordinary runs keep their digests, and the older build's spawn_thread call is an ordinary line
+    // — a refused one, so its digest names the failure.
+    assert.deepEqual(read.digests, ["Ran 2 tool calls", "Ran 2 tool calls, edited 1 file", "Ran 1 tool call, 1 failed"])
     const refusal = await page.evaluate(async () => {
       const digest = [...document.querySelectorAll<HTMLElement>("[data-tool-activity]")].at(-1)!
       digest.querySelector<HTMLButtonElement>("button")!.click()

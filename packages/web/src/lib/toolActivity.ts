@@ -765,10 +765,72 @@ export function editedFileCount(tools: readonly FileWritingTool[]): number {
  */
 const UNRESOLVED_PLACEHOLDER = /\$\{/
 
-export function settledToolActivityLabel(total: number, editedFiles = 0): string {
+/** The fields a settled call needs to say whether it failed — the collapsed render shape included. */
+export interface FailureCountedTool {
+  name: string
+  status?: TranscriptToolCall["status"]
+  command?: string
+  output?: string
+  exitCode?: number
+  count?: number
+}
+
+// Programs whose exit 1 means "nothing matched", not "something broke" (git grep included).
+const SEARCH_PROGRAMS = new Set(["rg", "grep", "egrep", "fgrep"])
+
+// Claude's Bash result leads with `Exit code N` and then the command's combined stdout+stderr;
+// codex's arrives as a structured `exitCode` with the envelope already cleaned off `output`.
+const EXIT_ENVELOPE = /^Exit code (\d+)[^\S\n]*(?:\n|$)/
+
+/** The program whose exit status the shell reports: the last command of a `&&`/`;` chain, and the last
+ *  stage of its pipeline, past any `VAR=value` prefixes. */
+function reportingProgram(command: string): string[] {
+  const chain = command.split(/&&|\|\||;|\n/).map((part) => part.trim()).filter(Boolean)
+  const stage = (chain.at(-1) ?? "").split("|").at(-1)?.trim() ?? ""
+  const words = stage.split(/\s+/).filter((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word))
+  return words.map((word, i) => (i === 0 ? word.split("/").at(-1) ?? word : word))
+}
+
+/**
+ * A search that found nothing. `grep`/`rg` exit 1 on no match, which the provider records as a failed
+ * call — but the run asked a question and got its answer, so it is not a failure the digest should
+ * report. Only when the search printed nothing at all, though: exit 1 with stderr (an unreadable
+ * file, a bad flag) and exit 2 (a bad pattern) are real failures. The Grep tool rarely errors on no
+ * match, but when its result is empty or says so, it is the same answer.
+ */
+export function isSearchWithNoMatch(tool: FailureCountedTool): boolean {
+  if (tool.status !== "failed") return false
+  const envelope = tool.output?.match(EXIT_ENVELOPE)
+  const exitCode = tool.exitCode ?? (envelope ? Number(envelope[1]) : undefined)
+  const printed = (envelope ? tool.output!.slice(envelope[0].length) : tool.output ?? "").trim()
+  if (tool.name === "Grep" && !tool.command) return (exitCode === undefined || exitCode === 1) && (printed === "" || /^no (?:matches|files) found\b/i.test(printed))
+  if (!tool.command || exitCode !== 1 || printed !== "") return false
+  const [program, sub] = reportingProgram(tool.command)
+  return SEARCH_PROGRAMS.has(program ?? "") || (program === "git" && sub === "grep")
+}
+
+/** How many calls in a settled run FAILED — a tool error or a non-zero exit — less searches that only
+ *  came back empty (isSearchWithNoMatch). A folded `×N` row counts N. */
+export function failedToolCount(tools: readonly FailureCountedTool[]): number {
+  return tools.reduce((n, tool) => (tool.status === "failed" && !isSearchWithNoMatch(tool) ? n + (tool.count ?? 1) : n), 0)
+}
+
+/**
+ * The digest's reading, in its two halves: what ran, and — only when something did — how much of it
+ * failed. Split because the failure count is drawn in the failed tone (the same red a failed card's
+ * own reading uses) while the rest stays muted; `settledToolActivityLabel` joins them for the
+ * accessible name and the tooltip. A failure folded inside a collapsed digest used to be invisible
+ * until the reader opened it (maintainer 2026-10-14: the summary row names its failures).
+ */
+export function settledToolActivityParts(total: number, editedFiles = 0, failed = 0): { ran: string; failed?: string } {
   const calls = `Ran ${total} tool ${total === 1 ? "call" : "calls"}`
-  if (editedFiles === 0) return calls
-  return `${calls}, edited ${editedFiles} file${editedFiles === 1 ? "" : "s"}`
+  const ran = editedFiles === 0 ? calls : `${calls}, edited ${editedFiles} file${editedFiles === 1 ? "" : "s"}`
+  return failed > 0 ? { ran, failed: `${failed} failed` } : { ran }
+}
+
+export function settledToolActivityLabel(total: number, editedFiles = 0, failed = 0): string {
+  const parts = settledToolActivityParts(total, editedFiles, failed)
+  return parts.failed ? `${parts.ran}, ${parts.failed}` : parts.ran
 }
 
 /**

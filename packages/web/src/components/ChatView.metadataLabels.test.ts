@@ -18,7 +18,7 @@ test("minimal tool activity is settled history with no live shimmer or spinner i
   const source = readFileSync(new URL("./ChatView.tsx", import.meta.url), "utf8")
   const block = source.match(/function MinimalToolActivity[\s\S]*?\n}/)?.[0]
   assert.ok(block, "MinimalToolActivity must exist")
-  assert.match(block, /settledToolActivityLabel\(total, editedFileCount\(tools\)\)/, "settled batches render the completed summary, including how many files the run edited")
+  assert.match(block, /settledToolActivityLabel\(total, edited, failed\)/, "settled batches render the completed summary, including how many files the run edited and how many calls failed")
   assert.match(block, /data-tool-activity-state="settled"/, "every historical disclosure is settled presentation")
   assert.doesNotMatch(block, /shimmer-text/, "the historical disclosure must never own the live shimmer")
   assert.match(block, /className=\{`group flex w-full[^`]*gap-1/, "the disclosure keeps the full row click target and a compact label gap")

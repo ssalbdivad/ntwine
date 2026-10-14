@@ -12,6 +12,7 @@ import {
   liveToolActivityRun,
   liveToolActivityTail,
   editedFileCount,
+  failedToolCount,
   settledToolActivityLabel,
   thinkingToolActivityLabel,
   toolActivityLabel,
@@ -641,6 +642,42 @@ test("the digest reports how many distinct files the run edited", () => {
   assert.equal(settledToolActivityLabel(3, 1), "Ran 3 tool calls, edited 1 file")
   // A run that wrote nothing keeps the bare reading rather than trailing an "edited 0 files".
   assert.equal(settledToolActivityLabel(3, 0), "Ran 3 tool calls")
+})
+
+test("the digest names its failures, and a search that only came back empty is not one", () => {
+  // Claude's Bash result: `Exit code N`, then the command's combined stdout+stderr.
+  const bash = (command: string, output: string) => tool("Bash", { command, status: "failed", output })
+  const run = [
+    tool("Read", { status: "completed" }),
+    bash("nub run typecheck", "Exit code 2\nerror TS2345: Argument of type 'string'"),
+    // Exit 1 and nothing printed from the program the shell reports on: the search found nothing.
+    bash("rg -n placeholderPrevalence src", "Exit code 1"),
+    bash("cd packages/web && grep -rn 'x' src", "Exit code 1"),
+    bash("git grep -n needle", "Exit code 1"),
+    // Codex: a structured exit code, the envelope already off the output.
+    tool("exec_command", { command: "rg needle", status: "failed", exitCode: 1 }),
+    // The Grep tool reporting its empty answer as an error.
+    tool("Grep", { status: "failed", output: "No matches found" }),
+  ]
+  assert.equal(failedToolCount(run), 1, "only the typecheck failed")
+  assert.equal(settledToolActivityLabel(run.length, 0, failedToolCount(run)), "Ran 7 tool calls, 1 failed")
+
+  // Each of these is a search that BROKE, not one that came back empty.
+  const broken = [
+    bash("grep -rn needle missing/", "Exit code 2\ngrep: missing/: No such file or directory"), // exit 2
+    bash("rg needle unreadable.log", "Exit code 1\nrg: unreadable.log: Permission denied"), // exit 1, but with stderr
+    bash("rg needle src | wc -l", "Exit code 1"), // the pipeline reports wc, not rg
+    bash("grep -q needle a.txt && npm test", "Exit code 1"), // the chain reports npm test
+    tool("Grep", { status: "failed", output: "regex parse error: unclosed group" }),
+    tool("Edit", { status: "failed", output: "String to replace not found in file." }),
+  ]
+  assert.equal(failedToolCount(broken), broken.length)
+
+  // A folded ×N row of identical failures counts N.
+  assert.equal(failedToolCount([{ ...tool("mcp__x__fetch", { status: "failed" }), count: 3 }]), 3)
+  assert.equal(settledToolActivityLabel(5, 2, 3), "Ran 5 tool calls, edited 2 files, 3 failed")
+  // Nothing failed: no clause, not "0 failed".
+  assert.equal(settledToolActivityLabel(3, 0, 0), "Ran 3 tool calls")
 })
 
 test("the inter-call gap states the run it is standing in for, so waiting reads as progress", () => {
