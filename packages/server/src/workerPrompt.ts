@@ -494,15 +494,11 @@ or \`done\` alike, renders BELOW your last message.
     It also tells you when CI is HELD FOR AN APPROVAL, which is the one reading that never resolves on
     its own: a fork or first-time contributor's workflows wait for a maintainer to press the button, so
     that wake is your cue to go and ask rather than to keep parking.
-  - \`issues:\` — GitHub issues you REGISTERED with \`ntwinectl watch-issue add\`, written \`owner/repo#N\`.
-    Same shape as \`prs:\`, same register-first rule. That watcher wakes you on every later comment, when a
-    label moves or someone is assigned, and once more when the issue closes — the wait for a reporter's
-    reproduction or a maintainer's triage. An issue has no CI and no merge, so it never says either.
   - \`threads:\` — other threads you asked with \`ntwinectl message-thread\` and \`--await-reply\`,
     by \`@handle\`. Ask FIRST: that command registers the wait, and the reply is the wake.{{NTWINE_COMMANDS_KEY}}
   - \`for:\` — **REQUIRED**, and a DURATION: \`30s\`, \`15m\`, \`2h\`, \`3d\`. Never an instant. When it runs
     out ntwine brings you back to re-check everything; re-parking is fine and uncapped. Capped at a day,
-    except on a park naming ONLY \`prs:\` and \`issues:\`, where it runs to a year{{NTWINE_COMMANDS_FOR}} — and at 30 minutes on any
+    except on a park naming ONLY \`prs:\`, where it runs to a year{{NTWINE_COMMANDS_FOR}} — and at 30 minutes on any
     park naming \`agents:\`, whose expiry is your check-in (see Sub-agents).
   - **A PULL REQUEST IN SOMEONE ELSE'S REPO TAKES MONTHS, SO ASK FOR MONTHS** — \`for: 180d\`, and give
     \`ntwinectl watch-pr add\` the same \`--for\`. It moves on its maintainers' clock, not yours, so a short \`for:\`
@@ -578,7 +574,7 @@ or \`done\` alike, renders BELOW your last message.
     rest \`questions:\` names the ones you still need. **WAITING ON ONE TO ACT IS \`steps:\`.** There is
     no human gate, no prose park, and no question fence.
   - **CI, RELEASES, DEPLOYS AND MERGE PROGRESSION ARE AUTOMATABLE — never \` \`\`\`awaiting \` them
-    BLINDLY, and never at all when the outcome changes nothing for the user.** For a pull request, \`ntwinectl watch-pr\`; for a GitHub issue, \`ntwinectl watch-issue\`{{NTWINE_COMMANDS_CI}}.
+    BLINDLY, and never at all when the outcome changes nothing for the user.** For a pull request, \`ntwinectl watch-pr\`{{NTWINE_COMMANDS_CI}}.
     For anything else stay ACTIVE: dispatch a sub-agent to own the wait (its return re-invokes you), or
     set a timer and name it here.
   - **THE PARK SURVIVES A RESTART.** Registration and fence are both durable, so ntwine brings you back
@@ -1304,7 +1300,7 @@ answering \`status: working\` or \`status: watching\` keeps a rested thread out 
 sub-agent alone does not.
 
 - **Resting until a condition is met** (the usual CI / PR / release wait) → for a pull request,
-  \`ntwinectl watch-pr\`; for a GitHub issue, \`ntwinectl watch-issue\`; for any other OUTSIDE condition a
+  \`ntwinectl watch-pr\`; for any other OUTSIDE condition a
   shell command can check — a package version published, a release run finished, a URL answering —
   \`ntwinectl watch-command add "<check that exits 0 once it holds>" --every 5m --for 6h\`, then rest on
   its id (\`commands: [cmw_…]\`) with \`status: watching\`. Not a polling loop in a background shell

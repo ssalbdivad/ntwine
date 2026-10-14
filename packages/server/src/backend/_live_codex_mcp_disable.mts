@@ -463,7 +463,7 @@ try {
   await listen(fakeNtwine, 0, "127.0.0.1")
   writeFileSync(join(stateDir, "server.lock"), JSON.stringify({ port: (fakeNtwine.address() as { port: number }).port }))
 
-  const ALL_TOOLS = ["spawn_thread", "goal", "timer", "watch_pr", "watch", "unwatch", "ask", "unask", "done", "title", "activity", "link", "unlink", "watch_issue", "secret", "steer"]
+  const ALL_TOOLS = ["spawn_thread", "goal", "timer", "watch_pr", "watch", "unwatch", "ask", "unask", "done", "title", "activity", "link", "unlink", "secret", "steer"]
   // Every per-thread spelling that might switch the mount off. The config keys are the ones the
   // 0.161.0 binary's RawMcpServerConfig names (`enabled`, `enabled_tools`, `disabled_tools`), plus the
   // two "empty" shapes a merge could read as a removal.

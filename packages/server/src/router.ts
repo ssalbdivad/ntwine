@@ -262,7 +262,7 @@ import { liveThreadsForBackend, runProviderLogout } from "./backend/account-acti
 import type { BackendKind } from "./backend/types.ts"
 import { threadProfileOptions, validateThreadProfile } from "./backend/thread-profiles.ts"
 import { adoptionRuntimeBinding, type AdoptionPaneLookup, type ExpectedAdoptionPane } from "./adoption-recovery.ts"
-import { parseIssueRef, parsePrRef, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING } from "./awaiting.ts"
+import { parsePrRef, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING } from "./awaiting.ts"
 import { isBrokerClaudeRow, isHeldRow, isScheduleHeldRow, type CommandWatchRow, type RecurringWrite, type SessionRow, type Storage, type SubAgentSteerRow, type ThreadQuestionRow } from "./storage.ts"
 import { COMMAND_WATCH_FALLBACK } from "./command-watch.ts"
 import { createHeldThreadStarter, type HeldStartProfile } from "./held-start.ts"
@@ -4445,9 +4445,12 @@ export function createRouter(ctx: AppContext) {
             since: new Date(t.created_at).toISOString(), until: new Date(t.fire_at).toISOString(),
           })
         }
+        // Pull requests only: an issue row is the human's watch from the done card (or a worker's from
+        // before `watch-issue` was removed), and no fence line names one.
         for (const w of ctx.storage.listPrWatches(input.slug, { armedOnly: true })) {
+          if (w.kind === "issue") continue
           activity.push({
-            kind: w.kind === "issue" ? "issue" : "pr", id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}`,
+            kind: "pr", id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}`,
             since: new Date(w.created_at).toISOString(),
             ...(w.expires_at ? { until: new Date(w.expires_at).toISOString() } : {}),
           })
@@ -4517,26 +4520,21 @@ export function createRouter(ctx: AppContext) {
         if (row.state === "archived" || row.archived === 1) {
           throw new Error("Reopen this thread before registering a watcher on it")
         }
-        // A PULL REQUEST unless the caller says `issue` (2026-09-14, `ntwinectl watch-issue`). Same
-        // registry and same rules below; the ref grammar, the probe and the refusal wording branch.
-        const kind = input.kind ?? "pull"
-        const noun = kind === "issue" ? "issue" : "pull request"
         // REFUSED, not stored. A watcher on a ref ntwine cannot parse is one that can never fire, and a
         // worker that registers one comes to rest believing it is covered.
-        const ref = kind === "issue" ? parseIssueRef(input.target) : parsePrRef(input.target)
+        const ref = parsePrRef(input.target)
         if (!ref) {
-          throw new Error(`\`${input.target}\` is not ${kind === "issue" ? "an issue" : "a pull request"} I can watch — give owner/repo#123 or ${kind === "issue" ? "an issue" : "a PR"} URL`)
+          throw new Error(`\`${input.target}\` is not a pull request I can watch — give owner/repo#123 or a PR URL`)
         }
         const armed = ctx.storage.listPrWatches(input.slug, { armedOnly: true })
         // IDEMPOTENT ON THE PR. Re-registering after a compaction is the COMMON case — the worker has
         // forgotten what it holds and is being careful — and a duplicate would mean two wakes per event,
-        // which reads to the operator as the watcher misfiring. Per KIND as well as ref: an issue and a
-        // PR cannot share a number in one repo, so the same number registered both ways is a mistake
-        // the probe catches on whichever one is wrong, never two watchers on one thing. CASE-BLIND on
+        // which reads to the operator as the watcher misfiring. Pull-request rows only: an issue row of
+        // the same number is a human's watch the probe below refuses to double. CASE-BLIND on
         // owner and repo, as GitHub is: `acme/app#391` and `Acme/App#391` are one PR, and matching them
         // exactly put two rows on the rail and two wakes on every event.
         const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
-        const existing = armed.find((w) => w.kind === kind && sameName(w.owner, ref.owner) && sameName(w.repo, ref.repo) && w.number === ref.number)
+        const existing = armed.find((w) => w.kind === "pull" && sameName(w.owner, ref.owner) && sameName(w.repo, ref.repo) && w.number === ref.number)
         const target = `${ref.owner}/${ref.repo}#${ref.number}`
         if (existing) {
           // The ORIGINAL expiry, which this call left alone — the re-registration is a no-op and must
@@ -4565,20 +4563,19 @@ export function createRouter(ctx: AppContext) {
         // org, no such repo, no `gh` on its PATH) is a watcher that fails every minute in silence while
         // the worker rests believing it is covered (a user's board, 2026-08-25: 12h+). Checked after the
         // idempotent short-circuit above, so a re-registration during a GitHub blip still answers.
-        const probe = kind === "issue" ? await ctx.probeIssue(ref) : await ctx.probePr(ref)
+        const probe = await ctx.probePr(ref)
         if (!probe.ok) {
           throw new Error(
-            `\`${target}\` cannot be watched as ${kind === "issue" ? "an issue" : "a pull request"} — the server's \`gh\` could not read it: ${probe.reason}. ` +
+            `\`${target}\` cannot be watched as a pull request — the server's \`gh\` could not read it: ${probe.reason}. ` +
             "Ntwine polls with the `gh` of the process it runs as, not yours: check `gh auth status` there and that the repo is " +
             "reachable, then register again. If GitHub itself was briefly down, registering again in a minute is enough.",
           )
         }
         const now = Date.now()
-        // The id prefix names the kind, so a `drop` id in a transcript reads as what it dropped.
-        const id = `${kind === "issue" ? "isw" : "prw"}_${randomUUID().replace(/-/g, "").slice(0, 12)}`
+        const id = `prw_${randomUUID().replace(/-/g, "").slice(0, 12)}`
         // A registration trumps a done — see setOwnThreadTimer.
         ctx.storage.clearThreadDone(input.slug)
-        ctx.storage.armPrWatch({ id, slug: input.slug, kind, owner: ref.owner, repo: ref.repo, number: ref.number, createdAtMs: now, expiresAtMs: now + forMs })
+        ctx.storage.armPrWatch({ id, slug: input.slug, kind: "pull", owner: ref.owner, repo: ref.repo, number: ref.number, createdAtMs: now, expiresAtMs: now + forMs })
         ctx.board.refresh()
         return { id, target, alreadyArmed: false, expiresAt: new Date(now + forMs).toISOString(), ...clampedFrom, watches: armedPrWatchViews(input.slug) }
       },
@@ -4588,7 +4585,7 @@ export function createRouter(ctx: AppContext) {
     // The HUMAN's half of the same registry. A finished worker no longer parks on the PR or issue it
     // touched (a 180d `watch_pr` per thread, chosen blind, was how threads vanished into Snoozed); it
     // signs off `done` naming them, and the card offers "Watch #N" for each. This is that click: the same
-    // `pr_watch` row the worker tools arm, polled by the same scheduler loop, plus the human's own park of
+    // `pr_watch` registry `ntwinectl watch-pr` arms, polled by the same scheduler loop, plus the human's own park of
     // THIS rest — the event-snooze column the resting card's Snooze writes — so the thread rests in
     // Snoozed until the watch reports, which wakes the worker like any watcher wake.
     //
@@ -4598,7 +4595,7 @@ export function createRouter(ctx: AppContext) {
     //  - it does NOT clear the done: the finished thread stays finished, its card stays readable from
     //    Snoozed, and the board reads done + this park as a watch (board.doneParkedOnWatch);
     //  - PR or issue is FOUND OUT, not declared — prose cannot say which `#N` is — by asking `gh pr view`
-    //    first and `gh issue view` second, the two registration probes the worker tools already use;
+    //    first (the probe `watch-pr` registration uses) and `gh issue view` second;
     //  - no `for:` to choose: it runs to the ceiling, and a merge or close settles it before that.
     watchDoneRef: mutation({
       input: WatchDoneRefInput,

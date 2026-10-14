@@ -23,7 +23,7 @@ import type { AppContext } from "./context.ts"
 import type { Project } from "./project.ts"
 import type { Tailer } from "./tailer.ts"
 
-function harness(opts: { probe?: (ref: PrRef) => PrProbe; probeIssue?: (ref: PrRef) => PrProbe } = {}) {
+function harness(opts: { probe?: (ref: PrRef) => PrProbe } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-pr-watch-rpc-"))
   const project: Project = { dir, id: "prw", name: "test", label: "test", stateDir: dir, cwdSlug: "test" }
   const storage = createStorage(join(dir, "ui.db"), "p")
@@ -47,7 +47,6 @@ function harness(opts: { probe?: (ref: PrRef) => PrProbe; probeIssue?: (ref: PrR
     // The registration probe answers "readable" unless a test says otherwise — every ref below is
     // fictional, and the real probe would ask GitHub about it.
     probePr: async (ref: PrRef) => opts.probe?.(ref) ?? { ok: true as const },
-    probeIssue: async (ref: PrRef) => opts.probeIssue?.(ref) ?? { ok: true as const },
   } as unknown as AppContext
   return {
     storage,
@@ -297,56 +296,15 @@ test("addOwnPrWatch: an already-armed PR answers idempotently even when the prob
   } finally { h.close() }
 })
 
-// ---- ISSUES (2026-09-14): the same RPC with `kind: "issue"`, which is what `mcp__ntwine__watch_issue` sends ----
+// ---- ISSUES: a worker cannot register one since 2026-10-14 (`watch-issue` removed) ----------------
 
-test("issue add: an issue URL normalizes to the ref, stores kind issue under an isw_ id, and probes with gh issue view", async () => {
-  const probed: { pr: PrRef[]; issue: PrRef[] } = { pr: [], issue: [] }
-  const h = harness({
-    probe: (ref) => { probed.pr.push(ref); return { ok: true } },
-    probeIssue: (ref) => { probed.issue.push(ref); return { ok: true } },
-  })
-  try {
-    h.storage.upsertSession(row("t"))
-    const added = await h.router.addOwnPrWatch.handler({ input: { slug: "t", target: "https://github.com/acme/app/issues/7", for: "30d", kind: "issue" } })
-    assert.equal(added.target, "acme/app#7")
-    assert.match(added.id, /^isw_/)
-    assert.deepEqual(added.watches.map((w) => [w.target, w.kind]), [["acme/app#7", "issue"]])
-    assert.deepEqual(probed, { pr: [], issue: [{ owner: "acme", repo: "app", number: 7 }] }, "an issue is probed as an issue, never as a PR")
-    const [stored] = h.storage.listPrWatches("t", { armedOnly: true })
-    assert.equal(stored.kind, "issue")
-    // Idempotent per (kind, ref): the same issue again is the same watcher.
-    const again = await h.router.addOwnPrWatch.handler({ input: { slug: "t", target: "acme/app#7", for: "1d", kind: "issue" } })
-    assert.equal(again.alreadyArmed, true)
-    assert.equal(again.id, added.id)
-  } finally {
-    h.close()
-  }
-})
-
-test("issue add: a PR URL is refused for kind issue, and an issue URL is refused for a PR — each names its own grammar", async () => {
+test("an issue URL is refused as a pull request, and nothing is written", async () => {
   const h = harness()
   try {
     h.storage.upsertSession(row("t"))
     await assert.rejects(
-      h.router.addOwnPrWatch.handler({ input: { slug: "t", target: "https://github.com/acme/app/pull/391", for: "1d", kind: "issue" } }),
-      /is not an issue I can watch/,
-    )
-    await assert.rejects(
       h.router.addOwnPrWatch.handler({ input: { slug: "t", target: "https://github.com/acme/app/issues/7", for: "1d" } }),
       /is not a pull request I can watch/,
-    )
-  } finally {
-    h.close()
-  }
-})
-
-test("issue add: a probe failure refuses the watcher and says it was read as an issue", async () => {
-  const h = harness({ probeIssue: () => ({ ok: false, reason: "GraphQL: Could not resolve to an Issue with the number of 7. (repository.issue)" }) })
-  try {
-    h.storage.upsertSession(row("t"))
-    await assert.rejects(
-      h.router.addOwnPrWatch.handler({ input: { slug: "t", target: "acme/app#7", for: "1d", kind: "issue" } }),
-      /cannot be watched as an issue — the server's `gh` could not read it: GraphQL: Could not resolve/,
     )
     assert.equal(h.storage.listPrWatches("t").length, 0)
   } finally {
@@ -354,17 +312,22 @@ test("issue add: a probe failure refuses the watcher and says it was read as an 
   }
 })
 
-test("issue watchers read back through activity and block done under their own noun", async () => {
+// A worker's issue watcher armed before the removal stays in the table: the poller still serves it,
+// activity leaves it out (no fence line names an issue), `done` still waits on it, and its id drops.
+test("a worker issue watcher stored before the removal blocks done until dropped, and is not listed in activity", async () => {
   const h = harness()
   try {
     h.storage.upsertSession(row("t"))
-    await h.router.addOwnPrWatch.handler({ input: { slug: "t", target: "acme/app#7", for: "30d", kind: "issue" } })
+    const now = Date.now()
+    h.storage.armPrWatch({ id: "isw_legacy00001", slug: "t", kind: "issue", owner: "acme", repo: "app", number: 7, createdAtMs: now, expiresAtMs: now + 86_400_000 })
     await h.router.addOwnPrWatch.handler({ input: { slug: "t", target: "acme/app#391", for: "2h" } })
     const activity = await h.router.listOwnThreadActivity.handler({ input: { slug: "t" } })
-    assert.deepEqual(activity.activity.map((a) => [a.kind, a.id]).sort(), [["issue", "acme/app#7"], ["pr", "acme/app#391"]])
+    assert.deepEqual(activity.activity.map((a) => [a.kind, a.id]), [["pr", "acme/app#391"]])
     const done = await h.router.markOwnDone.handler({ input: { slug: "t", body: "- did it" } })
     assert.equal(done.done, false)
     assert.deepEqual(done.blockingWatches.map((b) => b.what).sort(), ["issue: acme/app#7", "pull request: acme/app#391"])
+    const dropped = await h.router.dropOwnPrWatch.handler({ input: { slug: "t", id: "isw_legacy00001" } })
+    assert.equal(dropped.dropped, true)
   } finally {
     h.close()
   }

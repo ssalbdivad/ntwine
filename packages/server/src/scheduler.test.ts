@@ -3279,7 +3279,8 @@ test("coalesce: the mid-turn hold has a ceiling — a wake held longer than MID_
 })
 
 // ---- ISSUE WATCHERS (2026-09-14) ------------------------------------------------------------------------
-// `mcp__ntwine__watch_issue` arms a `pr_watch` row with `kind: "issue"`. The poll asks GitHub for the ISSUE,
+// A `pr_watch` row with `kind: "issue"` — the done card's Watch arms one for the human, and a worker armed
+// one with `watch-issue` until its removal on 2026-10-14 (those rows still poll). The poll asks GitHub for the ISSUE,
 // never falls back to `gh pr view`, baselines what predates the registration exactly as a PR watcher
 // does, and reports comments, label and assignee movement, and the close — with the issue's own trailer.
 const issueSnap = (over: Partial<NonNullable<Extract<GithubReviewFetchResult, { status: "ok" }>["issue"]>> = {}) =>
@@ -3289,7 +3290,7 @@ test("issue-watch: polls the ISSUE kind with no gh fallback, baselines, then wak
   const h = harness()
   h.watch("r", "acme/app#7", "issue")
   h.storage.upsertSession(row("r"))
-  h.tele.set("r", { ...tele(awaiting([{ kind: "issue", value: "acme/app#7" }])), lastActivityAt: iso(h.clock.ms) })
+  h.tele.set("r", { ...tele(), lastActivityAt: iso(h.clock.ms) })
   h.review.result = { status: "ok", issue: issueSnap(), activity: [
     { id: "comment:old", actor: "alice", actorType: "User", at: iso(h.clock.ms - 120_000), kind: "comment" },
   ] }
@@ -3317,7 +3318,7 @@ test("issue-watch: a label moving and a new assignee are one state line; the clo
   const h = harness()
   h.watch("r", "acme/app#7", "issue")
   h.storage.upsertSession(row("r"))
-  h.tele.set("r", { ...tele(awaiting([{ kind: "issue", value: "acme/app#7" }])), lastActivityAt: iso(h.clock.ms) })
+  h.tele.set("r", { ...tele(), lastActivityAt: iso(h.clock.ms) })
   h.review.result = { status: "ok", issue: issueSnap(), activity: [] }
   await h.make().tick()
   assert.equal(h.resumes.length, 0, "the first poll records labels and assignees and says nothing")
@@ -3347,7 +3348,7 @@ test("issue-watch: a label moving and a new assignee are one state line; the clo
   assert.equal(h.review.calls.length, 0, "a settled watcher is never polled again")
 })
 
-test("issue-watch: the expiry wake names the issue tool, not watch_pr", async () => {
+test("issue-watch: the expiry wake names the issue and offers no command to re-register it", async () => {
   const h = harness()
   h.storage.upsertSession(row("r"))
   h.storage.armPrWatch({ id: "isw_x", slug: "r", kind: "issue", owner: "acme", repo: "app", number: 7, createdAtMs: h.clock.ms - 3600_000, expiresAtMs: h.clock.ms - 1 })
@@ -3358,7 +3359,7 @@ test("issue-watch: the expiry wake names the issue tool, not watch_pr", async ()
   assert.equal(h.resumes.length, 1)
   assert.match(h.resumes[0].message, /Your watcher on acme\/app#7 has expired/)
   assert.match(h.resumes[0].message, /nothing on that issue will wake/)
-  assert.match(h.resumes[0].message, /`ntwinectl watch-issue add`/)
+  assert.doesNotMatch(h.resumes[0].message, /watch-issue|watch-pr/)
 })
 
 // ---- SOURCE 10: THE INTERRUPT NOTE (interrupt-ended.ts) ----
