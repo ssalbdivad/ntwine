@@ -1,6 +1,6 @@
 # Pause — a thread the human has frozen
 
-Written 2026-09-03 as a design mockup, not a description of shipped behavior. The pictures are `packages/web/src/pause-mockup-fixture.tsx` (`nubx vite --port 5478 --strictPort` from `packages/web`, then `/pause-mockup-fixture.html?font=sans`, `?screen=<frame>` for one frame). This file carries the behavior the pictures cannot.
+Written 2026-09-03 as a design mockup, not a description of shipped behavior. Its pictures were a mockup page, `pause-mockup-fixture.tsx`, removed 2026-10-14 with the other unused mockups (it is in git history). This file carries the behavior the pictures could not.
 
 ## What it is, next to what already exists
 

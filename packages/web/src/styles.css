@@ -527,38 +527,15 @@ body {
    live child record — and the right-hand slot is words only. Do not reintroduce a second indicator here
    without a signal that can actually go false. */
 
-/* QUIET-LIVE dot — THE PRODUCT NO LONGER DRAWS IT. Only the mobile mockup kit's `LiveDot quiet` does
-   (mobile-mockup-kit.tsx, a design record from 2026-08-17). It marked a background shell that was still
-   a live process but had not touched its output in a while: the July meaning of a "stale" shell. Since
+/* QUIET-LIVE dot — gone. `.ntwine-live-dot-quiet` marked a background shell that was still a live
+   process but had not touched its output in a while: the July meaning of a "stale" shell. Since
    2026-08-19 a shell reads stale only once the OS confirms its process is gone (tailer `shellIsGone`),
    so breathing drew a DEAD process as a live one, and since 2026-10-05 the card, the drawer and the
-   transcript give that shell the flat stale dot instead (CHILD_STALE_SHELL_TITLE, lib/childOps.ts). Do
-   not bring it back for a shell without a signal that can tell "alive and quiet" from "gone".
-   As designed, it BREATHES: a slow, soft in/out that reads as a calm, resting pulse (distinct from the
-   brighter, faster accent pulse that signals fresh output), muted, with the motion alone saying alive. */
-.ntwine-live-dot-quiet {
-  display: block;
-  width: 6px;
-  height: 6px;
-  flex: 0 0 auto;
-  border-radius: 9999px;
-  /* Quiet-live is a SHELL state (a dev server/Monitor waiting), so it inherits the same shell-blue
-     hue as the bright shell dot — just muted toward gray. Keeps the accent teal default for safety. */
-  --live-dot: var(--color-accent);
-  --quiet-dot: color-mix(in srgb, var(--live-dot) 55%, var(--color-muted));
-  background: var(--quiet-dot);
-  /* The SAME 1px halo the bright dot carries, in this dot's own muted tone and at the same 28%. The
-     halo is not decoration — it is a third of the mark's painted width, so a dot without one reads as
-     a SMALLER dot, not a quieter one. MEASURED (4x device pixels, fixture, each dot frozen at its own
-     brightest phase): bright 8.0px of ink against this dot's 6.0px before the halo, 8.0px after.
-     Geometry is what says "same kind of mark"; the muted fill and the breathing opacity are what say
-     "quiet", and the element's own opacity multiplies this ring too, so it stays the quieter of the
-     two for free. */
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--quiet-dot) 28%, transparent);
-  animation: ntwine-live-breathe 2.6s ease-in-out infinite;
-}
-.ntwine-live-dot-quiet--shell { --live-dot: var(--color-shell); }
-/* Breathes on OPACITY ALONE. It used to scale 0.82→1 as well, which made the quiet dot read as a
+   transcript give that shell the flat stale dot instead (CHILD_STALE_SHELL_TITLE, lib/childOps.ts). Its
+   last user, a design mockup page, was removed 2026-10-14. Do not bring it back for a shell without a
+   signal that can tell "alive and quiet" from "gone". The breath survives on the quiet process glyph below.
+
+   Breathes on OPACITY ALONE. It used to scale 0.82→1 as well, which made the quiet dot read as a
    physically SMALLER mark than the bright one beside it rather than a calmer one — 4.92px against
    6px, and at the same keyframe as the 0.4 opacity trough, so the smallest instant was also the
    faintest (maintainer 2026-07-30: "I don't understand why the blue dot is so small for an idle
@@ -568,16 +545,10 @@ body {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.9; }
 }
-@media (prefers-reduced-motion: reduce) {
-  /* No `transform: none` any more — the keyframes stopped scaling, so there is nothing to undo. The
-     halo drops with the same `box-shadow: none` the bright dot uses here: this variant already paints
-     a 1.5px ring, and stacking the halo outside it would make the STATIC mark the largest of the three. */
-  .ntwine-live-dot-quiet { animation: none; opacity: 1; background: transparent; box-shadow: none; border: 1.5px solid var(--quiet-dot); }
-}
 /* THE OWNER GLYPH ON A PROCESS ROW (ThreadTerminals.tsx ProcessRow) — a bot or a terminal square in the
    9px mark slot, where these dots used to sit, carrying the same liveness by the same motion: running
    pulses on the live dot's own 1.25s cadence (tone only — 1 → 0.62 → 1, the dot's trough), quiet breathes
-   on the quiet dot's 2.6s (0.4 ↔ 0.9). Opacity alone, never a scale: the glyph's size is what says which
+   on \`ntwine-live-breathe\`'s 2.6s (0.4 ↔ 0.9). Opacity alone, never a scale: the glyph's size is what says which
    owner it is. Colour comes from the row (`text-shell`), so these carry motion and nothing else. */
 .ntwine-live-glyph {
   animation: ntwine-live-glyph-pulse 1.25s ease-in-out infinite;
@@ -589,9 +560,9 @@ body {
   animation: ntwine-live-breathe 2.6s ease-in-out infinite;
 }
 /* STILL, BUT STILL TWO STATES. With motion reduced the pulse and the breath both stop, and a quiet row at
-   full opacity read exactly as a running one — both `text-shell`, only the tooltip telling them apart. The
-   quiet DOT keeps its difference as a hollow ring; a glyph is already strokes, so the quiet one keeps the
-   breath's own middle instead (0.4 ↔ 0.9, held at 0.5): the same shell hue, visibly calmer, and still far
+   full opacity read exactly as a running one — both `text-shell`, only the tooltip telling them apart. A
+   glyph is already strokes, so it cannot fall back to a hollow ring; the quiet one keeps the breath's own
+   middle instead (0.4 ↔ 0.9, held at 0.5): the same shell hue, visibly calmer, and still far
    from the grey a finished row wears. */
 @media (prefers-reduced-motion: reduce) {
   .ntwine-live-glyph { animation: none; opacity: 1; }

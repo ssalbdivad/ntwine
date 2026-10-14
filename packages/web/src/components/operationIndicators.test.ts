@@ -127,18 +127,6 @@ test("running shells pulse blue and running sub-agents pulse the accent-yellow",
   assert.match(css, /\.ntwine-live-dot--agent \{ --live-dot: var\(--color-accent\); \}/)
 })
 
-// The product no longer draws the quiet dot (see the test above); the mobile mockup kit's `LiveDot quiet`
-// still does, so its look stays pinned for that design record.
-test("the mockup kit's quiet dot breathes in the shell blue, and stays visible as a static ring under reduced motion", () => {
-  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8")
-  assert.match(css, /\.ntwine-live-dot-quiet--shell \{ --live-dot: var\(--color-shell\); \}/)
-  // It must ANIMATE (breathe) rather than sit as a flat gray dot…
-  assert.match(css, /\.ntwine-live-dot-quiet \{[^}]*animation: ntwine-live-breathe/)
-  assert.match(css, /@keyframes ntwine-live-breathe/)
-  // …and degrade to a static ring (never fully disappear) when motion is reduced.
-  assert.match(css, /\.ntwine-live-dot-quiet \{ animation: none;[^}]*border: 1\.5px solid/)
-})
-
 // A process row's OWNER GLYPH carries the same two live states by motion (ThreadTerminals.tsx PROCESS_HUE):
 // running pulses, quiet breathes. With motion reduced both stopped at full opacity, so a quiet agent
 // terminal looked exactly like a running one; the quiet one now holds a calmer, still opacity.

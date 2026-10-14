@@ -17,9 +17,8 @@ import type { SendMode } from "../lib/sendMode.ts"
 //
 // THE SPACING IS MEASURED, not padded to taste. The four gaps the eye reads are ink distances and
 // none of them is a padding: the word wears ~0.7px of side bearing and the 13px chevron paints ~7.8px
-// of its box. The maintainer chose this set from eight drawn candidates (steer-button-mockup-fixture,
-// candidate C), after "it looks like there's more space to the left of 'send' than to the right of
-// it" and then, of the correction, "overcompensated". What it paints, read from pixels in sans with
+// of its box. The maintainer chose this set (candidate C) from eight drawn candidates, after "it
+// looks like there's more space to the left of 'send' than to the right of it" and then, of the correction, "overcompensated". What it paints, read from pixels in sans with
 // the button right-anchored and drawn as a 2x screen draws it:
 //
 //     left edge → S   9.6px      d → hairline   8.0px
