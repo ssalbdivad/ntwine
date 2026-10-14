@@ -270,10 +270,14 @@ export function liveDeadline(thread: Pick<ThreadView, "deadline" | "state" | "he
  * `slot="urgent"` ahead of the time, drawn only in the last stretch or over; `slot="quiet"` after it, drawn
  * only while there is plenty of time. Exactly one of the two draws at any moment.
  */
-export function DeadlineFact({ thread, lead, slot }: { thread: ThreadView; lead?: ReactNode; slot: "urgent" | "quiet" }) {
+// `keepOverrun`: the DRAWER's line keeps the overrun of a thread that has handed off. A limit that ran out is
+// still in force — every child the thread dispatches next gets a minute — and this chip is the door to removing
+// it; hidden everywhere, the limit read as already removed (2026-10-14: a 5m limit stayed on @precompile-design
+// for hours while its sub-agents were each told their time was up). The queue card and the rail stay quiet.
+export function DeadlineFact({ thread, lead, slot, keepOverrun }: { thread: ThreadView; lead?: ReactNode; slot: "urgent" | "quiet"; keepOverrun?: boolean }) {
   const deadline = liveDeadline(thread)
   if (!deadline) return null
-  return <DeadlineSlot slug={thread.id} deadline={deadline} lead={lead} slot={slot} handedOff={thread.needsYou === true} />
+  return <DeadlineSlot slug={thread.id} deadline={deadline} lead={lead} slot={slot} handedOff={!keepOverrun && thread.needsYou === true} />
 }
 
 function DeadlineSlot({ slug, deadline, lead, slot, handedOff }: { slug: string; deadline: ThreadDeadlineView; lead?: ReactNode; slot: "urgent" | "quiet"; handedOff: boolean }) {

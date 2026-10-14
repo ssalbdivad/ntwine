@@ -65,6 +65,8 @@ const threads = [
   { ...base, id: "over", title: "Port the parser", ...working(33), deadline: deadline(-8, 30, "worker") },
   { ...base, id: "seconds", title: "Cut the release notes", ...working(3), deadline: deadline(0.7, 10) },
   { ...base, id: "rested", title: "Draft the migration plan", runtime: "turn-idle", needsYou: true, deadline: deadline(95, 240) },
+  // Handed off past its limit: the rail and the queue card stay quiet, the drawer keeps the overrun (DeadlineFact).
+  { ...base, id: "handed-off", title: "Plan the precompile flags", runtime: "turn-idle", needsYou: true, deadline: deadline(-170, 5) },
   { ...base, id: "none", title: "No time limit on this one", ...working(7) },
   { ...base, id: "done", title: "A Done thread keeps no clock", runtime: "turn-idle", state: "archived", archived: true, deadline: deadline(-30, 60) },
 ] as unknown as ThreadView[]
@@ -138,6 +140,7 @@ function Fixture() {
           <Header slug="plenty" />
           <Header slug="closing" />
           <Header slug="over" />
+          <Header slug="handed-off" />
           <Header slug="none" />
         </div>
       </div>

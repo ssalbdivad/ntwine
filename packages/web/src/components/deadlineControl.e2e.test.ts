@@ -123,6 +123,25 @@ test("the drawer's chip extends from now once over, and removes", { skip: !baseU
   }
 })
 
+test("a thread that handed off past its limit keeps the overrun in the drawer only, where it can be removed", { skip: !baseUrl, timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await launch()
+  try {
+    assert.equal(await page.$('[data-sidebar-item="handed-off"] [data-rail-deadline]'), null, "the rail stays quiet")
+    assert.ok(await page.$('[data-sidebar-item="over"] [data-rail-deadline]'), "negative control: a thread still running over keeps its rail reading")
+    const chip = '[data-fixture-header="handed-off"] [data-deadline-chip]'
+    assert.equal(await page.$eval(chip, (el) => (el as HTMLElement).dataset.deadlineChip), "over")
+    assert.match(await page.$eval(chip, (el) => el.textContent ?? ""), /^over by 2h 51m$/)
+    await page.click(chip)
+    await page.waitForSelector("[data-time-limit-clear]")
+    await page.click("[data-time-limit-clear]")
+    await page.waitForFunction((sel) => !document.querySelector(sel), {}, chip)
+    assert.deepEqual((await recorded(page)).deadlines, [{ slug: "handed-off", deadline: null }])
+    assert.deepEqual(errors, [])
+  } finally {
+    await browser.close()
+  }
+})
+
 test("the ⋯ menu sets a limit on a thread with none, in the same grammar", { skip: !baseUrl, timeout: 60_000 }, async () => {
   const { browser, page, errors } = await launch()
   try {
