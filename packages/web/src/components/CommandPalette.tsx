@@ -13,7 +13,8 @@ import { sortThreads, displayName, displayTitle } from "../groups.ts"
 import { isCrossProjectPath } from "../lib/base-path.ts"
 import { aboveDrawersZ } from "../lib/overlaySurface.ts"
 import { startTour } from "../lib/tour.ts"
-import type { ScheduleView } from "@ntwine/shared"
+import { useOpenThreadInPlace } from "./AllQueuesCard.tsx"
+import type { ScheduleView, ThreadSearchEntry } from "@ntwine/shared"
 
 // Cmd+K palette: fuzzy-jump to any thread (over title + slug, grouped like the sidebar) plus the
 // common actions. cmdk owns the filtering; we set each item's `value` to the text we want matched.
@@ -33,6 +34,7 @@ export function CommandPalette() {
   // an empty query climbs back out, cmdk's own convention for pages.
   const [page, setPage] = useState<"root" | "schedules">("root")
   const inputRef = useRef<HTMLInputElement>(null)
+  const openInPlace = useOpenThreadInPlace()
   // Captured as the palette opens, so closing it can hand focus back (see onCloseAutoFocus).
   const openerRef = useRef<HTMLElement | null>(null)
 
@@ -200,6 +202,13 @@ export function CommandPalette() {
                   ))}
                 </Command.Group>
               )}
+              {/* Every OTHER project's threads, open and Done, from the server's search: the board above
+                  is the page project's alone. Picked, one opens in place the way a card's title does. */}
+              <EverywhereGroup
+                search={search}
+                exceptProject={board?.projectSlug}
+                onOpen={(hit) => run(() => openInPlace({ id: hit.projectId, slug: hit.projectSlug, name: hit.projectName }, hit.thread.id, displayTitle(hit.thread)))}
+              />
               </>
               )}
             </Command.List>
@@ -244,6 +253,43 @@ function SchedulesPage({ onOpen }: { onOpen: (schedule: ScheduleView) => void })
         ))}
       </Command.Group>
     </>
+  )
+}
+
+/** How long the query has to hold still before the palette asks the server. */
+const EVERYWHERE_DEBOUNCE_MS = 150
+
+/**
+ * THREADS IN EVERY OTHER PROJECT whose name or slug contains the query (`threadsSearch`), once it is two
+ * characters long. The page project's own threads are left out — the board group above lists them, and
+ * listing one twice reads as two threads. Done ones say so.
+ *
+ * cmdk filters every item by its `value` after we render it, and the server matched names the row does
+ * not show (a former name, the worker's own title). So each value LEADS with the query as typed,
+ * which keeps it through cmdk's substring filter, and ends with its project and slug, which keeps it
+ * unique.
+ */
+function EverywhereGroup({ search, exceptProject, onOpen }: { search: string; exceptProject: string | undefined; onOpen: (hit: ThreadSearchEntry) => void }) {
+  const [query, setQuery] = useState(search.trim())
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(search.trim()), EVERYWHERE_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [search])
+  const enabled = query.length >= 2
+  const found = useQuery({ queryKey: ["threadsSearch", query, 30], queryFn: () => rpc.threadsSearch({ query, limit: 30 }), enabled, staleTime: 5_000 })
+  if (!enabled || search.trim() !== query) return null
+  const hits = (found.data ?? []).filter((hit) => hit.projectSlug !== exceptProject)
+  if (hits.length === 0) return null
+  return (
+    <Command.Group heading="Other projects" className="cmdk-group">
+      {hits.map((hit) => (
+        <Item key={`${hit.projectId}/${hit.thread.id}`} value={`${search} ${hit.projectId}/${hit.thread.id}`} onSelect={() => onOpen(hit)}>
+          <span className={`min-w-0 flex-1 truncate ${hit.done ? "text-muted-70" : ""}`}>{displayTitle(hit.thread)}</span>
+          {hit.done && <span className="shrink-0 text-[11px] text-muted-60">Done</span>}
+          <span className="ml-auto min-w-0 max-w-[35%] shrink-0 truncate text-[11px] text-muted-70 max-[360px]:hidden">{hit.projectName}</span>
+        </Item>
+      ))}
+    </Command.Group>
   )
 }
 
