@@ -638,9 +638,8 @@ plugin directory. The published package does this for you.
 - Tests: `node --test`, colocated `*.test.ts`, minimal + contract-shaped.
 - UI state (unread, lastReadAt, session registry, settings) lives in ONE SQLite file for the whole
   machine, `~/.ntwine/ui.db`, every row tagged with its project id (`packages/server/src/ntwine-db.ts`;
-  one file per project under `~/.ntwine/projects/<projectId>/ui.db` until 2026-08-27 — a leftover is
-  imported once on the next boot, recorded in `imported_project`, and left in place so an older build
-  still finds it). An ordinary/main worktree's UUID remains the repo's
+  one file per project under `~/.ntwine/projects/<projectId>/ui.db` until 2026-08-27; a leftover is
+  never read, and is left in place so an older build still finds it). An ordinary/main worktree's UUID remains the repo's
   `.git/config` key `ntwine.id`; a linked worktree stores its own UUID at
   `<worktree-gitdir>/ntwine.config`, preserving ordinary state while isolating sibling DB and lock
   namespaces. NEVER store UI state in the checkout's `.ntwine/`.

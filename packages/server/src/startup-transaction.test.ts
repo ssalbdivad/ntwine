@@ -101,11 +101,11 @@ function fixture(t: TestContext, controls: FixtureControls = {}) {
   let databasesOpened = 0
 
   const runtime: Partial<StartServerRuntime> = {
-    // In memory, and with no legacy scan: the fixture's state dir must never grow a real file, and
+    // In memory: the fixture's state dir must never grow a real file, and
     // the unwind has to close what the database phase opened exactly once.
     openDatabase() {
       databasesOpened++
-      const real = openNtwineDatabase({ path: ":memory:", importLegacy: false })
+      const real = openNtwineDatabase({ path: ":memory:" })
       return { ...real, close: () => { closeCounts.database++; real.close() } }
     },
     createContext() {
