@@ -15,13 +15,13 @@ A thread only gets a card if it's actually waiting on you, so the queue stays a 
 
 ## The bands
 
-Every thread is in exactly one of five bands. A project's board names all of them, and Pinned, Queue and Running never fold.
+Every thread is in exactly one of five bands. A project's board names all of them, and Pinned, Ready and Working never fold.
 
 | Band | What's in it |
 | --- | --- |
 | **Pinned** | Threads you pinned, whatever they're doing, until you unpin them. |
-| **Queue** | Threads at rest that need you, or that stopped on a permission prompt. One row per card, each with how long it has waited. |
-| **Running** | Threads whose agents are working right now, however long they go quiet. |
+| **Ready** | Threads at rest that need you, or that stopped on a permission prompt. One row per card, each with how long it has waited. |
+| **Working** | Threads whose agents are working right now, however long they go quiet. |
 | **Snoozed** | Threads you parked, and threads waiting on something outside: a PR, an issue, a timer or the next run of a [schedule](/docs/schedules). |
 | **Done** | Threads you marked done. Reply to one to pick it back up. |
 

@@ -1,10 +1,9 @@
 // THE STATUS BAR ITEM, as data: what it says, what hovering it says, and what clicking it does.
 //
-// Connected, it is "Ntwine", with this workspace's Queue count beside it when anything is waiting on the
+// Connected, it is "Ntwine", with this workspace's Ready count beside it when anything is waiting on the
 // human — the one number worth a glance from the editor, and the one the sidebar's badge shows. A click
-// shows the Ntwine sidebar, where those threads are. "Queued" and "running" are the page's own words
-// for the queue and for what is spinning (its bands, Queue and Running, since 2026-10-06; Ready and
-// Working before). A project the server has not opened yet has no counts (the
+// shows the Ntwine sidebar, where those threads are. Ready and Working are the page's own words
+// for the queue and for what is spinning. A project the server has not opened yet has no counts (the
 // `projects` push omits them), and says nothing rather than claiming zero.
 //
 // Offline, it stays short — a window with no Ntwine running should not shout about it in every status
@@ -17,7 +16,7 @@ export interface StatusView {
   text: string
   tooltip: string
   command: "ntwine.sidebar.focus" | "ntwine.reconnect"
-  /** This workspace's Queue count; 0 when not connected. */
+  /** This workspace's Ready count; 0 when not connected. */
   ready: number
 }
 
@@ -43,10 +42,10 @@ function statusFor(connection: ConnectionStatus, projects: readonly EditorProjec
       const ready = projects.reduce((sum, project) => sum + (project.ready ?? 0), 0)
       const lines = projects.map((project) => {
         if (project.ready === undefined && project.working === undefined) return project.name
-        return `${project.name}: ${project.ready ?? 0} queued · ${project.working ?? 0} running`
+        return `${project.name}: ${project.ready ?? 0} ready · ${project.working ?? 0} working`
       })
       return {
-        text: ready > 0 ? `Ntwine · ${ready} queued` : "Ntwine",
+        text: ready > 0 ? `Ntwine · ${ready} ready` : "Ntwine",
         tooltip: [...lines, "Click to show Ntwine."].join("\n"),
         command: "ntwine.sidebar.focus",
         ready,

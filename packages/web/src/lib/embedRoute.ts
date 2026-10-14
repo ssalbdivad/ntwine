@@ -36,15 +36,14 @@ export function sidebarRoute(input: {
 }
 
 /**
- * The queue's counts as one line: `7 queued · 2 running`, or `Nothing needs you` — the bands' names,
- * Queue and Running (BandLabel.tsx; `ready · working` until 2026-10-06). "Queued" is the desktop's
- * QUEUE count (AllQueues.tsx `ready`, the header over the cards) — every card, a question included — so the
+ * The queue's counts as one line: `7 ready · 2 working`, or `Nothing needs you`. "Ready" is the desktop's
+ * READY count (AllQueues.tsx `ready`, the header over the cards) — every card, a question included — so the
  * sidebar and a browser tab never disagree about how many there are. It read the phone header's line until
  * 2026-10-01 (`1 needs you · 6 ready`), whose "ready" leaves the questions out: beside a desktop saying 7,
  * the sidebar said 6. The rows' own glyphs show which ones ask.
  */
 export function queueReading(counts: { ready: number; working: number }): string {
-  const parts = [counts.ready > 0 ? `${counts.ready} queued` : null, counts.working > 0 ? `${counts.working} running` : null].filter((part) => part !== null)
+  const parts = [counts.ready > 0 ? `${counts.ready} ready` : null, counts.working > 0 ? `${counts.working} working` : null].filter((part) => part !== null)
   return parts.length > 0 ? parts.join(" · ") : "Nothing needs you"
 }
 

@@ -23,9 +23,9 @@ test("an open thread is named by its title, and Settings wins over everything", 
 
 test("the counts are the desktop's READY, every card, and what is working beside it", () => {
   // A question is a card: 1 ask and 6 handoffs read 7 ready, as the READY header over the cards does.
-  assert.equal(queueReading({ ready: 7, working: 2 }), "7 queued · 2 running")
-  assert.equal(queueReading({ ready: 7, working: 0 }), "7 queued")
-  assert.equal(queueReading({ ready: 0, working: 1 }), "1 running")
+  assert.equal(queueReading({ ready: 7, working: 2 }), "7 ready · 2 working")
+  assert.equal(queueReading({ ready: 7, working: 0 }), "7 ready")
+  assert.equal(queueReading({ ready: 0, working: 1 }), "1 working")
   assert.equal(queueReading({ ready: 0, working: 0 }), "Nothing needs you")
 })
 

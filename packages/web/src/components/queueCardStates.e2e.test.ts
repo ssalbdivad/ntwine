@@ -286,7 +286,7 @@ test("a park queued only for its reply reads Replied, and Mark as read records i
   await open("case=replied")
   const text = await page!.$eval(FIRST, (card) => card.textContent ?? "")
   assert.match(text, /Replied/, "the header says why it is here")
-  assert.doesNotMatch(text, /Queued|Ready/, "not the queue word (Queued; Ready until 2026-10-06)")
+  assert.doesNotMatch(text, /Ready/)
   await page!.$eval(`${FIRST} [data-thread-lifecycle] button[data-mark-read]`, (button) => (button as HTMLButtonElement).click())
   await page!.waitForFunction((sel) => !document.querySelector(sel), { timeout: 2_000 }, FIRST)
   const seen = (await rpcLog()).calls.filter((c) => /\/rpc\/threadSeen$/.test(c.path)).map((c) => c.path)

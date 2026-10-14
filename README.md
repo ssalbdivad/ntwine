@@ -63,7 +63,7 @@ These are Colin's design principles from Frizz, and Ntwine keeps all of them. I 
 
 **The board shows what's true, densely.**
 
-- There are five bands: Pinned, Queue, Running, Snoozed and Done. Every thread is in exactly one, no view loses that, and on a board the first three never fold.
+- There are five bands: Pinned, Ready, Working, Snoozed and Done. Every thread is in exactly one, no view loses that, and on a board the first three never fold.
 - Projects stay separate. All projects is the default view and never interleaves them, and each project's board is one click away.
 - Density over decoration, and few settings. The default view shows at least as much as the original board at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/capacityParity.e2e.test.ts) holds it there.
 
@@ -276,7 +276,7 @@ In the terminal running Ntwine, **R** sets up remote access and **L** shows a fr
 | **Worker** | The agent driving a thread: a real Claude Code, Codex or ACP process, running as you. |
 | **Sub-agent** | A helper a worker dispatches for one prong of its task, listed under its parent as `@parent.child`. |
 | **Handle** | A thread's short name, `@port-the-parser`, used to mention, read and message it. |
-| **Bands** | **Pinned** (your shelf), **Queue** (resting, needs you), **Running** (working now), **Snoozed** (parked until a time or an event), **Done**. |
+| **Bands** | **Pinned** (your shelf), **Ready** (resting, needs you), **Working** (working now), **Snoozed** (parked until a time or an event), **Done**. |
 | **Question** | An answerable choice an agent hands back, with numbered options and a recommendation. |
 | **Goal** | A standing prompt a thread receives at every rest, on a clock, or both. |
 | **Schedule** | A prompt plus a recurrence, in plain words. Each run starts a fresh thread. |

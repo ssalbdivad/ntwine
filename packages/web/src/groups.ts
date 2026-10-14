@@ -332,14 +332,13 @@ export function queueLabelAt(t: Pick<ThreadView, "queuedAt" | "runtime" | "lastA
 
 // The word a queue CARD puts in front of that time. "Last active" would be false for a thread that
 // entered off a wait — its agent may last have spoken hours before it came to the human — so a queued
-// card says how long it has been QUEUED, after the name its band wears (7f840a59; the band was Ready
-// until 2026-10-06, when it took upstream's name, Queue). A card for a thread that is not queued (none on
-// the queue surfaces today) keeps saying what its time is.
+// card says how long it has been READY, the name its band wears (7f840a59). A card for a thread that is
+// not queued (none on the queue surfaces today) keeps saying what its time is.
 export function queueLabelWord(t: Pick<ThreadView, "queuedAt" | "queuedForReply">): string {
-  // A park in the queue only for its unread reply says so: "Queued" over an Awaiting card read as a
+  // A park in the queue only for its unread reply says so: "Ready" over an Awaiting card read as a
   // wait the human was somehow supposed to act on (board.ts queuedForReply).
   if (t.queuedAt && t.queuedForReply) return "Replied"
-  return t.queuedAt ? "Queued" : "Last active"
+  return t.queuedAt ? "Ready" : "Last active"
 }
 
 // ── SESSION-FIRST QUEUE ──────────────────────────────────────────────────────────────────────────

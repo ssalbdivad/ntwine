@@ -8,22 +8,18 @@ import { optimisticallySteered, useSteeredAt } from "../lib/steering.ts"
 // THE BAND TABLE — every rail band's name and icon, in ONE place, because three surfaces say them and
 // the whole point is that all three say them IDENTICALLY:
 //   · the rail's band headers (Sidebar SectionHeader);
-//   · the header over the queue cards (AllQueues) — QUEUE with the inbox, the name and
+//   · the header over the queue cards (AllQueues) — READY with the inbox, the name and
 //     glyph of the rail band whose rows ARE those cards;
-//   · the stamp in a thread's header (ChatView ThreadHeader) — RUNNING with the bot on a drawer opened
-//     from the Running band, flipping to QUEUE the moment that thread rests into the inbox behind it.
+//   · the stamp in a thread's header (ChatView ThreadHeader) — WORKING with the bot on a drawer opened
+//     from the Working band, flipping to READY the moment that thread rests into the inbox behind it.
 // Together they make the rail's headers a legend for the whole screen: the middle column is the Ready
 // band's cards, and a thread that opens on the side names its band too (maintainer 2026-09-24: make it
 // obvious that the middle of the screen is the inbox and a running thread opens in the side panel).
 // Change a name or an icon HERE and every surface moves with it; give one surface its own and the
 // legend stops being one.
 //
-// THE NAMES ARE UPSTREAM'S (2026-10-06, plans/upstream-superset.md): QUEUE and RUNNING, the words its sidebar's
-// headers used for the bands the code keys `ready` and `working` — "the queue" is what the human calls it.
-// The fork said Ready and Working from 2026-09-23 until then; the keys stayed, so only what is read moved.
-//
 // Every band wears an icon (maintainer 2026-09-23), and above all the two whose names alone do not say
-// whose move it is: the Queue is an inbox (yours) and Running a bot (the agent's). A developer's face
+// whose move it is: Ready is an inbox (yours) and Working a bot (the agent's). A developer's face
 // mirroring the bot was tried and dropped: at 11px a round head reads as an emoji, and every feature
 // added to make it human (hair, glasses, pupils) fused with the next. The bot is static — the rows
 // under it already spin, and a header is permanent chrome.
@@ -31,8 +27,8 @@ export type BandKey = Band | "pinned"
 
 export const BANDS: Record<BandKey, { label: string; Icon: ComponentType<{ size?: number }> }> = {
   pinned: { label: "Pinned", Icon: Pin },
-  ready: { label: "Queue", Icon: Inbox },
-  working: { label: "Running", Icon: Bot },
+  ready: { label: "Ready", Icon: Inbox },
+  working: { label: "Working", Icon: Bot },
   snoozed: { label: "Snoozed", Icon: SnoozeMark },
   done: { label: "Done", Icon: SquareCheck },
   external: { label: "External", Icon: ExternalLink },
@@ -78,8 +74,8 @@ export function BandLabel({ band, count, className = "", ...data }: { band: Band
 
 /**
  * The band a thread is in RIGHT NOW, named — the stamp on a thread header's second line. On a drawer
- * it is the drawer's half of the rhyme: a thread opened from the Running band says RUNNING under its
- * title, beside the board header with the same bot, and says QUEUE the moment it rests into the inbox
+ * it is the drawer's half of the rhyme: a thread opened from the Working band says WORKING under its
+ * title, beside the rail header with the same bot, and says READY the moment it rests into the inbox
  * behind the drawer. It reads the rail's own two optimistic overlays, in the rail's order, so a reply
  * sent from this drawer moves the stamp in the same frame it moves the row.
  */

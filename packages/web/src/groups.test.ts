@@ -507,7 +507,7 @@ test("orderQueue: a thread keys on when it ENTERED the queue, so a wait that let
   assert.deepEqual(orderQueue(tied).map((item) => item.id), ["b-rested-earlier", "a-rested-later"])
   // The queue CARD names the reading for what it is: how long the thread has been ready, not when its
   // agent last spoke — which for `ci-held` was 09:00.
-  assert.equal(queueLabelWord(ciHeld), "Queued")
+  assert.equal(queueLabelWord(ciHeld), "Ready")
   assert.equal(queueLabelWord(thread({ id: "unstamped" })), "Last active")
   // A row without the stamp (a server predating it) falls back to the rest time, as before.
   assert.equal(queueLabelAt(thread({ id: "legacy", lastAssistantAt: "2026-09-24T08:00:00.000Z" })), "2026-09-24T08:00:00.000Z")

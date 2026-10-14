@@ -11,8 +11,8 @@ test("connected, the item reads Ntwine plus the workspace's Ready count, and the
     { id: "c", slug: "c", name: "docs", dir: "/r/docs" },
   ])
   assert.deepEqual(view, {
-    text: "Ntwine · 3 queued",
-    tooltip: "ntwine: 2 queued · 1 running\nsite: 1 queued · 0 running\ndocs\nClick to show Ntwine.",
+    text: "Ntwine · 3 ready",
+    tooltip: "ntwine: 2 ready · 1 working\nsite: 1 ready · 0 working\ndocs\nClick to show Ntwine.",
     command: "ntwine.sidebar.focus",
     ready: 3,
   })

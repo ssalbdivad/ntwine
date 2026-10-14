@@ -22,8 +22,8 @@ points.
   without it (header of `packages/server/src/workerPrompt.ts`).
 
 **The board (original design; § Board nomenclature)**
-- Every thread is in exactly one of five rails (Pinned, Queue, Running, Snoozed, Done), and no view may lose that
-  distinction. On a board, Pinned, Queue and Running never fold.
+- Every thread is in exactly one of five rails (Pinned, Ready, Working, Snoozed, Done), and no view may lose that
+  distinction. On a board, Pinned, Ready and Working never fold.
 - Projects stay separate. All projects at `/all` is the default view and never interleaves projects; each project's board is at `/project/<slug>`.
 - The default view shows at least as much as upstream's board at heavy load (17 projects, ~70 threads).
   `packages/web/src/capacityParity.e2e.test.ts` is the bar.
@@ -233,19 +233,19 @@ Two more things look like exceptions and are not. node-pty is a ROOT `devDepende
 
 # Board nomenclature: "active" means SPINNING, and nothing else
 
-The sidebar's row groups have names the maintainer uses precisely (2026-08-05: *"when I say active, I'm only referring to the things that are currently spinning; the things beneath that, I would refer to as rested, or just items in the queue"*). The UI labels the same bands with the original names, **Queue** and **Running** (`BANDS` in `web/src/components/BandLabel.tsx`, since 2026-10-06), and the two vocabularies map one to one: say Queue and Running in copy; in code, comments and when reporting back say either pair, never both in one sentence. (The quote says "beneath" because Rested sat below Active when it was said; on 2026-08-08 the two bands SWAPPED position — the cue moved up under the prompt box — and the vocabulary did not change with them.)
+The sidebar's row groups have names the maintainer uses precisely (2026-08-05: *"when I say active, I'm only referring to the things that are currently spinning; the things beneath that, I would refer to as rested, or just items in the queue"*). The UI labels the same bands **Ready** and **Working** (`BANDS` in `web/src/components/BandLabel.tsx`; they read Queue and Running from 2026-10-06 to 2026-10-14), and the two vocabularies map one to one: say Ready and Working in copy; in code, comments and when reporting back say either pair, never both in one sentence. (The quote says "beneath" because Rested sat below Active when it was said; on 2026-08-08 the two bands SWAPPED position — the cue moved up under the prompt box — and the vocabulary did not change with them.)
 
 Every thread Ntwine started is in exactly one of five bands, top to bottom:
 
 - **Pinned** — the human's shelf, above everything. A pinned thread stays here, whatever it is doing, until it is unpinned.
-- **Queue** — the maintainer's **Rested**, the CUE: directly under the pins, the same set as **"the queue"** / "items in the queue", one row per card, each with a right-justified rest time.
-- **Running** — the maintainer's **Active**: the rows below that rule, in practice the ones currently spinning. Never carries a queue card, and never a rest time — the rule is drawn on the CARD, so a thread the server excused from the queue while it rests lands here too, and so does an archived thread whose worker is still running, until it rests (see `ARCHITECTURE.md`).
+- **Ready** — the maintainer's **Rested**, the CUE: directly under the pins, the same set as **"the queue"** / "items in the queue", one row per card, each with a right-justified rest time.
+- **Working** — the maintainer's **Active**: the rows below that rule, in practice the ones currently spinning. Never carries a queue card, and never a rest time — the rule is drawn on the CARD, so a thread the server excused from the queue while it rests lands here too, and so does an archived thread whose worker is still running, until it rests (see `ARCHITECTURE.md`).
 - **Snoozed** — the dimmed park band (an armed timer, a wall-clock snooze, the resting card's event-snooze, a rest its worker called `status: watching`). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
 - **Done** — the archived section.
 
-**External** (agent sessions Ntwine did not start) is listed apart, never a sixth band. A project's board (`/project/<slug>`) names all five under headers, and Pinned, Queue and Running never fold; a working row's status there is a hover, with only its clock on the line. All projects (`/all`, one click away; a bare `/` goes back to whichever view the browser showed last) names none — each row says its band by its own mark (a pin, a rest time, a spinner), its status inline — and a folded project's row counts its Pinned, Queue and Running.
+**External** (agent sessions Ntwine did not start) is listed apart, never a sixth band. A project's board (`/project/<slug>`) names all five under headers, and Pinned, Ready and Working never fold; a working row's status there is a hover, with only its clock on the line. All projects (`/all`, one click away; a bare `/` goes back to whichever view the browser showed last) names none — each row says its band by its own mark (a pin, a rest time, a spinner), its status inline — and a folded project's row counts its Pinned, Queue and Running.
 
-The trap is that `sectionOf` (`@ntwine/shared`, re-exported by `groups.ts`) returns `"active"` for Running AND Queue rows alike — that key names the `<section>` holding both bands, not the maintainer's word — and the band keys are still the fork's old labels, `ready` (Queue) and `working` (Running). `partitionActive` splits the section (`.running` = Running, `.rested` = Queue), and `inActiveBand` is the one predicate that means Running exactly. Full detail, including why the archived key is `"inactive"` while its label reads Done, in `ARCHITECTURE.md` § Board nomenclature.
+The trap is that `sectionOf` (`@ntwine/shared`, re-exported by `groups.ts`) returns `"active"` for Working AND Ready rows alike — that key names the `<section>` holding both bands, not the maintainer's word — and the band keys match those labels, `ready` and `working`. `partitionActive` splits the section (`.running` = Working, `.rested` = Ready), and `inActiveBand` is the one predicate that means Working exactly. Full detail, including why the archived key is `"inactive"` while its label reads Done, in `ARCHITECTURE.md` § Board nomenclature.
 
 # "Shipped" means merged into the primary branch
 
