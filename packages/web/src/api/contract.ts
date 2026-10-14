@@ -70,7 +70,6 @@ import type {
   DeliverQueuedNowResult,
   CompactThreadInput,
   RenameThreadInput,
-  AiRenameThreadResult,
   SetThreadPermissionInput,
   SetThreadPermissionResult,
   ThreadProfileOptionsInput,
@@ -301,7 +300,7 @@ export interface Api {
   // it — after a compaction, or after the human edited the text in the Goal panel.
   getOwnThreadRecurringPrompt(input: GetOwnThreadRecurringPromptInput): Promise<OwnThreadRecurringPromptResult>
   // THE WORKER NAMING ITS OWN THREAD, called by `ntwinectl title`. Declared here for the drift gate
-  // alone — the browser's rename verbs are `renameThread` / `aiRenameThread`, which lock the name.
+  // alone — the browser's rename verb is `renameThread`, which locks the name.
   setOwnThreadTitle(input: SetOwnThreadTitleInput): Promise<SetOwnThreadTitleResult>
   readThread(input: ReadThreadInput): Promise<ReadThreadResult>
   messageThread(input: MessageThreadInput): Promise<MessageThreadResult>
@@ -420,7 +419,6 @@ export interface Api {
   archiveThread(input: { slug: string }): Promise<void>
   killAgent(input: { slug: string }): Promise<void>
   renameThread(input: RenameThreadInput): Promise<void>
-  aiRenameThread(input: { slug: string }): Promise<AiRenameThreadResult>
   // The selectable Codex models + per-model effort options, read server-side from the authoritative
   // ~/.codex/models_cache.json (never a hand-maintained list). The model picker's Codex section and its
   // effort dropdown are driven by this; a tiny client fallback covers the loading/no-cache state.
@@ -664,7 +662,6 @@ export const PROCEDURES = {
   archiveThread: "mutation",
   killAgent: "mutation",
   renameThread: "mutation",
-  aiRenameThread: "mutation",
   codexModels: "query",
   claudeModels: "query",
   acpAgents: "query",

@@ -5,8 +5,7 @@
 // and, for the Goal, lead the prompt box's rail.)
 //
 // ONE broker-backed Claude row, because that is the shape that renders the whole right cluster:
-// `RestartWorkerButton` requires a Claude row that has not exited (and a dev build), and the title's
-// AI-rename refresh a broker-backed one. The `claude_runtime` column is projected straight through
+// `RestartWorkerButton` requires a Claude row that has not exited (and a dev build). The `claude_runtime` column is projected straight through
 // (board.ts), so a simulated worker can carry it; liveness is what a seed cannot fake, so if the row
 // cards as exited the restart verb hides and the check falls back to the fixture.
 //

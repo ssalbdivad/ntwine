@@ -575,9 +575,11 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
           )
         }
         else if (msg.t === "rename") {
-          // On-demand re-title, the SDK equivalent of typing `/rename` at an interactive prompt. Same
-          // request/response discipline as the other control actions: the caller is blocked on the
-          // title, so a silent drop would read as a wedged daemon rather than a failed rename.
+          // NO CURRENT SERVER SENDS THIS. It was the on-demand re-title's frame (the SDK equivalent of
+          // typing `/rename`); the re-title moved to Ntwine's own namer, and its button went on
+          // 2026-10-14. Still answered, and the capability still advertised, for an OLDER server a
+          // downgrade attaches to this daemon, exactly as reload-plugins below. Same request/response
+          // discipline as the other control actions: a silent drop would read as a wedged daemon.
           const requestId = msg.requestId as string
           const description = typeof msg.description === "string" ? msg.description : ""
           void handle.generateSessionTitle(description).then(

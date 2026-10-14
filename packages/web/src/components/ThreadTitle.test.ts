@@ -9,7 +9,7 @@ import { TooltipProvider } from "./Tooltip.tsx"
 
 // ThreadTitle is the ONE title element both the drawer header and the queue card render, so this is
 // where the manual-rename affordance is pinned. The queue card used to render its own plain div with
-// only the AI refresh mark beside it (maintainer 2026-09-13: "It only lets me rename. I should be able
+// only an AI re-title mark beside it (maintainer 2026-09-13: "It only lets me rename. I should be able
 // to click on it to retitle it.").
 
 const base = { kind: "session", backend: "claude", title: "A worker", status: "active", runtime: "running", subAgents: [] } as unknown as ThreadView
@@ -25,19 +25,17 @@ function render(extra: Partial<ThreadView>): string {
   )
 }
 
-test("an owned session thread's name is a click-to-edit button, with the Claude refresh mark beside it", () => {
+test("an owned session thread's name is a click-to-edit button", () => {
   const html = render({})
   // The name shows as its handle; the editor it opens is seeded with the stored words (groups.ts displayName).
   assert.match(html, /<button[^>]*aria-label="Edit thread title: a-worker"/)
-  assert.match(html, /data-ai-rename/)
   assert.match(html, /focus-visible:ring-focus-ink-60/)
   assert.doesNotMatch(html, /focus-visible:ring-fg\/60/)
 })
 
-test("a Codex thread keeps the manual editor and gets no Claude refresh mark", () => {
+test("a Codex thread keeps the manual editor", () => {
   const html = render({ backend: "codex" })
   assert.match(html, /aria-label="Edit thread title: a-worker"/)
-  assert.doesNotMatch(html, /data-ai-rename/)
 })
 
 test("a foreign row has no registry row to rename, so its name is plain text", () => {

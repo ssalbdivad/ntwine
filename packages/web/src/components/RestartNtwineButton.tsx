@@ -283,8 +283,8 @@ export function RestartActionButton({
       aria-label={current ? "Ntwine is up to date" : update ? "Update Ntwine" : "Restart Ntwine"}
       disabled={busy}
       aria-busy={busy || undefined}
-      // aria-disabled, not the native attribute, for the same reason as AiRenameButton: the popover
-      // that explains the grey hangs off this button's focus and its wrapper's hover. The button
+      // aria-disabled, not the native attribute: the popover that explains the grey hangs off this
+      // button's focus and its wrapper's hover, and a natively disabled button cannot take focus. The button
       // itself takes no pointer, so it paints no hover fill and a click never reaches it.
       aria-disabled={current || undefined}
       className={`relative ${STATUS_ROW_ACTION}${current ? " pointer-events-none opacity-40" : ""}`}

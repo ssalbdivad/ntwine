@@ -4,7 +4,7 @@
 //
 // It is a FIXED height, never a minimum: the thread header carried `min-h-12 py-1.5` and measured
 // 52.75px beside the viewer's 48 (2026-09-03, maintainer: "headers should have consistent height"),
-// because the AI-rename mark's 24px hover square grew the title row past the 15px title's own line
-// box (trimmed to zero flow height since — AiRenameButton), and the padding then pushed the stack
+// because the AI-rename mark's 24px hover square (since removed) grew the title row past the 15px
+// title's own line box, and the padding then pushed the stack
 // past the minimum. A fixed bar centres whatever the row holds instead of growing with it.
 export const PANE_HEADER_HEIGHT_CLASS = "h-12"

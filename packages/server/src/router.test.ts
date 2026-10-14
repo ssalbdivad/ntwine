@@ -2,11 +2,11 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, utimesSync } from "node:fs"
-import { homedir, tmpdir } from "node:os"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Hono } from "hono"
 import { mountRouter } from "@ntwine/rpc/server"
-import { DISPATCH_TASK_BANNER_MARKER, openQuestionsNote, spinoffChildPrompt, stripFollowUpRiders, type BoardSnapshot, type Settings, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
+import { openQuestionsNote, stripFollowUpRiders, type BoardSnapshot, type Settings, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { appendDelivery, parseDeliveryLedger, projectDeliveryLedger } from "./delivery-ledger.ts"
 import { createWakeDeliveryStore } from "./wake-store.ts"
@@ -338,108 +338,6 @@ test("renameThread RPC: empty titles are rejected and rowless/foreign threads re
   h.storage.close()
 })
 
-// Provider rename now goes through the Claude broker's typed control channel (the SDK's
-// `generateSessionTitle`) rather than typing `/rename` into a terminal, so the refusal a non-Claude
-// or non-broker thread gets names the transport rather than the backend.
-test("aiRenameThread RPC: only a running broker-backed Claude thread can be renamed by the provider", async () => {
-  const h = harness()
-  h.storage.upsertSession({ ...row("codex-title"), exited: 0 })
-  h.storage.setBackend("codex-title", "codex")
-  await assert.rejects(h.router.aiRenameThread.handler({ input: { slug: "codex-title" } }), /broker-backed Claude thread/)
-  assert.equal(h.storage.getSession("codex-title")?.title, "codex-title")
-  assert.equal(h.refreshes(), 0)
-  h.storage.close()
-})
-
-// The provider titles a thread from its OPENING request, never from the newest reply: sourcing the
-// tail's `lastAssistant` named long threads after "the very last agent action" (issue #22). The
-// description must also be the operator's task alone — the dispatch envelope above the banner is
-// boilerplate shared by every dispatched thread, so the titler must not see it.
-test("aiRenameThread RPC: the title request carries the opening task, not the last assistant reply", async () => {
-  const cwdSlug = `-tmp-ntwine-rename-test-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
-  const logDir = join(homedir(), ".claude", "projects", cwdSlug)
-  mkdirSync(logDir, { recursive: true })
-  const lastAssistant = "Ran the focused tests; all green."
-  const tailWithRecentReply = {
-    ...noopTailer,
-    get: () => ({ lastAssistant }) as unknown as ReturnType<Tailer["get"]>,
-  } as Tailer
-  const h = harness(tailWithRecentReply)
-  try {
-    ;(h.ctx.project as { cwdSlug: string }).cwdSlug = cwdSlug
-    h.storage.upsertSession({ ...row("rename-src"), exited: 0 })
-    h.storage.setBackend("rename-src", "claude")
-    h.storage.setClaudeRuntime("rename-src", "broker")
-    const task = "Investigate the flaky resume test and fix it"
-    const envelope = `orientation the operator never wrote${DISPATCH_TASK_BANNER_MARKER}${task}`
-    writeFileSync(
-      join(logDir, "sid-rename-src.jsonl"),
-      [
-        JSON.stringify({ type: "user", timestamp: "2026-08-24T00:00:00.000Z", message: { role: "user", content: envelope } }),
-        JSON.stringify({ type: "assistant", timestamp: "2026-08-24T00:01:00.000Z", message: { id: "m1", role: "assistant", content: [{ type: "text", text: lastAssistant }] } }),
-      ].map((l) => l + "\n").join(""),
-    )
-    const described: string[] = []
-    ;(h.ctx as { claudeBroker?: unknown }).claudeBroker = {}
-    ;(h.ctx as { threadNamer?: unknown }).threadNamer = createThreadNamer({
-      storage: h.storage,
-      complete: async ({ prompt }) => {
-        described.push(prompt)
-        return "Resume flake"
-      },
-    })
-    const result = await h.router.aiRenameThread.handler({ input: { slug: "rename-src" } })
-    assert.deepEqual(result, { title: "Resume flake" })
-    assert.equal(described.length, 1)
-    assert.match(described[0]!, new RegExp(`<request>\\n${task}\\n</request>`))
-    assert.doesNotMatch(described[0]!, /orientation the operator never wrote|all green/)
-    assert.equal(h.storage.getSession("rename-src")?.title, "Resume flake")
-    h.storage.close()
-  } finally {
-    rmSync(logDir, { recursive: true, force: true })
-  }
-})
-
-// A SPINOFF CHILD is renamed from the instructions AND its context (2026-09-30) — the text its dispatch
-// minted its name from. Its opening turn's `displayText` is the human's bare instructions, and those are
-// often subject-less: naming from them alone gave the titler "evaluate whether this is a good idea" and
-// nothing about WHAT.
-test("aiRenameThread RPC: a spinoff child is named from its instructions and its context", async () => {
-  const cwdSlug = `-tmp-ntwine-rename-spinoff-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
-  const logDir = join(homedir(), ".claude", "projects", cwdSlug)
-  mkdirSync(logDir, { recursive: true })
-  const h = harness()
-  try {
-    ;(h.ctx.project as { cwdSlug: string }).cwdSlug = cwdSlug
-    const instructions = "evaluate whether this is a good idea"
-    const brief = "The subject: moving the shell budget ceiling into settings.ts."
-    const opening = (task: string) =>
-      JSON.stringify({ type: "user", timestamp: "2026-09-30T00:00:00.000Z", message: { role: "user", content: `orientation${DISPATCH_TASK_BANNER_MARKER}${task}` } }) + "\n"
-    h.storage.upsertSession({ ...row("framed-child"), exited: 0, title_auto: 1, title_locked: 0 })
-    h.storage.setBackend("framed-child", "claude")
-    h.storage.setClaudeRuntime("framed-child", "broker")
-    writeFileSync(join(logDir, "sid-framed-child.jsonl"), opening(spinoffChildPrompt({ parentSlug: "parent", parentTitle: "Parent", parentHandle: "parent", instructions, brief })))
-    const described: string[] = []
-    ;(h.ctx as { claudeBroker?: unknown }).claudeBroker = {}
-    ;(h.ctx as { threadNamer?: unknown }).threadNamer = createThreadNamer({
-      storage: h.storage,
-      complete: async ({ prompt }) => {
-        described.push(prompt)
-        return "Budget ceiling"
-      },
-    })
-    await h.router.aiRenameThread.handler({ input: { slug: "framed-child" } })
-    assert.equal(described.length, 1)
-    for (const prompt of described) {
-      assert.match(prompt, new RegExp(`<request>\\n${instructions}\\n\\n${brief.replace(/\./g, "\\.")}\\n</request>`))
-      assert.doesNotMatch(prompt, /A spinoff of|orientation/)
-    }
-    h.storage.close()
-  } finally {
-    rmSync(logDir, { recursive: true, force: true })
-  }
-})
-
 // NAMES ARE NEVER DUPLICATED (thread-names.ts), and every writer is held to it — here the two the router
 // owns: a human's rename (an inline error in the header editor) and the worker's `mcp__ntwine__title`
 // (a refusal that names the holder). Each has its negative control: a distinct name goes straight in.
@@ -504,40 +402,6 @@ test("setOwnThreadTitle RPC: a duplicate is refused NAMING its holder, a distinc
   assert.equal(h.storage.getSession("minted")?.title, "Perf review")
   assert.equal(h.storage.getSession("spun")?.title, "Cache review")
   h.storage.close()
-})
-
-test("aiRenameThread RPC: a collision is retried once naming it, then falls back to a distinguishing word", async () => {
-  const cwdSlug = `-tmp-ntwine-rename-dupe-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
-  const logDir = join(homedir(), ".claude", "projects", cwdSlug)
-  mkdirSync(logDir, { recursive: true })
-  const h = harness()
-  try {
-    ;(h.ctx.project as { cwdSlug: string }).cwdSlug = cwdSlug
-    h.storage.upsertSession(row("holder"))
-    h.storage.setTitle("holder", "Shell budgets")
-    h.storage.upsertSession({ ...row("dupe-src"), exited: 0, title_auto: 1, title_locked: 0 })
-    h.storage.setBackend("dupe-src", "claude")
-    h.storage.setClaudeRuntime("dupe-src", "broker")
-    writeFileSync(
-      join(logDir, "sid-dupe-src.jsonl"),
-      JSON.stringify({ type: "user", timestamp: "2026-09-29T00:00:00.000Z", message: { role: "user", content: "the shell budget default is too low, raise the ceiling" } }) + "\n",
-    )
-    const prompts: string[] = []
-    ;(h.ctx as { claudeBroker?: unknown }).claudeBroker = {}
-    ;(h.ctx as { threadNamer?: unknown }).threadNamer = createThreadNamer({
-      storage: h.storage,
-      complete: async ({ prompt }) => { prompts.push(prompt); return "Shell budgets" },
-    })
-    const result = await h.router.aiRenameThread.handler({ input: { slug: "dupe-src" } })
-    assert.equal(prompts.length, 2)
-    assert.match(prompts[0]!, /Names already taken:\n- Shell budgets\n/)
-    assert.match(prompts[1]!, /Your previous answer, "Shell budgets", is already the name of another thread/)
-    assert.deepEqual(result, { title: "Shell default" })
-    assert.equal(h.storage.getSession("dupe-src")?.title, "Shell default")
-    h.storage.close()
-  } finally {
-    rmSync(logDir, { recursive: true, force: true })
-  }
 })
 
 test("setThreadPermission RPC: validates input and persists an exited thread override for next resume", async () => {
