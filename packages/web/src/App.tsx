@@ -256,6 +256,8 @@ export function App() {
     store.showPalette = !store.showPalette
   })
   useShortcut("app.details", () => {
+    // A sidebar-only binding (keybindings.ts sidebarOnly): in a browser ⌘I goes on to the browser.
+    if (!embedded()) return false
     // In an editor's sidebar ⌘I is first the editor's chord — the code in front into the prompt box it was
     // typed in, or with no thread open into the new-thread box — and Thread details only where it is not
     // that (lib/editorContext.ts addEditorContextByKey). Consumed either way, so it never leaves the page.
@@ -271,8 +273,8 @@ export function App() {
       if (!closeDrawerAnimated(top.id)) store.drawers.pop()
       return
     }
-    // Nothing to show. In a browser the key goes on unclaimed; in a sidebar it stays in the page.
-    if (!target) return embedded() ? undefined : false
+    // Nothing to show; the key still stays in the page.
+    if (!target) return
     pushDrawer("doc", target)
   })
   // ⌘, OPENS settings and leaves closing to Esc, the way it brings a Mac app's preferences forward

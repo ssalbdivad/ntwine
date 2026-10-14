@@ -208,9 +208,9 @@ function KeyboardShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpen
       heading: "Queue",
       // In an editor's sidebar the drawer is the card (SidebarPage.tsx), and a key with none open opens one.
       note: sidebar ? SIDEBAR_QUEUE_NOTE : "On the card you're reading — or the thread drawer, when one is open.",
-      actions: ACTIONS.filter((action) => action.group === "queue"),
+      actions: ACTIONS.filter((action) => action.group === "queue" && (sidebar || !action.sidebarOnly)),
     },
-    { heading: "Anywhere", note: null, actions: ACTIONS.filter((action) => action.group === "anywhere") },
+    { heading: "Anywhere", note: null, actions: ACTIONS.filter((action) => action.group === "anywhere" && (sidebar || !action.sidebarOnly)) },
   ]
 
   return (

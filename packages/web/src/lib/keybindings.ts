@@ -29,7 +29,7 @@
 //
 //   ⌘K      jump to a thread       Linear, Slack, GitHub, Vercel, Raycast (it was already here)
 //   ⌘,      settings               every native macOS app, VS Code, Slack
-//   ⌘I      thread details         Finder's Get Info; already here, kept so it is listed and rebindable
+//   ⌘I      thread details         Finder's Get Info; in an editor's sidebar only (sidebarOnly)
 //
 // NOT ⌘N for new thread: it is the browser's new-window chord (App.tsx has the long version).
 //
@@ -70,6 +70,9 @@ export interface ActionDef {
   defaultChord: string
   /** Holding the key down repeats it. Only navigation: a held `d` must not finish five threads. */
   repeat?: boolean
+  /** Bound only in an editor's sidebar (lib/embed.ts): the browser's sheet leaves it out and the key goes
+   *  on to the browser. */
+  sidebarOnly?: boolean
 }
 
 // ORDER IS THE SHEET'S ORDER: the triage loop top to bottom, then the doors that work from anywhere.
@@ -96,7 +99,9 @@ export const ACTIONS: readonly ActionDef[] = [
   { id: "app.newThread", label: "New thread", group: "anywhere", defaultChord: "c" },
   { id: "app.newProject", label: "New project", group: "anywhere", defaultChord: "n" },
   { id: "app.palette", label: "Jump to a thread", group: "anywhere", defaultChord: "mod+k" },
-  { id: "app.details", label: "Thread details", group: "anywhere", defaultChord: "mod+i" },
+  // Sidebar only since 2026-10-14: there ⌘I adds the editor's selection first (App.tsx); in a browser
+  // Thread details is too rare for a chord and stays in the ⋯ menu (maintainer).
+  { id: "app.details", label: "Thread details", group: "anywhere", defaultChord: "mod+i", sidebarOnly: true },
   { id: "app.settings", label: "Settings", group: "anywhere", defaultChord: "mod+," },
   { id: "app.shortcuts", label: "Keyboard shortcuts", group: "anywhere", defaultChord: "?" },
 ]
