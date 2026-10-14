@@ -345,6 +345,10 @@ export async function composeInto(item: EditorComposeInput, request: ComposeRequ
     await movePage(target.move)
     if (phoneLayout()) store.phoneNewThread = { focus: request.focus || store.phoneNewThread?.focus === true }
   }
+  if (request.focus) {
+    // The Electron window does not come forward on `focus()` (api/board-stream.ts notify does the same).
+    ;(window as { ntwineDesktop?: { focusWindow?(): void } }).ntwineDesktop?.focusWindow?.()
+  }
   await placeCaret(target.kind === "thread" ? THREAD_BOX : NEW_THREAD_BOX, splitComposerValue(edit.value).prose, edit.caret, request.focus)
   return { ok: true }
 }

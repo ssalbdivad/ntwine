@@ -135,6 +135,9 @@ export function notify(event: Extract<ServerEvent, { type: "notify" }>, forProje
   const n = new Notification(event.title, { body: event.body, tag: `${project ? crossProjectHref(project) : ""}/${event.slug}` })
   n.onclick = () => {
     window.focus()
+    // The Electron window (packages/desktop): `window.focus()` does not raise it the way it raises a
+    // browser tab, so its preload offers the one call that does.
+    ;(window as { ntwineDesktop?: { focusWindow(): void } }).ntwineDesktop?.focusWindow()
     // Same project (the overwhelmingly common case): the in-app drawer. Otherwise that project's drawer
     // address, through the router — the page opens it in place.
     if (project === undefined || projectSlug() === project) {

@@ -1,0 +1,22 @@
+{
+  "name": "@ntwine/desktop",
+  "productName": "Ntwine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ntwine in an Electron window, for the dev loop: a window onto the board `nub run dev` serves",
+  "license": "MIT",
+  "author": "David Blass",
+  "type": "module",
+  "main": "dist/main.mjs",
+  "scripts": {
+    "dev": "nub scripts/dev.ts"
+  },
+  "devDependencies": {
+    "@ntwine/server": "workspace:*",
+    "@ntwine/shared": "workspace:*",
+    "@types/node": "^24",
+    "electron": "^44.4.5",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7"
+  }
+}
