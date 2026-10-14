@@ -266,7 +266,7 @@ function json(result: unknown): Response {
 
 store.board = { projectDir: PROJECT_DIR, projectId: PROJECT_ID } as unknown as BoardSnapshot
 
-/** Stands in for the project row's schedules count (ProjectList): marked while `store.scheduleFlash` names it. */
+/** Stands in for a project's schedules count, which the page no longer draws: marked while `store.scheduleFlash` names it. */
 function FlashProbe() {
   const flash = useSnapshot(store).scheduleFlash
   // Present for the test to find, and out of every screenshot: the real flash is on a project row this page lacks.

@@ -637,7 +637,7 @@ function AlwaysShowStatusLinesToggle() {
   return <OnOffToggle value={alwaysShowStatusLines} onChange={(on) => (prefs.alwaysShowStatusLines = on)} />
 }
 
-// Recently opened threads under the folded Snoozed and Done headers (ProjectBoard.tsx): client-only.
+// Recently opened threads under the folded Snoozed header (TierList.tsx): client-only.
 function ShowRecentThreadsToggle() {
   const { showRecentThreads } = useSnapshot(prefs)
   return <OnOffToggle value={showRecentThreads} onChange={(on) => (prefs.showRecentThreads = on)} />

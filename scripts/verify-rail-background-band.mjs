@@ -11,8 +11,8 @@
 // so a real `claude` cannot authenticate) — but everything DOWNSTREAM of the transcript is the shipped
 // code path, which is exactly the part under test.
 //
-// "The rail" is now the project list's rows on the one page (ProjectList.tsx): a project's Ready rows,
-// each tied to its queue card, then its Working rows. Until 2026-09-28 it was the project board's
+// "The rail" is now the list's rows on the one page (TierList.tsx): Ready rows, each tied to its queue
+// card, then Working rows, each project's in a run. Until 2026-09-28 it was the project board's
 // sidebar, whose running and rested bands a rule split; the question is the same one, asked of the rows
 // the page draws now.
 //

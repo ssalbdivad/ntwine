@@ -12,9 +12,8 @@ import { projectRpc } from "../api/rpc.ts"
 // Measured on the maintainer's machine (2026-09-28): 93KB for a project with 45 done threads, 5-7KB for the
 // rest, each answered from the server's cached snapshot in under 5ms.
 //
-// READ AHEAD so opening a project is instant: the list prefetches every open project's board once the page
-// is idle, and again under the pointer, so the rows are already in the cache when the click lands. While a
-// project is open its query is live, and the poll's Done count moving invalidates it (ProjectList.tsx).
+// The read-ahead that prefetched every open project's board went with the per-project list
+// on 2026-10-14; the phone's Done tab is the one reader left (PhonePage.tsx).
 // Keyed `ofProject`, which the cache's project scoping leaves alone (lib/queryKeyScope.ts): the key already
 // says whose board it is.
 

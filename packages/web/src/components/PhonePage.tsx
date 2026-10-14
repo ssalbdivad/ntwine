@@ -519,8 +519,8 @@ const TAB_FACE = "col-start-1 row-start-1 flex items-baseline gap-1.5 text-[14.5
 const HEADER_BUTTON = "flex size-[44px] shrink-0 items-center justify-center rounded-full text-fg/85 active:bg-hover-strong"
 /** Done rows drawn at once, then this many more per "Show more": the band grows without bound. */
 const DONE_PAGE = 30
-/** How often an open Done tab re-reads the boards it lists — no project list is mounted here to drop them
- *  when the poll's Done count moves (ProjectList.tsx useReadAhead). */
+/** How often an open Done tab re-reads the boards it lists — nothing here drops them when the poll's Done
+ *  count moves. */
 const DONE_REFETCH_MS = 10_000
 
 export interface PhonePageProps {

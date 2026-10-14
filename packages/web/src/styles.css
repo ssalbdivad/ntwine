@@ -2748,8 +2748,8 @@ html[data-vt-door="expand"]::view-transition-old(thread-chat) {
   to { opacity: 1; transform: translateY(0); }
 }
 .sched-ledge-in { animation: sched-ledge-in 140ms ease-out 60ms backwards; }
-/* The project row's schedules count, once, when a schedule was just created from the box (ProjectList
-   QuietToggles): the eye goes from where it was made to where it lives. The queue's own arrival ring, quick. */
+/* A project's schedules count, once, when a schedule was just created from the box (store.ts
+   scheduleFlash; no project row draws it since 2026-10-14): the eye goes from where it was made to where it lives. The queue's own arrival ring, quick. */
 [data-sched-flash] { animation: queue-flash 0.9s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   [data-composer-mark] { animation: none; }

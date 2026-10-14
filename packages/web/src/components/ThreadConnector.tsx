@@ -98,11 +98,9 @@ interface Rail {
 }
 
 /**
- * The rail's icon column: a project's square, then the glyph of each band name and the indicator of each
- * thread row listed under it (`data-xq-indicator`, ProjectList.tsx and Sidebar.tsx) — so a band's name is
- * strung on its project's cord like a row, and the names cost the cord nothing. Only rows that TOUCH are
- * strung together, so whatever sits between two of them — a thread's sub-agents — cuts the cord there, and
- * an open project's quiet bands, in a container of their own below the counts, are never on it. Rows
+ * The rail's icon column: the indicator of each thread row in a project's run (`data-xq-indicator`,
+ * TierList.tsx and Sidebar.tsx). Only rows that TOUCH are strung together, so whatever sits between two of
+ * them — a thread's sub-agents — cuts the cord there. Rows
  * scrolled out of the list count too: a cord runs on past the list's edge and is cut there, as the rows are.
  */
 function readRail(dpr: number): Rail | null {

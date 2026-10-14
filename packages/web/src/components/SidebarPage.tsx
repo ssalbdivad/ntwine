@@ -21,7 +21,7 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 // queue's cards, with a thread's drawer sliding over them. The left column is already a sidebar — it is
 // 272px at its narrowest (Sidebar.tsx SIDEBAR_COLUMN_CLASS) — so it is what this page draws, with the
 // desktop's own parts at the desktop's own sizes: the prompt box (AllQueues.tsx FocusedComposer, the
-// picker in its bottom strip on All projects), and the list (ProjectList.tsx), its 13px rows, rest times,
+// picker in its bottom strip on All projects), and the list (TierList.tsx), its 13px rows, rest times,
 // spinners, hover verbs and quiet bands unchanged. The right column has no room, so a thread opens in its
 // DRAWER, full width (styles.css `html[data-embed] .ntwine-sheet-panel`), with the same header, transcript,
 // reply box, Snooze and Mark as done the card and the drawer carry on the desktop; ✕ or Esc comes back here.
@@ -34,15 +34,15 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 // NO HEADER. VS Code's title row above the frame is the header (lib/embedRoute.ts): the view's name and
 // its counts go there, and its buttons come back as `ntwine:command` (lib/embedCommand.ts). What the
 // desktop's status row carried that the title row cannot is kept in the page: the view's switcher heads
-// the list (ProjectList `switcher`), in the slot the status row's title leaves empty on the desktop.
+// the list, in the slot the status row's title leaves empty on the desktop.
 //
 // THE COLUMN IS THE DESKTOP'S, scroll box and all: the prompt box stays put at the top and the list scrolls
 // in its own box under it, with the app's 7px inner scrollbar, `mb-5 px-0.5` between them — the desktop's
 // column head (AllQueues.tsx), so the box sits 2px inside the list's edges and 20px above it. Until
 // 2026-10-01 the whole page scrolled: a wheel over the list took the prompt box with it, the page's
 // zero-width scrollbar said nothing about there being more below, and a project dragged to the frame's
-// edge never scrolled the list (ProjectList.tsx useListReorder scrolls the `[data-xq-rail]` it is in,
-// which was a box that did not scroll). The project cords are drawn here too (ThreadConnector.tsx): with no
+// edge never scrolled the list (the project list's drag scrolled the `[data-xq-rail]` it was in, which
+// was a box that did not scroll). The project cords are drawn here too (ThreadConnector.tsx): with no
 // cards, only the cords, which are the desktop list's look as much as its rows are.
 //
 // THE KEYS ARE THE DESKTOP'S. `j` / `k` step the card being read on the desktop; here, with no cards,

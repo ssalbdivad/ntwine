@@ -81,7 +81,7 @@ export function ProjectSwitcher({
   /**
    * Drawn as the project list's own head row rather than the status row's title — in an editor's sidebar,
    * which has no status row (AllQueues.tsx SidebarPage): the mark in the list's 16px indicator column and
-   * the list's 8px gap to the name (ProjectList.tsx ProjectRow), so the scope reads as the list's first row.
+   * the list's 8px gap to the title (Sidebar.tsx ThreadRow), so the scope reads as the list's first row.
    */
   row?: boolean
 }) {
@@ -112,7 +112,7 @@ export function ProjectSwitcher({
           data-xq-switcher={current ? "project" : "all"}
           title={current ? `Showing ${current.name}. Switch project` : "Showing every project. Switch project"}
           aria-label={`Showing ${current ? current.name : "every project"}. Switch project`}
-          // The list's project-name type (ProjectList.tsx ProjectRow), since it IS the project's name now.
+          // The list's project-name type (TierList.tsx RunRollup), since it IS the project's name now.
           // `-ml-1.5` hangs the hover wash past the square, so the square's ink stands on the column's
           // left edge, flush with the prompt box's border below it.
           className={`-ml-1.5 flex min-w-0 items-baseline ${row ? "gap-2" : "gap-1.5"} rounded-md px-1.5 py-0.5 text-[13px] font-semibold text-fg outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 data-[state=open]:bg-hover data-[state=open]:text-fg`}

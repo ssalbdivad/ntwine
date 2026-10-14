@@ -1,8 +1,9 @@
 // THE ARITHMETIC OF DRAG-REORDERING A LIST, with no DOM in it.
 //
-// Pure and tested, so the project list (ProjectList.tsx) owns only the parts that genuinely need a
-// browser: pointer capture, transforms, and the edge auto-scroll. It writes the machine's one order
-// (`projectsReorder`). The list's groups are not uniform; see below.
+// Pure and tested, so the project list that dragged with it (ProjectList.tsx, gone 2026-10-14) owned only the
+// parts that genuinely need a browser: pointer capture, transforms, and the edge auto-scroll. It wrote the
+// machine's one order (`projectsReorder`). Nothing imports it now: the dock drags its squares with its own
+// arithmetic (ProjectDock.tsx useDockReorder). The list's groups were not uniform; see below.
 
 /**
  * `list` with the item at `from` moved to `to`.
@@ -54,8 +55,8 @@ export function edgeScrollVelocity(
   return 0
 }
 
-// THE PROJECT LIST'S DRAG (ProjectList.tsx) — the same gesture over rows that are NOT uniform: a project
-// row carries its threads under it, so one group is a single line and the next is twenty. The step
+// THE PROJECT LIST'S DRAG (as it was) — the same gesture over rows that are NOT uniform: a project
+// row carried its threads under it, so one group is a single line and the next is twenty. The step
 // arithmetic above cannot place those, so the list measures its groups once, when the drag starts, and
 // hit-tests against that snapshot.
 

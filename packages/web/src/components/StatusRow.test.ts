@@ -71,7 +71,7 @@ test("the row has no door and names nothing — not the page, not a project", ()
 // ON A PROJECT'S BOARD (2026-10-06) the row is upstream's again at its left end: the door home to All
 // projects at `/all` (not `/`, which goes back to the last view — from a board, the board), a divider
 // (home LEAVES the board; the rest act on what you are in), then the page's title and the board's identity
-// beside it — its repo and menu (ProjectBoard.tsx BoardIdentity). All projects passes neither, above.
+// beside it — its repo and menu (BoardIdentity.tsx). All projects passes neither, above.
 test("on a board the row leads with the door home, then a divider, then the title and the board's identity", () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const html = renderToStaticMarkup(

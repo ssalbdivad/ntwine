@@ -17,7 +17,7 @@ import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 //
 //   ▣ acme-api ▾                settings · shortcuts · reload │ Claude 83% · Codex 59%
 //
-// and on a project's BOARD (`/project/<slug>`, ProjectBoard.tsx), led by the door home and followed by the
+// and on a project's BOARD (`/project/<slug>`), led by the door home and followed by the
 // project's repo — upstream's crumb and identity, which the board brought back on 2026-10-06:
 //
 //   ⌂ │ ▣ acme-api ▾  acme/api …      settings · shortcuts · reload │ Claude 83% · Codex 59%
@@ -45,9 +45,9 @@ import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 // with ⌂, the way out to its projects page at `/` (upstream 0a3b9139 StatusRow.tsx) — a router
 // Link, so leaving keeps the socket and the query cache. A divider follows it: home LEAVES the board, the
 // rest act on what you are in. The
-// board's `identity` (ProjectBoard.tsx BoardIdentity) rides beside the switcher: the project's owner/repo
+// board's `identity` (BoardIdentity.tsx) rides beside the switcher: the project's owner/repo
 // linking to it on GitHub (upstream maintainer 2026-08-28: "Perhaps it should actually be showing
-// owner/repo if a repo is detected"), and its ⋯ menu, which in All projects is on the project's row. The
+// owner/repo if a repo is detected"), and its ⋯ menu, which in All projects is the right-click on the project's square in the dock (ProjectDock.tsx). The
 // connection indicator went on 2026-08-28: its one informative state, disconnected, is one the page also
 // shows by going stale.
 //
@@ -76,7 +76,7 @@ function Divider() {
  */
 export function StatusRow({ title, identity, crumb = false, settings = true, shortcuts = true }: {
   title?: ReactNode
-  /** Beside the title, in its slack: a board's repo and menu (ProjectBoard.tsx BoardIdentity). */
+  /** Beside the title, in its slack: a board's repo and menu (BoardIdentity.tsx). */
   identity?: ReactNode
   /** Lead with the door home to All projects, `/all` — a project's board, one level in. */
   crumb?: boolean

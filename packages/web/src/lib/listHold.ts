@@ -107,8 +107,8 @@ export function createListHold(onChange: (held: boolean) => void, clock: HoldClo
   }
 }
 
-// ONE hold for the page, read by every part of the list that draws rows (ProjectList.tsx's projects and
-// bands, Sidebar.tsx's sub-agent rows), so they hold and release as one.
+// ONE hold for the page, read by every part of the list that draws rows (TierList.tsx's tiers,
+// Sidebar.tsx's sub-agent rows), so they hold and release as one.
 const listeners = new Set<() => void>()
 let machine: ReturnType<typeof createListHold> | null = null
 let detach: (() => void) | null = null

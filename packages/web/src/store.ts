@@ -148,9 +148,9 @@ export const store = proxy({
   // Transient bottom-center toast (e.g. "Steer failed …" when an eager reply is rejected). `id` bumps per call so
   // repeat toasts re-trigger the fade. Rendered by <Toaster>; null when nothing is showing.
   toast: null as { id: number; text: string; detail?: string; spinner?: boolean; sticky?: boolean; duration?: number; link?: ToastLink; actions?: readonly ToastAction[] } | null,
-  // A schedule was just created from the prompt box: the project row whose schedules count should flash once
-  // (ProjectList QuietToggles, ARCHITECTURE.md § Scheduled threads), so the eye travels from where it was
-  // made to where it lives. `seq` replays the flash for a second create; it clears itself (flashScheduleCount).
+  // A schedule was just created from the prompt box: the project whose schedules count should flash once
+  // (ARCHITECTURE.md § Scheduled threads), so the eye travels from where it was made to where it lives.
+  // Nothing draws it since the project rows went on 2026-10-14 (`[data-sched-flash]` in styles.css). `seq` replays the flash for a second create; it clears itself (flashScheduleCount).
   scheduleFlash: null as { projectId: string; seq: number } | null,
   // The open image LIGHTBOX — one ```lightbox gallery's pictures and which of them is on screen. Here
   // rather than in the gallery's own state because the gallery is a transcript row: the virtualizer

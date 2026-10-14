@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Drive a PROJECT'S BOARD (focus mode) — the page showing one project at `/project/<slug>`, chosen from the
-// switcher (web lib/pageView.ts, components/ProjectBoard.tsx) — on a real, seeded, multi-project stack, and
+// switcher (web lib/pageView.ts, components/TierList.tsx) — on a real, seeded, multi-project stack, and
 // check what it promised:
 //   · `/project/<slug>` shows that project alone: its list, its cards, and a prompt box that dispatches into
 //     it with no picker; the query-era `/?project=<slug>` (2026-09-29 to 2026-10-06) and an older
@@ -16,6 +16,11 @@
 //   · the board names its bands (upstream's: Pinned, Queue and Running, which never fold), and Snoozed, Done
 //     and External fold, collapsed to start, each on its own;
 //   · at a phone's width nothing overflows sideways, in either view.
+//
+// OUT OF DATE since 2026-10-14: the board's own list (ProjectBoard.tsx) and the project rows went, and both
+// views draw TierList.tsx. The steps on the board's bands, the cord through their names, and the project
+// row's ⋯ menu read selectors that list no longer emits (`[data-xq-board-band]`, `[data-xq-board-rule]`,
+// `[data-xq-project-row]`, band headers inside `[data-xq-rail-project]`), and fail until rewritten.
 //
 // Usage:
 //   nub scripts/adhoc-stack.mjs --port=47711 --project=/tmp/x/acme-api --also-project=/tmp/x/marketing-site \
@@ -278,7 +283,7 @@ try {
     check("a card's chip focuses the page on its project", (await listed(page)).join() === B.id)
   })
   await step("the board's ⋯ menu offers every project back, and a project row's focuses one", async () => {
-    // A board has no project row: its ⋯ sits beside the repo in the status row (ProjectBoard.tsx BoardIdentity).
+    // A board has no project row: its ⋯ sits beside the repo in the status row (BoardIdentity.tsx).
     await page.hover("[data-xq-board-identity]")
     await clickSettled(page, `[data-xq-board-identity] button[aria-label^="More actions for"]`)
     await clickSettled(page, '[role="menuitem"]', { text: "Show all projects" })

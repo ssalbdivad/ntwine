@@ -102,8 +102,9 @@ export function queuesProjects(
   const build = (card: ProjectCard | undefined, queue: ProjectQueue | undefined): QueuesProject => {
     // SAME INPUTS, SAME OBJECT. The poll's cache shares every project the server answered unchanged
     // (react-query's structural sharing), and handing that on as the same QueuesProject is what lets the
-    // list skip re-rendering it (ProjectList.tsx ProjectGroup's memo). Rebuilt fresh, every 3s poll
-    // re-rendered every project's group whenever ANY one of them had changed — ~85ms of main thread per
+    // list keep its per-project row scopes (TierList.tsx useRowScopes) and memoized rows (Sidebar.tsx
+    // ThreadRow). Rebuilt fresh, every 3s poll re-rendered every project's group whenever ANY one of them
+    // had changed — ~85ms of main thread per
     // poll on an 8-project dev page (measured 2026-10-01 with react-scan).
     const memo = buildMemo.get(card ?? NO_CARD)?.get(queue ?? NO_QUEUE)
     if (memo && memo.direction === direction) return memo.project
