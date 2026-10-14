@@ -138,7 +138,8 @@ function folderWorkers(choice: ThreadFolderChoice): string {
 }
 
 // THE HEADER'S ⋯ MENU: the rarer verbs. It carried "Open fullscreen" and owned `f` until 2026-09-29, when
-// the ⤢ beside it came back as an icon (ExpandThreadLink) and took the key: one door, not two. Spinoff
+// the ⤢ beside it came back as an icon (ExpandThreadLink) and took the key: one door, not two (the key itself went
+// 2026-10-14). Spinoff
 // led it for an evening, until the maintainer wanted it one press away on every card and header
 // (SpinoffButton, Spinoff.tsx). The queue card carries it too (AllQueuesCard.tsx), inside the card's
 // ThreadProjectScope, with `restart={false}`: Restart worker sends through the eager follow-up path,

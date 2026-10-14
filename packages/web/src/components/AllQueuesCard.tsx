@@ -557,7 +557,7 @@ function CardArticle({
           </ThreadProjectScope>
           {/* THE FULLSCREEN DOOR (ExpandThreadLink), before Retry as on upstream's card (TodosView
               QueueCard @ 7a20f425). Its address carries the CARD's project — the page's own would
-              name the focused project's thread of the same slug — and it owns `f` on this card.
+              name the focused project's thread of the same slug.
               The header's LAST mark is the ⋯ menu below, which takes the `-mr-2` trim: a glyph's ink
               sits well inside a 14px box centred in a 28px square, so untrimmed the last mark drew
               ~29px in from the card's right border against the project mark's 20.75px on the left
@@ -568,7 +568,6 @@ function CardArticle({
           <ExpandThreadLink
             slug={thread.id}
             href={`${placeHref}/full`}
-            command
             className={HEADER_ICON_CLASS}
           />
           {offersRetry(thread) && <RetryButton project={project} thread={thread} onSent={onSent} onLanded={onLanded} onFailed={onReturn} />}

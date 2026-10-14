@@ -57,9 +57,6 @@ test("the drawer strip opens /full and the /full strip leaves it, from the same 
   assert.ok(opening.includes("Open fullscreen"), `the drawer strip carries the door opening: ${opening.join(" · ")}`)
   // THE SAME SLOT: each half sits at the same index among the same neighbours.
   assert.equal(opening.indexOf("Open fullscreen"), closing.indexOf("Exit fullscreen"), `one position, both directions: ${opening.join(" · ")} / ${closing.join(" · ")}`)
-  // The ⤢ owns `f` in the drawer — the ⋯ menu no longer offers fullscreen, so the door is the key's one target.
-  assert.match(strip({ expand: true }), /data-expand-thread="t"[^>]*data-command="fullscreen"/)
-
   // Negative control: a strip asked for neither carries neither.
   const plain = controls(strip({}))
   assert.ok(!plain.some((l) => l === "Open fullscreen" || l === "Exit fullscreen"), `a bare strip has no door: ${plain.join(" · ")}`)

@@ -16,8 +16,6 @@ export const SIDEBAR_KEY_HINTS: Partial<Record<ActionId, string>> = {
   // No cards: the next card is the next thread in the queue, opened in its drawer (SidebarPage.tsx).
   "queue.next": "Opens the next queued thread",
   "queue.prev": "Opens the previous one",
-  // The drawer is the frame's width already; the door opens the thread in the browser (ExpandThreadLink.tsx).
-  "thread.fullscreen": "Opens it in your browser",
   // Every thread opens in its drawer here, so there is no card to open one from.
   "thread.open": "Every thread opens in one here",
   // `e` on a thread: the sidebar is inside the editor already, so its folder shows there (the extension

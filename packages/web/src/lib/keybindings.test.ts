@@ -36,7 +36,6 @@ test("the default keys are the ones the sheet promises", () => {
     [key({ key: "m", code: "KeyM" }), "thread.menu"],
     [key({ key: "n", code: "KeyN" }), "app.newProject"],
     [key({ key: "o", code: "KeyO" }), "thread.open"],
-    [key({ key: "f", code: "KeyF" }), "thread.fullscreen"],
     [key({ key: "ArrowRight", code: "ArrowRight" }), "thread.spinoff"],
     [key({ key: "?", code: "Slash", shiftKey: true }), "app.shortcuts"],
     [key({ key: "k", code: "KeyK", metaKey: true }), "app.palette"],
@@ -159,9 +158,9 @@ test("stored overrides are validated one entry at a time", () => {
     { "thread.snooze": "x", "thread.reply": null },
   )
   // A hand-edited duplicate settles to the first claimant instead of leaving one dead.
-  const duped = sanitizeOverrides({ "thread.fullscreen": "j" })
+  const duped = sanitizeOverrides({ "thread.spinoff": "j" })
   assert.equal(bindingLookup(effectiveBindings(duped)).get("j"), "queue.next")
-  assert.equal(effectiveBindings(duped)["thread.fullscreen"], null)
+  assert.equal(effectiveBindings(duped)["thread.spinoff"], null)
   // An override equal to the default is not an override.
   assert.deepEqual(sanitizeOverrides({ "queue.next": "j" }), {})
 })

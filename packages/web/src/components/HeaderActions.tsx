@@ -72,8 +72,9 @@ export function HeaderActions({
           these: the drawer can be expanded, the /full page can be collapsed, and holding both halves in
           this one slot is what makes them share a position instead of the reader hunting for the way
           back (maintainer 2026-09-02: a collapse icon "in the same place where the expand icon is").
-          Restored from 7a20f425. It owns `f` in the drawer; the ⋯ menu's duplicate entry went 2026-09-29. */}
-      {expand && <ExpandThreadLink slug={thread.id} command />}
+          Restored from 7a20f425; the ⋯ menu's duplicate entry went 2026-09-29. No key since 2026-10-14:
+          fullscreen is too niche to spend a letter on (maintainer). */}
+      {expand && <ExpandThreadLink slug={thread.id} />}
       {collapse && <CollapseThreadLink slug={thread.id} />}
       {isSession ? (
         // A STALLED session (process gone, work unfinished) or one KILLED by an auto-resume usage limit

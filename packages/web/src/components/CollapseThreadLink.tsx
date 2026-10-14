@@ -7,7 +7,6 @@ import { prefersReducedMotion } from "../lib/sheet.ts"
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { Tooltip } from "./Tooltip.tsx"
-import { useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
 
 // The href of the way out, shared by the icon below and by Escape (StandaloneThreadPage), so the key
 // and the click can never land in two different places.
@@ -49,7 +48,6 @@ export function exitFullscreen(slug: string): void {
 // registered navigator. `data-standalone-return` is kept from the arrow — it names the FUNCTION, which
 // has not changed.
 export function CollapseThreadLink({ slug, label = "Exit fullscreen" }: { slug: string; label?: string }) {
-  const keys = useShortcutLabel("thread.fullscreen")
   const href = exitFullscreenHref(slug)
   function onClick(event: MouseEvent<HTMLAnchorElement>) {
     if (!isPlainLeftClick(event)) return
@@ -57,13 +55,11 @@ export function CollapseThreadLink({ slug, label = "Exit fullscreen" }: { slug: 
     exitFullscreen(slug)
   }
   return (
-    <Tooltip label={withShortcut(label, keys)}>
+    <Tooltip label={label}>
       <a
         href={href}
         aria-label={label}
         data-standalone-return
-        // The `f` shortcut toggles: the same key that opened /full presses this to leave it.
-        data-command="fullscreen"
         // The strip's shared focus behaviour: a click on any icon here must not take the keyboard
         // away from the composer below it.
         onMouseDown={(event) => event.preventDefault()}
