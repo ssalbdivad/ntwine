@@ -61,7 +61,6 @@ const run = (id: string, occurrenceAt: number, state: "starting" | "skipped" = "
   id, schedule_id: "sch_000000000001", occurrence_at: occurrenceAt, started_at: null, state, reason: null,
   thread_slug: "alpha-thread", session_id: "sess-alpha-thread", owner: "owner", created_at: occurrenceAt,
 })
-const UUID = "0f7b8b3a-2a5d-4c2b-9e7a-1f2c3d4e5f60"
 
 function seed(storage: Storage): void {
   for (const slug of SLUGS) storage.upsertSession(row(slug, `sess-${slug}`))
@@ -82,7 +81,6 @@ function seed(storage: Storage): void {
     message: `steer from ${storage.projectId}`,
     sentAtMs: 1,
   })
-  storage.reserveAdoptionClaim({ slug: "gamma-thread", attemptToken: UUID, sessionId: `adopt-${storage.projectId}`, reservedAtMs: 1, leaseExpiresAtMs: 2 })
   storage.insertThreadTerminal({ slug: "term-alpha", parentSlug: "alpha-thread", command: `echo ${storage.projectId}`, cwd: `/work/${storage.projectId}`, shell: false, createdAtMs: 1 })
   storage.insertSchedule(schedule())
   storage.insertScheduleRun(run("run_a", 500))
@@ -131,24 +129,12 @@ test("two projects in one database never see each other's rows", () => {
   assert.equal(a.dueThreadTimers(1e13).length, 1)
   assert.equal(a.expiredPrWatches(1e13).length, 1)
   assert.equal(a.expiredThreadWatches(1e13).length, 1)
-  assert.equal(a.getAdoptionClaim("gamma-thread")!.session_id, "adopt-project-a")
-  assert.equal(a.allAdoptionClaims().length, 1)
   assert.deepEqual([...a.retiredOps("alpha-thread", "sess-alpha-thread")], ["op-1"])
   assert.equal(a.listSchedules().length, 1)
   assert.equal(a.countLiveSchedules(), 1)
   assert.equal(a.listScheduleRuns("sch_000000000001", 10).length, 2)
   assert.equal(a.startingScheduleRuns().length, 1)
   assert.equal(a.scheduleRunForThread("alpha-thread")?.id, "run_b")
-  // A slug with the same name in the other project is not "taken" here.
-  assert.equal(
-    a.reserveAdoptionClaim({ slug: "beta-thread", attemptToken: "1f7b8b3a-2a5d-4c2b-9e7a-1f2c3d4e5f61", sessionId: "x", reservedAtMs: 1, leaseExpiresAtMs: 2 }),
-    false,
-    "a slug this project already registered cannot be reserved",
-  )
-  assert.equal(
-    a.reserveAdoptionClaim({ slug: "delta-thread", attemptToken: "2f7b8b3a-2a5d-4c2b-9e7a-1f2c3d4e5f62", sessionId: "y", reservedAtMs: 1, leaseExpiresAtMs: 2 }),
-    true,
-  )
   a.close()
   b.close()
   db.close()
@@ -212,11 +198,10 @@ test("every mutating method touches only its own project", () => {
     ["unretireOp", () => a.unretireOp("alpha-thread", "sess-alpha-thread", "op-1")],
     ["setSetting", () => a.setSetting("font", "sans")],
     ["deleteSetting", () => a.deleteSetting("font")],
-    ["abandonAdoptionClaim", () => a.abandonAdoptionClaim("gamma-thread", UUID)],
     ["upsertSession (replace)", () => a.upsertSession(row("alpha-thread", "sess-alpha-thread-2"))],
-    ["insertSessionIfAbsent", () => a.insertSessionIfAbsent(row("delta-thread", "sess-delta"))],
+    ["upsertSession (new)", () => a.upsertSession(row("delta-thread", "sess-delta"))],
     ["forgetSession", () => a.forgetSession("beta-thread")],
-    ["forgetSessionIfCurrent", () => a.forgetSessionIfCurrent("delta-thread", { sessionId: "sess-delta", runtimeGeneration: 0, adoptionAttemptToken: null })],
+    ["forgetSessionIfCurrent", () => a.forgetSessionIfCurrent("delta-thread", { sessionId: "sess-delta", runtimeGeneration: 0 })],
     ["writeSchedule", () => assert.ok(a.writeSchedule({ ...schedule(), title: "Renamed" }, 0, 5))],
     ["claimScheduleRun", () => assert.ok(a.claimScheduleRun(run("run_c", 700), 1, 5))],
     ["insertScheduleRun", () => assert.ok(a.insertScheduleRun(run("run_d", 800, "skipped")))],

@@ -64,7 +64,7 @@ function unlinkDirectChild(parent: string, filename: string): boolean {
     // unlink removes the direct child itself and never follows a child symlink. Not rmSync: on Node
     // 23.0–24.13.0 and 25.0–25.3.x it looks through a link (nodejs/node#61040) — EISDIR on a link to a
     // directory, a silent no-op on a dangling one. Parent validation above prevents a poisoned
-    // directory symlink from redirecting recovery outside ntwine-owned roots.
+    // directory symlink from redirecting cleanup outside ntwine-owned roots.
     unlinkSync(child)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false
@@ -72,14 +72,16 @@ function unlinkDirectChild(parent: string, filename: string): boolean {
   return pathAbsent(child)
 }
 
-export function cleanupAdoptionSessionFiles(projectDir: string, sessionId: string): boolean {
+// Remove the files a failed dispatch left keyed by its session id: the scratch directory, the system
+// prompt and the MCP config. False when any of them could not be confirmed gone.
+export function cleanupSessionFiles(projectDir: string, sessionId: string): boolean {
   if (!SESSION_ID_RE.test(sessionId)) return false
   const ntwineDir = join(projectDir, ".ntwine")
   let clean = true
   if (isDirectDirectory(ntwineDir)) {
     const threads = join(ntwineDir, "threads")
     // A UUID-named child belongs to exactly one dispatch. Remove the complete private scratch directory
-    // directory rather than leaving an empty per-thread shell after a failed spawn/adoption.
+    // directory rather than leaving an empty per-thread shell after a failed spawn.
     if (isDirectDirectory(threads)) {
       const child = join(threads, sessionId)
       try {

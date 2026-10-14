@@ -352,7 +352,7 @@ export function pushBackgroundShellDrawer(slug: string, id: string, opts: { labe
 // to land on. Routing is by runtime: a thread with NO session ever spawned (runtime "none" — no
 // transcript, the chat drawer would be an empty placeholder) opens its ntwine DOCUMENT drawer instead —
 // there the doc IS the substance. Anything with a session (live or exited — exited transcripts are
-// worth seeing) opens the chat drawer. The doc drawer carries the adopt ("Start a session") affordance.
+// worth seeing) opens the chat drawer.
 export function openThread(slug: string): void {
   const t = store.board?.threads.find((x) => x.id === slug)
   pushDrawer(t && t.runtime === "none" ? "doc" : "thread", slug)

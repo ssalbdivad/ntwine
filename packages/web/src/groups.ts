@@ -360,8 +360,9 @@ export function queued(t: ThreadView): boolean {
 // too and the boundary between the two vocabularies is exactly this predicate.
 //
 // The server emits only RESTED ones (maintainer 2026-08-19: a spinning terminal session is one you
-// already have open), so this is a plain partition rather than a second opinion about rest. A session
-// stops being external the moment you STEER it — the first message promotes it to an ordinary thread.
+// already have open), so this is a plain partition rather than a second opinion about rest. They are
+// read only: a drawer shows the transcript, and the session is continued in its own terminal. (Steering
+// one used to promote it into an ordinary thread; removed 2026-10-14.)
 export function externalThreads(threads: readonly ThreadView[]): ThreadView[] {
   return threads.filter((t) => t.kind === "session" && t.foreign === true)
 }

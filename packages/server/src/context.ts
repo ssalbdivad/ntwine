@@ -80,11 +80,6 @@ import {
 import { createClaudeRuntimeIngest, type ClaudeRuntimeIngest } from "./backend/claude-runtime-ingest.ts"
 import { describeClaudeBrokerDiagnostic, droppedDeliveryId, droppedDeliveryReason } from "./backend/claude-broker-diagnostics.ts"
 import { recordDeliveryDropped } from "./delivery-ledger.ts"
-import {
-  ADOPTION_RECONCILE_INTERVAL_MS,
-  adoptionRuntimeBinding,
-  reconcileAdoptionClaims,
-} from "./adoption-recovery.ts"
 import { acquireSharedOrphanReaper } from "./orphan-reaper.ts"
 import { hibernateSweepIntervalMs, hibernationEnabled, startThreadHibernator } from "./thread-hibernation.ts"
 import { startUnownedBrokerAudit } from "./unowned-brokers.ts"
@@ -113,7 +108,6 @@ const QUOTA_REFRESH_INTERVAL_MS = 30_000
 export type ContextStartupPhase =
   | "storage"
   | "interaction expiry"
-  | "adoption reconcile"
   | "orphan reaper"
   | "session reconcile"
   | "subscriptions"
@@ -712,23 +706,6 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   }))
   storage.interactions.expireDue()
   opts.startup?.afterPhase?.("interaction expiry")
-
-  reconcileAdoptionClaims({ storage, projectDir: project.dir })
-  opts.startup?.afterPhase?.("adoption reconcile")
-  // Permanent retired tokens are an active fence for pre-upgrade actors only if enforcement is
-  // level-triggered. Sweep the durable claim/token ledger periodically so a stale claim is retired
-  // within a bounded window even when no restart or new adoption occurs. (The sweep also asks the
-  // recovery runtime whether a late token ever materialized as a worker to kill; the production
-  // runtime answers "absent" to every such lookup since the cutover, so the ledger is the whole fence.)
-  const adoptionReconcileTimer = setInterval(() => {
-    try {
-      reconcileAdoptionClaims({ storage, projectDir: project.dir, includeFinalized: false })
-    } catch {
-      // Retain every claim/tombstone and retry next tick; recovery is deliberately fail-closed.
-    }
-  }, ADOPTION_RECONCILE_INTERVAL_MS)
-  adoptionReconcileTimer.unref?.()
-  contextUnsubscribers.push(() => clearInterval(adoptionReconcileTimer))
 
   // Keep the shared Claude quota cache warm (as often as the endpoint allows), independent of any browser
   // poll, so the sidebar chip (and the scheduler's weekly-reset check) always reads a recent value

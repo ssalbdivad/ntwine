@@ -1,31 +1,21 @@
 import { useEffect, useRef } from "react"
 import { useSnapshot } from "valtio"
-import { useMutation, useQuery } from "@tanstack/react-query"
-import { store, threadBySlug, showToast } from "../store.ts"
-import type { BoardSnapshot } from "@ntwine/shared"
+import { useQuery } from "@tanstack/react-query"
+import { store } from "../store.ts"
 import { rpc } from "../api/rpc.ts"
 import { useInnerHtml } from "../lib/innerHtml.ts"
 import { stripFrontmatter } from "../lib/markdown.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
-import { canAdoptThread } from "../lib/adoption.ts"
 import { useMermaidIslands } from "./CodexRichOutput.tsx"
-import { Composer } from "./Composer.tsx"
 import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
-import { draftKey, draftStore, useDraft, useProjectDir } from "../lib/drafts.ts"
 
 // The ntwine-document drawer: a RIGHT side sheet (same slide/backdrop family as settings and the
 // Open-thread sheet — nothing renders as a centered dialog) showing the thread's .ntwine/<slug>.md body
 // — the Goal / Status / Decisions / Next-step contract — as markdown. Content is agent-written and
-// thus only semi-trusted — rendered through the shared allowlist sanitizer (lib/markdown.ts).
-//
-// SESSION-LESS threads (runtime "none" — listing clicks route them here; the doc IS the
-// substance) get a COMPOSITE surface: the doc body above, and pinned at the bottom a
-// quiet no-session notice + the standard composer. Submitting ADOPTS a worker onto this thread
-// (rpc.adoptThread — spawns on the thread file) and immediately follows up with the user's message
-// as its first steer (rpc.followUp), then this drawer swaps IN PLACE into the chat drawer (same
-// stack slot), where the spawning spinner takes over. This superseded an earlier bare
-// "Start a session" header button — the composer is the affordance.
+// thus only semi-trusted — rendered through the shared allowlist sanitizer (lib/markdown.ts). Read-only:
+// a session-less thread (runtime "none") opens here because its doc IS the substance. (A composer pinned
+// under the doc started a worker on the file — cold adoption, removed 2026-10-14.)
 export function ThreadDrawer({ id, slug, title, depth, widthDepth }: { id: number; slug: string; title: string; depth: number; widthDepth: number }) {
   const body = useQuery({
     queryKey: ["threadBody", slug],
@@ -39,37 +29,6 @@ export function ThreadDrawer({ id, slug, title, depth, widthDepth }: { id: numbe
     body.refetch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap.board])
-
-  // Session-less composite (see header comment): runtime "none" = no session ever spawned. Submit =
-  // adopt (spawn a worker on the thread FILE — the durable context) + followUp (the user's message
-  // lands as the worker's first steer), then swap this doc layer into the CHAT layer
-  // in place — the chat view's "Session starting…" spinner covers the spawn.
-  const thread = threadBySlug(snap.board as BoardSnapshot | null, slug)
-  const adoptable = canAdoptThread(thread)
-  const projectDir = useProjectDir()
-  const messageKey = draftKey.adopt(projectDir, slug)
-  const [message, setMessage, clearMessage] = useDraft(messageKey)
-  // Once the drawer is animating out, a late adopt success must NOT re-kind the entry mid-close —
-  // the swap would remount it as a fresh chat sheet for its last 200ms. The session still started;
-  // the user just closed the drawer first. (The stack entry's `closing` flag — set by the shared
-  // Sheet's close() via markDrawerClosing — stands in for the old local closingRef.)
-  const adopt = useMutation({
-    mutationFn: async (msg: string) => {
-      // One RPC: the adoption orientation rides the SYSTEM prompt server-side; the human's message IS
-      // the worker's first user message (maintainer: the transcript shows only their own words).
-      await rpc.adoptThread({ slug, message: msg.trim() || undefined })
-    },
-    onSuccess: () => {
-      // Swap THIS drawer layer doc → thread (same id, same depth): the chat surface takes over.
-      // (A no-op if the drawer was already removed; skipped if it's mid-close animation.)
-      if (store.drawers.find((d) => d.id === id)?.closing) return
-      store.drawers = store.drawers.map((d) => (d.id === id ? { ...d, kind: "thread" as const } : d))
-    },
-    onError: (e, submitted) => {
-      if (!draftStore.get(messageKey)) setMessage(submitted)
-      showToast(`Start failed: ${(e as Error).message.slice(0, 80)}`)
-    },
-  })
 
   const html = useMarkdownHtml(stripFrontmatter(body.data?.markdown ?? ""))
   const inner = useInnerHtml(html)
@@ -102,29 +61,6 @@ export function ThreadDrawer({ id, slug, title, depth, widthDepth }: { id: numbe
               <div className="text-[13px] text-muted">No thread file found.</div>
             )}
           </div>
-          {/* Session-less: the bottom-pinned no-session notice + composer (the affordance to start work). */}
-          {adoptable && (
-            <div className="shrink-0 border-t border-border/60 px-5 pb-4 pt-3">
-              <p className="mb-2.5 text-[11.5px] text-muted-80">
-                No session is attached to this thread yet. Send a message below to start one on this plan.
-              </p>
-              <Composer
-                surface="adoptComposer"
-                value={message}
-                onChange={setMessage}
-                onSubmit={() => {
-                  if (!message.trim() || adopt.isPending) return
-                  const submitted = message
-                  clearMessage()
-                  showToast("Starting thread…", { spinner: true, sticky: true })
-                  adopt.mutate(submitted)
-                }}
-                placeholder="Kick off work on this thread…"
-                minHeight={44}
-                busy={adopt.isPending}
-              />
-            </div>
-          )}
         </>
       )}
     </Sheet>

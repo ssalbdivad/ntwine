@@ -109,13 +109,10 @@ export function ThreadComposerBox({
   const mode = useSendMode(slug, running)
   // ONE placeholder for both surfaces, decided here from the thread — the queue card said "Reply to the
   // agent…" and the drawer "Follow up…" until 2026-10-09, and only the card said when the box was the
-  // way AROUND an open question. An external session keeps its own sentence: it says what sending does,
-  // which is to take the session over (see ThreadActionBar). An open question is a registered one or a
-  // fence the worker's last message still asks. With an answer staged the box is a note on it, and
-  // with the menu shut this line is also what says how the button will send (sendPlaceholder).
-  const placeholder = thread?.foreign
-    ? "Send a message to take over this session…"
-    : sendPlaceholder({ staged, openQuestions: Boolean(thread?.pendingQuestion) || (thread?.questions?.length ?? 0) > 0, running, mode })
+  // way AROUND an open question. An open question is a registered one or a fence the worker's last
+  // message still asks. With an answer staged the box is a note on it, and with the menu shut this line
+  // is also what says how the button will send (sendPlaceholder).
+  const placeholder = sendPlaceholder({ staged, openQuestions: Boolean(thread?.pendingQuestion) || (thread?.questions?.length ?? 0) > 0, running, mode })
   const projectDir = useProjectDir()
   const key = draftKey.followUp(projectDir, slug, thread?.sessionId)
   const [message, setMessage, clearMessage] = useDraft(key)
@@ -301,9 +298,8 @@ export function ThreadComposerBox({
           slashSuggest={slashSuggest}
           // A command saved in Settings refreshes the menu on the next `/`.
           slashSuggestVersion={userCommandsQuery.dataUpdatedAt}
-          // An external session keeps its own sentence (it says what sending does); otherwise the verb
-          // is the thread's state: steering a turn in flight, or replying to one at rest.
-          placeholder={thread?.foreign ? placeholder : turnRunning ? "Steer…" : "Reply…"}
+          // The verb is the thread's state: steering a turn in flight, or replying to one at rest.
+          placeholder={turnRunning ? "Steer…" : "Reply…"}
           busy={controls.busy}
           phone={{
             layout: "bar",
@@ -365,9 +361,7 @@ export function ThreadComposerBox({
         railLead={goal}
         railPermission={controls.permission}
         fileDrop={fileDrop}
-        // An external session keeps the ↑: sending there takes the session over, and there is no turn
-        // of ntwine's to steer or queue behind until it has.
-        send={thread?.foreign ? undefined : { mode, onMode: (next) => setSendMode(slug, next), running, staged }}
+        send={{ mode, onMode: (next) => setSendMode(slug, next), running, staged }}
       />
       {controls.status}
       {signInFor && <SignInModal backend={signInFor} onClose={() => setSignInFor(null)} onAuthed={() => setSignInFor(null)} />}

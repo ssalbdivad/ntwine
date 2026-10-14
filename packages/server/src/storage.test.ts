@@ -114,207 +114,38 @@ test("sub-agent drawer steers are durable, idempotent, ordered, and project-scop
   }
 })
 
-test("insertSessionIfAbsent atomically preserves the winner and writes backend identity in one claim", () => {
-  const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-claim-"))
-  const path = join(dir, "ui.db")
-  const first = createStorage(path, "p")
-  const second = createStorage(path, "p")
+// Cold adoption (removed 2026-10-14) kept its claims in two tables a file written before then still has,
+// and a finalized claim used to veto forgetting its row unless the caller named the claim's token. The
+// tables are left in place, never read: the row loads and dismisses like any other.
+test("a file holding adoption claims from before their removal still opens, and its rows forget normally", () => {
+  const path = join(mkdtempSync(join(tmpdir(), "ntwine-storage-")), "ui.db")
+  const db = new Database(path)
+  db.exec(`
+    CREATE TABLE adoption_claim (
+      project_id TEXT NOT NULL, slug TEXT NOT NULL, attempt_token TEXT NOT NULL, session_id TEXT NOT NULL,
+      state TEXT NOT NULL, reserved_at_ms INTEGER NOT NULL, lease_expires_at_ms INTEGER NOT NULL,
+      recovery_token TEXT, pane_id TEXT, pane_pid INTEGER, session_created INTEGER, finalized_at_ms INTEGER,
+      PRIMARY KEY (project_id, slug)
+    );
+    CREATE TABLE adoption_retired_attempt (
+      project_id TEXT NOT NULL, attempt_token TEXT NOT NULL, slug TEXT NOT NULL, session_id TEXT NOT NULL,
+      retired_at_ms INTEGER NOT NULL, PRIMARY KEY (project_id, attempt_token)
+    );
+  `)
+  db.prepare("INSERT INTO adoption_claim VALUES ('p', 'adopted', ?, 'adopted-sid', 'finalized', 1, 2, NULL, NULL, NULL, NULL, 3)")
+    .run(randomUUID())
+  db.close()
 
-  assert.equal(first.insertSessionIfAbsent(row({
-    slug: "claimed",
-    session_id: "codex-owner",
-    backend: "codex",
-    agent_session_id: "codex-native-id",
-    exited: 1,
-    archived: 1,
-    state: "archived",
-  })), true)
+  const s = createStorage(path, "p")
+  s.upsertSession(row({ slug: "adopted", session_id: "adopted-sid", runtime_generation: 2 }))
+  assert.equal(s.forgetSessionIfCurrent("adopted", { sessionId: "adopted-sid", runtimeGeneration: 1 }), undefined, "a stale generation still loses")
+  assert.equal(s.forgetSessionIfCurrent("adopted", { sessionId: "adopted-sid", runtimeGeneration: 2 })?.session_id, "adopted-sid")
+  assert.equal(s.getSession("adopted"), undefined)
+  s.close()
 
-  // A second connection simulates another server/process winning or losing the same registry CAS.
-  // It must not partially convert a Codex owner into Claude or clear its native-session identity.
-  assert.equal(second.insertSessionIfAbsent(row({
-    slug: "claimed",
-    session_id: "claude-loser",
-    backend: "claude",
-    agent_session_id: null,
-    exited: 0,
-    archived: 0,
-    state: "open",
-  })), false)
-  assert.deepEqual(
-    {
-      sessionId: second.getSession("claimed")?.session_id,
-      backend: second.getSession("claimed")?.backend,
-      agentSessionId: second.getSession("claimed")?.agent_session_id,
-      exited: second.getSession("claimed")?.exited,
-      archived: second.getSession("claimed")?.archived,
-      state: second.getSession("claimed")?.state,
-    },
-    {
-      sessionId: "codex-owner",
-      backend: "codex",
-      agentSessionId: "codex-native-id",
-      exited: 1,
-      archived: 1,
-      state: "archived",
-    },
-  )
-
-  // A genuinely fresh Claude claim writes both identity fields explicitly in the same statement.
-  assert.equal(second.insertSessionIfAbsent(row({ slug: "fresh-claude", session_id: "claude-owner" })), true)
-  assert.equal(first.getSession("fresh-claude")?.backend, "claude")
-  assert.equal(first.getSession("fresh-claude")?.agent_session_id, null)
-
-  second.close()
-  first.close()
-})
-
-test("adoption finalization atomically publishes the session and exact binding; replacement retires it", () => {
-  const s = store()
-  const slug = "atomic-adoption"
-  const sessionId = randomUUID()
-  const token = randomUUID()
-  assert.equal(s.reserveAdoptionClaim({
-    slug,
-    attemptToken: token,
-    sessionId,
-    reservedAtMs: 100,
-    leaseExpiresAtMs: 200,
-  }), true)
-  assert.equal(s.getSession(slug), undefined)
-  assert.equal(s.recordAdoptionPane(slug, token, { paneId: "%7", panePid: 700, sessionCreated: 7000 }, 200), true)
-  assert.equal(s.finalizeAdoptionClaim(slug, token, row({ slug, session_id: sessionId }), 150), true)
-  assert.equal(s.getSession(slug)?.session_id, sessionId)
-  assert.deepEqual(
-    {
-      state: s.getAdoptionClaim(slug)?.state,
-      paneId: s.getAdoptionClaim(slug)?.pane_id,
-      panePid: s.getAdoptionClaim(slug)?.pane_pid,
-      sessionCreated: s.getAdoptionClaim(slug)?.session_created,
-    },
-    { state: "finalized", paneId: "%7", panePid: 700, sessionCreated: 7000 },
-  )
-
-  s.upsertSession(row({ slug, session_id: "replacement" }))
-  assert.equal(s.getAdoptionClaim(slug), undefined)
-  assert.equal(s.getSession(slug)?.session_id, "replacement")
-  assert.ok(s.allRetiredAdoptionAttempts().some((attempt) => attempt.attempt_token === token))
-})
-
-test("forgetSession removes only the matching finalized adoption binding", () => {
-  const s = store()
-  const slug = "forget-adoption"
-  const sessionId = randomUUID()
-  const token = randomUUID()
-  assert.equal(s.reserveAdoptionClaim({ slug, attemptToken: token, sessionId, reservedAtMs: 100, leaseExpiresAtMs: 200 }), true)
-  assert.equal(s.recordAdoptionPane(slug, token, { paneId: "%8", panePid: 800, sessionCreated: 8000 }, 200), true)
-  assert.equal(s.finalizeAdoptionClaim(slug, token, row({ slug, session_id: sessionId }), 150), true)
-  assert.ok(s.forgetSession(slug))
-  assert.equal(s.getSession(slug), undefined)
-  assert.equal(s.getAdoptionClaim(slug), undefined)
-  assert.ok(s.allRetiredAdoptionAttempts().some((attempt) => attempt.attempt_token === token))
-})
-
-test("adopted respawn rotates its claim without an unbound window and failed setup restores a bound no-pane marker", () => {
-  const s = store()
-  const slug = "adoption-respawn"
-  const sessionId = randomUUID()
-  const original = randomUUID()
-  assert.equal(s.reserveAdoptionClaim({ slug, attemptToken: original, sessionId, reservedAtMs: 100, leaseExpiresAtMs: 200 }), true)
-  assert.equal(s.recordAdoptionPane(slug, original, { paneId: "%9", panePid: 900, sessionCreated: 9000 }, 200), true)
-  assert.equal(s.finalizeAdoptionClaim(slug, original, row({ slug, session_id: sessionId }), 150), true)
-
-  const failed = randomUUID()
-  assert.equal(s.rearmFinalizedAdoptionClaim({
-    slug,
-    attemptToken: failed,
-    sessionId,
-    reservedAtMs: 300,
-    leaseExpiresAtMs: 400,
-  }, original), true)
-  assert.equal(s.getAdoptionClaim(slug)?.state, "reserved")
-  assert.equal(s.getSession(slug)?.session_id, sessionId, "the registry owner remains present while readers fail closed")
-  assert.equal(s.abandonAdoptionClaim(slug, failed), true)
-  assert.ok(s.allRetiredAdoptionAttempts().some((attempt) => attempt.attempt_token === original))
-  assert.ok(s.allRetiredAdoptionAttempts().some((attempt) => attempt.attempt_token === failed))
-  assert.deepEqual(
-    {
-      state: s.getAdoptionClaim(slug)?.state,
-      token: s.getAdoptionClaim(slug)?.attempt_token,
-      pane: s.getAdoptionClaim(slug)?.pane_id,
-    },
-    { state: "finalized", token: failed, pane: null },
-  )
-
-  const successful = randomUUID()
-  assert.equal(s.rearmFinalizedAdoptionClaim({
-    slug,
-    attemptToken: successful,
-    sessionId,
-    reservedAtMs: 500,
-    leaseExpiresAtMs: 600,
-  }, failed), true)
-  assert.equal(s.recordAdoptionPane(slug, successful, { paneId: "%10", panePid: 1000, sessionCreated: 10000 }, 600), true)
-  assert.equal(s.finalizeAdoptionRespawnClaim(slug, successful, sessionId, 550), true)
-  assert.deepEqual(
-    {
-      state: s.getAdoptionClaim(slug)?.state,
-      token: s.getAdoptionClaim(slug)?.attempt_token,
-      pane: s.getAdoptionClaim(slug)?.pane_id,
-    },
-    { state: "finalized", token: successful, pane: "%10" },
-  )
-})
-
-test("adoption spawn fence revalidates and binds under one SQLite writer lock; retired tokens cannot spawn", () => {
-  const s = store()
-  const slug = "spawn-fence"
-  const sessionId = randomUUID()
-  const token = randomUUID()
-  assert.equal(s.reserveAdoptionClaim({ slug, attemptToken: token, sessionId, reservedAtMs: 10, leaseExpiresAtMs: 20 }), true)
-  let spawns = 0
-  const fenced = s.withAdoptionSpawnFence(slug, token, 100, (bindPane) => {
-    spawns++
-    const identity = { paneId: "%70", panePid: 7000, sessionCreated: 70000 }
-    assert.equal(bindPane(identity, 100), true)
-    return identity
-  })
-  assert.deepEqual(fenced, {
-    acquired: true,
-    value: { paneId: "%70", panePid: 7000, sessionCreated: 70000 },
-  })
-  assert.equal(s.abandonAdoptionClaim(slug, token), true)
-  assert.equal(s.withAdoptionSpawnFence(slug, token, 200, () => void spawns++).acquired, false)
-  assert.equal(spawns, 1, "a retired stale actor never reaches external new-session")
-})
-
-test("forgetSessionIfCurrent loses safely to an adoption-token rotation and preserves the successor", () => {
-  const s = store()
-  const slug = "forget-rotation"
-  const sessionId = randomUUID()
-  const oldToken = randomUUID()
-  assert.equal(s.reserveAdoptionClaim({ slug, attemptToken: oldToken, sessionId, reservedAtMs: 10, leaseExpiresAtMs: 20 }), true)
-  assert.equal(s.recordAdoptionPane(slug, oldToken, { paneId: "%71", panePid: 7100, sessionCreated: 71000 }, 20), true)
-  assert.equal(s.finalizeAdoptionClaim(slug, oldToken, row({ slug, session_id: sessionId, runtime_generation: 4 }), 15), true)
-
-  const newToken = randomUUID()
-  assert.equal(s.rearmFinalizedAdoptionClaim({
-    slug,
-    attemptToken: newToken,
-    sessionId,
-    reservedAtMs: 30,
-    leaseExpiresAtMs: 40,
-  }, oldToken), true)
-  assert.equal(s.recordAdoptionPane(slug, newToken, { paneId: "%72", panePid: 7200, sessionCreated: 72000 }, 40), true)
-  assert.equal(s.finalizeAdoptionRespawnClaim(slug, newToken, sessionId, 35), true)
-
-  assert.equal(s.forgetSessionIfCurrent(slug, {
-    sessionId,
-    runtimeGeneration: 4,
-    adoptionAttemptToken: oldToken,
-  }), undefined)
-  assert.equal(s.getSession(slug)?.session_id, sessionId)
-  assert.equal(s.getAdoptionClaim(slug)?.attempt_token, newToken)
+  const after = new Database(path)
+  assert.equal(after.prepare<[], { n: number }>("SELECT COUNT(*) AS n FROM adoption_claim").get()?.n, 1, "the old table is left as it was")
+  after.close()
 })
 
 test("session profile: model/effort round-trip and survive a resume-style upsert", () => {

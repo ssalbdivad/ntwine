@@ -38,8 +38,8 @@ export interface SessionRow {
   // it is what makes the UI show "Spinning up…"/"Untitled thread" instead of an internal-looking slug.
   // It does NOT decide whether a later machine title may land — that is `title_locked` below.
   title_auto: number
-  // 0 | 1 — a HUMAN named this thread (explicit rename, native /rename, or an adopted `.ntwine/<slug>.md`
-  // heading), so no backend auto-title may ever replace it. A title HARD-CODED by a dispatch CALLER is
+  // 0 | 1 — a HUMAN named this thread (explicit rename or native /rename), so no
+  // backend auto-title may ever replace it. A title HARD-CODED by a dispatch CALLER is
   // NOT this: `Investigate acme/app#391` from the GitHub batch, or a parent agent's guess through
   // `ntwinectl spawn-thread`, is shown as a real name (title_auto = 0) and is FINAL like any other name
   // (thread-names.ts) — unlocked only in that a human rename still records as the human's. The human-facing
@@ -220,7 +220,7 @@ export interface SessionRow {
   agent_session_id?: string | null
   // The resolved model + reasoning-effort values this session was STARTED with. These are deliberately
   // session metadata, not a live read of Settings: changing the global dispatch defaults later must not
-  // relabel an existing thread. Nullable/optional keeps migrated, adopted-old, and foreign sessions honest
+  // relabel an existing thread. Nullable/optional keeps migrated, pre-profile, and foreign sessions honest
   // when ntwine never observed a concrete CLI value.
   model?: string | null
   effort?: string | null
@@ -409,6 +409,8 @@ export type ProfileHandoffPhase =
   | "rollback-spawned"
   | "rollback-ready"
 
+// `"adopted"` and `adoptionAttemptToken` are STORED values a journal written while cold adoption existed
+// (removed 2026-10-14) may still carry; profile-handoff.ts keeps parsing them so such a row still loads.
 export interface ProfileHandoffBinding {
   kind: "standalone" | "adopted"
   paneId: string
@@ -451,62 +453,10 @@ export interface AutoTitleExpectation {
   runtimeGeneration: number
 }
 
-export type AdoptionClaimState = "reserved" | "spawned" | "recovering" | "finalized"
-
-// A cold-adoption attempt owns its slug in SQLite before it is allowed to start a worker at all.
-// The pane_* tuple below is LEGACY. When adoption spawned an interactive multiplexer session, that
-// tuple was filled immediately after the session was created and the attempt token was embedded in
-// the session's environment, which let restart recovery identify the otherwise tiny window between
-// the spawn and this row update without guessing from a reusable slug or PID. Adoption spawns
-// through the broker now, so those three columns stay NULL and the reservation itself is the claim
-// (see finalizeAdoptionClaimTxn).
-export interface AdoptionClaimRow {
-  slug: string
-  attempt_token: string
-  session_id: string
-  state: AdoptionClaimState
-  reserved_at_ms: number
-  lease_expires_at_ms: number
-  recovery_token: string | null
-  pane_id: string | null
-  pane_pid: number | null
-  session_created: number | null
-  finalized_at_ms: number | null
-}
-
-export interface AdoptionPaneIdentity {
-  paneId: string
-  panePid: number
-  sessionCreated: number
-}
-
-export interface AdoptionReservation {
-  slug: string
-  attemptToken: string
-  sessionId: string
-  reservedAtMs: number
-  leaseExpiresAtMs: number
-}
-
-// Tokens are never reusable after an attempt gives up ownership. Keeping the retirement ledger
-// durable lets boot recovery find a worker started by an old process that resumed after its lease
-// was recovered. New processes are additionally fenced under SQLite's writer lock before spawning.
-export interface RetiredAdoptionAttemptRow {
-  attempt_token: string
-  slug: string
-  session_id: string
-  retired_at_ms: number
-}
-
 export interface ForgetSessionExpectation {
   sessionId: string
   runtimeGeneration: number
-  adoptionAttemptToken: string | null
 }
-
-export type AdoptionSpawnFenceResult<T> =
-  | { acquired: false }
-  | { acquired: true; value: T }
 
 /** One row of `thread_timer` — a worker's one-off alarm. Instants are epoch ms in the table (they are
  *  only ever compared against `Date.now()`); the ISO string the worker and the delivered trailer see is
@@ -783,66 +733,6 @@ export interface Storage extends ScheduleStore {
   allSessions(): readonly SessionRow[]
   subscribeSessionLifecycle(listener: (event: SessionLifecycleEvent) => void): () => void
   upsertSession(row: SessionRow): void
-  // Claim a previously-unowned slug without ever replacing its current owner. This is the registry
-  // compare-and-swap used by cold adoption after spawn: a competing writer either wins atomically or
-  // leaves its row byte-for-byte untouched. Unlike the legacy upsert, identity columns are part of the
-  // same INSERT so backend/native-session ownership can never be partially updated across backends.
-  insertSessionIfAbsent(row: SessionRow): boolean
-  getAdoptionClaim(slug: string): AdoptionClaimRow | undefined
-  getAdoptionRuntimeSnapshot(slug: string): {
-    session: SessionRow | undefined
-    claim: AdoptionClaimRow | undefined
-  }
-  allAdoptionClaims(): AdoptionClaimRow[]
-  allRetiredAdoptionAttempts(): RetiredAdoptionAttemptRow[]
-  // INSERT ... WHERE no session owner exists. The slug PK and token UNIQUE constraint serialize
-  // separate ntwine processes/connections; a loser never reaches the spawn.
-  reserveAdoptionClaim(reservation: AdoptionReservation): boolean
-  recordAdoptionPane(
-    slug: string,
-    attemptToken: string,
-    identity: AdoptionPaneIdentity,
-    leaseExpiresAtMs: number,
-  ): boolean
-  // Revalidate the exact token while holding SQLite's write lock across the spawn and its first
-  // identity bind. Recovery on another connection cannot retire the token in the validation→spawn
-  // gap. LEGACY SHAPE: only the multiplexer-era adoption spawn bound an identity here — a
-  // broker-backed adoption reserves and finalizes without one, so nothing outside the tests reaches
-  // this today.
-  withAdoptionSpawnFence<T>(
-    slug: string,
-    attemptToken: string,
-    leaseExpiresAtMs: number,
-    spawn: (bindPane: (identity: AdoptionPaneIdentity, leaseExpiresAtMs: number) => boolean) => T,
-  ): AdoptionSpawnFenceResult<T>
-  // The session INSERT and claim finalization are one SQLite transaction. False means another row
-  // won; the spawned attempt remains recoverable and its owner/restart must clean it up against the
-  // exact identity it recorded, never by name.
-  finalizeAdoptionClaim(slug: string, attemptToken: string, row: SessionRow, finalizedAtMs: number): boolean
-  // Reuse the durable binding for a legitimate resume without an unbound gap. While reserved/spawned,
-  // every reader sees a conflict and fails closed; recovery restores a finalized binding with the
-  // identity columns cleared.
-  rearmFinalizedAdoptionClaim(reservation: AdoptionReservation, previousAttemptToken: string): boolean
-  finalizeAdoptionRespawnClaim(
-    slug: string,
-    attemptToken: string,
-    sessionId: string,
-    finalizedAtMs: number,
-  ): boolean
-  // The live owner may abandon only its own non-finalized token after proving nothing still runs
-  // under it.
-  abandonAdoptionClaim(slug: string, attemptToken: string): boolean
-  // Lease takeover is itself CAS + leased, so two booting servers cannot both clean one attempt and
-  // a recovery process killed midway can be safely superseded after its recovery lease expires.
-  beginAdoptionRecovery(
-    slug: string,
-    attemptToken: string,
-    recoveryToken: string,
-    nowMs: number,
-    leaseExpiresAtMs: number,
-  ): AdoptionClaimRow | undefined
-  finishAdoptionRecovery(slug: string, attemptToken: string, recoveryToken: string): boolean
-  retireFinalizedAdoptionClaim(slug: string, sessionId: string, attemptToken: string): boolean
   markRead(slug: string, at?: string): void
   setUnread(slug: string, unread: boolean): void
   setUnreadIfCurrent(slug: string, sessionId: string, generation: number, unread: boolean): boolean
@@ -1176,8 +1066,8 @@ export interface Storage extends ScheduleStore {
   // OLD session id only. Returns the forgotten row (for the caller to tear down its tailer state), or
   // undefined when nothing was there.
   forgetSession(slug: string): SessionRow | undefined
-  // Forget only the row/runtime generation and finalized adoption owner the caller stopped. A
-  // concurrent resume/replacement wins without having its new row or claim deleted by stale work.
+  // Forget only the row/runtime generation the caller stopped. A concurrent resume/replacement wins
+  // without having its new row deleted by stale work.
   forgetSessionIfCurrent(slug: string, expected: ForgetSessionExpectation): SessionRow | undefined
   // Every tombstoned transcript id (session_id + any discovered transcript_id of a forgotten row). The
   // tailer's foreign-discovery consults this so a forgotten phantom's transcript stays excluded forever.
@@ -1424,37 +1314,11 @@ export const STORAGE_SCHEMA = `
       forgotten_at  TEXT NOT NULL,
       PRIMARY KEY (project_id, transcript_id)
     );
-    CREATE TABLE IF NOT EXISTS adoption_claim (
-      project_id          TEXT NOT NULL,
-      slug                TEXT NOT NULL,
-      attempt_token       TEXT NOT NULL,
-      session_id          TEXT NOT NULL,
-      state               TEXT NOT NULL CHECK (state IN ('reserved', 'spawned', 'recovering', 'finalized')),
-      reserved_at_ms      INTEGER NOT NULL,
-      lease_expires_at_ms INTEGER NOT NULL,
-      recovery_token      TEXT,
-      pane_id             TEXT,
-      pane_pid            INTEGER,
-      session_created     INTEGER,
-      finalized_at_ms     INTEGER,
-      PRIMARY KEY (project_id, slug),
-      UNIQUE (project_id, attempt_token),
-      UNIQUE (project_id, session_id),
-      CHECK (
-        (pane_id IS NULL AND pane_pid IS NULL AND session_created IS NULL) OR
-        (pane_id IS NOT NULL AND pane_pid IS NOT NULL AND session_created IS NOT NULL)
-      )
-    );
-    CREATE TABLE IF NOT EXISTS adoption_retired_attempt (
-      project_id    TEXT NOT NULL,
-      attempt_token TEXT NOT NULL,
-      slug          TEXT NOT NULL,
-      session_id    TEXT NOT NULL,
-      retired_at_ms INTEGER NOT NULL,
-      PRIMARY KEY (project_id, attempt_token)
-    );
-    CREATE INDEX IF NOT EXISTS adoption_retired_attempt_slug_idx
-      ON adoption_retired_attempt(project_id, slug);
+    -- adoption_claim and adoption_retired_attempt belonged to cold adoption of a legacy .ntwine/<slug>.md
+    -- thread, removed 2026-10-14. They are no longer created, and deliberately not dropped: a file that has
+    -- them keeps them, unread, because an older server still open on the same file (across an update)
+    -- prepared statements against them, and a DROP under it would fail them.
+
     -- A background op the operator RETIRED (the × on its row), by its dispatch tool_use id.
     --
     -- This has to be durable, and the reason is measured rather than defensive. Killing a background
@@ -1809,7 +1673,7 @@ export const STORAGE_SCHEMA = `
 
 /** Every table this module owns, for the importer and the project purge. */
 export const STORAGE_TABLES = [
-  "session", "settings", "tombstone", "adoption_claim", "adoption_retired_attempt", "retired_op",
+  "session", "settings", "tombstone", "retired_op",
   "thread_timer", "pr_watch", "thread_watch", "thread_question", "thread_done", "subagent_steer", "thread_link",
   "thread_terminal", "shell_budget", "thread_spinoff", "thread_schedule", "thread_schedule_run", "command_watch",
 ] as const
@@ -2152,14 +2016,14 @@ export function createStorage(source: string | Database, projectId: string): Sto
       END,
       runtime_control = excluded.runtime_control,
       runtime_control_revision = excluded.runtime_control_revision,
-      -- A re-dispatch/adopt carries a FRESH session_id, so the old discovered path is stale → adopt the
+      -- A re-dispatch carries a FRESH session_id, so the old discovered path is stale → take the
       -- incoming value (NULL for a fresh spawn); a resume spreads the existing row, preserving its cache.
       transcript_id = excluded.transcript_id,
       -- A forked thread's anchor names a record in ITS session's transcript: kept across a resume (the
-      -- same session spread back), dropped by a re-dispatch or adopt, whose fresh session holds no copy.
+      -- same session spread back), dropped by a re-dispatch, whose fresh session holds no copy.
       fork_anchor = CASE WHEN session.session_id = excluded.session_id THEN session.fork_anchor ELSE NULL END,
       -- A time limit belongs to the SESSION it was set on: a resume (the same session spread back) keeps
-      -- it, and a re-dispatch or adopt — a fresh worker with a fresh prompt — starts without one. A
+      -- it, and a re-dispatch — a fresh worker with a fresh prompt — starts without one. A
       -- dispatch that carries a limit sets it after this write (setDeadline).
       deadline_at = CASE WHEN session.session_id = excluded.session_id THEN session.deadline_at ELSE NULL END,
       deadline_set_at = CASE WHEN session.session_id = excluded.session_id THEN session.deadline_set_at ELSE NULL END,
@@ -2171,146 +2035,10 @@ export function createStorage(source: string | Database, projectId: string): Sto
       lazy_prompt = excluded.lazy_prompt,
       held_by = excluded.held_by,
       -- \`schedule_id\` is deliberately ABSENT from this list: the INSERT carries it (a schedule's held
-      -- next run is born with it), and no later write over the slug — the dispatch that starts that run,
-      -- a re-dispatch, an adopt — may clear which schedule the thread belongs to.
+      -- next run is born with it), and no later write over the slug — the dispatch that starts that run or
+      -- a re-dispatch — may clear which schedule the thread belongs to.
       archived = 0,
       state = 'open'
-  `)
-  const insertSessionIfAbsentStmt = scope.prepare(`
-    INSERT INTO session (
-      project_id, slug, session_id, thread_name, spawned_at, last_read_at, unread, exited, archived, rested_at,
-      title_auto, title_locked, title, transcript_id, state, snoozed_until, snooze_prompt,
-      meta, seen_at, backend, agent_session_id,
-      model, effort, profile_pending_model, profile_pending_effort, profile_revision, profile_handoff,
-      permission_mode, permission_pending, control_error,
-      runtime_generation, runtime_control, runtime_control_revision
-    )
-    VALUES (
-      @project_id, @slug, @session_id, @thread_name, @spawned_at, @last_read_at, @unread, @exited, @archived,
-      @rested_at, @title_auto, @title_locked, @title, @transcript_id, @state, @snoozed_until, @snooze_prompt,
-      @meta, @seen_at,
-      @backend, @agent_session_id, @model, @effort, @profile_pending_model,
-      @profile_pending_effort, @profile_revision, @profile_handoff, @permission_mode, @permission_pending,
-      @control_error, @runtime_generation, @runtime_control,
-      @runtime_control_revision
-    )
-    ON CONFLICT(project_id, slug) DO NOTHING
-  `)
-  const selAdoptionClaim = scope.prepare<[string], AdoptionClaimRow>(
-    "SELECT * FROM adoption_claim WHERE project_id = @project_id AND slug = ?",
-  )
-  const selAllAdoptionClaims = scope.prepare<[], AdoptionClaimRow>("SELECT * FROM adoption_claim WHERE project_id = @project_id")
-  const selAllRetiredAdoptionAttempts = scope.prepare<[], RetiredAdoptionAttemptRow>(
-    "SELECT * FROM adoption_retired_attempt WHERE project_id = @project_id ORDER BY retired_at_ms, attempt_token",
-  )
-  const selRetiredAdoptionAttempt = scope.prepare<[string], RetiredAdoptionAttemptRow>(
-    "SELECT * FROM adoption_retired_attempt WHERE project_id = @project_id AND attempt_token = ?",
-  )
-  const putRetiredAdoptionAttempt = scope.prepare(`
-    INSERT OR IGNORE INTO adoption_retired_attempt (project_id, attempt_token, slug, session_id, retired_at_ms)
-    VALUES (@project_id, ?, ?, ?, ?)
-  `)
-  const reserveAdoptionClaimStmt = scope.prepare(`
-    INSERT INTO adoption_claim (
-      project_id, slug, attempt_token, session_id, state, reserved_at_ms, lease_expires_at_ms,
-      recovery_token, pane_id, pane_pid, session_created, finalized_at_ms
-    )
-    SELECT @project_id, @slug, @attempt_token, @session_id, 'reserved', @reserved_at_ms, @lease_expires_at_ms,
-           NULL, NULL, NULL, NULL, NULL
-    WHERE NOT EXISTS (SELECT 1 FROM session WHERE project_id = @project_id AND slug = @slug)
-      AND NOT EXISTS (
-        SELECT 1 FROM adoption_retired_attempt WHERE project_id = @project_id AND attempt_token = @attempt_token
-      )
-    ON CONFLICT DO NOTHING
-  `)
-  const recordAdoptionPaneStmt = scope.prepare(`
-    UPDATE adoption_claim
-    SET state = 'spawned', pane_id = @pane_id, pane_pid = @pane_pid,
-        session_created = @session_created, lease_expires_at_ms = @lease_expires_at_ms
-    WHERE project_id = @project_id AND slug = @slug AND attempt_token = @attempt_token
-      AND state IN ('reserved', 'spawned')
-      AND (
-        pane_id IS NULL OR
-        (pane_id = @pane_id AND pane_pid = @pane_pid AND session_created = @session_created)
-      )
-  `)
-  const renewAdoptionSpawnFenceStmt = scope.prepare(`
-    UPDATE adoption_claim
-    SET lease_expires_at_ms = ?
-    WHERE project_id = @project_id AND slug = ? AND attempt_token = ? AND state IN ('reserved', 'spawned')
-      AND recovery_token IS NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM adoption_retired_attempt
-        WHERE adoption_retired_attempt.project_id = adoption_claim.project_id AND attempt_token = adoption_claim.attempt_token
-      )
-  `)
-  const finalizeAdoptionClaimStmt = scope.prepare(`
-    UPDATE adoption_claim
-    SET state = 'finalized', finalized_at_ms = ?, recovery_token = NULL
-    WHERE project_id = @project_id AND slug = ? AND attempt_token = ? AND session_id = ? AND state IN ('reserved', 'spawned')
-  `)
-  const rearmFinalizedAdoptionClaimStmt = scope.prepare(`
-    UPDATE adoption_claim
-    SET attempt_token = @attempt_token, state = 'reserved', reserved_at_ms = @reserved_at_ms,
-        lease_expires_at_ms = @lease_expires_at_ms, recovery_token = NULL,
-        pane_id = NULL, pane_pid = NULL, session_created = NULL, finalized_at_ms = NULL
-    WHERE project_id = @project_id AND slug = @slug AND session_id = @session_id AND attempt_token = @previous_attempt_token
-      AND state = 'finalized'
-      AND EXISTS (
-        SELECT 1 FROM session
-        WHERE session.project_id = adoption_claim.project_id AND session.slug = adoption_claim.slug AND session.session_id = adoption_claim.session_id
-      )
-  `)
-  const finalizeAdoptionRespawnClaimStmt = scope.prepare(`
-    UPDATE adoption_claim
-    SET state = 'finalized', finalized_at_ms = ?, recovery_token = NULL
-    WHERE project_id = @project_id AND slug = ? AND attempt_token = ? AND session_id = ? AND state IN ('reserved', 'spawned')
-      AND EXISTS (
-        SELECT 1 FROM session
-        WHERE session.project_id = adoption_claim.project_id AND session.slug = adoption_claim.slug AND session.session_id = adoption_claim.session_id
-      )
-  `)
-  const restoreAdoptionNoPaneStmt = scope.prepare(`
-    UPDATE adoption_claim
-    SET state = 'finalized', recovery_token = NULL,
-        pane_id = NULL, pane_pid = NULL, session_created = NULL,
-        finalized_at_ms = COALESCE(finalized_at_ms, reserved_at_ms)
-    WHERE project_id = @project_id AND slug = ? AND attempt_token = ? AND state IN ('reserved', 'spawned')
-      AND EXISTS (
-        SELECT 1 FROM session
-        WHERE session.project_id = adoption_claim.project_id AND session.slug = adoption_claim.slug AND session.session_id = adoption_claim.session_id
-      )
-  `)
-  const deleteAbandonedAdoptionClaimStmt = scope.prepare(`
-    DELETE FROM adoption_claim
-    WHERE project_id = @project_id AND slug = ? AND attempt_token = ? AND state IN ('reserved', 'spawned')
-  `)
-  const beginAdoptionRecoveryStmt = scope.prepare(`
-    UPDATE adoption_claim
-    SET state = 'recovering', recovery_token = ?, lease_expires_at_ms = ?
-    WHERE project_id = @project_id AND slug = ? AND attempt_token = ? AND state != 'finalized' AND lease_expires_at_ms <= ?
-  `)
-  const restoreRecoveredAdoptionNoPaneStmt = scope.prepare(`
-    UPDATE adoption_claim
-    SET state = 'finalized', recovery_token = NULL,
-        pane_id = NULL, pane_pid = NULL, session_created = NULL,
-        finalized_at_ms = COALESCE(finalized_at_ms, reserved_at_ms)
-    WHERE project_id = @project_id AND slug = ? AND attempt_token = ? AND state = 'recovering' AND recovery_token = ?
-      AND EXISTS (
-        SELECT 1 FROM session
-        WHERE session.project_id = adoption_claim.project_id AND session.slug = adoption_claim.slug AND session.session_id = adoption_claim.session_id
-      )
-  `)
-  const deleteRecoveredAdoptionClaimStmt = scope.prepare(`
-    DELETE FROM adoption_claim
-    WHERE project_id = @project_id AND slug = ? AND attempt_token = ? AND state = 'recovering' AND recovery_token = ?
-  `)
-  const delFinalizedAdoptionClaim = scope.prepare(`
-    DELETE FROM adoption_claim WHERE project_id = @project_id AND slug = ? AND session_id = ? AND state = 'finalized'
-  `)
-  const retireFinalizedAdoptionClaimStmt = scope.prepare(`
-    DELETE FROM adoption_claim
-    WHERE project_id = @project_id AND slug = ? AND session_id = ? AND attempt_token = ? AND state = 'finalized'
   `)
   const readStmt = scope.prepare("UPDATE session SET last_read_at = ?, unread = 0 WHERE project_id = @project_id AND slug = ?")
   const unreadStmt = scope.prepare("UPDATE session SET unread = ? WHERE project_id = @project_id AND slug = ?")
@@ -2947,11 +2675,6 @@ export function createStorage(source: string | Database, projectId: string): Sto
     putTomb.run(existing.session_id, existing.slug, at)
     if (existing.transcript_id) putTomb.run(existing.transcript_id, existing.slug, at)
     if (existing.agent_session_id) putTomb.run(existing.agent_session_id, existing.slug, at)
-    const claim = selAdoptionClaim.get(existing.slug)
-    if (claim?.state === "finalized" && claim.session_id === existing.session_id) {
-      retireAdoptionAttempt(claim)
-      delFinalizedAdoptionClaim.run(existing.slug, existing.session_id)
-    }
     // Retirements are scoped to a session that no longer exists. Dropping them with the row keeps the
     // table from growing forever across re-dispatches of a busy slug; the (slug, session_id) key means
     // a replacement session could never have read them anyway.
@@ -2999,15 +2722,6 @@ export function createStorage(source: string | Database, projectId: string): Sto
         existing.session_id !== expected.sessionId ||
         (existing.runtime_generation ?? 0) !== expected.runtimeGeneration
       ) return undefined
-      const claim = selAdoptionClaim.get(slug)
-      if (expected.adoptionAttemptToken === null) {
-        if (claim) return undefined
-      } else if (
-        !claim || claim.state !== "finalized" || claim.session_id !== expected.sessionId ||
-        claim.attempt_token !== expected.adoptionAttemptToken
-      ) {
-        return undefined
-      }
       return forgetOwnedRow(existing)
     },
   )
@@ -3200,211 +2914,10 @@ export function createStorage(source: string | Database, projectId: string): Sto
     worker_surface: row.worker_surface ?? null,
   })
 
-  const getAdoptionRuntimeSnapshot = db.transaction((slug: string) => ({
-    // Claim first is intentional: a finalized claim disappearing before the current-row validation
-    // must never make a stale adopted row look like an unbound legacy runtime.
-    claim: selAdoptionClaim.get(slug),
-    session: selOne.get(slug),
-  }))
-
   const validateSessionIdentity = (row: SessionRow) => {
     const slug = ThreadSlug.parse(row.slug)
     if (row.thread_name !== threadIdentityName(slug)) throw new Error("invalid session thread identity")
   }
-
-  const validateAdoptionReservation = (reservation: AdoptionReservation) => {
-    ThreadSlug.parse(reservation.slug)
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reservation.attemptToken)) {
-      throw new Error("invalid adoption attempt token")
-    }
-    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/.test(reservation.sessionId)) {
-      throw new Error("invalid adoption session id")
-    }
-    if (
-      !Number.isSafeInteger(reservation.reservedAtMs) ||
-      !Number.isSafeInteger(reservation.leaseExpiresAtMs) ||
-      reservation.leaseExpiresAtMs <= reservation.reservedAtMs
-    ) {
-      throw new Error("invalid adoption lease")
-    }
-  }
-
-  const validateAdoptionPane = (identity: AdoptionPaneIdentity) => {
-    if (
-      !/^%\d+$/.test(identity.paneId) ||
-      !Number.isSafeInteger(identity.panePid) ||
-      identity.panePid <= 0 ||
-      !Number.isSafeInteger(identity.sessionCreated) ||
-      identity.sessionCreated <= 0
-    ) {
-      throw new Error("invalid adoption pane identity")
-    }
-  }
-
-  const retireAdoptionAttempt = (claim: AdoptionClaimRow, retiredAtMs = Date.now()): void => {
-    putRetiredAdoptionAttempt.run(claim.attempt_token, claim.slug, claim.session_id, retiredAtMs)
-  }
-
-  const withAdoptionSpawnFence = <T>(
-    slug: string,
-    attemptToken: string,
-    leaseExpiresAtMs: number,
-    spawn: (bindPane: (identity: AdoptionPaneIdentity, leaseExpiresAtMs: number) => boolean) => T,
-  ): AdoptionSpawnFenceResult<T> => {
-    ThreadSlug.parse(slug)
-    if (!Number.isSafeInteger(leaseExpiresAtMs)) return { acquired: false }
-    db.exec("BEGIN IMMEDIATE")
-    let bound = false
-    try {
-      const claim = selAdoptionClaim.get(slug)
-      if (
-        !claim ||
-        claim.attempt_token !== attemptToken ||
-        (claim.state !== "reserved" && claim.state !== "spawned") ||
-        claim.recovery_token !== null ||
-        selRetiredAdoptionAttempt.get(attemptToken)
-      ) {
-        db.exec("ROLLBACK")
-        return { acquired: false }
-      }
-      if (renewAdoptionSpawnFenceStmt.run(leaseExpiresAtMs, slug, attemptToken).changes !== 1) {
-        db.exec("ROLLBACK")
-        return { acquired: false }
-      }
-      // Hold BEGIN IMMEDIATE only through the spawn itself. The spawn calls bindPane the moment the
-      // runtime exists, which commits the exact tuple and releases the recovery fence BEFORE the rest
-      // of that runtime's setup continues. Thus a pre-bind SIGKILL rolls back to the durable
-      // token-only reservation, while every later setup crash retains the exact tuple instead of
-      // rolling it back with the spawn fence. (The multiplexer-era shape: a broker-backed adoption
-      // binds no tuple at all — see finalizeAdoptionClaimTxn below.)
-      const bindPane = (identity: AdoptionPaneIdentity, nextLeaseExpiresAtMs: number): boolean => {
-        if (bound || !db.inTransaction) return false
-        validateAdoptionPane(identity)
-        if (!Number.isSafeInteger(nextLeaseExpiresAtMs)) return false
-        const changed = recordAdoptionPaneStmt.run({
-          slug,
-          attempt_token: attemptToken,
-          pane_id: identity.paneId,
-          pane_pid: identity.panePid,
-          session_created: identity.sessionCreated,
-          lease_expires_at_ms: nextLeaseExpiresAtMs,
-        }).changes === 1
-        if (!changed) return false
-        db.exec("COMMIT")
-        bound = true
-        return true
-      }
-      const value = spawn(bindPane)
-      if (!bound) {
-        if (db.inTransaction) db.exec("ROLLBACK")
-        throw new Error("adoption spawn returned without binding its exact pane")
-      }
-      return { acquired: true, value }
-    } catch (error) {
-      if (db.inTransaction) db.exec("ROLLBACK")
-      throw error
-    }
-  }
-
-
-  const finalizeAdoptionClaimTxn = db.transaction(
-    (slug: string, attemptToken: string, row: SessionRow, finalizedAtMs: number): boolean => {
-      const claim = selAdoptionClaim.get(slug)
-      if (
-        !claim ||
-        claim.attempt_token !== attemptToken ||
-        claim.session_id !== row.session_id ||
-        // A broker-backed adoption never binds a pane, so the old 'spawned'+pane-columns gate is gone:
-        // the reservation IS the claim and the broker session is the identity.
-        (claim.state !== "reserved" && claim.state !== "spawned")
-      ) {
-        return false
-      }
-      if (insertSessionIfAbsentStmt.run(normalizeSessionRow(row)).changes !== 1) return false
-      if (finalizeAdoptionClaimStmt.run(finalizedAtMs, slug, attemptToken, row.session_id).changes !== 1) {
-        throw new Error("adoption claim changed during finalization")
-      }
-      return true
-    },
-  )
-
-  const rearmFinalizedAdoptionClaimTxn = db.transaction(
-    (reservation: AdoptionReservation, previousAttemptToken: string): boolean => {
-      const claim = selAdoptionClaim.get(reservation.slug)
-      if (
-        !claim ||
-        claim.state !== "finalized" ||
-        claim.session_id !== reservation.sessionId ||
-        claim.attempt_token !== previousAttemptToken ||
-        Boolean(selRetiredAdoptionAttempt.get(reservation.attemptToken))
-      ) return false
-      retireAdoptionAttempt(claim, reservation.reservedAtMs)
-      return rearmFinalizedAdoptionClaimStmt.run({
-        slug: reservation.slug,
-        session_id: reservation.sessionId,
-        attempt_token: reservation.attemptToken,
-        previous_attempt_token: previousAttemptToken,
-        reserved_at_ms: reservation.reservedAtMs,
-        lease_expires_at_ms: reservation.leaseExpiresAtMs,
-      }).changes === 1
-    },
-  )
-
-  const abandonAdoptionClaimTxn = db.transaction((slug: string, attemptToken: string): boolean => {
-    const claim = selAdoptionClaim.get(slug)
-    if (!claim || claim.attempt_token !== attemptToken || (claim.state !== "reserved" && claim.state !== "spawned")) {
-      return false
-    }
-    retireAdoptionAttempt(claim)
-    if (restoreAdoptionNoPaneStmt.run(slug, attemptToken).changes === 1) return true
-    return deleteAbandonedAdoptionClaimStmt.run(slug, attemptToken).changes === 1
-  })
-
-  const finishAdoptionRecoveryTxn = db.transaction(
-    (slug: string, attemptToken: string, recoveryToken: string): boolean => {
-      const claim = selAdoptionClaim.get(slug)
-      if (
-        !claim ||
-        claim.attempt_token !== attemptToken ||
-        claim.state !== "recovering" ||
-        claim.recovery_token !== recoveryToken
-      ) return false
-      retireAdoptionAttempt(claim)
-      if (restoreRecoveredAdoptionNoPaneStmt.run(slug, attemptToken, recoveryToken).changes === 1) return true
-      return deleteRecoveredAdoptionClaimStmt.run(slug, attemptToken, recoveryToken).changes === 1
-    },
-  )
-
-  const retireFinalizedAdoptionClaimTxn = db.transaction(
-    (slug: string, sessionId: string, attemptToken: string): boolean => {
-      const claim = selAdoptionClaim.get(slug)
-      if (
-        !claim || claim.state !== "finalized" || claim.session_id !== sessionId ||
-        claim.attempt_token !== attemptToken
-      ) return false
-      retireAdoptionAttempt(claim)
-      return retireFinalizedAdoptionClaimStmt.run(slug, sessionId, attemptToken).changes === 1
-    },
-  )
-
-  const beginAdoptionRecoveryTxn = db.transaction(
-    (
-      slug: string,
-      attemptToken: string,
-      recoveryToken: string,
-      nowMs: number,
-      leaseExpiresAtMs: number,
-    ): AdoptionClaimRow | undefined => {
-      const changed = beginAdoptionRecoveryStmt.run(
-        recoveryToken,
-        leaseExpiresAtMs,
-        slug,
-        attemptToken,
-        nowMs,
-      ).changes === 1
-      return changed ? selAdoptionClaim.get(slug) : undefined
-    },
-  )
 
   const upsertSessionTxn = db.transaction((row: SessionRow): SessionLifecycleEvent | undefined => {
     const existing = selOne.get(row.slug)
@@ -3412,11 +2925,6 @@ export function createStorage(source: string | Database, projectId: string): Sto
     if (existing && existing.session_id !== row.session_id) {
       interactions.cancelForSession(existing.slug, existing.session_id, "session-replaced")
       detachCodexBinding(existing.slug, existing.session_id, new Date().toISOString())
-      const replacedClaim = selAdoptionClaim.get(existing.slug)
-      if (replacedClaim?.state === "finalized" && replacedClaim.session_id === existing.session_id) {
-        retireAdoptionAttempt(replacedClaim)
-      }
-      delFinalizedAdoptionClaim.run(existing.slug, existing.session_id)
       return { type: "replaced", previous: existing, current: selOne.get(row.slug)! }
     }
     return undefined
@@ -3457,75 +2965,6 @@ export function createStorage(source: string | Database, projectId: string): Sto
     // Profile fields are optional in SessionRow so pre-migration fixtures/callers still typecheck;
     // normalize them for better-sqlite3, whose named statement requires every referenced parameter.
     upsertSession: (row) => void upsertSession(row),
-    insertSessionIfAbsent: (row) => {
-      validateSessionIdentity(row)
-      return insertSessionIfAbsentStmt.run(normalizeSessionRow(row)).changes === 1
-    },
-    getAdoptionClaim: (slug) => ThreadSlug.safeParse(slug).success ? selAdoptionClaim.get(slug) : undefined,
-    getAdoptionRuntimeSnapshot: (slug) => ThreadSlug.safeParse(slug).success
-      ? getAdoptionRuntimeSnapshot.deferred(slug)
-      : { session: undefined, claim: undefined },
-    allAdoptionClaims: () => selAllAdoptionClaims.all().filter((claim) => ThreadSlug.safeParse(claim.slug).success),
-    allRetiredAdoptionAttempts: () => selAllRetiredAdoptionAttempts.all()
-      .filter((attempt) => ThreadSlug.safeParse(attempt.slug).success),
-    reserveAdoptionClaim: (reservation) => {
-      validateAdoptionReservation(reservation)
-      return reserveAdoptionClaimStmt.run({
-        slug: reservation.slug,
-        attempt_token: reservation.attemptToken,
-        session_id: reservation.sessionId,
-        reserved_at_ms: reservation.reservedAtMs,
-        lease_expires_at_ms: reservation.leaseExpiresAtMs,
-      }).changes === 1
-    },
-    recordAdoptionPane: (slug, attemptToken, identity, leaseExpiresAtMs) => {
-      ThreadSlug.parse(slug)
-      validateAdoptionPane(identity)
-      if (!Number.isSafeInteger(leaseExpiresAtMs)) throw new Error("invalid adoption lease")
-      return recordAdoptionPaneStmt.run({
-        slug,
-        attempt_token: attemptToken,
-        pane_id: identity.paneId,
-        pane_pid: identity.panePid,
-        session_created: identity.sessionCreated,
-        lease_expires_at_ms: leaseExpiresAtMs,
-      }).changes === 1
-    },
-    withAdoptionSpawnFence,
-    finalizeAdoptionClaim: (slug, attemptToken, row, finalizedAtMs) => {
-      ThreadSlug.parse(slug)
-      validateSessionIdentity(row)
-      if (row.slug !== slug || !Number.isSafeInteger(finalizedAtMs)) return false
-      return finalizeAdoptionClaimTxn(slug, attemptToken, row, finalizedAtMs)
-    },
-    rearmFinalizedAdoptionClaim: (reservation, previousAttemptToken) => {
-      validateAdoptionReservation(reservation)
-      return rearmFinalizedAdoptionClaimTxn(reservation, previousAttemptToken)
-    },
-    finalizeAdoptionRespawnClaim: (slug, attemptToken, sessionId, finalizedAtMs) =>
-      ThreadSlug.safeParse(slug).success &&
-      Number.isSafeInteger(finalizedAtMs) &&
-      finalizeAdoptionRespawnClaimStmt.run(finalizedAtMs, slug, attemptToken, sessionId).changes === 1,
-    abandonAdoptionClaim: (slug, attemptToken) =>
-      ThreadSlug.safeParse(slug).success && abandonAdoptionClaimTxn(slug, attemptToken),
-    beginAdoptionRecovery: (slug, attemptToken, recoveryToken, nowMs, leaseExpiresAtMs) => {
-      if (
-        !ThreadSlug.safeParse(slug).success ||
-        !/^[0-9a-f-]{36}$/i.test(recoveryToken) ||
-        !Number.isSafeInteger(nowMs) ||
-        !Number.isSafeInteger(leaseExpiresAtMs) ||
-        leaseExpiresAtMs <= nowMs
-      ) {
-        return undefined
-      }
-      return beginAdoptionRecoveryTxn(slug, attemptToken, recoveryToken, nowMs, leaseExpiresAtMs)
-    },
-    finishAdoptionRecovery: (slug, attemptToken, recoveryToken) =>
-      ThreadSlug.safeParse(slug).success &&
-      finishAdoptionRecoveryTxn(slug, attemptToken, recoveryToken),
-    retireFinalizedAdoptionClaim: (slug, sessionId, attemptToken) =>
-      ThreadSlug.safeParse(slug).success &&
-      retireFinalizedAdoptionClaimTxn(slug, sessionId, attemptToken),
     markRead: (slug, at = new Date().toISOString()) => void readStmt.run(at, slug),
     setUnread: (slug, unread) => void unreadStmt.run(unread ? 1 : 0, slug),
     setUnreadIfCurrent: (slug, sessionId, generation, unread) =>

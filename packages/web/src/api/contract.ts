@@ -57,8 +57,6 @@ import type {
   BoardSnapshot,
   Settings,
   DispatchInput,
-  AdoptThreadInput,
-  AdoptThreadResult,
   FollowUpInput,
   SpinoffInput,
   SpinoffResult,
@@ -243,7 +241,6 @@ export interface Api {
   interactionResolve(input: ResolveInteractionInput): Promise<ResolveInteractionResult>
   interactionCancel(input: CancelInteractionInput): Promise<CancelInteractionResult>
   dispatch(input: DispatchInput): Promise<{ slug: string; sessionId: string }>
-  adoptThread(input: AdoptThreadInput): Promise<AdoptThreadResult>
   // `opts` carries the send deadline. A follow-up is the one mutation that can be held open
   // indefinitely by a server-side wait, and it runs inside a per-slug FIFO — see
   // lib/eagerComposerSubmission.ts DELIVERY_SEND_TIMEOUT_MS for what that costs without one.
@@ -569,7 +566,6 @@ export const PROCEDURES = {
   interactionResolve: "mutation",
   interactionCancel: "mutation",
   dispatch: "mutation",
-  adoptThread: "mutation",
   followUp: "mutation",
   spinoff: "mutation",
   updateHeldPrompt: "mutation",

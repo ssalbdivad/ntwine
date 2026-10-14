@@ -32,13 +32,12 @@ import { effectivePermissionMode, fallbackTitle, resolveLegacyThreadFile } from 
 import { ProducerStoppedError } from "./shutdown.ts"
 import { log as ntwineLog } from "./logging.ts"
 import { createQueueClock } from "./queue-clock.ts"
-import { adoptionRuntimeBinding } from "./adoption-recovery.ts"
 import { limitPauseIsStale, textResetInstant } from "./backend/usage-limit.ts"
 import { getSettings } from "./settings.ts"
 import { rowThreadName } from "./thread-names.ts"
 
 // The read model is provenance-bound to the durable session registry. A session row exists only after
-// ntwine dispatches or explicitly adopts a thread, so unrelated legacy `.ntwine/*.md` files and raw
+// ntwine dispatches a thread, so unrelated legacy `.ntwine/*.md` files and raw
 // terminal transcripts never enter this board (or its queue/error surface). The tailer contributes
 // telemetry only for registered rows. Plan documents remain project artifacts and are read separately.
 

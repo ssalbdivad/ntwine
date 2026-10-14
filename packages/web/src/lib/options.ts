@@ -27,7 +27,7 @@ export const PERMISSION_MODE_LABELS: Record<(typeof PERMISSION_MODES)[number], s
 // "plan" is excluded: headless workers have no coherent plan-mode semantics (they plan by writing
 // the plan into their thread + needs-human), and dispatch.ts coerces plan → auto at spawn anyway —
 // offering a mode that gets silently rewritten would be dishonest UI. The label/color maps keep
-// their plan entries (the type covers the full enum; an adopted foreign session could still read it).
+// their plan entries (the type covers the full enum; a row promoted from an external session could still read it).
 export const PERMISSION_OPTIONS: SelectOption[] = PERMISSION_MODES.filter((m) => m !== "plan").map((m) => ({
   value: m,
   label: PERMISSION_SHORT[m],

@@ -1733,7 +1733,7 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
     state: null,
     archived: 0,
   }))
-  // The normal upsert deliberately leaves backend ownership untouched; dispatch/adoption pins it
+  // The normal upsert deliberately leaves backend ownership untouched; dispatch pins it
   // separately. Exercise the durable values the board projection actually receives.
   storage.setBackend("ui-codex", "codex")
   storage.setBackend("migrated-ui-done", "future-provider")
@@ -1777,8 +1777,8 @@ test("board provenance excludes legacy files, keeps a foreign transcript read-on
     assert.deepEqual(snapshot.warnings, [])
     assert.deepEqual(snapshot.errorItems, [])
 
-    // Finalized adoption writes the same durable session row as dispatch. Once that explicit boundary
-    // exists, a formerly external legacy file is represented as an owned session—not as a legacy row.
+    // A row that registers a legacy file's slug (as cold adoption did, until 2026-10-14) is represented
+    // as an owned session — not as a legacy row.
     writeFileSync(join(dir, ".ntwine", "adopted-through-ui.md"), "still not parsed\n")
     storage.upsertSession(row({
       slug: "adopted-through-ui",

@@ -23,13 +23,12 @@ import { createCodexBackend } from "./backend/codex.ts"
 import type { CodexAppServerBridge } from "./backend/codex-app-server.ts"
 import type { ClaudeAgentBrokerBridge } from "./backend/claude-agent-broker-bridge.ts"
 import type { AgentBackend } from "./backend/types.ts"
-import type { PaneIdentity } from "./adoption-recovery.ts"
 
 function tmp(prefix: string) {
   return mkdtempSync(join(tmpdir(), prefix))
 }
 
-function fakePaneIdentity(n = 1): PaneIdentity {
+function fakePaneIdentity(n = 1): { paneId: string; panePid: number; sessionCreated: number } {
   return { paneId: `%${n}`, panePid: 10_000 + n, sessionCreated: 20_000 + n }
 }
 
@@ -52,25 +51,6 @@ function dispatcherHarness(settings = defaultSettings(), editors?: DispatchDeps[
     project,
     storage,
     board,
-    readBoard: async () => ({
-      config: {},
-      threads: existsSync(join(dir, ".ntwine"))
-        ? readdirSync(join(dir, ".ntwine"), { withFileTypes: true })
-            .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-            .map((entry) => ({
-              id: entry.name.slice(0, -3),
-              title: entry.name.slice(0, -3),
-              status: "active",
-              owner: null,
-              agents: [],
-              errors: [],
-              warnings: [],
-            }))
-        : [],
-      errors: [],
-      warnings: [],
-      errorItems: [],
-    }),
     getSettings: () => settings,
     // The broker is the only claude transport now, so what a dispatch "carries" lives in the
     // spawnDispatch input rather than in a spawned argv. `cmd` keeps the prompt + system prompt so the
@@ -172,7 +152,7 @@ test("storage: transcript_id cache round-trips, survives restart, resets on re-d
   s2.upsertSession({ ...row, spawned_at: "2026-07-01T01:00:00.000Z", exited: 0 })
   assert.equal(s2.getSession("t")?.transcript_id, "forked-id", "resume preserves the cache")
 
-  // A RE-DISPATCH/ADOPT carries a FRESH session_id + transcript_id:null → the stale cache is cleared.
+  // A RE-DISPATCH carries a FRESH session_id + transcript_id:null → the stale cache is cleared.
   s2.upsertSession({ ...row, session_id: "sid-2", transcript_id: null })
   assert.equal(s2.getSession("t")?.transcript_id ?? null, null, "a fresh session_id resets the cache")
   s2.close()
@@ -419,30 +399,6 @@ test("dispatch: creates an EMPTY scratch dir (not a thread file), argv carries i
   assert.equal(row?.model, "opus", "the dispatch model is pinned on the session row")
   assert.equal(row?.effort, "high", "the dispatch effort is pinned on the session row")
   assert.equal(row?.permission_mode, "bypassPermissions", "the concrete launch permission is pinned on the session row")
-})
-
-test("adopt: requires the legacy file, provisions a scratch dir, orientation is context-not-contract", async () => {
-  const h = dispatcherHarness({ ...defaultSettings(), model: "sonnet", effort: "xhigh" })
-  // No file → clean rejection.
-  await assert.rejects(h.dispatcher.adopt("adopt-fixture"), /thread is not available for adoption/)
-
-  mkdirSync(join(h.dir, ".ntwine"), { recursive: true })
-  writeFileSync(join(h.dir, ".ntwine", "adopt-fixture.md"), "---\ntitle: x\nstatus: active\n---\n\n## Goal\n\ng\n")
-  const { slug, sessionId } = await h.dispatcher.adopt("adopt-fixture", "keep going")
-  assert.equal(slug, "adopt-fixture")
-
-  // A scratch directory is provisioned even for an adopted thread.
-  assert.ok(existsSync(join(h.dir, ".ntwine", "threads", sessionId)))
-
-  // System prompt: scratch orientation + the adoption note framing the file as CONTEXT, not a contract.
-  const sys = systemPromptOf(h.spawned[0].cmd)
-  assert.ok(sys.includes(`SCRATCH DIRECTORY: .ntwine/threads/${sessionId}/`))
-  assert.ok(sys.includes("CONTEXT, not a contract"))
-  assert.ok(sys.includes("adopt-fixture.md"))
-  const row = h.storage.getSession(slug)
-  assert.equal(row?.model, "sonnet", "adoption pins the model default used for its new session")
-  assert.equal(row?.effort, "xhigh", "adoption pins the effort default used for its new session")
-  assert.equal(row?.permission_mode, "bypassPermissions", "adoption pins the concrete launch permission")
 })
 
 test("cwdSlug: replaces every non-alphanumeric character with - (Claude Code project-log convention)", () => {

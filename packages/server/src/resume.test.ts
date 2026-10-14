@@ -15,7 +15,6 @@ import type { AgentBackend } from "./backend/types.ts"
 import type { Project } from "./project.ts"
 import type { Tailer } from "./tailer.ts"
 import type { Settings, ThreadView, BoardSnapshot } from "@ntwine/shared"
-import type { PaneIdentity as PaneSnapshot } from "./adoption-recovery.ts"
 
 // bump-unarchives: BUMPING (followUp/resume) an ARCHIVED thread must UN-ARCHIVE it so it moves from the
 // sidebar's Inactive section back to Active. The move is server-driven: resumeThread flips the row's
@@ -195,7 +194,7 @@ test("resumeThread fails closed when its row snapshot is replaced before runtime
   })
   assert.throws(
     () => resumeThread({ project: fakeProject(dir), storage: staleStorage, board, getSettings: () => settings }, slug, "do not send"),
-    /competing adoption attempt|no worker was contacted/,
+    /no follow-up was sent/,
   )
   assert.equal(storage.getSession(slug)?.state, "archived", "stale A cannot unarchive replacement B")
 })

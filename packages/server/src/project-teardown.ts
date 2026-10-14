@@ -35,8 +35,8 @@ export async function stopProjectWorkers(ctx: AppContext): Promise<number> {
   for (const row of ctx.storage.allSessions()) {
     try {
       // The default terminator is the right one here — this is the same stop the Dismiss button
-      // performs, session by session, with no adoption bookkeeping to preserve afterwards.
-      if (await stopThreadRuntime(ctx.storage, row, undefined, ctx.codexAppServer, ctx.claudeBroker) === "stopped") {
+      // performs, session by session.
+      if (await stopThreadRuntime(row, undefined, ctx.codexAppServer, ctx.claudeBroker) === "stopped") {
         stopped++
       }
     } catch (error) {
