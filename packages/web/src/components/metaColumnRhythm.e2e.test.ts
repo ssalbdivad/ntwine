@@ -86,7 +86,7 @@ test("a queued steer is transparent to the activity run, and label rows keep the
     await page.goto(fixtureUrl("?state=settled"), { waitUntil: "domcontentloaded" })
     await page.waitForSelector("[data-tool-activity] button")
     const settled = await column(page)
-    assert.deepEqual(settled.digests, ["Expand 10 tool calls: Ran 10 tool calls"], "one digest for the whole run")
+    assert.deepEqual(settled.digests, ["Ran 10 tool calls"], "one digest for the whole run")
     assert.deepEqual(settled.order, ["m0", "m1", "m8", "m11"], "the queued bubbles still render last, below the settled column")
 
     // 3. CONTROL — the steer LANDED, so it genuinely ends the run: it sits inline and the calls above it
@@ -95,7 +95,7 @@ test("a queued steer is transparent to the activity run, and label rows keep the
     await page.waitForSelector("[data-working-indicator]")
     const landed = await column(page)
     assert.deepEqual(landed.order, ["m0", "m1", "m8", "m11", "SHIMMER"], "a delivered steer sits inline, between the run it interrupted and the one it started; the still-queued send stays above the typing dots")
-    assert.deepEqual(landed.digests, ["Expand 8 tool calls: Ran 8 tool calls"], "the interrupted run settles at its real count")
+    assert.deepEqual(landed.digests, ["Ran 8 tool calls"], "the interrupted run settles at its real count")
     // The human's own words still open a wider break below them, so the label step did not quietly
     // flatten the rest of the rhythm into one uniform gap.
     assert.ok(landed.gapAbove!.SHIMMER > STEP, `a user bubble above the shimmer keeps its break, got ${landed.gapAbove!.SHIMMER}px`)
@@ -109,7 +109,7 @@ test("a queued steer is transparent to the activity run, and label rows keep the
     await page.waitForSelector("[data-working-indicator]")
     const three = await column(page)
     assert.deepEqual(three.order, ["m0", "m1", "r1", "SHIMMER"], "digest, reasoning label and shimmer stack with nothing between them")
-    assert.deepEqual(three.digests, ["Expand 8 tool calls: Ran 8 tool calls"], "the reasoning row splits the run, settling the calls above it")
+    assert.deepEqual(three.digests, ["Ran 8 tool calls"], "the reasoning row splits the run, settling the calls above it")
     near(three.gapAbove!.r1, STEP, "a reasoning label under a settled digest")
     near(three.gapAbove!.SHIMMER, STEP, "the shimmer under that reasoning label")
 

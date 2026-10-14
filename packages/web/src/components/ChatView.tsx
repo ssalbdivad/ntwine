@@ -76,7 +76,7 @@ import { ThreadTitle } from "./ThreadTitle.tsx"
 import { ThreadStatusLine } from "./ThreadStatusLine.tsx"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
-import { ToolDisclosureHeader } from "./ToolDisclosureHeader.ts"
+import { ToolDisclosureHeader, toolChevron } from "./ToolDisclosureHeader.ts"
 import { subAgentProfileCell } from "../lib/subAgentProfile.ts"
 import { FOREGROUND_MARK_AFTER_MS, foregroundToolIsRunning, hasRunningToolIndicator, isPendingForegroundTool, liveBackgroundOperationState } from "../lib/operationIndicators.ts"
 import { formatRuntimeElapsed, formatToolDuration } from "../lib/durationLabels.ts"
@@ -2406,7 +2406,7 @@ function MinimalToolActivity({ tools, slots, at }: { tools: CollapsedTool[]; slo
         onMouseDown={(e) => e.preventDefault()}
         aria-controls={cardsId}
         aria-expanded={expanded}
-        aria-label={`${expanded ? "Collapse" : "Expand"} ${total} tool ${total === 1 ? "call" : "calls"}: ${label}`}
+        aria-label={label}
         // Shares TRANSCRIPT_META_LABEL_CLASS rather than restating its type scale — this row and
         // the reasoning label alternate in one column, and the two drifted apart while the size was
         // copied here by hand.
@@ -2662,12 +2662,15 @@ function ToolLiveMark({ status, backgroundState, liveBackgroundState, startedAt 
   return <span className="ntwine-tool-mark -mr-1 flex w-[9px] shrink-0 justify-center">{mark}</span>
 }
 
-export function ToolStatusMeta({ status, backgroundState, liveBackgroundState, exitCode, durationMs }: { status?: ToolStatus; backgroundState?: TranscriptToolCall["backgroundState"]; liveBackgroundState?: "running" | "stale"; exitCode?: number; durationMs?: number }) {
-  const queued = useContext(ToolQueuedContext) && status === "pending"
+// THE READING'S WORDS, apart from its typography: the same derivation draws the right-hand reading and
+// names the card for a screen reader (toolRowName). A status said only by tone and position never
+// reached assistive tech — a Bash card that exited 1 was announced as "Bash: Typechecking the
+// workspace", exactly like the one that passed.
+export function toolStatusWords({ status, backgroundState, liveBackgroundState, exitCode, durationMs, queued = false }: { status?: ToolStatus; backgroundState?: TranscriptToolCall["backgroundState"]; liveBackgroundState?: "running" | "stale"; exitCode?: number; durationMs?: number; queued?: boolean }): { label?: string; duration?: string; title: string; tone: string } | null {
   if (!status && durationMs === undefined) return null
   // Not started yet, so no clock: an elapsed time here would be the wait for the call above, read as
   // this call's own runtime (lib/toolQueue.ts).
-  if (queued) return <ToolMetaReading tone="text-muted-55" title="queued · starts when the call before it finishes" label="queued" duration={undefined} />
+  if (queued && status === "pending") return { label: "queued", duration: undefined, title: "queued · starts when the call before it finishes", tone: "text-muted-55" }
   // The GLYPH carries "background", so the words no longer have to. "BACKGROUND RUNNING" in petite-caps
   // beside a dot that already says background was the longest string in the header and pushed the command
   // it annotates into truncation for a fact it was stating twice (maintainer 2026-07-29: "it is way too
@@ -2694,12 +2697,27 @@ export function ToolStatusMeta({ status, backgroundState, liveBackgroundState, e
   const duration = durationMs !== undefined ? formatToolDuration(durationMs) : undefined
   const title = [longLabel, duration].filter(Boolean).join(" · ")
   const tone = status === "failed" ? "ntwine-tool-failed" : status === "cancelled" ? "text-attention" : "text-muted-55"
+  return { label, duration, title, tone }
+}
+
+// A tool card's ACCESSIBLE NAME: what the row says — its kind, its subject, its reading — and nothing
+// about whether it is open. That is `aria-expanded`'s job; a name that also said "Expand …" was
+// announced as "Expand Read: …, collapsed", and changed every time the card toggled (shadcn's Trace
+// follows the same rule, 2026-10-14: the title is the name, the state is the trigger's).
+export function toolRowName(kind: string, subject: string | undefined, reading?: string): string {
+  return `${kind}${subject ? `: ${subject}` : ""}${reading ? `, ${reading}` : ""}`
+}
+
+export function ToolStatusMeta({ status, backgroundState, liveBackgroundState, exitCode, durationMs }: { status?: ToolStatus; backgroundState?: TranscriptToolCall["backgroundState"]; liveBackgroundState?: "running" | "stale"; exitCode?: number; durationMs?: number }) {
+  const queued = useContext(ToolQueuedContext)
+  const words = toolStatusWords({ status, backgroundState, liveBackgroundState, exitCode, durationMs, queued })
+  if (!words) return null
   return (
     <ToolMetaReading
-      tone={tone}
-      title={title}
-      label={label}
-      duration={duration}
+      tone={words.tone}
+      title={words.title}
+      label={words.label}
+      duration={words.duration}
       // NO indicator: every liveness glyph this family draws now leads the row (ToolLiveMark), the
       // detached and the foreground alike. The reading is words only. (The dispatch card still spins
       // here, for the one thing elapsed time cannot say — see AgentBlock: no child record at all.)
@@ -2813,7 +2831,7 @@ function ToolImageCard({ name, detail, outputImage, output, status, durationMs }
         className="ntwine-bash-header"
         controls={bodyId}
         expanded={open}
-        label={`${open ? "Collapse" : "Expand"} ${label}${detail ? `: ${detail}` : ""}`}
+        label={toolRowName(label, short, toolStatusWords({ status, durationMs })?.title)}
         onToggle={() => setOpen((v) => !v)}
         meta={<ToolStatusMeta status={status} durationMs={durationMs} />}
       >
@@ -2872,7 +2890,7 @@ function SentFilesCard({ images, files, caption, status, durationMs }: { images:
         onMouseDown={(e) => e.preventDefault()}
         aria-controls={bodyId}
         aria-expanded={open}
-        aria-label={`${open ? "Collapse" : "Expand"} files sent to you${summary ? `: ${summary}` : ""}`}
+        aria-label={toolRowName("Sent to you", summary || undefined)}
         className="ntwine-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
       >
         <span className="flex min-w-0 items-center gap-2">
@@ -2881,7 +2899,7 @@ function SentFilesCard({ images, files, caption, status, durationMs }: { images:
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <ToolStatusMeta status={status} durationMs={durationMs} />
-          <ChevronRight aria-hidden="true" size={12} className={`shrink-0 text-muted transition-transform ${open ? "rotate-90" : ""}`} />
+          {toolChevron(open, "text-muted")}
         </span>
       </button>
       <div id={bodyId} hidden={!open}>
@@ -2944,6 +2962,7 @@ function BashBlock({
   const [outExpanded, setOutExpanded] = useState(false)
   const bodyId = useId()
   const shownDurationMs = useBashDuration(status, startedAt, durationMs)
+  const queued = useContext(ToolQueuedContext)
   const lineCount = useMemo(() => command.split("\n").length, [command])
   const long = lineCount > BASH_MAX_LINES
   // Codex ships the command's stdout/stderr in the same rollout (Claude doesn't), so a codex Bash card
@@ -2962,7 +2981,7 @@ function BashBlock({
         onMouseDown={(e) => e.preventDefault()}
         aria-controls={expandable ? bodyId : undefined}
         aria-expanded={expandable ? open : undefined}
-        aria-label={`${expandable ? `${open ? "Collapse" : "Expand"} ` : ""}${prettyToolName(name)}${shownDesc ? `: ${shownDesc}` : ""}`}
+        aria-label={toolRowName(prettyToolName(name), shownDesc, toolStatusWords({ status, backgroundState, liveBackgroundState, exitCode, durationMs: shownDurationMs, queued })?.title)}
         className="ntwine-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
       >
         <span className="flex min-w-0 items-center gap-2">
@@ -2972,7 +2991,7 @@ function BashBlock({
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <ToolStatusMeta status={status} backgroundState={backgroundState} liveBackgroundState={liveBackgroundState} exitCode={exitCode} durationMs={shownDurationMs} />
-          {expandable && <ChevronRight aria-hidden="true" size={12} className={`shrink-0 text-muted transition-transform ${open ? "rotate-90" : ""}`} />}
+          {expandable && toolChevron(open, "text-muted")}
         </span>
       </button>
       {expandable && (
@@ -3042,7 +3061,7 @@ function ReadBlock({ detail, read, status, durationMs }: { detail?: string; read
         className="ntwine-bash-header"
         controls={bodyId}
         expanded={open}
-        label={`${open ? "Collapse" : "Expand"} Read${detail ? `: ${detail}` : ""}`}
+        label={toolRowName("Read", short, toolStatusWords({ status, durationMs })?.title)}
         onToggle={() => setOpen((v) => !v)}
         meta={<ToolStatusMeta status={status} durationMs={durationMs} />}
       >
@@ -3229,7 +3248,7 @@ export function AgentBlock({
         className="ntwine-bash-header @container"
         controls={bodyId}
         expanded={open}
-        label={`${open ? "Collapse" : "Expand"} ${kind} dispatch: ${title}`}
+        label={toolRowName(`${kind} dispatch`, title, [profile, reading?.title].filter(Boolean).join(" · ") || undefined)}
         onToggle={() => setOpen((v) => !v)}
         meta={
           // THE READOUT: the child's PROFILE, then its RUNTIME — the order and the separator the resting
@@ -4958,7 +4977,7 @@ function ReasoningBlock({ text, sourceId }: { text: string; sourceId?: string })
         onMouseDown={(e) => e.preventDefault()}
         aria-controls={bodyId}
         aria-expanded={open}
-        aria-label={`${open ? "Collapse" : "Expand"} model reasoning`}
+        aria-label="Model reasoning"
         className={`${TRANSCRIPT_META_LABEL_CLASS} flex items-baseline gap-1.5 self-start rounded outline-none transition-colors hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60`}
       >
         <span>Reasoning</span>
@@ -4971,6 +4990,8 @@ function ReasoningBlock({ text, sourceId }: { text: string; sourceId?: string })
           <ProseHtml md={text} wrap />
         </div>
       )}
+      {/* `aria-controls` must resolve while collapsed too — see MinimalToolActivity. */}
+      {!open && <div id={bodyId} hidden />}
     </div>
   )
 }
@@ -5109,7 +5130,7 @@ export function WorkingIndicator({ since, startedAt, activityLabel, run }: { sin
               onMouseDown={(e) => e.preventDefault()}
               aria-controls={cardsId}
               aria-expanded={expanded}
-              aria-label={`${expanded ? "Collapse" : "Expand"} ${total} tool ${total === 1 ? "call" : "calls"}${activityLabel ? `: ${activityLabel}` : ""}`}
+              aria-label={`${total} tool ${total === 1 ? "call" : "calls"}${activityLabel ? `: ${activityLabel}` : ""}`}
               className={`${rowClass} w-full`}
             >
               {row}

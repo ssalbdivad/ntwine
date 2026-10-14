@@ -49,7 +49,7 @@ test("the parent draws each request as its card, an older build's delivered requ
       { state: "unstarted", link: null, header: "Spinoffdidn't start" },
     ])
     // The two ordinary runs keep their digests, and the older build's spawn_thread call is an ordinary line.
-    assert.deepEqual(read.digests, ["Expand 2 tool calls: Ran 2 tool calls", "Expand 2 tool calls: Ran 2 tool calls, edited 1 file", "Expand 1 tool call: Ran 1 tool call"])
+    assert.deepEqual(read.digests, ["Ran 2 tool calls", "Ran 2 tool calls, edited 1 file", "Ran 1 tool call"])
     const refusal = await page.evaluate(async () => {
       const digest = [...document.querySelectorAll<HTMLElement>("[data-tool-activity]")].at(-1)!
       digest.querySelector<HTMLButtonElement>("button")!.click()

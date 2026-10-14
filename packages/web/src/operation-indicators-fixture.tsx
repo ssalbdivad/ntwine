@@ -83,7 +83,7 @@ function DisclosureFixture({ running }: { running: boolean }) {
         className="ntwine-bash-header"
         controls={bodyId}
         expanded={expanded}
-        label={`${expanded ? "Collapse" : "Expand"} ${running ? "running" : "completed"} operation`}
+        label={`${running ? "Running" : "Completed"} operation`}
         onToggle={() => setExpanded((value) => !value)}
         meta={<ToolStatusMeta status={running ? "pending" : "completed"} backgroundState={running ? "background" : undefined} />}
       >

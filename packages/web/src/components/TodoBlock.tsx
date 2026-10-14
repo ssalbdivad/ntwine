@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react"
-import { ChevronRight, Square, SquareCheckBig, SquareDot } from "lucide-react"
+import { Square, SquareCheckBig, SquareDot } from "lucide-react"
+import { toolChevron } from "./ToolDisclosureHeader.ts"
 import type { TranscriptTodo } from "@ntwine/shared"
 
 // THE TO-DO LIST CARD — for the calls that actually list the whole thing out.
@@ -80,7 +81,7 @@ export function TodoBlock({
         onMouseDown={(e) => e.preventDefault()}
         aria-controls={expandable ? bodyId : undefined}
         aria-expanded={expandable ? open : undefined}
-        aria-label={`${expandable ? `${open ? "Collapse" : "Expand"} ` : ""}${TODO_LABEL}${summary ? `: ${summary}` : ""}${counter ? ` — ${done} of ${todos.length} done` : ""}`}
+        aria-label={`${TODO_LABEL}${summary ? `: ${summary}` : ""}${counter ? ` — ${done} of ${todos.length} done` : ""}`}
         className="ntwine-bash-header w-full text-left outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-focus-ink-60"
       >
         <span className="flex min-w-0 items-center gap-2">
@@ -103,7 +104,7 @@ export function TodoBlock({
             </span>
           )}
           {meta}
-          {expandable && <ChevronRight aria-hidden="true" size={12} className={`shrink-0 text-muted transition-transform ${open ? "rotate-90" : ""}`} />}
+          {expandable && toolChevron(open, "text-muted")}
         </span>
       </button>
       {expandable && (
