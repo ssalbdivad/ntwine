@@ -94,12 +94,14 @@ test("every child-operation surface renders through the one shared row component
   // none of them quietly regresses back to a local copy. All projects' list is deliberately NOT one of
   // them: since 54309fb2 it lists no child rows at all, only a count and a robot on the thread's own row
   // (pinned by Sidebar.subAgentCount.test.ts), so it must not grow one back either. A project's board
-  // lists them as rows under each thread, as upstream's sidebar did (2026-10-06, ProjectBoard.tsx).
+  // lists them as rows under each thread, as upstream's sidebar did (2026-10-06, TierList.tsx `subAgentRows`).
   for (const file of CHILD_ROW_SURFACES) {
     assert.match(readFileSync(join(SRC, file), "utf8"), /<ChildOpRow\b/, `${file} must render the shared ChildOpRow`)
   }
-  assert.doesNotMatch(readFileSync(join(SRC, "components/ProjectList.tsx"), "utf8"), /<ChildOpRow\b|<SubAgentRows\b/, "All projects shows a count, not child rows")
-  assert.match(readFileSync(join(SRC, "components/ProjectBoard.tsx"), "utf8"), /<SubAgentRows\b/, "a project's board lists them under each thread")
+  // One list serves both views (TierList.tsx): All projects counts them, a project's page lists them.
+  const tiers = readFileSync(join(SRC, "components/TierList.tsx"), "utf8")
+  assert.doesNotMatch(tiers, /<ChildOpRow\b/, "the tier list draws child rows only through SubAgentRows")
+  assert.match(tiers, /\{subAgentRows && <SubAgentRows\b/, "a project's page lists them under each thread, All projects does not")
   // The completion-hold dialog lists children as PROSE inside a dialog, not as operation rows (no
   // liveness mark, no drill-in, no dismiss), so it consumes the tokens directly rather than the row.
   assert.match(readFileSync(join(SRC, "components/ThreadLifecycle.tsx"), "utf8"), /CHILD_ARROW\b/)

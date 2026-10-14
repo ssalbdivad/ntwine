@@ -121,22 +121,26 @@ export function ProjectDock({
               {working > 0 && <span data-xq-dock-working={working} aria-hidden className="absolute -bottom-[4px] left-1/2 h-[2px] w-[10px] -translate-x-1/2 rounded-full bg-fg/70" />}
             </button>
           )
-          return project.card ? (
-            <ProjectMenu
-              key={project.id}
-              project={project.card}
-              home={home}
-              githubRepo={project.githubRepo}
-              focused={focused?.id === project.id}
-              onFocus={() => click(project, false)}
-              open={menuFor === project.id}
-              onOpenChange={(open) => setMenuFor(open ? project.id : null)}
-              align="start"
-            >
+          // The menu ANCHORS on an inert overlay of the square rather than wrapping it: as the trigger, the
+          // square would open the menu on every left press, which is the click that opens the project.
+          return (
+            <span key={project.id} className="relative flex">
+              {project.card && (
+                <ProjectMenu
+                  project={project.card}
+                  home={home}
+                  githubRepo={project.githubRepo}
+                  focused={focused?.id === project.id}
+                  onFocus={() => click(project, false)}
+                  open={menuFor === project.id}
+                  onOpenChange={(open) => !open && setMenuFor(null)}
+                  align="start"
+                >
+                  <span aria-hidden tabIndex={-1} className="pointer-events-none absolute inset-0" />
+                </ProjectMenu>
+              )}
               {square}
-            </ProjectMenu>
-          ) : (
-            <span key={project.id}>{square}</span>
+            </span>
           )
         })}
         <button

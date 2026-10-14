@@ -76,6 +76,8 @@ export function ProjectMenu({
   focused = false,
   onFocus,
   onOpenChange,
+  open,
+  align = "end",
   children,
 }: {
   project: ProjectCard
@@ -86,6 +88,9 @@ export function ProjectMenu({
   focused?: boolean
   onFocus?: () => void
   onOpenChange?: (open: boolean) => void
+  /** Held open from outside — the dock opens it on a right-click, not from its trigger. */
+  open?: boolean
+  align?: "start" | "end"
   children: ReactNode
 }) {
   const [renaming, setRenaming] = useState(false)
@@ -138,9 +143,9 @@ export function ProjectMenu({
       {/* Opening the menu is the cue: "Choose an icon…" is one move away, and on macOS a panel built at the
           click took most of a second to draw (server/directory-picker.ts). Speculative, so a failed
           request is dropped — the click builds its own panel. */}
-      <RadixDropdown.Root onOpenChange={(open) => {
-        if (open) rpc.projectIconPickWarm({ id: project.id }).catch(() => {})
-        onOpenChange?.(open)
+      <RadixDropdown.Root open={open} onOpenChange={(next) => {
+        if (next) rpc.projectIconPickWarm({ id: project.id }).catch(() => {})
+        onOpenChange?.(next)
       }}>
         <RadixDropdown.Trigger asChild>{children}</RadixDropdown.Trigger>
         <RadixDropdown.Portal>
@@ -148,7 +153,7 @@ export function ProjectMenu({
               content has a min width and no max, so a long one would stretch the menu past its row. The
               row is the subject and each dialog names it in full. */}
           <RadixDropdown.Content
-            align="end"
+            align={align}
             sideOffset={6}
             className="z-[220] min-w-[190px] max-w-[280px] rounded-lg border border-border bg-panel p-1 shadow-xl shadow-shadow-ink/40"
           >

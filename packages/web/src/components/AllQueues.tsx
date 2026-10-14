@@ -67,7 +67,12 @@ import { pageScrollY } from "../lib/pageScrollLock.ts"
 import { isPageKey, registerQueueCursor, releaseAutoOpened, runThreadCommand, useShortcut } from "../lib/keyboardRuntime.ts"
 import { runExternalOpen } from "../lib/externalOpen.ts"
 import { PROJECT_STEP_CHORDS, detectPlatform, formatChord, parseChord } from "../lib/keybindings.ts"
-import { AllQueuesCard } from "./AllQueuesCard.tsx"
+import { displayTitle } from "../groups.ts"
+import { AllQueuesCard, useOpenThreadInPlace } from "./AllQueuesCard.tsx"
+import { HistoryView } from "./HistoryView.tsx"
+import { ProjectDock } from "./ProjectDock.tsx"
+import { setCenterTab, useCenterTab } from "../lib/centerTab.ts"
+import { useLens } from "../lib/lens.ts"
 import { QuotaAlerts } from "./QuotaAlert.tsx"
 import { Tooltip } from "./Tooltip.tsx"
 import { isLimitPaused } from "../lib/limitPause.ts"
@@ -82,9 +87,8 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 import { DispatchForm, type DispatchDirs } from "./NewThreadModal.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 import { ProjectSwitcher, type SwitcherProject } from "./ProjectSwitcher.tsx"
-import { AddProjectRow, ProjectList } from "./ProjectList.tsx"
 import { TierList } from "./TierList.tsx"
-import { BoardIdentity } from "./ProjectBoard.tsx"
+import { BoardIdentity } from "./BoardIdentity.tsx"
 import { isAsk } from "../lib/phonePage.ts"
 import { setCrossProjectMentions } from "../lib/mentionAutolink.ts"
 import { readingLine } from "../lib/readingLine.ts"
@@ -299,7 +303,11 @@ export function AllQueuesPage() {
   // What the view shows, in the list and the queue alike: its one project, or every project. A view
   // naming a project this machine does not list is the route's to correct (routes.tsx), so for the moment
   // before it does, the page shows nothing rather than every project.
-  const shown = focused ? (viewed ? [viewed] : []) : projects
+  // A LENS narrows All projects to the projects picked in the dock (lib/lens.ts); one project is its page.
+  const lens = useLens()
+  const shown = focused ? (viewed ? [viewed] : []) : lens ? projects.filter((project) => lens.has(project.id)) : projects
+  const centerTab = useCenterTab()
+  const openInPlace = useOpenThreadInPlace()
   const [, repaint] = useState(0)
   // THE VIEWPORT LOCK (lib/viewportLock.ts), and the one thing it asks back: a render once the page is
   // still, when a ghost has scrolled off screen (it can go now that nobody sees it go) or the cards on
@@ -394,6 +402,7 @@ export function AllQueuesPage() {
     setFaviconBadge(ready)
     return () => setFaviconBadge(false)
   }, [ready])
+  const chooseView = useChooseView()
   const scrollToCard = useScrollToCard()
   // An editor's sidebar draws no cards, so its keys step its list instead (SidebarPage.tsx) — and only
   // one cursor may answer `j`.
@@ -408,7 +417,6 @@ export function AllQueuesPage() {
   // A cold link to one of the board's queued threads lands on its card. Not on All projects, whose
   // threads open as drawers; not on a phone or in an editor's sidebar, which draw no cards.
   useRoutedLanding(focused && !sidebar && !phone, !loading, focusId, land)
-  const chooseView = useChooseView()
   // The list drops a row only with a card being FINISHED. A thread open in a drawer keeps its row, marked
   // open: the card steps aside because the drawer is the same thread, but the list is where the reader
   // finds their place, and a row that vanished when clicked left them nothing to find. Focused, it is the
@@ -416,14 +424,13 @@ export function AllQueuesPage() {
   // The queue as drawn, by key: All projects' Ready rows list in this order, so a row faces its card.
   const queueKeysId = queue.filter((slot) => !slot.ghost).map((slot) => slot.key).join("\n")
   const queueKeys = useMemo(() => (queueKeysId ? queueKeysId.split("\n") : []), [queueKeysId])
+  // THE LIST: the dock (every project, and the lens) over the tiers (TierList.tsx), whichever the view —
+  // a project's page is the same list with one project in it.
+  const dock = <ProjectDock projects={projects} hidden={leaving.hidden} home={home} onAll={(from) => chooseView.all(from)} onProject={(slug) => chooseView.project(slug)} />
   const list = (
     <>
-      {focused ? (
-        <ProjectList projects={shown} home={home} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} />
-      ) : (
-        <TierList projects={shown} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} queueOrder={queueKeys} />
-      )}
-      {!focused && <AddProjectRow />}
+      {dock}
+      <TierList projects={shown} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} queueOrder={queueKeys} subAgentRows={focused} />
     </>
   )
 
@@ -468,24 +475,11 @@ export function AllQueuesPage() {
         }
         list={(reading) => (
           <>
-            {focused ? (
-              <ProjectList
-                projects={shown}
-                home={home}
-                activeKey={reading}
-                hidden={leaving.hidden}
-                onQueuedRow={noCard}
-                switcher={<Switcher projects={projects} hidden={hidden} current={viewed} row />}
-              />
-            ) : (
-              <>
-                <div data-xq-switcher-row className="flex min-w-0 py-0.5 pl-5 pr-1.5">
-                  <Switcher projects={projects} hidden={hidden} current={viewed} row />
-                </div>
-                <TierList projects={shown} activeKey={reading} hidden={leaving.hidden} onQueuedRow={noCard} queueOrder={queueKeys} />
-              </>
-            )}
-            {!focused && <AddProjectRow />}
+            <div data-xq-switcher-row className="flex min-w-0 py-0.5 pl-5 pr-1.5">
+              <Switcher projects={projects} hidden={hidden} current={viewed} row />
+            </div>
+            {dock}
+            <TierList projects={shown} activeKey={reading} hidden={leaving.hidden} onQueuedRow={noCard} queueOrder={queueKeys} subAgentRows={focused} />
           </>
         )}
       />
@@ -602,15 +596,26 @@ export function AllQueuesPage() {
                 over the prompt box (StatusRow.tsx), not here: it scopes the whole page, not these cards.
                 `pl-[21px]` stands the glyph over the card titles. */}
             <div data-inbox-header className="mb-3 flex min-w-0 items-center gap-3 pl-[21px] pr-[21px]">
+              {/* The column's two lists: the queue, and History — every Done thread in view, by day. */}
               <h2 className="flex shrink-0">
-                <BandLabel band="ready" count={ready} />
+                <button type="button" data-center-tab="queue" aria-pressed={centerTab === "queue"} onClick={() => setCenterTab("queue")} className={`flex rounded outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-focus-ink-60 ${centerTab === "queue" ? "" : "opacity-55 hover:opacity-90"}`}>
+                  <BandLabel band="ready" count={ready} />
+                </button>
               </h2>
+              <button type="button" data-center-tab="history" aria-pressed={centerTab === "history"} onClick={() => setCenterTab("history")} className={`flex shrink-0 rounded outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-focus-ink-60 ${centerTab === "history" ? "" : "opacity-55 hover:opacity-90"}`}>
+                <BandLabel band="done" label="History" />
+              </button>
               <ResumePaused entries={queue.filter((slot) => !slot.ghost && !leaving.isLeaving(slot.key)).map((slot) => slot.item)} leaving={leaving} />
             </div>
             {/* Quota is account-global, so the alert counts every project's running threads even
                 when the page is focused on one. */}
             <QuotaAlerts threads={runningThreads} />
-            {queue.length > 0 ? (
+            {centerTab === "history" ? (
+              <HistoryView
+                projectIds={focused ? (viewed ? [viewed.id] : []) : lens ? [...lens] : undefined}
+                onOpen={(entry) => openInPlace({ id: entry.projectId, slug: entry.projectSlug, name: entry.projectName }, entry.thread.id, displayTitle(entry.thread))}
+              />
+            ) : queue.length > 0 ? (
               queue.map((slot, index) => (
                 <Fragment key={slot.key}>
                   <QueueCardOf entry={leaving.isHeld(slot.key) || engaged.has(slot.key) ? heldEntry(projects, slot.item) : slot.item} ghost={slot.ghost} status={leaving.isHeld(slot.key) ? heldStatus(projects, slot.item, "Working on your answer") : engaged.has(slot.key) && !leaving.isLeaving(slot.key) ? heldStatus(projects, slot.item, "Working") : undefined} concealed={inDrawer.has(slot.key)} leaving={leaving} chip={!focused} />

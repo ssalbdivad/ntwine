@@ -15,8 +15,8 @@
 // re-budgeted (lib/listHold.ts), so a row never moves out from under it.
 //
 // What is NOT here, and where it went: External sessions and every Done thread past today are the center
-// column's History (lib/centerTab.ts); a project's schedules are its board's; the project rows' "…" menus
-// are the dock's (step 4 of the plan).
+// column's History (lib/centerTab.ts), and the project rows' "…" menus are the dock's (ProjectDock.tsx). The
+// schedules of the projects in view are the last band, folded.
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { useLocation } from "react-router"
 import { useSnapshot } from "valtio"
@@ -34,12 +34,15 @@ import { useListHold } from "../lib/listHold.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { useArchivingAt } from "../lib/optimisticArchive.ts"
 import { budgetAt, maxLevel, type Budget, type BudgetInput } from "../lib/sidebarBudget.ts"
+import { prefs } from "../lib/prefs.ts"
+import { recentOf } from "../lib/recentThreads.ts"
 import { useSteeredAt } from "../lib/steering.ts"
 import { drawerThreadSlug, store } from "../store.ts"
 import { BoxSpinner } from "./BoxSpinner.tsx"
 import { useOpenThreadInPlace } from "./AllQueuesCard.tsx"
 import { ProjectSquare } from "./ProjectSquare.tsx"
-import { RailRow, SectionHeader, type RowScope } from "./Sidebar.tsx"
+import { RailRow, SectionHeader, SubAgentRows, type RowScope } from "./Sidebar.tsx"
+import { ScheduleRows } from "./ScheduleRows.tsx"
 import { statusElapsed } from "./ThreadStatusLine.tsx"
 
 /** One thread of one project, as the list draws it. */
@@ -69,6 +72,7 @@ export function TierList({
   hidden,
   onQueuedRow,
   queueOrder,
+  subAgentRows = false,
 }: {
   projects: readonly QueuesProject[]
   activeKey: string | null
@@ -77,8 +81,12 @@ export function TierList({
   onQueuedRow: (key: string) => number | null
   /** The queue's cards as drawn, by `threadKey` — Ready lists its rows in this order. */
   queueOrder: readonly string[]
+  /** One project's page: a thread's sub-agents are rows of their own under it, as upstream's sidebar drew
+   *  them (2026-10-06). All projects counts them on the thread's row instead. */
+  subAgentRows?: boolean
 }) {
   const snap = useSnapshot(store)
+  const { showRecentThreads } = useSnapshot(prefs)
   const focus = projectSlug(useLocation().pathname)
   const steeredAt = useSteeredAt()
   const archivingAt = useArchivingAt()
@@ -149,7 +157,7 @@ export function TierList({
   }
 
   // ---- The budget -------------------------------------------------------------------------------------
-  const open = (tier: "snoozed" | "done" | "working" | "pinned") => folds.has(tier)
+  const open = (tier: "snoozed" | "done" | "working" | "pinned" | "schedules") => folds.has(tier)
   const expanded = useMemo(() => new Set([...folds].filter((key) => key.startsWith("run:")).map((key) => key.slice(4))), [folds])
   const input: BudgetInput = {
     tail: slots("done").length,
@@ -170,6 +178,8 @@ export function TierList({
   const row = (slot: HeldSlot<Entry>, tier: Tier, lead: boolean) => {
     const { project, t, key } = slot.item
     const band = tierNow.get(key)
+    // Siblings, not a wrapper: the cord strings each row by its own place in the run (ThreadConnector), and
+    // a thread's sub-agent rows, between two of them, cut it there.
     return (
       <ThreadProjectScope key={key} projectId={project.id} projectDir={project.projectDir}>
         <RailRow
@@ -184,7 +194,9 @@ export function TierList({
           leadProject={lead ? (project.card ?? squareCard(project)) : undefined}
           statusAlways
           oneLine
+          subAgentRows={subAgentRows}
         />
+        {subAgentRows && <SubAgentRows t={t} scope={scopes(project)} />}
       </ThreadProjectScope>
     )
   }
@@ -213,9 +225,15 @@ export function TierList({
   const readyShown = ready.slice(0, budget.readyShown)
   const readyRest = ready.slice(budget.readyShown)
   const snoozed = slots("snoozed")
+  // The snoozed threads opened in the last half hour stay listed under the folded header (prefs
+  // `showRecentThreads`); Done today already lists the finished ones.
+  const recentSnoozed = showRecentThreads ? recentOf(snoozed, (slot) => slot.item.t.id, now) : []
   const done = slots("done")
   const working = runs.reduce((sum, r) => sum + r.slots.length, 0)
   const nothing = pinned.length + ready.length + working === 0
+  // Every schedule of the projects in view, one band: a project's own page and a lens keep theirs too.
+  const scheduled = projects.filter((project) => (project.schedules?.count ?? 0) > 0)
+  const schedules = scheduled.reduce((sum, project) => sum + project.schedules!.count, 0)
 
   return (
     <div ref={listRef} data-xq-tiers className="flex min-w-0 flex-col">
@@ -231,6 +249,7 @@ export function TierList({
               onClick={() => setTierFold("pinned", true)}
             />
           )}
+          {open("pinned") && <ShowFewer onClick={() => setTierFold("pinned", false)} />}
         </section>
       )}
       {ready.length > 0 && (
@@ -268,13 +287,7 @@ export function TierList({
               onClick={() => setTierFold("working", true)}
             />
           )}
-          {open("working") && working > 0 && (
-            <div className="flex justify-end pr-1.5">
-              <button type="button" data-xq-reshape onClick={() => setTierFold("working", false)} className="rounded px-1 text-[10.5px] leading-[15px] text-muted-50 outline-none transition-colors hover:bg-hover-strong hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
-                Show fewer
-              </button>
-            </div>
-          )}
+          {open("working") && working > 0 && <ShowFewer onClick={() => setTierFold("working", false)} />}
         </section>
       )}
       {nothing && (
@@ -285,7 +298,7 @@ export function TierList({
       {snoozed.length > 0 && (
         <section aria-label="Snoozed" data-xq-tier="snoozed" data-xq-tier-count={snoozed.length} className={TIER_GAP}>
           <SectionHeader band="snoozed" count={snoozed.length} collapsed={!open("snoozed")} onToggle={() => setTierFold("snoozed", !open("snoozed"))} />
-          {open("snoozed") && runsOf(snoozed, "snoozed")}
+          {runsOf(open("snoozed") ? snoozed : recentSnoozed, "snoozed")}
         </section>
       )}
       {done.length > 0 && (
@@ -303,6 +316,12 @@ export function TierList({
             }
           />
           {runsOf(done.slice(0, budget.tailShown), "done")}
+        </section>
+      )}
+      {scheduled.length > 0 && (
+        <section aria-label="Schedules" data-xq-tier="schedules" data-xq-tier-count={schedules} className={TIER_GAP}>
+          <SectionHeader band="schedules" count={schedules} attention={scheduled.some((p) => p.schedules?.attention)} collapsed={!open("schedules")} onToggle={() => setTierFold("schedules", !open("schedules"))} />
+          {open("schedules") && scheduled.map((project) => <ScheduleRows key={project.id} project={project} count={project.schedules!.count} attention={project.schedules!.attention} />)}
         </section>
       )}
     </div>
@@ -459,6 +478,17 @@ function RollBack({ project, onRoll }: { project: QueuesProject; onRoll: () => v
     <div className="flex justify-end pr-1.5">
       <button type="button" data-xq-reshape data-xq-rollback={project.id} onClick={onRoll} className="rounded px-1 text-[10.5px] leading-[15px] text-muted-50 outline-none transition-colors hover:bg-hover-strong hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
         Show {project.name} as one line
+      </button>
+    </div>
+  )
+}
+
+/** Under a tier the human opened past its budget: the way back to the budget's list. */
+function ShowFewer({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="flex justify-end pr-1.5">
+      <button type="button" data-xq-reshape data-xq-show-fewer onClick={onClick} className="rounded px-1 text-[10.5px] leading-[15px] text-muted-50 outline-none transition-colors hover:bg-hover-strong hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
+        Show fewer
       </button>
     </div>
   )
