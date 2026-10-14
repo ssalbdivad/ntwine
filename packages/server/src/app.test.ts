@@ -139,7 +139,7 @@ test("the launch route answers a launcher holding either owner token, and nobody
   for (const token of ["host-capability", "machine-capability"]) {
     const answered = await ask({ "x-ntwine-launch-token": token })
     assert.equal(answered.status, 200, token)
-    assert.deepEqual(await answered.json(), { protocol: 1, path: "/all" })
+    assert.deepEqual(await answered.json(), { protocol: 1, path: "/" })
   }
   assert.equal((await ask({})).status, 403)
   assert.equal((await ask({ "x-ntwine-launch-token": "forged" })).status, 403)

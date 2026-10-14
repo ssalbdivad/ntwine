@@ -17,26 +17,19 @@ test("a project's board is /project/<slug>, and every address under it is that b
   assert.equal(projectViewHref("acme"), "/project/acme")
 })
 
-// All projects moved from the bare `/` to `/all` on 2026-10-06, when a project's board became the default
-// and `/` a redirect to the last view (routes.tsx LastViewRedirect).
-test("All projects is /all, and its drawers stay on it", () => {
-  assert.equal(viewHref(ALL_PROJECTS), "/all")
-  assert.deepEqual(viewAt("/all"), ALL_PROJECTS)
-  // `/` shows no view of its own; a phone's projects list there is bound as All projects is.
+test("All projects is /, and its drawers stay on it", () => {
+  assert.equal(viewHref(ALL_PROJECTS), "/")
   assert.deepEqual(viewAt("/"), ALL_PROJECTS)
   assert.deepEqual(viewAt("/all/acme/thread/fix-x"), ALL_PROJECTS, "a drawer's project is not the page's view")
   assert.deepEqual(viewAt("/all/acme/thread/fix-x/full"), ALL_PROJECTS)
   assert.deepEqual(viewAt("/projects"), ALL_PROJECTS)
 })
 
-// A drawer goes back to the view it was opened over — never to `/`, which would send it to whichever view
-// this browser showed last.
-test("home is the page under the drawers: the board it is on, else /all", () => {
+// A drawer goes back to the view it was opened over.
+test("home is the page under the drawers: the board it is on, else /", () => {
   assert.equal(homeHref("/project/acme/thread/fix-x"), "/project/acme")
   assert.equal(homeHref("/project/acme/status/blocked"), "/project/acme")
-  assert.equal(homeHref("/all/acme/thread/fix-x"), "/all")
-  assert.equal(homeHref("/all"), "/all")
-  // A phone's projects list at `/` is its own home.
+  assert.equal(homeHref("/all/acme/thread/fix-x"), "/")
   assert.equal(homeHref("/"), "/")
 })
 
@@ -53,12 +46,12 @@ test("an address that names its view in the query lands on the path that names i
   assert.equal(legacyViewRedirect("/", "?project=acme"), "/project/acme")
   assert.equal(legacyViewRedirect("/", "?focus=acme"), "/project/acme", "a pre-2026-09-29 launcher's landing URL")
   assert.equal(legacyViewRedirect("/", "?project=a%20b"), "/project/a%20b")
-  assert.equal(legacyViewRedirect("/", "?all"), "/all")
-  assert.equal(legacyViewRedirect("/", "?all=1&add=%2Ftmp%2Fx"), "/all?add=%2Ftmp%2Fx", "a launcher's other queries ride along")
+  assert.equal(legacyViewRedirect("/", "?all"), "/")
+  assert.equal(legacyViewRedirect("/", "?all=1&add=%2Ftmp%2Fx"), "/?add=%2Ftmp%2Fx", "a launcher's other queries ride along")
   // An editor's sidebar from before 2026-10-06 framed `/?embed=vscode&theme=dark&project=<slug>` for a
   // board, and a bare `/?embed=vscode&theme=dark` for All projects.
   assert.equal(legacyViewRedirect("/", "?embed=vscode&theme=dark&project=acme"), "/project/acme?embed=vscode&theme=dark")
-  assert.equal(legacyViewRedirect("/", "?embed=vscode&theme=dark"), "/all?embed=vscode&theme=dark")
+  assert.equal(legacyViewRedirect("/", "?embed=vscode&theme=dark"), undefined, "All projects is `/` again")
   // A drawer's old address: the thread in the path, the tab's board in the query. It lands on the board of
   // the thread's own project, which is what it opens.
   assert.equal(legacyViewRedirect("/all/acme/thread/fix-x", "?project=acme"), "/project/acme/thread/fix-x")

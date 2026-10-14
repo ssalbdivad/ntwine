@@ -8,9 +8,7 @@
 //
 // THE VIEW IS THE PATH, so every tab, bookmark and launch keeps its own, and a link says what it opens:
 //
-//   /                           no view of its own: where this browser was last (lastViewHref below), or
-//                               on a phone its projects list (PhonePage.tsx)
-//   /all                        All projects
+//   /                           All projects (on a phone, its projects list over it: PhonePage.tsx)
 //   /all/<slug>/thread/<t>      All projects, with that thread's drawer over it
 //   /project/<slug>             that project's board
 //   /project/<slug>/thread/<t>  the board, with that thread open (its card, or its drawer)
@@ -21,7 +19,6 @@
 // its view in sessionStorage. The path says it now, so there is nothing left for a tab to remember; the
 // old queries redirect to the path (routes.tsx, legacyViewRedirect below).
 
-import { EMBED_PARAM } from "@ntwine/shared"
 import { useLocation } from "react-router"
 
 export type PageView = { kind: "project"; slug: string } | { kind: "all" }
@@ -38,10 +35,10 @@ export function viewAt(pathname: string): PageView {
   return match ? { kind: "project", slug: decodeSafely(match[1]!) } : ALL_PROJECTS
 }
 
-/** All projects' address. */
-export const ALL_PROJECTS_HREF = "/all"
+/** All projects' address — the home page. It was `/all` from 2026-10-06 to 2026-10-14, which now redirects here. */
+export const ALL_PROJECTS_HREF = "/"
 
-/** The page showing a view: `/project/<slug>` or `/all`. */
+/** The page showing a view: `/project/<slug>` or `/`. */
 export function viewHref(view: PageView): string {
   return view.kind === "all" ? ALL_PROJECTS_HREF : `/project/${encodeURIComponent(view.slug)}`
 }
@@ -74,12 +71,11 @@ export function currentView(): PageView {
 
 /**
  * Where "home" is for this page — the page with no drawer open, showing its view: the board it is on, or
- * `/all`. A drawer goes home to the view it was opened over. The store → URL writer closes the last drawer
- * to this (lib/router.ts), and so does anything else that means "back to the page". `/` is its own home: on
- * a phone it is the projects list, and nowhere else does a page stay on it.
+ * `/`. A drawer goes home to the view it was opened over. The store → URL writer closes the last drawer
+ * to this (lib/router.ts), and so does anything else that means "back to the page".
  */
 export function homeHref(pathname: string = currentPath()): string {
-  return pathname === "/" ? "/" : viewHref(viewAt(pathname))
+  return viewHref(viewAt(pathname))
 }
 
 /** The view the page is showing, live. */
@@ -107,7 +103,7 @@ export function resolveView(
 const PROJECT_PARAM = "project"
 /** The board's query until 2026-09-29, when a launcher of that age sent it; it reads as `project`. */
 const LEGACY_FOCUS_PARAM = "focus"
-/** All projects' address until 2026-09-30, when it became the bare `/`; it is `/all` since 2026-10-06. */
+/** All projects' address until 2026-09-30, when it became the bare `/` (and `/all` 2026-10-06 to 2026-10-14). */
 const ALL_PARAM = "all"
 
 /**
@@ -115,21 +111,16 @@ const ALL_PARAM = "all"
  *
  *   /?project=<slug>, /?focus=<slug>   → /project/<slug>
  *   /all/<s>/thread/<t>?project=…      → /project/<s>/thread/<t>   (and its /full)
- *   /?all                              → /all
- *   /?embed=vscode                     → /all?embed=vscode
+ *   /?all                              → /
  *
  * A drawer's old address named its thread in the path and the tab's board in the query; the thread is what
- * it opens, so its own project's board is where it lands. An editor's sidebar framed a bare `/` for All
- * projects until 2026-10-06 (packages/vscode embed.ts embedUrl, with no folder mapped to a project), and an
- * extension of that age still does: `/` is a redirect to the last view now, and a sidebar asked for All
- * projects. Everything else the query carries (an editor's `embed` and `theme`, a launcher's `add`) rides
- * along.
+ * it opens, so its own project's board is where it lands. Everything else the query carries (an editor's
+ * `embed` and `theme`, a launcher's `add`) rides along.
  */
 export function legacyViewRedirect(pathname: string, search: string): string | undefined {
   const params = new URLSearchParams(search)
   const slug = params.get(PROJECT_PARAM) || params.get(LEGACY_FOCUS_PARAM) || undefined
-  const framedHome = pathname === "/" && params.has(EMBED_PARAM)
-  if (!slug && !framedHome && !params.has(ALL_PARAM) && !params.has(PROJECT_PARAM) && !params.has(LEGACY_FOCUS_PARAM)) return undefined
+  if (!slug && !params.has(ALL_PARAM) && !params.has(PROJECT_PARAM) && !params.has(LEGACY_FOCUS_PARAM)) return undefined
   params.delete(PROJECT_PARAM)
   params.delete(LEGACY_FOCUS_PARAM)
   params.delete(ALL_PARAM)
@@ -138,7 +129,6 @@ export function legacyViewRedirect(pathname: string, search: string): string | u
   const drawer = /^\/all\/([^/]+)\/thread\/([^/]+)(\/full)?\/?$/u.exec(pathname)
   if (slug && drawer) return `/project/${drawer[1]}/thread/${drawer[2]}${drawer[3] ?? ""}${query}`
   if (slug && (pathname === "/" || pathname === "/all" || pathname === "/all/")) return `${projectViewHref(slug)}${query}`
-  if (!slug && pathname === "/") return `${ALL_PROJECTS_HREF}${query}`
   return `${pathname}${query}`
 }
 

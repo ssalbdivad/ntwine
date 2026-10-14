@@ -117,11 +117,11 @@ test("switching the page to another project re-points the live feed at that proj
 
     // All projects keeps the project just left as the page's (the pick); the picker then moves it.
     await choose("[data-status-row] [data-xq-switcher]", "all-projects")
-    await page.waitForFunction(() => location.pathname === "/all" && location.search === "", { timeout: 15_000 })
+    await page.waitForFunction(() => location.pathname === "/" && location.search === "", { timeout: 15_000 })
     const other = slugs[0]!
     await choose("[data-xq-project-picker]", other)
     await page.waitForFunction((s) => document.querySelector("[data-xq-picker-name]")?.textContent?.trim() === s, { timeout: 15_000 }, other)
-    assert.equal(`${new URL(page.url()).pathname}${new URL(page.url()).search}`, "/all", "the picker's switch is not a navigation")
+    assert.equal(`${new URL(page.url()).pathname}${new URL(page.url()).search}`, "/", "the picker's switch is not a navigation")
     await feedFollows(other, `the picker, to ${other}`)
   } finally {
     await browser.close()

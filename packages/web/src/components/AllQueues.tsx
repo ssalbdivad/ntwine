@@ -50,7 +50,7 @@ import { innerPath, projectSlug } from "../lib/base-path.ts"
 import { rememberCrossProjectFocus, stepPick } from "../lib/crossProject.ts"
 import { setFaviconBadge } from "../lib/faviconBadge.ts"
 import { ALL_PROJECTS, homeHref, projectViewHref, usePageView, viewHref, viewKey } from "../lib/pageView.ts"
-import { carryDispatchDraft } from "../lib/scheduleDraftState.ts"
+import { carryDispatchDraft, routeDispatchDraft } from "../lib/scheduleDraftState.ts"
 import { QUEUE_CARD_VIEWPORT_TOP, registerRoutedLanding, resolveRoutedThread, showToast, slugsInThreadDrawers, store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
 import { prefs } from "../lib/prefs.ts"
@@ -236,6 +236,18 @@ export function AllQueuesPage() {
       carryDispatchDraft(dirs?.projectDir, next.projectDir)
       navigate(projectViewHref(next.slug))
     } else pickProject(next, dirs?.projectDir)
+    return true
+  }
+  // A PROMPT OPENING WITH `#slug ` GOES TO THAT PROJECT (lib/projectMentions.ts leadingProjectRoute): the
+  // box re-aims as a pick or a step would — focused, by moving the page — with the words, minus the token,
+  // carried along even into a box that already holds a draft (routeDispatchDraft).
+  const routeToProject = (slug: string, value: string): boolean => {
+    const to = projects.find((project) => project.slug === slug && !project.stale)
+    if (!to || !routeDispatchDraft(dirs?.projectDir, to.projectDir, value)) return false
+    if (to.slug === focus) return true
+    setFocusComposerFor({ slug: to.slug })
+    if (focused) navigate(projectViewHref(to.slug))
+    else pickProject(to, dirs?.projectDir)
     return true
   }
   const onColumnKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -437,6 +449,7 @@ export function AllQueuesPage() {
         composer={
           <div onKeyDown={onColumnKeyDown}>
             <FocusedComposer
+              onLeadingProject={routeToProject}
               focus={focus}
               project={focusProject}
               dirs={dirs}
@@ -491,6 +504,7 @@ export function AllQueuesPage() {
         homeDir={home}
         composer={(onDispatched, autoFocus) => (
           <FocusedComposer
+            onLeadingProject={routeToProject}
             focus={focus}
             project={focusProject}
             dirs={dirs}
@@ -536,6 +550,7 @@ export function AllQueuesPage() {
               {/* The first-run tour's "Start a thread" points here (components/Onboarding.tsx). */}
               <div data-tour="composer">
                 <FocusedComposer
+                  onLeadingProject={routeToProject}
                   focus={focus}
                   project={focusProject}
                   dirs={dirs}
@@ -915,6 +930,7 @@ function FocusedComposer({
   caret,
   onFocused,
   onDispatched,
+  onLeadingProject,
 }: {
   focus: string | undefined
   project: QueuesProject | undefined
@@ -926,6 +942,7 @@ function FocusedComposer({
   onFocused: () => void
   /** A thread was started — the phone's New thread sheet closes on it. */
   onDispatched?: () => void
+  onLeadingProject: (slug: string, value: string) => boolean
 }) {
   const ready = dirs !== undefined
   const [slow, setSlow] = useState(false)
@@ -961,7 +978,7 @@ function FocusedComposer({
       </div>
     )
   }
-  return <DispatchForm key={focus} autoFocus={autoFocus} target={target} dirs={dirs} onDispatched={onDispatched} />
+  return <DispatchForm key={focus} autoFocus={autoFocus} target={target} dirs={dirs} onDispatched={onDispatched} onLeadingProject={onLeadingProject} />
 }
 
 /**

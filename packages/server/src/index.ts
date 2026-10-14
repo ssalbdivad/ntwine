@@ -1234,8 +1234,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
         requestTasks.add(task)
         return
       }
-      // A page for a project that does not exist goes to `/`, which the page sends on to the view this
-      // browser showed last (or a board that exists; web routes.tsx LastViewRedirect). The slug rides
+      // A page for a project that does not exist goes to `/`, All projects. The slug rides
       // along so the page can say what happened rather than appearing to have swallowed the URL.
       const missing = unknownProjectPage(url.split("?")[0] ?? "", (slug) => findWorkspaceBySegment(slug) !== undefined)
       if (missing !== undefined) {

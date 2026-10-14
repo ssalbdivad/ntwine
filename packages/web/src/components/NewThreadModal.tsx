@@ -54,6 +54,7 @@ export function DispatchForm({
   onDispatched,
   target,
   dirs,
+  onLeadingProject,
 }: {
   autoFocus?: boolean
   onDispatched?: () => void
@@ -73,10 +74,13 @@ export function DispatchForm({
    * waiting on its feed. Everywhere else the store's board is the page project's, and says the same.
    */
   dirs?: DispatchDirs
+  /** A prompt opening with `#slug ` goes to that project (Composer `onLeadingProject`) — where the box has a
+   *  project to choose, which is the queue page's. */
+  onLeadingProject?: (slug: string, value: string) => boolean
 }) {
   return (
     <div data-dispatch-form className="w-full flex flex-col gap-1.5">
-      <PromptForm autoFocus={autoFocus} onDispatched={onDispatched} target={target} dirs={dirs} />
+      <PromptForm autoFocus={autoFocus} onDispatched={onDispatched} target={target} dirs={dirs} onLeadingProject={onLeadingProject} />
     </div>
   )
 }
@@ -88,11 +92,13 @@ function PromptForm({
   onDispatched,
   target,
   dirs,
+  onLeadingProject,
 }: {
   autoFocus?: boolean
   onDispatched?: () => void
   target?: ReactNode
   dirs?: DispatchDirs
+  onLeadingProject?: (slug: string, value: string) => boolean
 }) {
   // A settings write still in flight — a compaction window picked in the model picker a moment ago —
   // must land before a dispatch that would read it.
@@ -542,6 +548,7 @@ function PromptForm({
         footer={footer}
         onEffortStep={stepEffort}
         leftAction={githubTriggerVisible ? <GithubTrigger /> : undefined}
+        onLeadingProject={onLeadingProject}
       />
       {/* THE ONE SLOT under the box: the schedule strip, or a line about the schedule (ScheduleComposer.tsx).
           Pulled up by the column's own gap so it hangs from the box's bottom edge; its row opens from 0fr, so

@@ -89,9 +89,8 @@ export function routeLaunch(
   home = homedir(),
 ): LaunchRoute {
   const launch = classifyLaunch(dir, home)
-  // `/all`, not `/`: a bare `/` is the browser's own last view in this fork (web routes.tsx
-  // LastViewRedirect), and a launch from anywhere else asked for every project.
-  if (launch.kind === "everything") return { path: "/all" }
+  // A launch from anywhere else asked for every project: All projects, the home page.
+  if (launch.kind === "everything") return { path: "/" }
   if (launch.kind === "offer") return { path: offerPath(launch.directory) }
   let project: { id: string; dir: string; name: string }
   try {

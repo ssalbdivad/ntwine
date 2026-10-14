@@ -108,6 +108,23 @@ export function insertProjectMention(prose: string, start: number, caret: number
   return { prose: `${prose.slice(0, start)}#${slug}${sep}${after}`, caret: start + 1 + slug.length + 1 }
 }
 
+// A LEADING `#slug` IS AN ADDRESS, NOT A MENTION (David 2026-10-14). In a new-thread box, a prompt that
+// OPENS with a project's `#slug` and a space goes to that project: the box re-aims at it and the token
+// leaves the text, the way a picked project leaves nothing in the prose. Anywhere later in the prompt a
+// `#slug` stays a reference ("do it the way #arktype does"). The `@` grammar was passed over for this:
+// `@` already names threads and files, and both of those only point.
+const LEADING = /^\s*#([\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)*)\s/u
+
+/** The project a prompt opens with — `#slug` then whitespace — and the prompt without it, or undefined
+ *  when it opens with anything else (an all-digit `#12` is GitHub's). */
+export function leadingProjectRoute(prose: string, candidates: readonly ProjectMentionCandidate[]): { slug: string; rest: string } | undefined {
+  const m = LEADING.exec(prose)
+  if (!m || /^\d+$/u.test(m[1]!)) return undefined
+  const lower = m[1]!.toLowerCase()
+  const hit = candidates.find((c) => c.slug.toLowerCase() === lower)
+  return hit && { slug: hit.slug, rest: prose.slice(m[0].length).replace(/^[ \t]+/u, "") }
+}
+
 // A whole mention in finished text. The tail guard is the `@` grammar's (threadMentions.ts MENTION): a
 // token running on into a path, another `#` or a word joint followed by more word is not a slug, and
 // without the guard the engine would back off a letter at a time until something matched.

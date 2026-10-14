@@ -61,8 +61,7 @@ export function useCrossProjectPick(): string | null {
 
 // THE PROJECT LAST FOCUSED, in this browser — written whenever the page shows a project's board
 // (routes.tsx). It aimed a bare `/` until 2026-09-30, when All projects became home; it is the prompt box's
-// next-best answer after an explicit pick to "which project is this person working in", and the board a
-// bare `/` opens for a browser that has a board to go back to but no view on record (lastViewHref). By ID,
+// next-best answer after an explicit pick to "which project is this person working in",. By ID,
 // not slug: a rename changes the slug.
 const LAST_FOCUSED_KEY = "ntwine.lastFocusedProject"
 
@@ -80,56 +79,6 @@ export function rememberLastFocusedProject(projectId: string): void {
   } catch {
     // Storage disabled: the box falls through to the project Ntwine was launched from.
   }
-}
-
-// THE LAST VIEW THIS BROWSER SHOWED — a project's board or All projects — which is where a bare `/` goes
-// (routes.tsx LastViewRedirect), and with it every launch from a project. `/` names neither view, so it goes
-// back to whichever this browser had, and to All projects when it had none. Navigation memory, not a setting: it is written whenever the page shows a
-// view, and nothing offers to change it. Per BROWSER (localStorage), like the pick above and unlike the
-// view itself, which is each tab's path. A board is remembered by ID, so a rename still finds it. An
-// editor's sidebar does not write it (routes.tsx): it is a frame in another app, and its view is the
-// editor window's, not this browser's.
-const LAST_VIEW_KEY = "ntwine.lastView"
-const ALL_VIEW = "all"
-const PROJECT_VIEW_PREFIX = "project:"
-
-/** What this browser showed last: `all`, `project:<id>`, or null for a browser that never chose. */
-export function lastView(): string | null {
-  try {
-    return localStorage.getItem(LAST_VIEW_KEY)
-  } catch {
-    return null
-  }
-}
-
-/** Record the view the page shows: All projects, or the board of the project with this id. */
-export function rememberLastView(view: { kind: "all" } | { kind: "project"; id: string }): void {
-  const value = view.kind === "all" ? ALL_VIEW : `${PROJECT_VIEW_PREFIX}${view.id}`
-  try {
-    if (localStorage.getItem(LAST_VIEW_KEY) !== value) localStorage.setItem(LAST_VIEW_KEY, value)
-  } catch {
-    // Storage disabled: a bare `/` falls through to All projects (lastViewHref step 2).
-  }
-}
-
-/**
- * Where a bare `/` goes: `/all` or `/project/<slug>`, or undefined when there is no project to show (the
- * welcome, which adds one). In order:
- *
- *   1. the view this browser showed LAST (`remembered`, lastView above) — All projects, or a board whose
- *      project is still registered and its directory still there;
- *   2. else All projects, the default.
- *
- * All projects with nothing in it but the Home workspace is the welcome; a remembered Home board is not.
- */
-export function lastViewHref(cards: readonly Pick<ProjectCard, "id" | "slug" | "stale" | "home">[], remembered: string | null): string | undefined {
-  const present = cards.filter((card) => !card.stale)
-  if (remembered?.startsWith(PROJECT_VIEW_PREFIX)) {
-    const id = remembered.slice(PROJECT_VIEW_PREFIX.length)
-    const card = present.find((candidate) => candidate.id === id)
-    if (card) return `/project/${encodeURIComponent(card.slug)}`
-  }
-  return present.some((card) => !card.home) ? "/all" : undefined
 }
 
 /**

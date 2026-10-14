@@ -23,7 +23,7 @@ import { DROPPED_URI_TYPES, droppedUris, fileQueryAt, insertFileReference, inser
 import { basename, dirnameLike } from "../lib/paths.ts"
 import { draftStart, insertSlashCommand, matchSlashItems, slashQueryAt, slashSegments } from "../lib/slashCommands"
 import { insertMention, matchMentions, mentionQueryAt, mentionSegments, resolveMention, splitMentionQuery, subAgentMentionCandidates, type MentionCandidate } from "../lib/threadMentions.ts"
-import { insertProjectMention, matchProjects, projectQueryAt, scanProjectMentions, useProjectMentions, type ProjectMentionCandidate } from "../lib/projectMentions.ts"
+import { insertProjectMention, leadingProjectRoute, matchProjects, projectQueryAt, scanProjectMentions, useProjectMentions, type ProjectMentionCandidate } from "../lib/projectMentions.ts"
 import { useSubAgentDirectory } from "../hooks/useSubAgentDirectory.ts"
 import { useKeyboardInset } from "../lib/keyboardInset.ts"
 import { inSkippedCard, whenCardRendered } from "../lib/cardVisibility.ts"
@@ -305,6 +305,7 @@ export function Composer({
   phone,
   onUploadingChange,
   fileDrop,
+  onLeadingProject,
 }: {
   value: string
   onChange: (v: string) => void
@@ -433,6 +434,11 @@ export function Composer({
   // this box binds no drop handlers of its own there: it draws its drop hint while `over` and registers
   // its intake on `intake`. Absent, the box itself is the zone.
   fileDrop?: SurfaceFileDrop
+  // A NEW THREAD ADDRESSED BY ITS FIRST WORD (lib/projectMentions.ts leadingProjectRoute): a prompt that
+  // opens with `#slug` and a space — typed, pasted, or a project chosen from the `#` menu at the start —
+  // hands the caller the project and the box's value without the token. The caller re-aims the box there
+  // and returns true, and the box leaves the edit to it; false, and the token stays ordinary text.
+  onLeadingProject?: (slug: string, value: string) => boolean
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null)
   const contextRef = useRef<HTMLDivElement>(null)
@@ -939,6 +945,11 @@ export function Composer({
   }
   function acceptProject(project: ProjectMentionCandidate) {
     if (!projectQuery || caret === null) return
+    if (onLeadingProject && !prose.slice(0, projectQuery.start).trim()) {
+      let end = caret
+      while (end < prose.length && /[\p{L}\p{N}_-]/u.test(prose[end]!)) end++
+      if (onLeadingProject(project.slug, joinComposerValue(prose.slice(end).replace(/^[ \t]+/u, ""), attachmentPaths))) return
+    }
     const next = insertProjectMention(prose, projectQuery.start, caret, project.slug)
     setProse(next.prose)
     setCaret(next.caret)
@@ -1609,6 +1620,8 @@ export function Composer({
             }
             // Typing takes the box back from dictation (lib/dictation.ts).
             dictation.cancel()
+            const route = onLeadingProject && !(e.nativeEvent as InputEvent).isComposing && !leadingProjectRoute(prose, projectMentions) ? leadingProjectRoute(e.target.value, projectMentions) : undefined
+            if (route && onLeadingProject!(route.slug, joinComposerValue(route.rest, attachmentPaths))) return
             setProse(e.target.value)
             trackCaret(e.target)
           }}

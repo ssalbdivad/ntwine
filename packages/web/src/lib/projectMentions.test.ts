@@ -7,6 +7,7 @@ import { setGithubRepo } from "./githubAutolink.ts"
 import { mentionIndexVersion } from "./mentionAutolink.ts"
 import {
   insertProjectMention,
+  leadingProjectRoute,
   matchProjects,
   projectMentionCandidates,
   projectMentionIndex,
@@ -80,4 +81,15 @@ test("agent prose links a project mention to its board, and notifies on a change
   } finally {
     setGithubRepo(null)
   }
+})
+
+test("a prompt opening with `#slug ` is addressed to that project; anywhere else, or unfinished, it is not", () => {
+  assert.deepEqual(leadingProjectRoute("#arktype fix the parser", PROJECTS), { slug: "arktype", rest: "fix the parser" })
+  assert.deepEqual(leadingProjectRoute("  #ArkType\nfix it", PROJECTS), { slug: "arktype", rest: "\nfix it" })
+  assert.deepEqual(leadingProjectRoute("#ntwine-web ", PROJECTS), { slug: "ntwine-web", rest: "" })
+  assert.equal(leadingProjectRoute("#arktype", PROJECTS), undefined, "no space yet: still being typed")
+  assert.equal(leadingProjectRoute("#ark fix", PROJECTS), undefined, "a prefix is not a project")
+  assert.equal(leadingProjectRoute("do it like #arktype does", PROJECTS), undefined)
+  assert.equal(leadingProjectRoute("#gone fix", PROJECTS), undefined, "a stale project is not offered")
+  assert.equal(leadingProjectRoute("#2024 fix", PROJECTS), undefined, "#2024 is GitHub's")
 })

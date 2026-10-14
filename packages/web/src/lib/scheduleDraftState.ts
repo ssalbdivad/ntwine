@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react"
-import { draftKey, draftStore, useDraft, type DraftStore } from "./drafts.ts"
+import { draftKey, draftStore, mergeIntoDraft, useDraft, type DraftStore } from "./drafts.ts"
 import { carryDraft } from "./stagedContext.ts"
 
 // WHAT THE HUMAN SAID ABOUT THE DRAFT'S SCHEDULE IS PART OF THE DRAFT (ARCHITECTURE.md § Scheduled threads).
@@ -116,6 +116,27 @@ export function carryDispatchDraft(fromDir: string | undefined, toDir: string | 
   // A create in flight owns these words (see `beginDraftCreate`): they stay where it will take them from.
   if (isDraftCreating(draftKey.dispatchSchedule(fromDir))) return
   carryDraft(draftKey.dispatch(fromDir), draftKey.dispatch(toDir), [[draftKey.dispatchSchedule(fromDir), draftKey.dispatchSchedule(toDir)]])
+}
+
+/**
+ * The new-thread box ADDRESSED to a project by a leading `#slug` (lib/projectMentions.ts
+ * leadingProjectRoute): `text` — the draft without the token — goes to `toDir`. Unlike a re-aim it always
+ * goes, because the human addressed THESE words: into an empty box as a re-aim carries it, and above a
+ * draft the target already holds otherwise, so neither is lost. Returns false when it cannot go (no
+ * directory for the target yet, or a create in flight owns the words), and the token stays ordinary text.
+ */
+export function routeDispatchDraft(fromDir: string | undefined, toDir: string | undefined, text: string): boolean {
+  if (!fromDir || !toDir) return false
+  if (isDraftCreating(draftKey.dispatchSchedule(fromDir))) return false
+  const from = draftKey.dispatch(fromDir)
+  draftStore.set(from, text)
+  if (fromDir === toDir) return true
+  carryDispatchDraft(fromDir, toDir)
+  if (draftStore.get(from)) {
+    mergeIntoDraft(draftKey.dispatch(toDir), text)
+    draftStore.clearMany([from, draftKey.dispatchSchedule(fromDir)])
+  }
+  return true
 }
 
 // ---- a create in flight owns its draft -----------------------------------------------------------------------

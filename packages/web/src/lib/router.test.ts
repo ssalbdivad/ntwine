@@ -294,7 +294,7 @@ test("a drawer closed before the route has applied its own address stays closed"
   const navigated: string[] = []
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
   try {
-    globals.location = { pathname: "/all" } as unknown as Location
+    globals.location = { pathname: "/" } as unknown as Location
     // The router writes history at once, as react-router does; the route applies it only when told to.
     const stop = startRouter((path) => {
       navigated.push(path)
@@ -315,8 +315,8 @@ test("a drawer closed before the route has applied its own address stays closed"
     await settle()
     assert.equal(store.routeThreadSlug, null, "the drawer's own address did not park it again")
     assert.equal(store.drawers.length, 0, "…or re-open it")
-    assert.deepEqual(navigated, ["/thread/t", "/all"], "and the held-back close is written")
-    applyLocation("/all")
+    assert.deepEqual(navigated, ["/thread/t", "/"], "and the held-back close is written")
+    applyLocation("/")
 
     // CONTROL: the same address arriving from outside — Back, a link, a reload — is applied.
     globals.location = { pathname: "/thread/t" } as unknown as Location
@@ -339,7 +339,7 @@ test("the writer's own address is applied when the store has not moved past it",
   const navigated: string[] = []
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
   try {
-    globals.location = { pathname: "/all" } as unknown as Location
+    globals.location = { pathname: "/" } as unknown as Location
     const stop = startRouter((path) => {
       navigated.push(path)
       globals.location = { pathname: new URL(path, "http://page").pathname } as unknown as Location
@@ -394,7 +394,7 @@ test("a drawer the return from /full opened, closed before the route caught up, 
     resolveRoutedThread() // the render the board is authoritative on
     assert.equal(store.routeThreadSlug, null, "the drawer's address did not park it again")
     assert.equal(store.drawers.length, 0, "…or re-open it")
-    assert.deepEqual(navigated, ["/all"], "and the close is written")
+    assert.deepEqual(navigated, ["/"], "and the close is written")
     stop()
 
     // CONTROL: left open, the same return applies its address and writes nothing.

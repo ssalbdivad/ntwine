@@ -13,9 +13,8 @@ import { Toaster } from "./components/Toaster.tsx"
 import { KeyboardLayer } from "./components/KeyboardShortcuts.tsx"
 import { applyLocation, noteRouterTransition, primeReturnFromFullscreen, registerNavigate } from "./lib/router.ts"
 import { setHomeFocus } from "./lib/base-path.ts"
-import { defaultCrossProjectFocus, lastFocusedProject, lastView, lastViewHref, rememberLastFocusedProject, rememberLastView, useCrossProjectPick } from "./lib/crossProject.ts"
+import { defaultCrossProjectFocus, lastFocusedProject, rememberLastFocusedProject, useCrossProjectPick } from "./lib/crossProject.ts"
 import { ALL_PROJECTS, ALL_PROJECTS_HREF, legacyViewRedirect, resolveView, viewAt, type PageView } from "./lib/pageView.ts"
-import { useIsMobile } from "./lib/mobile.ts"
 import { embedded } from "./lib/embed.ts"
 import type { ProjectCard } from "@ntwine/shared"
 import { rpc } from "./api/rpc.ts"
@@ -141,19 +140,18 @@ function useProjectBinding(slug: string | undefined): boolean {
   return ready
 }
 
-// ONE PAGE, AND ITS PATH NAMES ITS VIEW (lib/pageView.ts): every project at `/all` (the default), or one
+// ONE PAGE, AND ITS PATH NAMES ITS VIEW (lib/pageView.ts): every project at `/`, the home page, or one
 // project's board at `/project/<slug>` (the query `/?project=<slug>` from 2026-09-29 to 2026-10-06, which
-// now redirects here). `/` itself names no view: it goes back to the one this browser showed last
-// (LastViewRedirect), and on a phone it is the projects list. Anything unknown lands on `/`, keeping the
+// now redirects here). On a phone `/` is the projects list. Anything unknown lands on `/`, keeping the
 // query a launcher may have sent (`?add=`).
 
 /**
- * THE PAGE — one project's board, or every project's list and queue, and the only page there is: `/all`
- * and its `/all/<slug>/thread/<t>`, `/project/<slug>` with its `/thread/<t>`, and on a
- * phone `/`, the projects list over All projects' binding.
+ * THE PAGE — one project's board, or every project's list and queue, and the only page there is: `/`
+ * and its `/all/<slug>/thread/<t>`, `/project/<slug>` with its `/thread/<t>` (on a phone, `/` is the
+ * projects list over All projects' binding).
  *
  * It is always BOUND to one project, the page project: the live feed, the store and every page-relative
- * helper (base-path.ts answers `/all` through `setHomeFocus`, and every other address from its path) follow
+ * helper (base-path.ts answers `/` through `setHomeFocus`, and every other address from its path) follow
  * it, so the prompt box dispatches into it and a thread drawer of it opens in place with the whole drawer
  * stack. On a board the page project IS the board's project; showing All projects, it is the prompt box's
  * PICK (lib/crossProject.ts); under an All-projects drawer, the drawer's project. The list and the queue
@@ -169,36 +167,11 @@ function useProjectBinding(slug: string | undefined): boolean {
  */
 function PageRoute() {
   const { pathname, search } = useLocation()
-  const phone = useIsMobile()
   // An address from when the view was a query (`/?project=<slug>`, `?focus=`, `?all`) says where it
   // lands now before anything renders under it, so nothing paints for a view the page is about to leave.
   const legacy = legacyViewRedirect(pathname, search)
   if (legacy !== undefined) return <Navigate to={legacy} replace />
-  // A phone's `/` is its projects list (PhonePage.tsx), upstream's phone home; everywhere else `/` is only
-  // a way in, and goes where this browser was last.
-  if (pathname === "/" && !phone) return <LastViewRedirect />
   return <CrossProjectPage />
-}
-
-/**
- * A BARE `/` — what a typed address, an old bookmark or a launch is — goes back to the view this browser
- * showed last: a project's board, or All projects (lib/crossProject.ts lastViewHref). A browser that never
- * showed one gets All projects, the default. With no project at all it is the welcome.
- *
- * It replaces its history entry, so Back never lands on a `/` that would only send it forward again. The
- * two arrivals from outside (usePageResolution below: the launcher's `?add=`, the server's `?unknown=`)
- * are answered here on the way through and not carried on: the dialog and the toast live in the layout,
- * and survive the redirect.
- */
-function LastViewRedirect() {
-  const { search } = useLocation()
-  const cards = useQuery({ queryKey: ["projectsList"], queryFn: () => rpc.projectsList() })
-  useState(() => answerArrival(search))
-  if (cards.error) return <RegistryError error={String(cards.error)} />
-  if (!cards.data) return <PageSpinner />
-  const target = lastViewHref(cards.data, lastView())
-  if (target === undefined) return <Welcome projects={cards.data} />
-  return <Navigate to={target} replace />
 }
 
 /** `?add=<dir>` opens the add-project dialog, pre-filled; `?unknown=<slug>` says a page was sent away. */
@@ -230,7 +203,7 @@ function CrossProjectPage() {
   const { slug: routeSlug, thread } = useParams()
   const page = usePageResolution(routeSlug)
   const slug = routeSlug ?? (page.kind === "page" ? page.slug : undefined)
-  // Render-phase, before anything below asks base-path which project `/all` (or a phone's `/`) is.
+  // Render-phase, before anything below asks base-path which project `/` is.
   if (routeSlug === undefined) setHomeFocus(slug)
   // The gate useProjectBinding returns is NOT applied here, unlike /full below. Upstream's board is keyed
   // by its slug and remounts on every switch anyway, so rendering nothing for one commit costs it nothing;
@@ -261,22 +234,18 @@ type PageResolution =
 /**
  * What the page at this address shows, and which project it is bound to.
  *
- * Every address but `/all` (and a phone's `/`) names its project in the path — a board's, or an
+ * Every address but `/` names its project in the path — a board's, or an
  * All-projects drawer's — and is bound to it at once. A board for a slug the registry does not have
- * (renamed, removed, a typo) is said and left for `/`, which goes back to this browser's last view; the
+ * (renamed, removed, a typo) is said and left for `/`; the
  * server answers a cold load of one before the app is even served (index.ts `unknownProjectPage`), so this
  * catches the ones reached inside the page.
  *
- * At `/all` — All projects — the page is bound to the prompt box's pick, resolved against the registry, and
- * the address is put back to a bare `/all` before anything paints, so a reload, a bookmark or a copied link
+ * At `/` — All projects — the page is bound to the prompt box's pick, resolved against the registry, and
+ * the address is put back to a bare `/` before anything paints, so a reload, a bookmark or a copied link
  * of this tab reopens exactly what it shows. A bare board (`/project/<slug>`) is put back to its bare path
  * the same way; a drawer's address is left alone.
  *
- * The view shown is REMEMBERED for this browser (lib/crossProject.ts rememberLastView) — which is where a
- * bare `/` goes next time — except in an editor's sidebar, whose view is pinned by the editor.
- *
- * Two more arrive from outside, usually at `/` (LastViewRedirect answers them there), and are answered
- * HERE when they reach the page itself:
+ * Two more arrive from outside, usually at `/`:
  *  - `?add=<dir>` is the LAUNCHER asking: running `ntwine` in an unknown folder does not adopt it, it
  *    sends the operator here to say yes. It opens the one add-project dialog, pre-filled.
  *  - `?unknown=<slug>` is the SERVER saying it sent a page here rather than let it hang: a board or a
@@ -309,16 +278,9 @@ function usePageResolution(routeSlug: string | undefined): PageResolution {
   useEffect(() => {
     if (focusedId) rememberLastFocusedProject(focusedId)
   }, [focusedId])
-  // The view, for a bare `/` next time: All projects, or this board. Not the phone's projects list at `/`,
-  // which is no view, and not a board the registry has not confirmed.
-  const shown = pathname === "/" ? undefined : view.kind === "all" ? "all" : focusedId
-  useEffect(() => {
-    if (shown === undefined || embedded()) return
-    rememberLastView(shown === "all" ? { kind: "all" } : { kind: "project", id: shown })
-  }, [shown])
   // A LAYOUT effect, so the address says what the page shows before anything paints under it.
   const bare = atHome || pathname === `/project/${encodeURIComponent(routeSlug)}` || pathname === `/project/${encodeURIComponent(routeSlug)}/`
-  const canonical = atHome ? (pathname === "/" ? "/" : ALL_PROJECTS_HREF) : view.kind === "project" ? `/project/${encodeURIComponent(view.slug)}` : null
+  const canonical = atHome ? ALL_PROJECTS_HREF : view.kind === "project" ? `/project/${encodeURIComponent(view.slug)}` : null
   useLayoutEffect(() => {
     if (bare && canonical !== null && (search !== "" || pathname !== canonical)) navigate(canonical, { replace: true })
   }, [bare, canonical, search, pathname, navigate])
@@ -333,13 +295,12 @@ function usePageResolution(routeSlug: string | undefined): PageResolution {
 /**
  * Any address the page does not have — a typo, an old `/status/<s>` — lands on `/`, keeping the query
  * (`?add=`, `?unknown=`) it carries. The old names of All projects (`/queues`, `/projects`) and an
- * All-projects drawer's address cut short (`/all/<slug>`) land on All projects, at `/all`.
+ * All-projects drawer's address cut short (`/all`, `/all/<slug>`) land on All projects, at `/`.
  */
 function HomeRedirect() {
   const { pathname, search } = useLocation()
   const first = pathname.split("/")[1] ?? ""
-  const to = first === "all" || first === "queues" || first === "projects" ? ALL_PROJECTS_HREF : "/"
-  return <Navigate to={`${to}${search}`} replace />
+  return <Navigate to={`/${search}`} replace />
 }
 
 /**
@@ -435,7 +396,6 @@ export const router = createBrowserRouter([
       // instance mounted across a drawer opening or closing and across a change of view — the page must
       // not remount under you.
       { path: "/", element: <PageRoute /> },
-      { path: ALL_PROJECTS_HREF, element: <PageRoute /> },
       { path: `${CROSS_PROJECT_PATH}/thread/:thread`, element: <PageRoute /> },
       { path: PROJECT_PATH, element: <PageRoute /> },
       { path: `${PROJECT_PATH}/thread/:thread`, element: <PageRoute /> },

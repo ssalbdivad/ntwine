@@ -186,7 +186,7 @@ try {
   const slug = launcher?.slug
   console.log(JSON.stringify({
     url: slug ? `http://127.0.0.1:${port}/all/${slug}` : `http://127.0.0.1:${port}/`,
-    gridUrl: `http://127.0.0.1:${port}/all`,
+    gridUrl: `http://127.0.0.1:${port}/`,
     slug, port, home, project: projectDir,
     log: serverLog,
     // The launcher is the project whose `server.lock` this process publishes — the one file every

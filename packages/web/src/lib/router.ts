@@ -286,7 +286,7 @@ export function startRouter(navigate: (path: string, options: { replace: boolean
     // is checked against the INNER path: under a project prefix every path starts with its prefix.
     const openingThread = currentPath().startsWith("/thread/")
     // Home is the page showing its view (lib/pageView.ts): closing the last drawer goes back to the board
-    // it is on, `/project/<slug>`, else to `/all`, All projects (and a phone's `/` stays `/`).
+    // it is on, `/project/<slug>`, else to `/`, All projects.
     written = path
     navigate(path === "/" ? homeHref() : path, { replace: !openingThread })
   }

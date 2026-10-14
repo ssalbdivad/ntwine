@@ -75,12 +75,12 @@ test("a folder that looks like a project is offered, and nothing is registered u
 
 test("anywhere else is All projects, and the home folder is never a project whatever it carries", (t) => {
   const { home, folder, open } = machine(t)
-  assert.deepEqual(routeLaunch(folder("Downloads"), open, home), { path: "/all" })
+  assert.deepEqual(routeLaunch(folder("Downloads"), open, home), { path: "/" })
   writeFileSync(join(home, "package.json"), "{}\n")
   assert.deepEqual(classifyLaunch(home, home), { kind: "everything" })
   ensureProjectIdFile(home, home)
   assert.deepEqual(classifyLaunch(home, home), { kind: "everything" })
-  assert.deepEqual(routeLaunch(home, open, home), { path: "/all" })
+  assert.deepEqual(routeLaunch(home, open, home), { path: "/" })
   assert.deepEqual(listProjects(home), [])
 })
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { defaultCrossProjectFocus, lastViewHref, stepPick } from "./crossProject.ts"
+import { defaultCrossProjectFocus, stepPick } from "./crossProject.ts"
 
 const card = (id: string, lastOpenedAt: string, stale = false) => ({ id, slug: `${id}-slug`, stale, lastOpenedAt })
 
@@ -80,32 +80,6 @@ test("a launch is skipped where its project is gone or not open, like every othe
 })
 
 const project = (slug: string, open = true, stale = false) => ({ slug, open, stale })
-
-// A BARE `/` GOES BACK TO THE LAST VIEW: All projects is the default, and `/` names no view — a typed
-// address or a launch is it.
-test("/ goes back to the view this browser showed last", () => {
-  const cards = [launched("a", "2026-09-30T10:00:00Z"), launched("b", "2026-09-30T09:00:00Z")]
-  assert.equal(lastViewHref(cards, "all"), "/all")
-  assert.equal(lastViewHref(cards, "project:b"), "/project/b-slug")
-  // By id: a rename keeps the board, under its new address.
-  assert.equal(lastViewHref([{ ...cards[1]!, slug: "b renamed" }, cards[0]!], "project:b"), "/project/b%20renamed")
-})
-
-test("a browser that never chose, or whose board is gone, lands on All projects", () => {
-  const cards = [launched("a", "2026-09-30T10:00:00Z"), launched("b", "2026-09-30T09:00:00Z", undefined, true)]
-  assert.equal(lastViewHref(cards, null), "/all")
-  assert.equal(lastViewHref(cards, "garbage"), "/all", "an unreadable memory is no memory")
-  assert.equal(lastViewHref(cards, "project:gone"), "/all", "removed")
-  assert.equal(lastViewHref(cards, "project:b"), "/all", "its directory is gone")
-})
-
-test("no project but Home is the welcome, unless Home's board was chosen", () => {
-  const home = { id: "home-id", slug: "home", stale: false, lastOpenedAt: "2026-09-28T10:00:00Z", home: true as const }
-  assert.equal(lastViewHref([home], null), undefined, "an empty machine welcomes")
-  assert.equal(lastViewHref([home], "all"), undefined, "All projects with nothing in it is the welcome too")
-  assert.equal(lastViewHref([home], "project:home-id"), "/project/home", "Home, once chosen, is a board like any other")
-  assert.equal(lastViewHref([], "all"), undefined)
-})
 
 test("⌥↓ / ⌥↑ step the box through the picker's order, wrapping round at either end", () => {
   const projects = [project("a"), project("b"), project("c")]

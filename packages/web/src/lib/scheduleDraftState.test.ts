@@ -14,6 +14,7 @@ import {
   isDraftCreating,
   parseScheduleDraftState,
   readScheduleDraftState,
+  routeDispatchDraft,
   serializeScheduleDraftState,
   writeScheduleDraftState,
 } from "./scheduleDraftState.ts"
@@ -176,3 +177,22 @@ test("afterDraftCreates waits for every create on that draft, and only that draf
 // ONE HELD ENTER PER DRAFT (finding A). The page box held an Enter; the \`c\` dialog opened on the same draft and its
 // Enter held too; the one answer landed in both, in one effect pass, and each acted: two identical schedules, or
 // two threads. A hold is now the draft's: the newest Enter takes it, and the box that held it before lets go.
+
+// A leading `#slug` ADDRESSES the words, so unlike a re-aim they go even where the target holds a draft —
+// above it, so neither is lost.
+test("a routed draft moves into an empty box, goes above a waiting draft, and stays put when it cannot go", () => {
+  const a = "/work/route-a", b = "/work/route-b", c = "/work/route-c"
+  draftStore.set(draftKey.dispatch(a), "#route-b fix it")
+  assert.equal(routeDispatchDraft(a, b, "fix it"), true)
+  assert.equal(draftStore.get(draftKey.dispatch(b)), "fix it")
+  assert.equal(draftStore.get(draftKey.dispatch(a)), "")
+  draftStore.set(draftKey.dispatch(c), "waiting")
+  writeScheduleDraftState(draftKey.dispatchSchedule(b), { v: 2, dismissed: PHRASE })
+  assert.equal(routeDispatchDraft(b, c, "fix it"), true)
+  assert.equal(draftStore.get(draftKey.dispatch(c)), "fix it\n\nwaiting")
+  assert.equal(draftStore.get(draftKey.dispatch(b)), "")
+  assert.equal(draftStore.get(draftKey.dispatchSchedule(b)), "", "nothing orphaned under the project the text left")
+  assert.equal(routeDispatchDraft(c, undefined, "x"), false, "no directory for the target yet")
+  assert.equal(draftStore.get(draftKey.dispatch(c)), "fix it\n\nwaiting")
+  for (const d of [a, b, c]) clearDispatchDraft(d)
+})

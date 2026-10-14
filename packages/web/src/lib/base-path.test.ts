@@ -75,8 +75,8 @@ test("inner and outer paths round-trip", () => {
   assert.equal(innerPath("/all/nub"), "/")
   assert.equal(outerPath("/thread/fix-auth", "/all/nub/thread/other"), "/all/nub/thread/fix-auth")
   // Closing the last drawer goes home: the page's root is `/all` whichever project the drawer named.
-  assert.equal(outerPath("/", "/all/nub/thread/other"), "/all")
-  assert.equal(outerPath("/", "/all"), "/all")
+  assert.equal(outerPath("/", "/all/nub/thread/other"), "/")
+  assert.equal(outerPath("/", "/all"), "/")
   // Unprefixed, outer is a no-op — which is what keeps the launching project's /full working.
   assert.equal(outerPath("/thread/fix-auth/full", "/thread/other/full"), "/thread/fix-auth/full")
   // `/` is its own root: a phone's projects list, which must not become All projects under it.
@@ -112,7 +112,7 @@ test("the cross-project page is focused on a project", () => {
   assert.equal(innerPath(page), "/thread/fix-auth")
   assert.equal(innerPath("/all/nub"), "/")
   assert.equal(outerPath("/thread/other", page), "/all/nub/thread/other")
-  assert.equal(outerPath("/", page), "/all")
+  assert.equal(outerPath("/", page), "/")
   assert.equal(isCrossProjectPath(page), true)
   assert.equal(isProjectBoardPath(page), false)
   assert.equal(crossProjectHref("nub", page), "/all/nub")
@@ -160,8 +160,8 @@ test("All projects at /all, and a phone's /, are bound to a project the path doe
       assert.equal(outerPath("/thread/x", home), "/all/nub/thread/x", "a drawer's address names its project")
       assert.equal(prefixedAppRoute("/thread/x", home), "/all/nub/thread/x", home)
     }
-    // Each is its own root: closing a drawer never turns a phone's `/` into All projects.
-    assert.equal(outerPath("/", "/all"), "/all")
+    // Closing a drawer goes home to All projects, `/`.
+    assert.equal(outerPath("/", "/all"), "/")
     assert.equal(outerPath("/", "/"), "/")
     // Only these — every other machine page still names nothing.
     assert.equal(projectSlug("/projects"), undefined)

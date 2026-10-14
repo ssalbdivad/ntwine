@@ -197,7 +197,7 @@ export function outerPath(inner: string, pathname?: string): string {
   const path = here(pathname)
   if (inner !== "/") return `${basePath(path)}${inner}`
   if (isProjectBoardPath(path)) return basePath(path)
-  return path === "/" || path === "" ? "/" : CROSS_PROJECT_PREFIX
+  return "/"
 }
 
 /**
