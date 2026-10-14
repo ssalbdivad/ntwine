@@ -684,3 +684,30 @@ test("a direct child with no ack-named outputFile goes stale off its sidecar tra
     cleanup(f)
   }
 })
+
+// ── WHO A THREAD'S MAILBOX CAN REACH ─────────────────────────────────────────────────────────────
+//
+// `liveMailboxes` is what a time limit the user sets (or removes) is written into. A direct child's
+// sidecar sits in the same flat dir as the descendants', but its retirement is the notification that
+// removes it from the live map, never `descendantTerminals`; read as a descendant it was "stale" forever.
+// On 2026-10-14 a 5m limit on one thread was written into 149 of its 158 children, all long finished.
+test("mailboxes: a retired direct child has none once it goes quiet, and gets one back when resumed", () => {
+  const f = fixture()
+  try {
+    const boxes = () => (f.tailer.liveMailboxes?.(SLUG) ?? []).map((m) => m.agentId).sort()
+    notifyChild(f.dir, "completed")
+    f.tailer.tick()
+    assert.deepEqual(boxes(), ["aChild", "aGrand", "aGreat"], "negative control: a child that rested seconds ago may still be writing")
+
+    const aged = new Date(Date.now() - 20 * 60_000)
+    for (const id of ["aChild", "aGrand"]) utimesSync(join(f.subagents, `agent-${id}.jsonl`), aged, aged)
+    f.tailer.tick()
+    assert.deepEqual(boxes(), ["aGrand", "aGreat"], "the finished child is gone; a quiet DESCENDANT keeps its box — it is most often inside one long tool call")
+
+    appendFileSync(join(f.subagents, "agent-aChild.jsonl"), `${assistant([{ type: "text", text: "resumed" }])}\n`)
+    f.tailer.tick()
+    assert.deepEqual(boxes(), ["aChild", "aGrand", "aGreat"], "resumed with SendMessage: reachable again")
+  } finally {
+    cleanup(f)
+  }
+})

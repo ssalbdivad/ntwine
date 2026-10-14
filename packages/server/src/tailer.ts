@@ -4603,7 +4603,14 @@ export function createTailer(deps: TailerDeps): Tailer {
       }
     }
     for (const meta of descendantSidecars(state)) {
-      if (out.has(meta.agentId) || descendantState(state, meta) === "done") continue
+      if (out.has(meta.agentId)) continue
+      const st = descendantState(state, meta)
+      // A DIRECT child's sidecar sits in the same flat dir, but its run is tracked above and its terminal
+      // notification retires it there, never into `descendantTerminals` — so once retired it reads "stale"
+      // here forever. Only a fresh transcript (a finished child resumed with SendMessage) makes it live
+      // again. Without this every child the thread ever ran had a mailbox: on 2026-10-14 a 5m limit on one
+      // thread was written into 149 finished children, and one resumed hours later read "time is up".
+      if (st === "done" || (!meta.parentAgentId && st !== "running")) continue
       out.set(meta.agentId, { agentId: meta.agentId, sessionDir, label: meta.description ?? "" })
     }
     return [...out.values()]
