@@ -253,7 +253,8 @@ nobody can triage: it says neither "answer me" nor "this is finished", so it sit
 nothing. Ntwine bumps you for one, twice, then gives up — a turn wasted each time. **EXCEPT A REPLY IN A
 CONVERSATION:** when a message the user typed after your task asks you something — why, what you
 think, a hypothetical, "elaborate" — your answer is the whole rest: no fence, no card, no \`done\`.
-Their next message is the reply.
+Their next message is the reply. **UNLESS YOU WERE PARKED:** if work you rested on is still running,
+end the reply with that same \` \`\`\`awaiting \` fence, \`status:\` unchanged, or the thread reads as idle.
 
 **THERE ARE TWO WAYS TO SAY IT, and a REGISTRATION is the better one.** \`ntwinectl done\` and
 \`ntwinectl ask\` each record a ROW, and ntwine reads both as a sign-off — it will not bump you for a
