@@ -2561,30 +2561,6 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
   }
 }
 
-/* The project rail's scrolling band. A 57px column cannot spend 8-15px of itself on a scrollbar
-   track, so the track is hidden and a FADE says what it would have said. Without the mask a rail of
-   29 projects clips hard against the divider and reads as the end of the list rather than the middle
-   of it. The mask is unconditional — at the top of the scroll the first 10px fade into the rule above
-   them, which costs nothing, and a JS-driven conditional mask would repaint on every scroll frame. */
-.ntwine-rail-scroll {
-  scrollbar-width: none;
-  /* BOTTOM ONLY. A symmetric fade dimmed the top of the FIRST square permanently — it sits flush
-     against the band's top edge — and a gradient darkening the top of a tile reads as a shadow
-     falling on it, which is exactly what it was mistaken for. Nothing is needed up there anyway: the
-     divider rule above already says where the list begins, so a hard clip there reads as an edge
-     rather than as truncation. The bottom genuinely runs under the add button and still fades. */
-  --rail-fade: 14px;
-}
-/* Only while there is genuinely more below. Against the true end of the list a fade is not a hint,
-   it is a dimmed square — the same artifact, at the other end, as the top fade that read as a shadow
-   falling on the first icon. ProjectRail sets the attribute from the band's own scroll geometry. */
-.ntwine-rail-scroll[data-overflowing] {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--rail-fade)), transparent 100%);
-}
-.ntwine-rail-scroll::-webkit-scrollbar {
-  display: none;
-}
-
 /* THE FULLSCREEN DOOR'S VIEW TRANSITION, both directions. Both halves of the door — the drawer menu's
    "Open fullscreen" (ThreadMenu.tsx, or `f`) that opens /full and the ⤡ that leaves it
    (CollapseThreadLink.tsx) — navigate with react-router's `viewTransition`, which wraps the route swap

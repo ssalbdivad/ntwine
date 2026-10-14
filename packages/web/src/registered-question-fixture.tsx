@@ -320,7 +320,7 @@ window.fetch = async (input, init) => {
   }
   // The Settings drawer (?keys=1) reads the machine's settings; any plausible object will do.
   if (rpc === "settingsGet") {
-    return new Response(JSON.stringify({ result: { permissionMode: "auto", notifications: false, projectRail: false } }), { headers: { "content-type": "application/json" } })
+    return new Response(JSON.stringify({ result: { permissionMode: "auto", notifications: false } }), { headers: { "content-type": "application/json" } })
   }
   if (rpc !== null) {
     return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })

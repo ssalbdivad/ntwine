@@ -44,19 +44,17 @@ function sandbox(): { home: string; open: (name: string) => ReturnType<typeof cr
   }
 }
 
-test("the rail, notifications and the file opener are the MACHINE's, shared by every project", () => {
+test("notifications and the file opener are the MACHINE's, shared by every project", () => {
   const box = sandbox()
   try {
     const alpha = box.open("alpha")
     const beta = box.open("beta")
-    assert.equal(getSettings(alpha, box.home).projectRail, false, "the rail is off until asked for")
     assert.equal(getSettings(alpha, box.home).notifications, true)
 
-    setSettings(alpha, { ...defaultSettings(), projectRail: true, notifications: false, localFileOpener: "cursor" }, box.home)
+    setSettings(alpha, { ...defaultSettings(), notifications: false, localFileOpener: "cursor" }, box.home)
 
     // The point: a project that was never touched sees it, because the value is not its to hold.
     const seen = getSettings(beta, box.home)
-    assert.equal(seen.projectRail, true)
     assert.equal(seen.notifications, false)
     assert.equal(seen.localFileOpener, "cursor")
     assert.ok(existsSync(machineConfigPath(box.home)))
@@ -67,13 +65,12 @@ test("the rail, notifications and the file opener are the MACHINE's, shared by e
 
 // A REMOVED machine setting is in the machine store AND in each project's blob of every install that ever
 // saved it. Both must still load — stripped, not rejected — and a save must stop writing it. `font` is
-// the one (a machine setting until 2026-09-19); this was pinned with `projectRail` from its removal on
-// 2026-09-30 until upstream's rail came back on 2026-10-06.
+// the one (a machine setting until 2026-09-19), and `projectRail` (until 2026-10-14) is stripped the same way.
 test("a stale removed key in the machine store and a project blob loads, and is stripped", () => {
   const box = sandbox()
   try {
     const alpha = box.open("alpha")
-    writeMachineConfig(box.home, "settings", { notifications: false, localFileOpener: "cursor", font: "mono" })
+    writeMachineConfig(box.home, "settings", { notifications: false, localFileOpener: "cursor", font: "mono", projectRail: true })
     alpha.setSetting("settings", { ...defaultSettings(), permissionMode: "auto", font: "mono" })
     assert.deepEqual(readMachineSettings(box.home), { notifications: false, localFileOpener: "cursor" })
     const loaded = getSettings(alpha, box.home)
@@ -154,18 +151,17 @@ test("an unreadable machine store degrades to the project's values rather than t
 // The machine settings were their own file until the machine config store arrived (2026-08-25). An
 // install that has that file keeps its values from it; the next save writes the store and never the
 // file. A `font` in that file — the key the file was created for — is stripped on read now that the
-// setting is gone (2026-09-19); the other machine keys survive, `projectRail` among them (removed
-// 2026-09-30, upstream's rail restored 2026-10-06, so a value saved before the removal is honoured again).
+// setting is gone (2026-09-19); the other machine keys survive.
 test("a pre-store settings.json is read until the next save promotes it into the store", () => {
   const box = sandbox()
   try {
     const alpha = box.open("alpha")
-    writeLegacySettings(box.home, { font: "mono", localFileOpener: "cursor", projectRail: true })
-    assert.deepEqual(readMachineSettings(box.home), { localFileOpener: "cursor", projectRail: true })
+    writeLegacySettings(box.home, { font: "mono", localFileOpener: "cursor" })
+    assert.deepEqual(readMachineSettings(box.home), { localFileOpener: "cursor" })
     assert.equal(getSettings(alpha, box.home).localFileOpener, "cursor")
 
     setSettings(alpha, { ...getSettings(alpha, box.home), notifications: false }, box.home)
-    assert.deepEqual(readMachineConfig(box.home, "settings", Settings.partial()), { notifications: false, localFileOpener: "cursor", projectRail: true, removeIdleWorktreesDays: 7, deleteDoneThreadsUntouchedDays: 0, fableFallback: false })
+    assert.deepEqual(readMachineConfig(box.home, "settings", Settings.partial()), { notifications: false, localFileOpener: "cursor", removeIdleWorktreesDays: 7, deleteDoneThreadsUntouchedDays: 0, fableFallback: false })
     assert.equal(JSON.parse(readFileSync(legacyMachineSettingsPath(box.home), "utf8")).notifications, undefined, "the legacy file is never written again")
     // The store now wins outright, even where the legacy file disagrees.
     writeLegacySettings(box.home, { localFileOpener: "vscode" })

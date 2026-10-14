@@ -179,11 +179,10 @@ export function ProjectSwitcher({
 
 /**
  * A PROJECT'S COUNTS in the switcher's menu, right to left from the check column: its Queue (the accent
- * badge — the one number in the menu that is the human's to clear), its Running (the bot, the band's own
+ * badge — the one number in the menu that is the human's to clear), its Working (the bot, the band's own
  * glyph, BandLabel.tsx), and its asks (the "?" a waiting question or permission wears on its row, in the
- * accent: those are the Queue rows that cannot move without the human). Each only when non-zero, so a quiet
- * project's line is its name alone. Upstream's rail counted the same three per project (ProjectRail.tsx
- * useRailCounts: queued, running, asks); the menu is where the fork lists every project.
+ * accent: those are the Ready rows that cannot move without the human). Each only when non-zero, so a quiet
+ * project's line is its name alone.
  */
 function SwitcherCounts({ asks, running, ready }: { asks: number; running: number; ready: number }) {
   if (asks + running + ready === 0) return null

@@ -104,15 +104,14 @@ test("a save's machine settings reach every project's cached settings, and nothi
   const qc = client()
   // Two projects' entries, each holding its own per-project value: a layout hook reads alpha's (it was
   // cold-loaded there), and the settings drawer saves under beta's (the page was switched to beta).
-  const base = { permissionMode: "bypassPermissions", projectRail: false, notifications: true, localFileOpener: "system" }
+  const base = { permissionMode: "bypassPermissions", notifications: true, localFileOpener: "system" }
   withPathname("/all/alpha/thread/x", () => qc.setQueryData(["settingsGet"], { ...base, permissionMode: "auto" }))
-  const saved = { ...base, projectRail: true, notifications: false, localFileOpener: "cursor" }
+  const saved = { ...base, notifications: false, localFileOpener: "cursor" }
   withPathname("/all/beta/thread/x", () => {
     qc.setQueryData(["settingsGet"], saved)
     publishMachineSettings(qc, saved as never)
   })
   const alpha = withPathname("/all/alpha/thread/x", () => qc.getQueryData<typeof base>(["settingsGet"]))
-  assert.equal(alpha?.projectRail, true, "the rail's toggle reaches the entry the layout's rail reads (lib/projectRail.ts)")
   assert.equal(alpha?.notifications, false, "the machine's notifications reach the other project's entry")
   assert.equal(alpha?.localFileOpener, "cursor", "…and so does every other machine key")
   assert.equal(alpha?.permissionMode, "auto", "a project's own setting is left where it was")

@@ -165,13 +165,6 @@ export function SettingsDrawer({ offerUpdate = false }: {
             <div className="text-[13px] text-muted">Loading server settings…</div>
           ) : (
             <>
-            {/* Upstream's place for it, first under Appearance: which chrome the page wears. An editor's
-                frame never draws the rail (routes.tsx RootLayout), so there it says so. */}
-            <SettingsField label="Project sidebar" help={SETTINGS_HELP.projectRail}>
-              <OnOffToggle value={draft.projectRail} onChange={(projectRail) => update({ ...draft, projectRail })} />
-              {inEditor ? <EditorHint>Not shown in your editor.</EditorHint> : null}
-            </SettingsField>
-
             {/* A client-only VIEW preference (localStorage, not server Settings): it never travels to
                 the server at all, so it's wired straight to the prefs proxy rather than the draft. */}
             {/* In an editor's sidebar that localStorage is the FRAME's, partitioned from the browser's, so a

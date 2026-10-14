@@ -28,14 +28,11 @@ export const SETTINGS_WRITE_KEY = ["settingsSet"] as const
  *
  * The cache keeps one `settingsGet` entry per project (lib/queryKeyScope.ts folds the page's project
  * into every hash but the machine-wide keys'), and that is right for the query as a whole: most of
- * `Settings` is a project's own, so it cannot join MACHINE_WIDE. But `projectRail`, `notifications`,
- * `localFileOpener`, `fableFallback` and the rest of MACHINE_SETTING_KEYS are one value for the machine, and
- * a reader that is still bound to another project's entry has to see the new one too. That reader
- * exists: the project rail's hook lives in the layout, which a project switch on the one page does not
- * re-render, so it stays on the entry it was cold-loaded under (lib/projectRail.ts). Switch All projects'
- * prompt box to another project, flip Project sidebar to On, and the save landed in the new project's
- * entry while the rail read the old one — it did not appear until a reload (2026-09-28).
- * lib/projectRail.e2e.test.ts drives a switch and a flip.
+ * `Settings` is a project's own, so it cannot join MACHINE_WIDE. But `notifications`, `localFileOpener`,
+ * `fableFallback` and the rest of MACHINE_SETTING_KEYS are one value for the machine, and a reader that
+ * is still bound to another project's entry has to see the new one too: a hook in the layout, which a
+ * project switch on the one page does not re-render, stays on the entry it was cold-loaded under (the
+ * opt-in project rail read one that way and missed a flip until a reload, 2026-09-28).
  *
  * Only the machine keys are written across, and nothing is refetched: a refetch runs under the CURRENT
  * page's project, so it would pour this project's own settings into every other project's entry.

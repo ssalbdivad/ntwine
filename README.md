@@ -122,7 +122,7 @@ Here's what I've built on top of the original design so far:
 - **Files and pictures.** A reader that follows a file as it's saved, and a viewer that zooms, pans and pages through an agent's screenshots.
 - **Usage.** A quota chip that warns you before your plan runs out, and an optional Fable fallback for new Claude threads.
 - **Housekeeping.** Thread info (tokens, turns, cost), deleting done threads you haven't touched in a while, and keeping the machine awake while an agent works.
-- **All projects** at `/all`. This builds on the original project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. It's the default view; each project's board is one click away, and the project sidebar is opt-in under **Settings → Project sidebar**.
+- **All projects** at `/all`. This builds on the original project sidebar: every project's threads down the left and every waiting card beside them, never interleaved. It's the default view, and each project's board is one click away.
 - **[ntwine.app/docs](https://ntwine.app/docs)**, the full docs, with one page per feature.
 
 <br/>

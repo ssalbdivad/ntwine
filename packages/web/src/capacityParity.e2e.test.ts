@@ -29,12 +29,6 @@ import type { Browser } from "puppeteer"
 // that day All projects moved to `/all` and `/` began going back to the browser's last view, so either
 // view can be the one a browser opens, and both keep the bar.
 //
-// WITH THE RAIL ON AND OFF. Upstream's project rail came back the same day, opt-in (Settings → Project
-// sidebar, `projectRail`). It takes 57px of width on both views, which can wrap a title onto a second
-// line and so cost rows, so every measurement is taken twice — the rail off (the default) and on, set
-// through settingsSet before the page loads — and both must meet the bar. Each reading says whether the
-// rail was actually drawn, so a run that silently measured the same thing twice fails.
-//
 // WHERE 22 AND 28 COME FROM. Upstream's own board (upstream at 0a3b9139), seeded with every one
 // of the 70 open threads in ONE project and rendered by this same visibility rule, shows 22 thread rows
 // at 1440x900 and 28 at 1920x1080, its band headers and rules included. The baseline is a measurement
@@ -65,7 +59,6 @@ import type { Browser } from "puppeteer"
 // at 1440x900 / 1920x1080: the project board 22 / 29 rows (passes); All projects at the heavy load
 // 17 / 22 lines, i.e. 11 rows + 6 headers / 14 rows + 8 headers (FAILS — each project group then cost
 // ~60px beyond its rows: a header, a "N more" row and a rule); David's load 8 of 8 loud rows at both.
-// The rail-on readings start with the commit that restored the rail (2026-10-06, on us-default).
 const enabled = process.env.NTWINE_CAPACITY_E2E === "1"
 const shotsDir = process.env.NTWINE_CAPACITY_E2E_SHOTS
 
@@ -73,8 +66,6 @@ const repoRoot = fileURLToPath(new URL("../../..", import.meta.url))
 
 // upstream 0a3b9139, measured as above.
 const BAR = { "1440x900": 22, "1920x1080": 28 } as const
-/** The project rail's two states (Settings → Project sidebar); every view is measured in both. */
-const RAIL_STATES = [false, true] as const
 type Viewport = keyof typeof BAR
 const VIEWPORTS: { key: Viewport; width: number; height: number }[] = [
   { key: "1440x900", width: 1440, height: 900 },
@@ -333,9 +324,6 @@ async function waitForBoards(stack: Stack) {
 
 type Measurement = {
   viewport: Viewport
-  /** Whether the project rail was asked for, and whether the page drew it. */
-  railAsked: boolean
-  railDrawn: boolean
   rowsVisible: number
   headersVisible: number
   rowsMounted: number
@@ -344,26 +332,14 @@ type Measurement = {
   visibleIds: string[]
 }
 
-/** Turn the project rail on or off: a machine setting, written through the server's own RPC. */
-async function setRail(stack: Stack, on: boolean): Promise<void> {
-  const headers = { origin: stack.base, "content-type": "application/json" }
-  const current = (await (await fetch(`${stack.base}/_ntwine/rpc/settingsGet`, { headers })).json()) as { result: Record<string, unknown> }
-  const res = await fetch(`${stack.base}/_ntwine/rpc/settingsSet`, { method: "POST", headers, body: JSON.stringify({ ...current.result, projectRail: on }) })
-  assert.equal(res.status, 200, `settingsSet projectRail=${on}: ${await res.text()}`)
-}
-
-/** Every viewport, with the rail off and then on. */
-async function measureAll(stack: Stack, browser: Browser, url: string, label: string): Promise<Measurement[]> {
+/** Every viewport. */
+async function measureAll(_stack: Stack, browser: Browser, url: string, label: string): Promise<Measurement[]> {
   const out: Measurement[] = []
-  for (const rail of RAIL_STATES) {
-    await setRail(stack, rail)
-    for (const viewport of VIEWPORTS) out.push(await measure(browser, url, viewport, `${label}-rail-${rail ? "on" : "off"}`, rail))
-  }
-  await setRail(stack, false)
+  for (const viewport of VIEWPORTS) out.push(await measure(browser, url, viewport, label))
   return out
 }
 
-async function measure(browser: Browser, url: string, viewport: (typeof VIEWPORTS)[number], label: string, railAsked: boolean): Promise<Measurement> {
+async function measure(browser: Browser, url: string, viewport: (typeof VIEWPORTS)[number], label: string): Promise<Measurement> {
   const page = await browser.newPage()
   try {
     await page.setViewport({ width: viewport.width, height: viewport.height, deviceScaleFactor: 1 })
@@ -396,7 +372,6 @@ async function measure(browser: Browser, url: string, viewport: (typeof VIEWPORT
       const visibleByBand: Record<string, number> = {}
       for (const row of shown) { const band = row.dataset.xqBand ?? "unbanded"; visibleByBand[band] = (visibleByBand[band] ?? 0) + 1 }
       return {
-        railDrawn: document.querySelector('nav[aria-label="Projects"]') !== null,
         rowsVisible: shown.length,
         headersVisible: headers.filter(visible).length,
         rowsMounted: rows.length,
@@ -420,7 +395,7 @@ async function measure(browser: Browser, url: string, viewport: (typeof VIEWPORT
       mkdirSync(shotsDir, { recursive: true })
       await page.screenshot({ path: join(shotsDir, `capacity-${label}-${viewport.key}.png`) })
     }
-    return { viewport: viewport.key, railAsked, ...reading }
+    return { viewport: viewport.key, ...reading }
   } finally {
     await page.close()
   }
@@ -448,59 +423,49 @@ async function withLoad<T>(seed: Load, run: (stack: Stack, browser: Browser) => 
 }
 
 // One line per measurement, printed on a pass as well as a failure: the numbers ARE the evidence.
-function report(load: string, view: string, unit: string, measured: { viewport: Viewport; railAsked: boolean; count: number; detail: string }[], bar: (v: Viewport) => number) {
-  const lines = measured.map(({ viewport, railAsked, count, detail }) =>
-    `  ${load.padEnd(9)} ${view.padEnd(13)} ${(railAsked ? "rail on" : "rail off").padEnd(9)} ${viewport.padEnd(10)} ${String(count).padStart(3)} ${unit} (${detail})  bar ${bar(viewport)}  ${count >= bar(viewport) ? "ok" : "SHORT"}`)
+function report(load: string, view: string, unit: string, measured: { viewport: Viewport; count: number; detail: string }[], bar: (v: Viewport) => number) {
+  const lines = measured.map(({ viewport, count, detail }) =>
+    `  ${load.padEnd(9)} ${view.padEnd(13)} ${viewport.padEnd(10)} ${String(count).padStart(3)} ${unit} (${detail})  bar ${bar(viewport)}  ${count >= bar(viewport) ? "ok" : "SHORT"}`)
   console.log(`capacity parity:\n${lines.join("\n")}`)
   return lines.join("\n")
 }
 
-/** A rail-on reading of a page that drew no rail, or the reverse, measured the wrong thing. */
-function assertRail(measured: Measurement[], table: string): void {
-  for (const m of measured) assert.equal(m.railDrawn, m.railAsked, `the project rail was ${m.railAsked ? "asked for" : "off"} at ${m.viewport} but the page ${m.railDrawn ? "drew" : "did not draw"} it\n${table}`)
-}
-
-test("All projects at the heavy load shows at least upstream's 22 / 28 lines without scrolling, rail off and on", { skip: !enabled, timeout: 900_000 }, async () => {
+test("All projects at the heavy load shows at least upstream's 22 / 28 lines without scrolling", { skip: !enabled, timeout: 900_000 }, async () => {
   const measured = await withLoad(HEAVY, (stack, browser) => measureAll(stack, browser, `${stack.base}/all`, "all-projects-heavy"))
   const rows = measured.map((m) => ({
     viewport: m.viewport,
-    railAsked: m.railAsked,
     count: m.rowsVisible + m.headersVisible,
     detail: `${m.rowsVisible} thread rows + ${m.headersVisible} project headers; ${m.rowsMounted} rows / ${m.headersMounted} headers mounted`,
   }))
   const table = report("heavy", "all-projects", "lines", rows, (v) => BAR[v])
-  assertRail(measured, table)
-  for (const { viewport, railAsked, count } of rows) {
-    assert.ok(count >= BAR[viewport], `All projects at the heavy load (17 projects, 70 open), rail ${railAsked ? "on" : "off"}, shows ${count} lines at ${viewport} without scrolling; upstream's board shows ${BAR[viewport]} (0a3b9139). Capacity parity needs the default to show at least as much.\n${table}`)
+  for (const { viewport, count } of rows) {
+    assert.ok(count >= BAR[viewport], `All projects at the heavy load (17 projects, 70 open), shows ${count} lines at ${viewport} without scrolling; upstream's board shows ${BAR[viewport]} (0a3b9139). Capacity parity needs the default to show at least as much.\n${table}`)
   }
 })
 
-test("All projects at David's load shows every pinned, queue and running row without scrolling, rail off and on", { skip: !enabled, timeout: 900_000 }, async () => {
+test("All projects at David's load shows every pinned, queue and running row without scrolling", { skip: !enabled, timeout: 900_000 }, async () => {
   const loud = DAVID.projects.flatMap((p) => p.threads.filter((t) => LOUD.has(t.band)).map((t) => t.slug))
   const measured = await withLoad(DAVID, (stack, browser) => measureAll(stack, browser, `${stack.base}/all`, "all-projects-david"))
   const rows = measured.map((m) => {
     const shown = new Set(m.visibleIds)
     const missing = loud.filter((slug) => !shown.has(slug))
-    return { viewport: m.viewport, railAsked: m.railAsked, count: loud.length - missing.length, missing, detail: `of ${loud.length} loud; ${m.rowsVisible} rows + ${m.headersVisible} headers visible${missing.length ? `; below the fold: ${missing.join(", ")}` : ""}` }
+    return { viewport: m.viewport, count: loud.length - missing.length, missing, detail: `of ${loud.length} loud; ${m.rowsVisible} rows + ${m.headersVisible} headers visible${missing.length ? `; below the fold: ${missing.join(", ")}` : ""}` }
   })
   const table = report("david", "all-projects", "loud rows", rows, () => loud.length)
-  assertRail(measured, table)
-  for (const { viewport, railAsked, missing } of rows) {
-    assert.deepEqual(missing, [], `All projects at David's load (4 projects, 10 threads), rail ${railAsked ? "on" : "off"}, hides loud rows below the fold at ${viewport}: ${missing.join(", ")}\n${table}`)
+  for (const { viewport, missing } of rows) {
+    assert.deepEqual(missing, [], `All projects at David's load (4 projects, 10 threads), hides loud rows below the fold at ${viewport}: ${missing.join(", ")}\n${table}`)
   }
 })
 
-test("the project board at the capacity load shows at least upstream's 22 / 28 rows without scrolling, rail off and on", { skip: !enabled, timeout: 900_000 }, async () => {
+test("the project board at the capacity load shows at least upstream's 22 / 28 rows without scrolling", { skip: !enabled, timeout: 900_000 }, async () => {
   const measured = await withLoad(CAPACITY, (stack, browser) => measureAll(stack, browser, `${stack.base}/project/${stack.projects[0]!.slug}`, "project-board-capacity"))
   const rows = measured.map((m) => ({
     viewport: m.viewport,
-    railAsked: m.railAsked,
     count: m.rowsVisible,
     detail: `${Object.entries(m.visibleByBand).map(([band, n]) => `${n} ${band}`).join(", ")}; ${m.rowsMounted} rows mounted`,
   }))
   const table = report("capacity", "project-board", "rows", rows, (v) => BAR[v])
-  assertRail(measured, table)
-  for (const { viewport, railAsked, count } of rows) {
-    assert.ok(count >= BAR[viewport], `The project board with 70 open threads in one project, rail ${railAsked ? "on" : "off"}, shows ${count} thread rows at ${viewport} without scrolling; upstream's board shows ${BAR[viewport]} (0a3b9139).\n${table}`)
+  for (const { viewport, count } of rows) {
+    assert.ok(count >= BAR[viewport], `The project board with 70 open threads in one project, shows ${count} thread rows at ${viewport} without scrolling; upstream's board shows ${BAR[viewport]} (0a3b9139).\n${table}`)
   }
 })

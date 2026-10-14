@@ -5311,21 +5311,8 @@ export const Settings = z.object({
   // thread's row records the concrete level that call chose, so no runtime ever sees "auto".
   effort: z.enum(["auto", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"]).optional(),
   notifications: z.boolean(),
-  /**
-   * The permanent column of project icons. OFF by default, on purpose.
-   *
-   * A rail of every project on the machine is a standing invitation to leave the thread you are in —
-   * "just too tempting" (upstream maintainer 2026-08-06). Ntwine's home is one board; All projects is a
-   * page you go to, not furniture you sit beside. Hidden, the way back is a breadcrumb in the status bar,
-   * which costs a click exactly when you meant to switch and nothing when you did not.
-   *
-   * Machine-level: which chrome you want is a property of the person, not the repo.
-   *
-   * The fork removed it on 2026-09-30, when All projects was the home and the rail a third door onto
-   * it, and restored upstream's on 2026-10-06, when a project's board became the default view again
-   * (web components/ProjectRail.tsx). A blob saved in between has no key, and loads as the default.
-   */
-  projectRail: z.boolean(),
+  // (No `projectRail`: the opt-in column of project icons was a setting from 2026-10-06 to 2026-10-14,
+  // and before 2026-09-30; a stored value is stripped on parse, this being non-strict.)
   // (No `homeFolder`: the Home workspace's agents run in the operator's home folder, always. It was a
   // setting from 2026-09-28 to 2026-10-07; a stored value is stripped on parse, this being non-strict.)
   // (No `worktreeDir` / `removeWorktreesOnDone`: Ntwine mandates no worktree folder and removes no
@@ -5424,7 +5411,7 @@ export type Settings = z.infer<typeof Settings>
  * because the query cache keeps one `settingsGet` entry per project and a machine setting changed in
  * one is changed in all.
  */
-export const MACHINE_SETTING_KEYS = ["notifications", "localFileOpener", "projectRail", "removeIdleWorktreesDays", "deleteDoneThreadsUntouchedDays", "fableFallback"] as const satisfies readonly (keyof Settings)[]
+export const MACHINE_SETTING_KEYS = ["notifications", "localFileOpener", "removeIdleWorktreesDays", "deleteDoneThreadsUntouchedDays", "fableFallback"] as const satisfies readonly (keyof Settings)[]
 
 // The new-thread composer's durable choices — MACHINE-wide, one record for every project the server
 // serves (server/dispatch-preferences.ts), because the profile belongs to the operator, not to a

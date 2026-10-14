@@ -1,16 +1,8 @@
 // THE ARITHMETIC OF DRAG-REORDERING A LIST, with no DOM in it.
 //
-// Pure and tested, so the components — the project rail (ProjectRail.tsx) and the project list
-// (ProjectList.tsx) — own only the parts that genuinely need a browser: pointer capture, transforms, and
-// the edge auto-scroll. Both write one order, the machine's (`projectsReorder`).
-//
-// The RAIL'S drag is a uniform vertical list: every square is the same height and every gap is the
-// same, which collapses "where would this land" from a hit-test against N boxes into one division
-// (`dropIndex`, `RAIL_STEP_PX`). It was removed with the fork's rail on 2026-09-30 and restored with
-// upstream's on 2026-10-06. The LIST's groups are not uniform; see below.
-
-/** One square plus the gap below it: the distance the rail shifts by when an item moves one slot. */
-export const RAIL_STEP_PX = 48
+// Pure and tested, so the project list (ProjectList.tsx) owns only the parts that genuinely need a
+// browser: pointer capture, transforms, and the edge auto-scroll. It writes the machine's one order
+// (`projectsReorder`). The list's groups are not uniform; see below.
 
 /**
  * `list` with the item at `from` moved to `to`.
@@ -28,26 +20,13 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
 }
 
 /**
- * Which slot the dragged square is currently over.
- *
- * From its own displacement rather than the pointer's: the square is what the eye tracks, and keying
- * on the pointer makes the drop depend on where inside the square you happened to grab it. Rounding
- * (not flooring) is what makes the swap happen at the HALFWAY point, so a square that has visibly
- * passed its neighbour has already taken its slot.
- */
-export function dropIndex(fromIndex: number, deltaY: number, count: number, step = RAIL_STEP_PX): number {
-  const moved = Math.round(deltaY / step)
-  return Math.max(0, Math.min(count - 1, fromIndex + moved))
-}
-
-/**
  * How far square `index` must slide to make room, in px.
  *
  * Everything between the square's old slot and its new one shifts by exactly one step, towards the
  * gap the dragged square left behind. Squares outside that span do not move at all — which is what
  * makes a drag across a long list read as a local insertion rather than the whole list sliding.
  */
-export function shiftFor(index: number, fromIndex: number, toIndex: number, step = RAIL_STEP_PX): number {
+export function shiftFor(index: number, fromIndex: number, toIndex: number, step: number): number {
   if (index === fromIndex) return 0
   if (toIndex > fromIndex && index > fromIndex && index <= toIndex) return -step
   if (toIndex < fromIndex && index >= toIndex && index < fromIndex) return step

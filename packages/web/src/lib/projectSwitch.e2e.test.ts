@@ -170,8 +170,6 @@ test("a project switch sends none of the old project's thread slugs to the new p
       await new Promise((r) => setTimeout(r, 250))
     }
   }
-  const settings = await get("/_ntwine/rpc/settingsGet")
-  await fetch(`${baseUrl}/_ntwine/rpc/settingsSet`, { method: "POST", headers, body: JSON.stringify({ ...(settings as object), projectRail: true }) })
 
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
   const browser = await launchHeadless()
@@ -195,22 +193,24 @@ test("a project switch sends none of the old project's thread slugs to the new p
       phase = "load"
       await page.setViewport({ width: shape.width, height: 900, deviceScaleFactor: 1 })
       await page.goto(`${baseUrl}${shape.start}`, { waitUntil: "networkidle2" })
-      await page.waitForSelector(`a[href="/project/${b.slug}"]`, { timeout: 15_000 })
       // The precondition: the old project's thread is mounted and talking to its own project.
       if (shape.mounted) await page.waitForSelector(shape.mounted, { timeout: 15_000 })
       await page.waitForFunction(() => document.body.innerText.includes("switch-only-a"), { timeout: 15_000 })
         .catch(() => assert.fail(`${shape.name}: ${a.slug}'s board never rendered its threads`))
 
       phase = shape.name
-      // A script click on the rail's link: a real react-router navigation with no document load. The
-      // rail is hidden at phone width, but the path a click takes through the router is the same.
-      await page.evaluate((s) => document.querySelector<HTMLAnchorElement>(`a[href="/project/${s}"]`)!.click(), b.slug)
+      // A real react-router navigation with no document load: the router follows history's popstate.
+      await page.evaluate((s) => {
+        history.pushState(null, "", `/project/${s}`)
+        dispatchEvent(new PopStateEvent("popstate"))
+      }, b.slug)
       await page.waitForFunction((s) => location.pathname === `/project/${s}`, {}, b.slug)
       await page.waitForFunction(() => document.body.innerText.includes("switch-only-b"), { timeout: 15_000 })
         .catch(() => assert.fail(`${shape.name}: ${b.slug}'s board never rendered after the switch`))
       await new Promise((r) => setTimeout(r, 1500))
 
-      const toB = sent.filter((r) => r.phase === shape.name && r.path.startsWith(`/_ntwine/${b.slug}/rpc/`))
+      // A project is addressed by slug or by id (thread reads go by id), and both are the new project.
+      const toB = sent.filter((r) => r.phase === shape.name && (r.path.startsWith(`/_ntwine/${b.slug}/rpc/`) || r.path.startsWith(`/_ntwine/${b.id}/rpc/`)))
       const leaked = toB.filter((r) => r.input.includes("switch-only-a") || r.path.endsWith("/threadSeen"))
       assert.deepEqual(leaked, [], `${shape.name}: requests to ${b.slug} carrying ${a.slug}'s threads`)
       if (shape.width === 1440) {

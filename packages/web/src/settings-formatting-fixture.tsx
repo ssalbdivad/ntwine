@@ -4,7 +4,6 @@ import { QueryClientProvider } from "@tanstack/react-query"
 let settings: Record<string, unknown> = {
   permissionMode: "auto",
   notifications: true,
-  projectRail: false,
 }
 
 // Every settingsSet ATTEMPT the drawer makes, in order, with the millisecond it arrived. The autosave

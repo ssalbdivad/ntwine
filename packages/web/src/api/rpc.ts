@@ -85,7 +85,7 @@ export async function parseRpcResponse(res: Response, name: string): Promise<unk
  * settings or its roots for each).
  *
  * `settingsGet`/`settingsSet`/`settingsReset` are deliberately NOT here: the keys a page that names no
- * project reads (`notifications`, `projectRail`, the file opener) are machine-level (server/settings.ts),
+ * project reads (`notifications`, the file opener) are machine-level (server/settings.ts),
  * and any project answers them the same way.
  */
 export const PROJECT_SCOPED_PROCEDURES: ReadonlySet<string> = new Set([

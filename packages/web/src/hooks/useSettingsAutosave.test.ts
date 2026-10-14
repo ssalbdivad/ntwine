@@ -7,7 +7,6 @@ import { adoptPublishedSettings, publishMachineSettings, publishOwnSettings } fr
 const base = {
   localFileOpener: "system",
   notifications: false,
-  projectRail: false,
   effort: "high",
   githubPrompt: "be terse",
 } as unknown as Settings
@@ -24,7 +23,7 @@ test("an open draft adopts a machine setting another surface wrote", () => {
   const edited = with_({ githubPrompt: "typing…" })
   assert.deepEqual(adoptPublishedSettings(edited, base, after), with_({ githubPrompt: "typing…", localFileOpener: "vscode" }))
   // Every machine key, not only the one the offer writes: the project rail's notifications toggle too.
-  assert.deepEqual(adoptPublishedSettings(base, base, with_({ notifications: true, projectRail: true })), with_({ notifications: true, projectRail: true }))
+  assert.deepEqual(adoptPublishedSettings(base, base, with_({ notifications: true, localFileOpener: "cursor" })), with_({ notifications: true, localFileOpener: "cursor" }))
 })
 
 test("a value the human chose in the draft is theirs, and nothing changed adopts nothing", () => {

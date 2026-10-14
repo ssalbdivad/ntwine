@@ -101,8 +101,8 @@ export class BoardStream {
  * Also called when a feed comes back from a drop, because an announcement published while this tab
  * had no stream was never delivered and nothing will repeat it.
  *
- * An invalidation, not a write: the list is one cheap read, the squares on screen stay put until the
- * answer lands, and a tab holding an optimistic order of its own (ProjectRail) keeps showing it.
+ * An invalidation, not a write: the list is one cheap read, and the rows on screen stay put until the
+ * answer lands.
  */
 export function refreshProjectList(queryClient: QueryClient | null | undefined): void {
   void queryClient?.invalidateQueries({ queryKey: ["projectsList"] })
