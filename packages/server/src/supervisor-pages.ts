@@ -351,15 +351,41 @@ export function recoveryPage(url: string, variant: RecoveryVariant = "starting")
  * "expired" send the operator to very different next actions, and neither discloses anything to
  * somebody who did not already hold a link.
  */
+/** The paste box's field. Neutral on purpose: the 401 page's markup must not name the product. */
+export const PASTED_ACCESS_LINK_PARAM = "access_link"
+
+const LINK_FORM_STYLE = `
+.link{margin-top:14px;display:flex;gap:8px}
+.link input{
+  flex:1;min-width:0;border:1px solid var(--control-border);border-radius:6px;background:var(--panel);
+  /* 16px, not the page's 12.5: iOS zooms the page into any field smaller than that on focus. */
+  padding:5px 8px;font:inherit;font-size:16px;color:var(--fg);
+}
+.link button{
+  appearance:none;border:1px solid var(--control-border);border-radius:6px;background:transparent;
+  padding:5px 12px;font:inherit;font-size:14px;color:var(--fg);cursor:pointer;
+}
+.link input:focus-visible,.link button:focus-visible{outline:none;border-color:var(--focus-border);box-shadow:0 0 0 2px var(--focus-ring)}
+`.trim()
+
 export function unauthorizedPage(reason?: "unknown" | "expired" | "already-used"): string {
   const detail = reason === "already-used"
     ? "That link has already been used. Generate a fresh one."
     : reason === "expired"
       ? "That link expired. Generate a fresh one."
       : "This address needs a current access link."
+  // THE WAY BACK IN for a Home Screen app. iOS gives an installed web app its own cookie jar, filled
+  // once from Safari's when it is added, so when that session expires a scanned QR signs in SAFARI and
+  // the app stays here. Pasting the link submits it as `?access_link=` to this same address, which the
+  // proxy redeems exactly as it redeems the link itself (restart-supervisor.ts exchangeCode). A plain
+  // GET form, no script, and copy that names nothing: this page must disclose nothing to a stranger.
   return documentShell({
     title: "Unauthorized",
-    body: `<h1>Unauthorized</h1><p class="detail">${detail}</p>`,
+    style: LINK_FORM_STYLE,
+    body: `<h1>Unauthorized</h1><p class="detail">${detail}</p>`
+      + `<form class="link" method="get" action=""><input name="${PASTED_ACCESS_LINK_PARAM}" type="text" required`
+      + ` autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste an access link" aria-label="Access link">`
+      + `<button type="submit">Sign in</button></form>`,
   })
 }
 

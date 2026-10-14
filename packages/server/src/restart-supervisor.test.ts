@@ -788,6 +788,20 @@ test("--public-origin without a session is not a reachable state: the gate cover
     // The cookie the exchange set is accepted.
     assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: session })).status, 200)
 
+    // The 401 page's paste box: a Home Screen app has its own cookie jar, so the link a QR opens in
+    // Safari never reaches it. Pasting the WHOLE link redeems the code inside it, on the page's own
+    // path, and both parameters are stripped from the redirect.
+    assert.match(bare.body, /name="access_link"/)
+    const pasted = proxy.accessUrl(proxy.issueAccessCode()!.code)!
+    const viaPaste = await proxied(port, `/thread/abc?access_link=${encodeURIComponent(` ${pasted} `)}`, publicHeaders)
+    assert.equal(viaPaste.status, 302)
+    assert.equal(viaPaste.headers?.location, "/thread/abc")
+    assert.match(String(viaPaste.headers?.["set-cookie"]), /ntwine_session=/)
+    // Pasting a spent link says so, as opening it would.
+    const respent = await proxied(port, `/?access_link=${encodeURIComponent(pasted)}`, publicHeaders)
+    assert.equal(respent.status, 401)
+    assert.match(respent.body, /already been used/)
+
     // A tampered session of the SAME LENGTH is refused — the signature, not the shape, is the proof.
     const flipped = session.slice(0, -1) + (session.endsWith("a") ? "b" : "a")
     assert.equal((await proxied(port, "/", { ...publicHeaders, cookie: flipped })).status, 401)

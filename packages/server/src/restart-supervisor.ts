@@ -24,7 +24,7 @@ import {
   type LocalAuthorityPolicy,
 } from "./local-origin.ts"
 import { localImageHeaders, localImageStream, resolveLocalImage } from "./local-image.ts"
-import { recoveryPage, unauthorizedPage, unlistedHostPage } from "./supervisor-pages.ts"
+import { PASTED_ACCESS_LINK_PARAM, recoveryPage, unauthorizedPage, unlistedHostPage } from "./supervisor-pages.ts"
 import { CALLER_HEADER, encodeCallerStamp, type CallerVia } from "./audit.ts"
 import { NTWINE_ROUTE_PREFIX, ntwineRoute } from "@ntwine/shared"
 
@@ -202,6 +202,20 @@ function proxyHeaders(
 }
 
 export const ACCESS_CODE_PARAM = "ntwine_code"
+
+/**
+ * The code out of whatever the 401 page's paste box received: the whole access link (what a QR or a
+ * copied link gives), or the bare code. Anything else goes to redeem() as-is and fails as an unknown
+ * link, which is the page the visitor should see.
+ */
+export function codeFromPastedLink(pasted: string): string {
+  const text = pasted.trim()
+  try {
+    return new URL(text).searchParams.get(ACCESS_CODE_PARAM) ?? text
+  } catch {
+    return text
+  }
+}
 const SESSION_COOKIE = "ntwine_session"
 /** Loopback spellings the token gate must never challenge — the operator's own tab on the box. */
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"])
@@ -819,8 +833,10 @@ export class RestartSupervisorProxy {
    */
   private exchangeCode(req: IncomingMessage, res: ServerResponse): boolean {
     const url = new URL(req.url ?? "/", "http://ntwine.invalid")
-    const code = url.searchParams.get(ACCESS_CODE_PARAM)
+    const pasted = url.searchParams.get(PASTED_ACCESS_LINK_PARAM)
+    const code = url.searchParams.get(ACCESS_CODE_PARAM) ?? (pasted === null ? null : codeFromPastedLink(pasted))
     if (code === null) return false
+    url.searchParams.delete(PASTED_ACCESS_LINK_PARAM)
 
     // The User-Agent is the only thing a board ever records about a visitor's browser, and it exists
     // so `ntwine --sessions` can say "iPhone" instead of an opaque id nobody can match to a device.
