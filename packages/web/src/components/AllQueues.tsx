@@ -753,7 +753,8 @@ function ProjectPicker({ projects, focus, onPick }: { projects: QueuesProject[];
         </button>
       </MenuTrigger>
       <MenuContent align="start">
-        {/* Built only while open, as the page's switcher is (ProjectSwitcher.tsx SwitcherMenu). */}
+        {/* Its rows are built only while it is open: a closed menu's items are JSX nobody draws, and the picker
+            re-renders with the page on every switch of the prompt box's project. */}
         <PickerChoices choices={choices} homeChoice={homeChoice} focus={focus} onPick={onPick} />
       </MenuContent>
     </Menu>
