@@ -19,7 +19,7 @@ test("renders file and expansion actions as siblings with a complete disclosure 
       className: "ntwine-diff-header",
       controls: "edit-body-1",
       expanded: false,
-      label: "Expand Edit diff: /repo/src/app.ts",
+      label: "Edit diff: /repo/src/app.ts",
       onToggle: () => {},
       children: createElement("a", { href: "cursor://file/repo/src/app.ts" }, "app.ts"),
     }),
@@ -33,7 +33,7 @@ test("renders file and expansion actions as siblings with a complete disclosure 
   assert.match(html.slice(disclosure.start, disclosure.end), /type="button"/)
   assert.match(html.slice(disclosure.start, disclosure.end), /aria-controls="edit-body-1"/)
   assert.match(html.slice(disclosure.start, disclosure.end), /aria-expanded="false"/)
-  assert.match(html.slice(disclosure.start, disclosure.end), /aria-label="Expand Edit diff: \/repo\/src\/app\.ts"/)
+  assert.match(html.slice(disclosure.start, disclosure.end), /aria-label="Edit diff: \/repo\/src\/app\.ts"/)
   assert.match(html, /data-expanded="false"/)
   assert.doesNotMatch(html, /role="button"/)
 })
@@ -44,7 +44,7 @@ test("keeps an Agent drill-in button separate from the expanded disclosure state
       className: "ntwine-bash-header",
       controls: "agent-prompt-1",
       expanded: true,
-      label: "Collapse Agent prompt: Review permissions",
+      label: "Agent prompt: Review permissions",
       onToggle: () => {},
       children: createElement("button", { type: "button", "aria-label": "Open sub-agent transcript: Review permissions" }, "Review permissions"),
     }),
@@ -57,7 +57,7 @@ test("keeps an Agent drill-in button separate from the expanded disclosure state
   assert.equal((html.match(/<button\b/g) ?? []).length, 2)
   assert.match(html.slice(disclosure.start, disclosure.end), /aria-controls="agent-prompt-1"/)
   assert.match(html.slice(disclosure.start, disclosure.end), /aria-expanded="true"/)
-  assert.match(html.slice(disclosure.start, disclosure.end), /aria-label="Collapse Agent prompt: Review permissions"/)
+  assert.match(html.slice(disclosure.start, disclosure.end), /aria-label="Agent prompt: Review permissions"/)
   assert.match(html.slice(disclosure.start, disclosure.end), /rotate-90/)
   assert.match(html, /data-expanded="true"/)
   assert.equal(html.slice(firstButton, firstButtonEnd).includes("aria-expanded"), false)
@@ -69,7 +69,7 @@ test("renders a running indicator only when the individual tool disclosure suppl
       className: "ntwine-bash-header",
       controls: "bash-body-running",
       expanded: false,
-      label: "Expand Bash: watch CI",
+      label: "Bash: watch CI",
       onToggle: () => {},
       meta: createElement("span", { className: "ntwine-live-dot", "data-running-indicator": "tool-disclosure", "aria-hidden": true }),
       children: "watch CI",
@@ -80,7 +80,7 @@ test("renders a running indicator only when the individual tool disclosure suppl
       className: "ntwine-bash-header",
       controls: "bash-body-done",
       expanded: false,
-      label: "Expand Bash: completed CI",
+      label: "Bash: completed CI",
       onToggle: () => {},
       meta: createElement("span", null, "done"),
       children: "completed CI",
@@ -107,7 +107,7 @@ test("the row itself reads as clickable without becoming a second control", () =
       className: "ntwine-bash-header",
       controls: "read-body-1",
       expanded: false,
-      label: "Expand Read: /repo/src/app.ts",
+      label: "Read: /repo/src/app.ts",
       onToggle: () => {},
       children: createElement("a", { href: "cursor://file/repo/src/app.ts" }, "app.ts"),
     }),

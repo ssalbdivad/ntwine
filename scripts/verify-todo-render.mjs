@@ -143,7 +143,7 @@ const check = (ok, label, detail) => { console.log(`${ok ? "PASS" : "FAIL"}  ${l
 // an open drawer, so an unscoped query can read a card's element as the transcript's.
 const DRAWER = "[data-drawer-layer]"
 // A settled run of tool calls folds behind a "Ran N tool calls" digest (MinimalToolActivity in
-// ChatView.tsx) — a run of ONE included, whose toggle reads "Expand 1 tool call", singular — and the
+// ChatView.tsx) — a run of ONE included, whose toggle reads "Ran 1 tool call", singular — and the
 // checklist card lives INSIDE one, so it does not mount until its band is open. This waited for
 // [data-todo-card] BEFORE expanding, and matched toggles on `aria-label*="tool calls"`, which skips the
 // singular one the lone TaskList folds into. It could only pass on the old board, whose inline queue card

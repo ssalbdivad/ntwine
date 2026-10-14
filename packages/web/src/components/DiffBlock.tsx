@@ -65,7 +65,7 @@ export function DiffBlock({ edits, meta }: { edits: TranscriptEdit[]; meta?: Rea
         className="ntwine-diff-header"
         controls={bodyId}
         expanded={open}
-        label={`${open ? "Collapse" : "Expand"} Edit diff: ${file}`}
+        label={`Edit diff: ${file}`}
         onToggle={() => setOverride(!open)}
         meta={meta}
       >

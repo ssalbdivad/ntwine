@@ -134,8 +134,8 @@ for (const [surface, query, column] of [
       // only handle on something still running (lib/toolActivity.isToolActivityException).
       assert.equal(live.visibleCards, 1, "only the ejected background launch renders a card before any disclosure is expanded")
       assert.equal(live.labels.length, 2, "the background launch splits the run it lands in; the live run itself stays out of history")
-      assert.match(live.labels[0], /Expand 4 tool calls: Ran 4 tool calls/, "the earlier settled run digests everything up to the background launch")
-      assert.match(live.labels[1], /Expand 2 tool calls: Ran 2 tool calls/, "…and resumes as its own digest below it")
+      assert.match(live.labels[0], /^Ran 4 tool calls/, "the earlier settled run digests everything up to the background launch")
+      assert.match(live.labels[1], /^Ran 2 tool calls/, "…and resumes as its own digest below it")
       assert.equal(live.workingActivity, "tool", "the ordinary Working slot identifies its tool-label state")
       // Shown AS WRITTEN, not prefixed: `Running` is a claim about what the tool is doing, and pasted
       // in front of a noun phrase it reads as nonsense — so an unconvertible description is only
@@ -202,9 +202,9 @@ for (const [surface, query, column] of [
       assert.equal(collapsed.visibleCards, 1, "settled detail stays unmounted apart from the ejected background launch")
       assert.equal(collapsed.hasWorkingIndicator, false, "settled transcripts have no runtime tail")
       assert.equal(collapsed.labels.length, 3, "two prose-delimited runs, the first of them split by the background launch")
-      assert.match(collapsed.labels[0], /Expand 4 tool calls: Ran 4 tool calls/, "the first prose tool tail absorbs provider batches up to the background launch")
-      assert.match(collapsed.labels[1], /Expand 2 tool calls: Ran 2 tool calls/, "…and resumes across the batch below it, still presentation-transparent")
-      assert.match(collapsed.labels[2], /Expand 3 tool calls: Ran 3 tool calls/, "the second prose tool tail absorbs the following provider batch")
+      assert.match(collapsed.labels[0], /^Ran 4 tool calls/, "the first prose tool tail absorbs provider batches up to the background launch")
+      assert.match(collapsed.labels[1], /^Ran 2 tool calls/, "…and resumes across the batch below it, still presentation-transparent")
+      assert.match(collapsed.labels[2], /^Ran 3 tool calls/, "the second prose tool tail absorbs the following provider batch")
       for (const geometry of collapsed.disclosureGeometry) {
         // ~7px of ink at 14px — clear of the last letter, and half the distance the shimmer keeps to its
         // elapsed clock, so the chevron reads as the label's handle rather than a third mark on the row.
@@ -252,8 +252,8 @@ for (const [surface, query, column] of [
       }, column)
       assert.equal(folded.visibleCards, 0, "a finished background shell keeps no card of its own")
       assert.equal(folded.labels.length, 2, "…so the run it split is whole again: two prose-delimited runs")
-      assert.match(folded.labels[0], /Expand 7 tool calls: Ran 7 tool calls/, "the first run carries the shell and the calls either side of it")
-      assert.match(folded.labels[1], /Expand 3 tool calls: Ran 3 tool calls/, "the second run is untouched")
+      assert.match(folded.labels[0], /^Ran 7 tool calls/, "the first run carries the shell and the calls either side of it")
+      assert.match(folded.labels[1], /^Ran 3 tool calls/, "the second run is untouched")
 
       assert.deepEqual(errors, [], "no console/page errors")
     } finally {

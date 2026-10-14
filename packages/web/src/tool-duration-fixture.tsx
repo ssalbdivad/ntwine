@@ -11,7 +11,7 @@ function Card({ expanded, status, name = "Bash", summary = "Re-run pnpm probe sy
         className="ntwine-bash-header"
         controls={`body-${status}-${expanded}`}
         expanded={expanded}
-        label={`${expanded ? "Collapse" : "Expand"} ${name}: ${summary}`}
+        label={`${name}: ${summary}`}
         onToggle={() => {}}
         meta={<ToolStatusMeta status={status} durationMs={128 * 60_000} />}
       >
