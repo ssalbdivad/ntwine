@@ -1,6 +1,6 @@
 // The one-line explanations behind every settings "?" — shared by the Settings drawer and by the
-// popovers that carry a setting into the place it applies (the model picker's agent settings, the
-// GitHub picker's prompt). One table, so a setting reads the same wherever it is surfaced.
+// popovers that carry a setting into the place it applies (the model picker's agent settings). One
+// table, so a setting reads the same wherever it is surfaced.
 export const SETTINGS_HELP = {
   permissionMode: "The permission mode new Claude Code threads launch with. Auto runs safe actions and asks you to approve the risky ones in the thread. Bypass launches the worker with --dangerously-skip-permissions: it never asks, so nothing waits on you and nothing is checked either. Takes effect on the next thread you dispatch; to change a thread that already exists, use the picker beside its model in the prompt box. Codex threads always run with full workspace access and are unaffected.",
   promptCacheTtl: "Which prompt-cache tier a new Claude thread writes to. A 1-hour entry costs twice the input price to write, a 5-minute entry 1.25 times; the hour only pays off when the thread's cache actually survives that long. Measured 2026-09-03: cache writes were half of a day's spend and the entries were lost every 15 to 30 minutes regardless, so 5 minutes was the cheaper tier. Automatic leaves the choice to Claude Code, which picks 1 hour on a subscription. Takes effect on the next thread you dispatch and on a thread that resumes after its worker exited.",
@@ -16,7 +16,6 @@ export const SETTINGS_HELP = {
   deleteDoneThreadsUntouchedDays: "Deletes done threads you have not opened, replied to or acted on for this long, in every open project; checked hourly. What the agent did since does not count. Pinned threads are kept. A deleted thread's name is free for a new thread. Its history in Ntwine cannot be recovered.",
   fableFallback: "Uses Fable's own weekly budget when the rest of your Claude usage is nearly out. While the 5-hour or weekly limit is 90% used and Fable's limit still has room, new Claude threads start on Fable, and a thread paused by the 5-hour or weekly limit restarts on Fable instead of waiting for the reset. Threads stay on Fable afterwards; switch one back in the prompt box. Applies to every project.",
   projectInstructions: "Instructions every agent in this project follows, Claude Code and Codex alike. They are the project's NTWINE.md: saved to the repo root, where they can be committed and reviewed, and injected into each worker's system prompt. Takes effect on the next thread you dispatch and on any thread when it next resumes.",
-  githubPrompt: "The prompt for every item dispatched from the GitHub picker, issues and PRs alike. The default has the worker read the whole thread, classify it, and branch — reproduce + fix-plan for a bug, a plan for a feature, an adversarial review for a PR.",
   remoteAccess: "How a phone or another machine reaches this Ntwine. Every choice keeps Ntwine on 127.0.0.1 and puts something in front of it, and the first visit from each device needs a single-use sign-in link. Applies at once and is remembered for later launches. The same setup as pressing R in the terminal running Ntwine, and changeable only from this machine.",
 } as const
 

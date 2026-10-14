@@ -23,7 +23,7 @@ test("the queue shell and the standalone /full page both mount the drawer stack"
 test("the overlay Escape chain lives in DrawerStack, not in the queue shell", () => {
   const stack = read("./DrawerStack.tsx")
   assert.match(stack, /e\.key !== "Escape"/, "DrawerStack owns the Escape handler")
-  for (const guard of ["dismissOpenSelect", "showPalette", "showNewThread", "showGithubPicker", "closeSettingsAnimated", "closeDrawerAnimated"]) {
+  for (const guard of ["dismissOpenSelect", "showPalette", "showNewThread", "closeSettingsAnimated", "closeDrawerAnimated"]) {
     assert.ok(stack.includes(guard), `DrawerStack must keep the ${guard} step of the overlay precedence chain`)
   }
   assert.ok(!read("../App.tsx").includes("closeSettingsAnimated"), "App must not run a second Escape chain")

@@ -9,7 +9,7 @@
  *
  *  WHY IT IS ONE MODULE AND NOT A LITERAL PER CALL SITE. Because it was the latter, and it drifted —
  *  which is the whole bug this file was written for. The hovercard spelled its greens in Primer while
- *  the PR watch row beside it, the GitHub picker and the file rail all reached for the nearest Tailwind
+ *  the PR watch row beside it, the GitHub picker (since removed) and the file rail all reached for the nearest Tailwind
  *  hue, and the two landed in one screenshot (maintainer 2026-08-31: "These greens just don't match.
  *  They don't look good together. We should be trying to keep this using GitHub's palette"). Tailwind's
  *  hues are NOT near-misses for Primer's — measured as rendered sRGB, hue in HSV degrees:

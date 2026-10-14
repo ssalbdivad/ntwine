@@ -279,7 +279,6 @@ export function Composer({
   footer,
   header,
   aside,
-  leftAction,
   railLead,
   railPermission,
   contextTokens,
@@ -340,9 +339,6 @@ export function Composer({
   // Where each staged token came from (`src/a.ts, lines 12-20`), shown as the box's tooltip while the
   // pointer is over that token's pill (lib/stagedContext.ts useStagedContextSources).
   contextSources?: Readonly<Record<string, string>>
-  // A small action rendered just LEFT of the send button (the dispatch composer's GitHub-picker icon).
-  // Only surfaces that pass it get it; reply/queue composers omit it.
-  leftAction?: React.ReactNode
   // ⌥⇧↑ / ⌥⇧↓ in the box: one effort up or down the ladder of the model its footer picker shows
   // (lib/keybindings.ts EFFORT_STEP_CHORDS). Only boxes that carry a model picker pass it.
   onEffortStep?: (step: 1 | -1) => void
@@ -986,15 +982,10 @@ export function Composer({
   const interruptChord = useMemo(() => (detectPlatform() === "mac" ? "⌘⏎" : "Ctrl+Enter"), [])
   // Something to send: words in the box, or — on a thread composer — an answer staged on a card.
   const armed = hasContent || (send?.staged ?? 0) > 0
-  // ONE rail slot. Reserving it must track what is actually rendered — the padding/offset classes below
-  // key off `railAction`, and a truthy element that renders null would carve out an empty hole (the bug
-  // GithubTrigger's `useGithubTriggerVisible` exists to prevent). Its only filler now is `leftAction`
-  // (the dispatch composer's GitHub picker); interrupt-and-send gave up its button here and kept only
-  // ⌘/Ctrl-Enter — see the `onInterruptSubmit` prop doc.
-  const railAction = leftAction ?? null
   // Where each rail mark sits, and the padding every text row keeps clear of the absolutely-placed rail.
-  // The Goal (`railLead`, the thread composer only) sits beyond the paperclip.
-  const rail = composerRail({ action: Boolean(railAction), perm: Boolean(railPermission), lead: Boolean(railLead), sendWidth: send && !phone ? SEND_SPLIT_WIDTH : undefined })
+  // The Goal (`railLead`, the thread composer only) sits beyond the paperclip. Interrupt-and-send has no
+  // button on the rail, only ⌘/Ctrl-Enter — see the `onInterruptSubmit` prop doc.
+  const rail = composerRail({ perm: Boolean(railPermission), lead: Boolean(railLead), sendWidth: send && !phone ? SEND_SPLIT_WIDTH : undefined })
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     const el = e.currentTarget
@@ -1663,11 +1654,10 @@ export function Composer({
         </div>
       )}
       {/* Outlined controls keep 8px between edges; prose reserves the same clearance. */}
-      {railAction && <div className="absolute bottom-2 flex items-center" style={{ right: rail.right.action }}>{railAction}</div>}
       {railLead && <div className="absolute bottom-2 flex items-center" style={{ right: rail.right.lead }}>{railLead}</div>}
       {railPermission && <div className="absolute bottom-2 flex items-center" style={{ right: rail.right.perm }}>{railPermission}</div>}
       {/* Attach: a hidden file input driven by the paperclip. Sits in the right rail LEFT of the send
-          button (and left of any railAction), so it never overlaps the mode/model footer or the send
+          button, so it never overlaps the mode/model footer or the send
           affordance. Accept is the shared extension allowlist; the /attach route re-validates. */}
       <input
         ref={fileRef}
@@ -1686,8 +1676,7 @@ export function Composer({
         disabled={busy || uploading}
         title="Attach files"
         aria-label="Attach files"
-        // With no rail action the paperclip TAKES the rail-action slot — at its OWN offset, not the
-        // rail action’s, because it paints 1px less dead space on that side (lib/iconRhythm.ts).
+        // Measured against Send's ink, not its box (lib/iconRhythm.ts).
         style={{ right: rail.right.paperclip }}
         className={`icon-hover-outline absolute bottom-2 flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-[color,background-color] enabled:hover:bg-panel-2/70 enabled:hover:text-fg disabled:opacity-50`}
       >

@@ -11,7 +11,6 @@ import { EditorLine } from "./EditorLine.tsx"
 import { embedFileMentions } from "../lib/editorReach.ts"
 import { useMentionCandidates } from "../hooks/useMentionCandidates.ts"
 import { userCommandItems, useUserCommands } from "../hooks/useUserCommands.ts"
-import { GithubTrigger, useGithubTriggerVisible } from "./GithubTrigger.tsx"
 import { ProfileGridSelector } from "./ProfileGridSelector.tsx"
 import { SETTINGS_WRITE_KEY } from "../hooks/useSettingsAutosave.tsx"
 import { AcpModelSelect } from "./AcpModelSelect.tsx"
@@ -104,9 +103,6 @@ function PromptForm({
   // A settings write still in flight — a compaction window picked in the model picker a moment ago —
   // must land before a dispatch that would read it.
   const savingSettings = useIsMutating({ mutationKey: [...SETTINGS_WRITE_KEY] }) > 0
-  // Gate the leftAction slot itself, not just the icon: Composer reserves rail space whenever the
-  // prop is set, so a hidden GithubTrigger must mean NO prop — not a null-rendering element.
-  const githubTriggerVisible = useGithubTriggerVisible()
   // A new thread can be pointed at any thread on the board it is dispatched into (`@shell-budgets`).
   const mentions = useMentionCandidates()
   // No session yet, so no harness to list skills: the `/` menu here is the operator's own user commands,
@@ -145,9 +141,8 @@ function PromptForm({
   const contextSources = useStagedContextSources(promptKey, projectDir)
   const submittedContextRef = useRef<ComposerContextItem[]>([])
   const [pendingDispatch, setPendingDispatch] = useState<string | null>(null)
-  // The new-thread default (shared with the GitHub picker) with this prompt's own pick over it. The
-  // pick is part of the draft: it lasts until this prompt is dispatched, then the box is back on the
-  // default — escalating one task to max no longer leaves every later thread on max.
+  // The new-thread default with this prompt's own pick over it. The pick is part of the draft: it
+  // lasts until this prompt is dispatched, then the box is back on the default — escalating one task to max no longer leaves every later thread on max.
   const pickKey = draftKey.dispatchProfile(projectDir)
   const pickState = useDraftDispatchPick(pickKey)
   const [pick, setPick] = pickState
@@ -564,7 +559,6 @@ function PromptForm({
         onUploadingChange={setUploading}
         footer={footer}
         onEffortStep={stepEffort}
-        leftAction={githubTriggerVisible ? <GithubTrigger /> : undefined}
         onLeadingProject={leadingProject}
       />
       {/* THE ONE SLOT under the box: the schedule strip, or a line about the schedule (ScheduleComposer.tsx).

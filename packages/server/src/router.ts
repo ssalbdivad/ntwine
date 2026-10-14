@@ -54,12 +54,8 @@ import {
   SetThreadPinnedInput,
   SetThreadSnoozeInput,
   GithubStatus,
-  GithubListInput,
   GithubRefPreviewInput,
   GithubRefPreviewResult,
-  GithubListResult,
-  GithubBatchInput,
-  GithubBatchResult,
   Settings,
   StartHeldThreadInput,
   UpdateHeldPromptInput,
@@ -241,9 +237,9 @@ import { openableFileRoots, workDirOf } from "./project.ts"
 import { projectsNamedIn, resolveSpawnProject, spawnProjectList, type SpawnProject } from "./spawn-project.ts"
 import { dispatchCaller } from "./dispatch-caller.ts"
 import { resolveThreadLink, threadLinkView } from "./thread-links.ts"
-import { ghInstalled, ghAuthed, ghRepo, gitGithubRemote, listItems, hydrateIssue, hydratePr, renderGithubPrompt, effectiveTemplate, DEFAULT_GITHUB_PROMPT } from "./github.ts"
+import { ghInstalled, ghAuthed, ghRepo, gitGithubRemote } from "./github.ts"
 import { createGithubHovercardService } from "./github-hovercard.ts"
-import { slugify, resolveSlug, resolveLegacyThreadFile, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, ntwineConfigBlock, coldResumePermission, scratchDirRelPath, workerScratchPath } from "./dispatch.ts"
+import { resolveLegacyThreadFile, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, ntwineConfigBlock, coldResumePermission, scratchDirRelPath, workerScratchPath } from "./dispatch.ts"
 import { backgroundOpStoppable, claudeShellLabel, noticeClaudeShellStopped, stopBackgroundShell } from "./shell-stop.ts"
 import { liveShellBudget, SHELL_BUDGET_MAX_MS } from "./shell-budget.ts"
 import { readCodexModels } from "./backend/codex-models.ts"
@@ -290,44 +286,6 @@ import { projectStateDir } from "./ntwine-paths.ts"
 import { deleteUserCommand, ntwineCommandsDir, listUserCommands, saveUserCommand } from "./user-commands.ts"
 
 const SlugInput = z.object({ slug: ThreadSlug }).strict()
-
-// GitHub is a delayed confirmation flow, so validate its captured tuple again at the final server
-// boundary. This intentionally rejects stale model/effort pairs; neither is normalized, clamped, or
-// replaced with Settings defaults. Permission is NOT part of the tuple: dispatch stamps it server-side
-// (workerDispatchPermission — the non-interactive floor, raised to bypass only when Settings asks).
-export function validateGithubDispatchProfile(
-  input: z.infer<typeof GithubBatchInput>,
-  codexModels?: readonly z.infer<typeof CodexModel>[],
-): void {
-  // An ACP profile carries no effort, and its "model" is an `acp:<agent>` slug the dispatcher resolves
-  // itself (refusing an agent that is not on PATH) — there is no model/effort catalogue to check.
-  if (input.backend === "acp") return
-  if (input.effort === undefined) throw new Error(`Unsupported ${input.backend} model/effort pair: ${input.model} / (no effort)`)
-  // "auto" is resolved per dispatch from the model's own ladder, so it is valid on any model; only the model is checked.
-  if (input.effort === "auto") {
-    if (!threadProfileOptions(input.backend, undefined, codexModels).options.some((option) => option.model === input.model)) throw new Error(`Unsupported ${input.backend} model: ${input.model}`)
-    return
-  }
-  validateThreadProfile(input.backend, input.model, input.effort, codexModels)
-}
-
-export function githubDispatcherRequest(
-  input: z.infer<typeof GithubBatchInput>,
-  item: { prompt: string; title: string; slug: string },
-): {
-  payload: z.infer<typeof DispatchInput>
-  options: { backend: z.infer<typeof GithubBatchInput>["backend"] }
-} {
-  return {
-    payload: {
-      ...item,
-      backend: input.backend,
-      model: input.model,
-      effort: input.effort,
-    },
-    options: { backend: input.backend },
-  }
-}
 
 export function hasUnresolvedBackgroundOps(thread: {
   subAgents: readonly { state: string; depth?: number }[]
@@ -2869,7 +2827,7 @@ export function createRouter(ctx: AppContext) {
 
   async function resolveRepo(): Promise<string | null> {
     // Home has no repository, even when the home folder is one (a dotfiles checkout is common): a Home
-    // thread's `#12` is not an issue in it, and its GitHub picker has nothing to list.
+    // thread's `#12` is not an issue in it.
     if (isHomeWorkspace(ctx.project.id)) return null
     const cached = ctx.github?.nameWithOwner
     if (cached) return cached
@@ -6719,15 +6677,7 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => ctx.setDispatchPreference(input, readCodexModels(undefined, ctx.codexVersion)),
     }),
 
-    // The shipped GitHub batch-dispatch prompt template (single source of truth: server/github.ts).
-    // The Settings UI reads it to prefill the editor and to power "reset to default"; an empty/unset
-    // githubPrompt setting means the server uses exactly this. One template serves issues AND PRs.
-    githubPromptDefaults: query({
-      output: z.object({ prompt: z.string() }),
-      handler: async () => ({ prompt: DEFAULT_GITHUB_PROMPT }),
-    }),
-
-    // ---- GitHub-first batch dispatch ----
+    // ---- GitHub ----
 
     // gh availability: installed (cache-warmed resolveInstalled) + inRepo/nameWithOwner (cache-warmed
     // resolveRepo) + a LIVE authed re-check (never cached — a mid-session `gh auth login` reflects on
@@ -6745,21 +6695,6 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // ONE PAGE of the repo's issues or PRs, search-sorted (recency or reactions), plus the totals the
-    // picker's pager renders. Empty when this isn't a GitHub repo. resolveRepo warms/uses the cache
-    // with a live fallback (so a post-boot sign-in works). A gh error (rate limit / network)
-    // propagates → surfaced to the client as a failed query (risk 7), rather than silently reading as
-    // "no items".
-    githubList: query({
-      input: GithubListInput,
-      output: GithubListResult,
-      handler: async ({ input }) => {
-        const repo = await resolveRepo()
-        if (!repo) return { items: [], total: 0, page: 1, pageCount: 1 }
-        return await listItems(repo, input.kind, input.sort, input.page, input.perPage)
-      },
-    }),
-
     // Hovercard data for every GitHub reference the client autolinked into the prose on screen —
     // ONE request for a whole page of refs, answered from a process-lifetime cache (see
     // github-hovercard.ts). The client asks as the prose renders, so the hover itself never waits on
@@ -6771,52 +6706,6 @@ export function createRouter(ctx: AppContext) {
       input: GithubRefPreviewInput,
       output: GithubRefPreviewResult,
       handler: async ({ input }) => await githubHovercards.preview(input.refs, { refresh: input.refresh }),
-    }),
-
-    // Spin up one ntwine thread per checked item: hydrate each fresh from gh, template a server-side
-    // prompt (single source of truth, unit-tested), then REUSE ctx.dispatcher.dispatch (no new spawn
-    // logic). SEQUENTIAL — a burst of 20 concurrent worker spawns would hammer the box (risk 5). A
-    // per-item failure is captured in `failed[]` and never aborts the rest of the batch.
-    githubDispatchBatch: mutation({
-      input: GithubBatchInput,
-      output: GithubBatchResult,
-      handler: async ({ input }) => {
-        validateGithubDispatchProfile(input, readCodexModels(undefined, ctx.codexVersion))
-        const repo = await resolveRepo()
-        if (!repo) throw new Error("not a GitHub repo")
-        // Read the template ONCE per batch: the user's Settings override (githubPrompt) when non-blank,
-        // else the exported default (effectiveTemplate decides). One template serves both kinds, so this
-        // no longer varies per item — renderGithubPrompt still gets the kind for the lead and the body
-        // truncation pointer.
-        const template = effectiveTemplate(ctx.getSettings().githubPrompt)
-        const dispatched: { number: number; kind: string; slug: string }[] = []
-        const failed: { number: number; kind: string; error: string }[] = []
-        for (const it of input.items) {
-          try {
-            // Explicit title skips the fallback-chop so the slug reads investigate-owner-repo-N. RESERVE
-            // the slug here with the SAME predicate dispatch uses (existing .ntwine file / registry row)
-            // and pass it EXPLICITLY, so the prompt's THREAD tag equals the real dispatched slug even on
-            // a collision (re-dispatch / duplicate items) — otherwise the worker would write a ghost
-            // .ntwine/<base>.md disjoint from the -2 registry row (resolveSlug is idempotent on a free slug).
-            const title = `${it.kind === "issue" ? "Investigate" : "Review"} ${repo}#${it.number}`
-            const slug = resolveSlug(ntwineDir, slugify(title), (s) => ctx.storage.getSession(s) !== undefined)
-            const hydrated = it.kind === "issue" ? await hydrateIssue(repo, it.number) : await hydratePr(repo, it.number)
-            const prompt = renderGithubPrompt(template, repo, hydrated, slug, it.kind)
-            const request = githubDispatcherRequest(input, { prompt, title, slug })
-            // One record per thread the batch starts, so each reads like an ordinary dispatch.
-            const res = await audit(
-              "githubDispatch",
-              { project: thisProject, detail: { repo, kind: it.kind, number: it.number, prompt: textDigest(prompt) } },
-              () => ctx.dispatcher.dispatch(request.payload, request.options),
-              (result) => ({ thread: result.slug, detail: { sessionId: result.sessionId } }),
-            )
-            dispatched.push({ number: it.number, kind: it.kind, slug: res.slug })
-          } catch (e) {
-            failed.push({ number: it.number, kind: it.kind, error: (e as Error).message.slice(0, 120) })
-          }
-        }
-        return { dispatched, failed }
-      },
     }),
 
     // SCHEDULED THREADS (ARCHITECTURE.md § Scheduled threads): the human's schedule surface and the worker's

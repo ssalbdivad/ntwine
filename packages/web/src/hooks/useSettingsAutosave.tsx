@@ -4,9 +4,7 @@ import { MACHINE_SETTING_KEYS, type Settings } from "@ntwine/shared"
 import { isRetryableRpcError, rpc } from "../api/rpc.ts"
 
 // Every settings control WRITES AS YOU TOUCH IT — there is no Save button and no Cancel. A picker or a
-// toggle persists on the click; a textarea persists this long after the last keystroke, so a long
-// prompt is one write instead of one per character.
-const SAVE_DEBOUNCE_MS = 500
+// toggle persists on the click.
 // How long "Saved" lingers before the status goes quiet again.
 const SAVED_LINGER_MS = 1600
 // A REPLAYABLE failure — a mutation refused because Ntwine is mid-update — is worth waiting out rather
@@ -17,9 +15,8 @@ const MAX_RETRIES = 6
 export type SaveState = "idle" | "saving" | "saved" | "error"
 
 // The mutation key every settings write carries. A surface that dispatches a worker off the settings
-// (the new-thread composer, the GitHub picker) gates on `useIsMutating({ mutationKey: SETTINGS_WRITE_KEY })`
-// so a save still in flight — a compaction window picked a moment ago, a prompt edit flushed by closing
-// its popover — lands before the dispatch that would read it.
+// (the new-thread composer) gates on `useIsMutating({ mutationKey: SETTINGS_WRITE_KEY })` so a save still
+// in flight — a compaction window picked a moment ago — lands before the dispatch that would read it.
 export const SETTINGS_WRITE_KEY = ["settingsSet"] as const
 
 /**
@@ -162,25 +159,22 @@ export function useSettingsAutosave() {
   flushRef.current = flush
 
   const queue = useCallback(
-    (next: Settings, debounce = false) => {
+    (next: Settings) => {
       pending.current = next
       retries.current = 0
-      if (timer.current !== undefined) window.clearTimeout(timer.current)
-      timer.current = undefined
-      if (!debounce) return flush()
-      timer.current = window.setTimeout(flush, SAVE_DEBOUNCE_MS)
+      flush()
     },
     [flush],
   )
 
-  // A write still waiting — debounced, or queued for a retry — is a whole snapshot taken before the
+  // A write still waiting — held behind a read, or queued for a retry — is a whole snapshot taken before the
   // cache moved, and would put the old value back as surely as the draft would (adoptPublishedSettings).
   const adopt = useCallback((before: Settings, after: Settings) => {
     if (pending.current) pending.current = adoptPublishedSettings(pending.current, before, after, ownPublish.current)
   }, [])
 
   // Hold every write until `read` settles; `read` must have adopted what it brought into `pending` (adopt)
-  // by then. A debounce still running when it settles is left to fire on its own.
+  // by then. A retry still scheduled when it settles is left to fire on its own.
   const holdFor = useCallback(
     (read: Promise<unknown>) => {
       gate.current = read
@@ -209,8 +203,7 @@ export function useSettingsAutosave() {
 // change renders first and persists second through the autosave above. The draft is never re-seeded
 // wholesale: every save publishes the stored value straight into the query cache, so a later fetch can
 // only agree with what is here — except for a machine setting another surface wrote meanwhile, which
-// is adopted key by key (adoptPublishedSettings). `debounce` is for the free-text fields alone — a
-// picker or a toggle is a single discrete intent and writes on the spot.
+// is adopted key by key (adoptPublishedSettings).
 //
 // A surface left OPEN re-reads the server whenever it comes back into use — the window takes focus, or
 // the page becomes visible again — and holds its writes until that read lands. No socket carries
@@ -269,9 +262,9 @@ export function useSettingsDraft() {
   }, [queryClient, adopt, ownPublish, holdFor])
 
   const update = useCallback(
-    (next: Settings, opts?: { debounce?: boolean }) => {
+    (next: Settings) => {
       setDraft(next)
-      queue(next, opts?.debounce)
+      queue(next)
     },
     [queue],
   )

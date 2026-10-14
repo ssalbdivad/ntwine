@@ -42,9 +42,8 @@ function currentPerm(): NotifPerm {
 // The drawer holds ONLY what belongs to the machine and this browser — appearance, the rail, how local
 // links open, density, queue order and notifications. Everything that belongs to a project or to one
 // runtime is edited where it applies: a runtime's launch settings behind the gear on its band in the
-// model picker (AgentSettingsPopover), the GitHub triage prompt behind the gear in the GitHub picker's
-// header (GithubPromptPopover). A "Project settings" tab stood here for a few hours on 2026-09-19
-// carrying that prompt a second time; the maintainer's call was that moving a setting to its context
+// model picker (AgentSettingsPopover). A "Project settings" tab stood here for a few hours on 2026-09-19
+// carrying a project prompt a second time; the maintainer's call was that moving a setting to its context
 // means it no longer lives here at all, so the tab strip went with it.
 export function SettingsDrawer({ offerUpdate = false }: {
   /**
@@ -89,7 +88,7 @@ export function SettingsDrawer({ offerUpdate = false }: {
 
   function close() {
     if (closing) return
-    // Send whatever is still sitting in the debounce before the drawer goes away.
+    // Send a write still waiting (held behind a read, or queued for a retry) before the drawer goes away.
     flush()
     setClosing(true)
     setShown(false)

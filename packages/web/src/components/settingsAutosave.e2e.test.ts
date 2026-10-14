@@ -51,7 +51,7 @@ test("the drawer offers no Save or Cancel — a toggle writes on the click", { s
     assert.ok(!buttons.some((label) => /^(Save|Saving…|Cancel)$/.test(label)), `no Save/Cancel button: ${buttons.join("|")}`)
 
     // Desktop notifications: Off (the fixture starts it On, and turning it off asks the browser for
-    // nothing). One discrete intent, so it must be on the wire without a debounce to wait out.
+    // nothing). One discrete intent, so it must be on the wire at once.
     await page.evaluate(clickNotificationsOff)
     await page.waitForFunction(() => (window as unknown as { __settingsWrites: Write[] }).__settingsWrites.length === 1, { timeout: 2000 })
 
@@ -93,10 +93,8 @@ test("a replayable refusal is replayed until it lands, and says so meanwhile", {
   }
 })
 
-// The drawer has no free-text field any more: the triage prompt — the one DEBOUNCED input — moved to
-// the GitHub picker's own settings popover on 2026-09-19, and its one-write-per-burst, flush-on-close
-// and reset-to-unset behaviours are pinned there (githubPromptPopover.e2e.test.ts). What is left here
-// is what the drawer still does: discrete controls that write on the click, and the replay above.
+// The drawer has no free-text field: every control is a discrete one that writes on the click, and the
+// replay above is the only deferred write.
 test("the drawer carries no prompt editor and no tab strip", { skip: !baseUrl, timeout: 60_000 }, async () => {
   const { browser, page, errors } = await launch()
   try {

@@ -7,8 +7,8 @@
 // window, so a `target=_blank` click and a `window.open` both do nothing at all. There the same external
 // anchors are cancelled and handed to the editor (`ntwine:open-external`), which opens them in the
 // system browser. Still decided in the CAPTURE phase, before any component sees the click: several of
-// these anchors stop the click's propagation in their own onClick (ThreadLinks, the GitHub picker's
-// rows), so a listener that waited for the bubble would never hear them.
+// these anchors stop the click's propagation in their own onClick (ThreadLinks), so a listener that
+// waited for the bubble would never hear them.
 
 import { innerPath } from "./base-path.ts"
 import { embedded, postToHost } from "./embed.ts"

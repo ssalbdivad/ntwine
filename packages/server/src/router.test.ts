@@ -18,7 +18,6 @@ import {
   completeRegisteredThread,
   completionConfirmationHold,
   completionNeedsConfirmation,
-  githubDispatcherRequest,
   hasPendingPermissionChange,
   hasUnresolvedBackgroundOps,
   isAppServerCodexRow,
@@ -26,7 +25,6 @@ import {
   stopRegisteredRuntime,
   stopRuntimeBySlug,
   stopThreadRuntime,
-  validateGithubDispatchProfile,
 } from "./router.ts"
 import { projectTranscriptPageAgentLifecycles } from "./transcript.ts"
 import { readProjectIdFile, writeProjectIdFile } from "./project-root.ts"
@@ -71,46 +69,6 @@ test("agent lifecycle overlay replaces spawn latency with the retained child run
   assert.deepEqual(projected.messages[0].tools[0], expected)
   assert.deepEqual(projected.messages[0].parts[0], { kind: "tools", tools: [expected] }, "ordered parts receive the same overlay")
   assert.equal("agentStatus" in page.messages[0].tools[0], false, "the transcript cache projection is not mutated")
-})
-
-test("GitHub dispatch payload preserves the exact captured backend profile (no permission passthrough)", () => {
-  const batch = {
-    items: [{ kind: "pr" as const, number: 91 }],
-    backend: "codex" as const,
-    model: "gpt-5.6-sol",
-    effort: "ultra" as const,
-  }
-  assert.deepEqual(
-    githubDispatcherRequest(batch, { prompt: "review", title: "Review owner/repo#91", slug: "review-owner-repo-91" }),
-    {
-      payload: {
-        prompt: "review",
-        title: "Review owner/repo#91",
-        slug: "review-owner-repo-91",
-        backend: "codex",
-        model: "gpt-5.6-sol",
-        effort: "ultra",
-      },
-      options: { backend: "codex" },
-    },
-  )
-})
-
-test("GitHub dispatch validation rejects invalid pairs visibly and ignores permission entirely", () => {
-  const base = {
-    items: [{ kind: "issue" as const, number: 1 }],
-    backend: "claude" as const,
-    model: "opus",
-    effort: "high" as const,
-  }
-  assert.doesNotThrow(() => validateGithubDispatchProfile(base))
-  assert.throws(
-    () => validateGithubDispatchProfile({ ...base, effort: "ultra" }),
-    /Unsupported claude model\/effort pair: opus \/ ultra/,
-  )
-  // Permission is not part of the captured tuple: dispatch stamps the fixed non-interactive mode
-  // server-side, so even a stale client-sent value passes validation untouched.
-  assert.doesNotThrow(() => validateGithubDispatchProfile({ ...base, permissionMode: "plan" }))
 })
 
 function row(slug: string): SessionRow {

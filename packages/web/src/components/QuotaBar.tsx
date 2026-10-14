@@ -93,7 +93,7 @@ const PROVIDER_MARK_AS_ICON: Record<AccountBackend, string> = {
  * with neither provider reporting draws a hairline with nothing after it.
  *
  * Same query keys as QuotaChips, so react-query serves both from ONE fetch rather than doubling the
- * poll. (Mirrors useGithubTriggerVisible, which gates the composer's picker the same way.)
+ * poll.
  */
 export function useQuotaChipsVisible(): boolean {
   const quota = useQuery({ queryKey: ["quota"], queryFn: () => rpc.quota(), staleTime: 10_000 })

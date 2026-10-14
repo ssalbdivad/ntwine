@@ -29,7 +29,7 @@ import { githubRemoteNameWithOwner } from "./github.ts"
  * is worse than no link at all; absent here simply means the augmentation stays off.
  *
  * No `gh`, no network: this is the local git remote, so autolinking works signed out and with gh
- * absent entirely (the picker's `githubStatus` gate is a different, gh-authoritative question).
+ * absent entirely (the `githubStatus` gate is a different, gh-authoritative question).
  */
 export function projectRepoIdentity(dir: string, name: string): { label: string; githubRepo?: string } {
   const url = originRemoteUrl(dir)

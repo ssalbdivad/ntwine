@@ -26,7 +26,7 @@ import { githubLabelColors } from "../lib/githubLabelColors.ts"
 // would make a familiar object unreadable.
 
 // GitHub's state colours (Primer dark), from `lib/primer.ts` — which is where they live now that the
-// PR watch row, the picker and the file rail draw the same states and had each reached for a different
+// PR watch row and the file rail draw the same states and had each reached for a different
 // Tailwind hue instead. A PILL IS A SOLID FILL, so every one of these is a `bg*Emphasis`: the lighter
 // `fg*` pair is for a bare glyph, and a `#3fb950` pill would out-shout the title above it.
 // Read off github.githubassets.com 2026-08-14: `--bgColor-open-emphasis` resolves to success, closed

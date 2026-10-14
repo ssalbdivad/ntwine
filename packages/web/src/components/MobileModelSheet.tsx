@@ -90,7 +90,7 @@ export function MobileModelSheet({
   // drawer and the new-thread page are both Radix dialogs, which make everything outside themselves
   // inert and dismiss on any press outside. A nested Radix dialog is the one layer they yield to, and it
   // brings Escape (this sheet only — the layer underneath does not also unwind) and the focus trap.
-  // z-[250] clears every surface a model chip can sit in, the z-[200] GitHub picker overlay included.
+  // z-[250] clears every surface a model chip can sit in, the z-[200] new-thread overlay included.
   return (
     <RadixDialog.Root open onOpenChange={(open) => { if (!open) close() }}>
       <RadixDialog.Portal>

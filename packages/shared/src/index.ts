@@ -5404,23 +5404,6 @@ export const Settings = z.object({
     command: z.string().trim().min(1).max(1_024),
     args: z.array(z.string().max(1_024)).max(32).optional(),
   })).max(32).optional(),
-  // The GitHub batch-dispatch prompt template (the picker's per-item worker prompt). Optional: when
-  // unset OR blank the server falls back to its exported DEFAULT_GITHUB_PROMPT. Substitution tokens
-  // the server fills: {repo} {n} {title} {url} {labels} {body}. The leading `THREAD: <slug>` tag is
-  // prepended by the server (not part of the editable template) so a custom prompt can never break the
-  // thread↔.ntwine-file binding. Optional so old settings blobs parse.
-  //
-  // ONE field, not one per kind. Issue and PR each had their own template until 2026-08-15, and the two
-  // said the same thing twice: read the whole thread, be skeptical, cite what you checked, post nothing.
-  // A person tuning "be more dubious" had to make the same edit in two boxes and keep them in step. The
-  // ONE thing that genuinely differs per kind — which `gh` command reads the item — is a line in the
-  // metadata block, so the merged template just carries both, and the worker picks the one that applies.
-  //
-  // There is no migration off the two old keys, and that is deliberate (the maintainer's call): Settings
-  // is a non-strict z.object, so `githubIssuePrompt`/`githubPrPrompt` are STRIPPED the moment an old
-  // blob is parsed. Any existing override is dropped and the reader gets the new shipped default —
-  // exactly the intended backfill. Merging two customized templates into one has no correct answer.
-  githubPrompt: z.string().optional(),
 })
 export type Settings = z.infer<typeof Settings>
 
@@ -5457,23 +5440,6 @@ export const DispatchPreferences = z.object({
 })
 export type DispatchPreferences = z.infer<typeof DispatchPreferences>
 
-// One complete launch profile. GitHub batch dispatch carries this whole tuple — read from the
-// durable new-thread preference its own footer selector writes — instead of consulting Settings
-// again: backend owns the model, and effort is part of the same atomic profile cell.
-const DispatchProfileSnapshotShape = z.object({
-  backend: Backend,
-  model: z.string().trim().min(1).max(200),
-  // Required for Claude and Codex (the refinement below); absent for an ACP agent, which runs with
-  // whatever model and effort its own CLI is configured for — Ntwine has no effort axis to offer there.
-  effort: Settings.shape.effort,
-  // IGNORED: dispatch permission is decided server-side (workerDispatchPermission) from the
-  // non-interactive floor plus the operator's Settings choice, never per dispatch. Optional so old
-  // clients that still send it parse.
-  permissionMode: PermissionMode.optional(),
-}).strict()
-export const DispatchProfileSnapshot = DispatchProfileSnapshotShape.superRefine(requireEffortOutsideAcp)
-export type DispatchProfileSnapshot = z.infer<typeof DispatchProfileSnapshot>
-
 // Atomic updates avoid read/modify/write races between the sidebar form and the anywhere composer.
 // A matrix-cell selection is one complete model+effort profile mutation; permission remains an
 // independent axis. Every provider-owned update names its runtime so a delayed request can never
@@ -5484,8 +5450,9 @@ export const SetDispatchPreferenceInput = z.discriminatedUnion("field", [
     field: z.literal("profile"),
     backend: Backend,
     model: z.string().trim().min(1).max(200),
-    // Optional ONLY for an ACP profile (see DispatchProfileSnapshot); a Claude/Codex profile without
-    // an effort is refused below rather than silently stored as "default".
+    // Optional ONLY for an ACP profile, which runs with whatever model and effort its own CLI is
+    // configured for — Ntwine has no effort axis to offer there. A Claude/Codex profile without an
+    // effort is refused below rather than silently stored as "default".
     effort: Settings.shape.effort,
   }),
   z.object({ field: z.literal("model"), backend: Backend, value: z.string().trim().min(1).max(200) }),
@@ -6353,11 +6320,12 @@ export const DISPATCH_TASK_BANNER = [
 // the surrounding newlines keeps a banner quoted inside prose from being read as the boundary.
 export const DISPATCH_TASK_BANNER_MARKER = `\n${DISPATCH_TASK_BANNER}\n\n`
 
-// ---- GitHub-first batch dispatch (server ↔ web mirror; wrapper in server/github.ts) ----
+// ---- Retired GitHub batch dispatch envelope (read by server/transcript.ts) ----
 
-// Exact, versioned presentation boundary in a GitHub batch-dispatch prompt. The worker receives the
-// whole prompt; transcript normalization exposes only the generated lead above this line as
-// `displayText`. Namespacing + versioning make an ordinary HTML comment or markdown example inert.
+// Exact, versioned presentation boundary in a GitHub batch-dispatch prompt. The GitHub picker that
+// wrote it was removed on 2026-10-14; the threads it started still open on such a prompt, so transcript
+// normalization still shows only the generated lead above this line as `displayText`. Namespacing +
+// versioning make an ordinary HTML comment or markdown example inert.
 export const GITHUB_DISPATCH_UI_BOUNDARY = "<!-- ntwine:github-dispatch-ui-boundary:v1 -->"
 
 // ---- WAKE-DELIVERY TOKEN (scheduler ↔ transcript) ------------------------------------------------
@@ -7226,75 +7194,6 @@ export const GithubRefPreviewResult = z.object({
   error: z.string().optional(),
 })
 export type GithubRefPreviewResult = z.infer<typeof GithubRefPreviewResult>
-
-// One row in the picker list. `reactions` is summed server-side across reactionGroups (the list ORDER
-// already reflects the sort; this is a display badge). `comments` is optional (present for issues).
-export const GithubItem = z.object({
-  kind: z.enum(["issue", "pr"]),
-  number: z.number().int().positive(),
-  title: z.string(),
-  url: z.string(),
-  reactions: z.number().int().nonnegative(),
-  updatedAt: z.string(),
-  comments: z.number().int().nonnegative().optional(),
-  // GitHub-mirror row fields — all optional/defaulted so a pre-restart snapshot still parses.
-  createdAt: z.string().optional(), // for "opened <when>"
-  author: z.string().optional(), // login
-  labels: z.array(z.object({ name: z.string(), color: z.string() })).default([]),
-  state: z.string().optional(), // OPEN | CLOSED | MERGED
-  isDraft: z.boolean().optional(), // PRs only
-  // ISSUES only: the pull requests whose bodies carry a closing keyword for this issue (GitHub's own
-  // "linked pull requests"). Present means someone is already on it — the row paints the PR glyph so
-  // a dispatch doesn't duplicate work in flight. `count` is what the badge shows, mirroring the
-  // github.com issue list; `number`/`url`/`state` describe the PRIMARY one (open outranks merged),
-  // which the badge links to and names in its tooltip. Absent for PRs and for unclaimed issues.
-  linkedPrs: z
-    .object({
-      count: z.number().int().positive(),
-      number: z.number().int().positive(),
-      url: z.string(),
-      state: z.string(), // OPEN | MERGED
-      isDraft: z.boolean().optional(),
-    })
-    .optional(),
-})
-export type GithubItem = z.infer<typeof GithubItem>
-
-// One PAGE request. `page` is 1-based; the server clamps it into GitHub's servable window and
-// reports back which page it actually served.
-export const GithubListInput = z.object({
-  kind: z.enum(["issues", "prs"]),
-  sort: z.enum(["recent", "reactions"]),
-  page: z.number().int().min(1).default(1),
-  perPage: z.number().int().min(1).max(100).default(30),
-})
-export type GithubListInput = z.infer<typeof GithubListInput>
-
-// One page of rows plus what the pager needs to draw itself. `total` is every open item matching the
-// query (not just this page); `pageCount` is that clamped to the search API's 1000-result window, so
-// the pager never offers a page GitHub will refuse to serve.
-export const GithubListResult = z.object({
-  items: z.array(GithubItem),
-  total: z.number().int().nonnegative(),
-  page: z.number().int().positive(),
-  pageCount: z.number().int().positive(),
-})
-export type GithubListResult = z.infer<typeof GithubListResult>
-
-// Minimal batch payload — the server re-hydrates title/body/url fresh from gh at dispatch (always
-// current, small wire payload). Deliberately UNCAPPED: the picker pages through the whole repo and a
-// human may well want every issue on a page (or several pages' worth) investigated at once. The
-// server dispatches them SEQUENTIALLY, so a large batch is a long request, never a spawn burst.
-export const GithubBatchInput = DispatchProfileSnapshotShape.extend({
-  items: z.array(z.object({ kind: z.enum(["issue", "pr"]), number: z.number().int().positive() })).min(1),
-}).strict().superRefine(requireEffortOutsideAcp)
-export type GithubBatchInput = z.infer<typeof GithubBatchInput>
-
-export const GithubBatchResult = z.object({
-  dispatched: z.array(z.object({ number: z.number(), kind: z.string(), slug: ThreadSlug })),
-  failed: z.array(z.object({ number: z.number(), kind: z.string(), error: z.string() })),
-})
-export type GithubBatchResult = z.infer<typeof GithubBatchResult>
 
 // ---- SSE events on the global /events channel ----
 // The channel is DELTA-based (see delta.ts): a full "board" frame is the connect keyframe and the

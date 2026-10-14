@@ -97,8 +97,6 @@ export const PROJECT_SCOPED_PROCEDURES: ReadonlySet<string> = new Set([
   "localFile",
   "resolveLocalPaths",
   "githubStatus",
-  "githubList",
-  "githubDispatchBatch",
   "claudeModels",
   "acpAgents",
   "acpAgentModels",

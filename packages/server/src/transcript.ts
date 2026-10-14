@@ -144,7 +144,9 @@ function normalizeNewlines(s: string): string {
   return stripDeliveryMarkers(s).replace(/\r\n?/g, "\n")
 }
 
-// Display-only projection for the FIRST user turn of a generated GitHub dispatch. Deliberately
+// Display-only projection for the FIRST user turn of a generated GitHub dispatch — a RETIRED envelope:
+// the GitHub picker that generated it was removed on 2026-10-14, and this stays for the threads it had
+// already started, as LEGACY_TASK_MARKER below does for the pre-banner prompt. Deliberately
 // require the complete server-generated envelope, including the exact versioned marker, so ordinary
 // HTML comments and code examples stay literal. `text` itself is never changed: workers, persistence,
 // search, and transcript logic retain the full machine-facing prompt below the boundary.
@@ -203,7 +205,7 @@ export function subAgentDispatchDisplayText(text: string): string | undefined {
 // The display projection for ONE user turn — undefined when the stored text is already what to show.
 // Three independent reasons a user record can carry machine-facing text, composed in order:
 //   • ntwine's own dispatch envelope (FIRST turn only — orientation + instructions above the banner);
-//   • a generated GitHub dispatch (FIRST turn only — the envelope is what opens the thread). It sits
+//   • a generated GitHub dispatch, retired but still on old threads (FIRST turn only — the envelope is what opens the thread). It sits
 //     BELOW ntwine's banner, so it is peeled from the remainder, not from the raw record;
 //   • the scheduler's wake-delivery token, which rides ANY turn a wake lands on. That's the case the
 //     old `out.length === 0` gate missed entirely: a wake is by definition a later turn, so its token

@@ -158,36 +158,3 @@ test("the pick belongs to the draft: it survives a reload, and a failed dispatch
     await browser.close()
   }
 })
-
-// The GitHub batch picker lays its own pick over the same default (github-picker-range-fixture:
-// Opus › high). Its pick is component state, so it needs no reload case: it goes with the modal.
-test("the GitHub picker's pick is for its batch: the batch carries it and the default is untouched", { skip: !baseUrl, timeout: 60_000 }, async () => {
-  const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
-  const browser = await launchHeadless()
-  try {
-    const page = await browser.newPage()
-    await page.setViewport({ width: 1100, height: 950, deviceScaleFactor: 1 })
-    // The fixture stubs no dispatchPreferenceSet, so a write would leave as a real request — watch for one.
-    const defaultWrites: string[] = []
-    page.on("request", (request) => { if (request.url().includes("dispatchPreferenceSet")) defaultWrites.push(request.url()) })
-    await page.goto(`${baseUrl}/github-picker-range-fixture.html?rows=5`, { waitUntil: "networkidle0" })
-    await page.waitForSelector(`${PILL}[data-profile-known="true"]`)
-    assert.equal(await pill(page), "Opus › high")
-
-    await page.click(PILL)
-    await page.waitForSelector(MENU)
-    await page.click(`${MENU} [aria-label="Opus, Max effort"]`)
-    await page.waitForFunction((menu) => !document.querySelector(menu), {}, MENU)
-    assert.equal(await pill(page), "Opus › max")
-    assert.ok(await page.$(MAKE_DEFAULT), "the batch picker offers Make default too")
-
-    await page.click('[data-row-number="412"]')
-    await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Start investigation")!.click())
-    await page.waitForFunction(() => (window as unknown as { githubPickerRangeFixture: { dispatched: unknown[] } }).githubPickerRangeFixture.dispatched.length === 1)
-    const batch = await page.evaluate(() => (window as unknown as { githubPickerRangeFixture: { dispatched: Record<string, unknown>[] } }).githubPickerRangeFixture.dispatched[0])
-    assert.deepEqual([batch!.backend, batch!.model, batch!.effort], ["claude", "opus", "max"], "the batch starts on the pick")
-    assert.deepEqual(defaultWrites, [], "picking for a batch never writes the default")
-  } finally {
-    await browser.close()
-  }
-})
