@@ -25,21 +25,21 @@ const running = (id: string) => row(id, { runtime: "running", needsYou: false })
 test("Done opens the next ask before any rested handoff, as the phone board lists them", () => {
   const threads = [rested("r1", "2026-09-30T09:00:00.000Z"), ask("a1", "2026-09-30T09:30:00.000Z"), rested("current", "2026-09-30T08:00:00.000Z")]
   assert.deepEqual(phoneQueue(threads).slice(0, 1).map((t) => t.id), ["a1"])
-  assert.equal(nextThreadNeedingYou(threads, "current", "fifo", {})?.id, "a1")
+  assert.equal(nextThreadNeedingYou(threads, "current", {})?.id, "a1")
 })
 
 test("a running thread never needs you, so the loop skips it; with nothing left it is undefined", () => {
   const threads = [running("w1"), rested("current", "2026-09-30T08:00:00.000Z")]
-  assert.equal(nextThreadNeedingYou(threads, "current", "fifo", {}), undefined)
+  assert.equal(nextThreadNeedingYou(threads, "current", {}), undefined)
 })
 
 test("the thread being filed is never its own next", () => {
   const threads = [ask("current", "2026-09-30T08:00:00.000Z"), rested("r1", "2026-09-30T09:00:00.000Z")]
-  assert.equal(nextThreadNeedingYou(threads, "current", "fifo", {})?.id, "r1")
+  assert.equal(nextThreadNeedingYou(threads, "current", {})?.id, "r1")
 })
 
 test("a thread marked done a moment ago, not yet echoed by the board, is not landed on again", () => {
   const threads = [ask("just-done", "2026-09-30T08:00:00.000Z"), rested("r1", "2026-09-30T09:00:00.000Z"), rested("current", "2026-09-30T07:00:00.000Z")]
-  assert.equal(nextThreadNeedingYou(threads, "current", "fifo", {})?.id, "just-done", "control: without the overlay it would be next")
-  assert.equal(nextThreadNeedingYou(threads, "current", "fifo", { "just-done": Date.now() })?.id, "r1")
+  assert.equal(nextThreadNeedingYou(threads, "current", {})?.id, "just-done", "control: without the overlay it would be next")
+  assert.equal(nextThreadNeedingYou(threads, "current", { "just-done": Date.now() })?.id, "r1")
 })

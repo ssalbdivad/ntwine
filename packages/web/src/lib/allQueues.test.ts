@@ -56,19 +56,11 @@ test("each project is banded the way its own rail bands it", () => {
     thread("pinned-ask", { needsYou: true, pinnedAt: "2026-09-23T07:00:00.000Z", lastAssistantAt: "2026-09-23T09:30:00.000Z" }),
     thread("spinning", { runtime: "running", lastUserAt: "2026-09-23T09:10:00.000Z" }),
     thread("parked", { snoozedUntil: "2099-01-01T00:00:00.000Z" }),
-  ], { doneCount: 4 })], "fifo")
+  ], { doneCount: 4 })])
   assert.deepEqual(project!.queued.map((t) => t.id), ["older-rest", "pinned-ask", "newer-rest"])
   assert.deepEqual(project!.running.map((t) => t.id), ["spinning"])
   assert.deepEqual(project!.snoozed.map((t) => t.id), ["parked"])
   assert.equal(project!.doneCount, 4)
-})
-
-test("the queue direction preference is honoured, newest first under lifo", () => {
-  const [project] = queuesProjects([card("a")], [queue("a", [
-    thread("older", { needsYou: true, lastAssistantAt: "2026-09-23T09:00:00.000Z" }),
-    thread("newer", { needsYou: true, lastAssistantAt: "2026-09-23T10:00:00.000Z" }),
-  ])], "lifo")
-  assert.deepEqual(project!.queued.map((t) => t.id), ["newer", "older"])
 })
 
 test("a project is busy with a queue or live work — never with parked work alone", () => {
@@ -221,9 +213,7 @@ test("every project's ready threads merge into one queue, in the order each ente
     queue("app", [ready("pr-1402", "10:30")]),
     queue("ntwine", [ready("fix-auth", "10:00"), ready("2fa", "10:10")]),
   ])
-  const line = (direction: "fifo" | "lifo") => mergedQueue(projects, direction).map(({ project, thread }) => threadKey(project.id, thread.id))
-  assert.deepEqual(line("fifo"), ["ntwine/fix-auth", "ntwine/2fa", "app/pr-1402"])
-  assert.deepEqual(line("lifo"), ["app/pr-1402", "ntwine/2fa", "ntwine/fix-auth"])
+  assert.deepEqual(mergedQueue(projects).map(({ project, thread }) => threadKey(project.id, thread.id)), ["ntwine/fix-auth", "ntwine/2fa", "app/pr-1402"])
 })
 
 test("two projects' threads with the same slug stay two cards, each with its own project", () => {
@@ -242,8 +232,6 @@ test("a project the poll answered unchanged keeps its object, so the list can sk
   const second = queuesProjects(cards, [a, queue("b", [thread("y")])])
   assert.equal(second[0], first[0])
   assert.notEqual(second[1], first[1])
-  // The order the queue is drawn in is part of what was built, so a different one rebuilds.
-  assert.notEqual(queuesProjects(cards, [a, queue("b", [])], "lifo")[0], first[0])
 })
 
 test("a done supersedes the earlier answer; a status line after a wake does not", () => {

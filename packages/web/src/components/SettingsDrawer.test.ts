@@ -74,7 +74,7 @@ test("the drawer is one untabbed list of interface preferences, with no project 
   // (The note above the component NAMES the retired tab in prose; what must be gone is the markup.)
   assert.doesNotMatch(source, /role="tab(?:list)?"|SettingsTabs|label: "(?:Project|Ntwine) settings"/)
   const fields = [...source.matchAll(/<SettingsField label="([^"]+)"/g)].map((m) => m[1])
-  assert.deepEqual(fields, ["Appearance", "Density", "Queue order", "Desktop notifications", "Always show status lines", "Show recent threads", "Remove idle worktrees after", "Delete done threads", "Local file links"])
+  assert.deepEqual(fields, ["Appearance", "Density", "Desktop notifications", "Always show status lines", "Show recent threads", "Remove idle worktrees after", "Delete done threads", "Local file links"])
   // The triage prompt has exactly one editor, and it is the picker's.
   assert.doesNotMatch(source, /GithubPromptEditor|githubPrompt|<textarea/)
   assert.match(promptPopoverSource, /<GithubPromptEditor draft=\{draft\} onChange=\{update\} rows=\{14\} \/>/)
@@ -162,7 +162,7 @@ test("notification recovery aligns with its control and keeps recovery instructi
 
 // "Compact mode" Off|On told the operator what Off was NOT. A density pair names both states.
 test("diff density is a Comfortable|Compact pair, densest on the right, compact by default", () => {
-  const toggle = source.slice(source.indexOf("function DensityToggle"), source.indexOf("function QueueOrderControl"))
+  const toggle = source.slice(source.indexOf("function DensityToggle"), source.indexOf("function AlwaysShowStatusLinesToggle"))
   assert.match(toggle, /\{ v: false, label: "Comfortable" \},\s*\{ v: true, label: "Compact" \}/)
   assert.match(toggle, /prefs\.compactDiffs = o\.v/)
   assert.doesNotMatch(source, /label="Compact mode"/)

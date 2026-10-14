@@ -1,5 +1,5 @@
 import type { AwaitingHint, BoardSnapshot, ProjectCard, ProjectQueue, ProjectSchedules, RegisteredQuestionView, ThreadView } from "@ntwine/shared"
-import { isPinned, orderByInteraction, orderQueue, queued, sectionOf, type QueueDirection } from "../groups.ts"
+import { isPinned, orderByInteraction, orderQueue, queued, sectionOf } from "../groups.ts"
 import { crossProjectHref } from "./base-path.ts"
 import { splitFenceBlocks } from "./fenceBlocks.ts"
 import { splitQuestionBlocks, type QuestionKind } from "./questionBlocks.ts"
@@ -90,12 +90,11 @@ export function projectMarkdownScope(project: Pick<QueuesProject, "id" | "slug" 
 
 const NO_CARD = {} as ProjectCard
 const NO_QUEUE = {} as ProjectQueue
-const buildMemo = new WeakMap<ProjectCard, WeakMap<ProjectQueue, { direction: QueueDirection; project: QueuesProject }>>()
+const buildMemo = new WeakMap<ProjectCard, WeakMap<ProjectQueue, QueuesProject>>()
 
 export function queuesProjects(
   cards: readonly ProjectCard[] | undefined,
   queues: readonly ProjectQueue[] | undefined,
-  direction: QueueDirection = "fifo",
 ): QueuesProject[] {
   const byId = new Map((queues ?? []).map((queue) => [queue.projectId, queue]))
   const out: QueuesProject[] = []
@@ -107,11 +106,11 @@ export function queuesProjects(
     // had changed — ~85ms of main thread per
     // poll on an 8-project dev page (measured 2026-10-01 with react-scan).
     const memo = buildMemo.get(card ?? NO_CARD)?.get(queue ?? NO_QUEUE)
-    if (memo && memo.direction === direction) return memo.project
+    if (memo) return memo
     const project = buildProject(card, queue)
     let byQueue = buildMemo.get(card ?? NO_CARD)
     if (!byQueue) buildMemo.set(card ?? NO_CARD, (byQueue = new WeakMap()))
-    byQueue.set(queue ?? NO_QUEUE, { direction, project })
+    byQueue.set(queue ?? NO_QUEUE, project)
     return project
   }
   const buildProject = (card: ProjectCard | undefined, queue: ProjectQueue | undefined): QueuesProject => {
@@ -128,7 +127,7 @@ export function queuesProjects(
       projectDir: queue?.projectDir,
       homeDir: queue?.homeDir,
       githubRepo: queue?.githubRepo,
-      queued: orderQueue(threads.filter(queued), direction),
+      queued: orderQueue(threads.filter(queued)),
       running: orderByInteraction(threads.filter((t) => !queued(t) && sectionOf(t) === "active")),
       snoozed: orderByInteraction(threads.filter((t) => !queued(t) && sectionOf(t) === "snoozed")),
       // THE PINNED-DONE HOLE, closed on both of the reads that reach here. The poll sends a pinned Done
@@ -190,7 +189,6 @@ export function liveQueue(
 export function overlayQueues(
   projects: QueuesProject[],
   overlays: readonly (ProjectQueue | undefined)[],
-  direction: QueueDirection = "fifo",
 ): QueuesProject[] {
   let out = projects
   for (const queue of overlays) {
@@ -198,7 +196,7 @@ export function overlayQueues(
     const index = out.findIndex((project) => project.id === queue.projectId)
     if (index < 0) continue
     const card = out[index]!.card
-    const [rebuilt] = queuesProjects(card ? [card] : [], [queue], direction)
+    const [rebuilt] = queuesProjects(card ? [card] : [], [queue])
     if (out === projects) out = [...projects]
     out[index] = rebuilt!
   }
@@ -213,7 +211,7 @@ export interface QueueEntry {
 
 /**
  * THE PAGE'S ONE QUEUE — every project's ready threads merged into a single line, in the order the board's
- * own queue uses (`orderQueue`: when each ENTERED the queue, oldest first unless the operator chose LIFO).
+ * own queue uses (`orderQueue`: when each ENTERED the queue, oldest first).
  * That is the order a FRESH draw takes; once drawn, lib/stableQueue.ts keeps every card where it is and
  * appends whatever arrives at the bottom.
  *
@@ -223,10 +221,10 @@ export interface QueueEntry {
  * any project joins the bottom like any other. The stamps compare across projects because one server
  * stamps them all on one clock (the server's queue-clock.ts).
  */
-export function mergedQueue(projects: readonly QueuesProject[], direction: QueueDirection = "fifo"): QueueEntry[] {
+export function mergedQueue(projects: readonly QueuesProject[]): QueueEntry[] {
   const owner = new Map<ThreadView, QueuesProject>()
   for (const project of projects) for (const thread of project.queued) owner.set(thread, project)
-  return orderQueue([...owner.keys()], direction).map((thread) => ({ project: owner.get(thread)!, thread }))
+  return orderQueue([...owner.keys()]).map((thread) => ({ project: owner.get(thread)!, thread }))
 }
 
 /** A card-shaped stand-in for a project the registry list has not caught up with, for its square. */

@@ -55,8 +55,6 @@ test("the queue merges every shown project: asks first, then the rest of Ready i
     "beta:b-run",
     "alpha:a-run",
   ])
-  // LIFO reverses Ready, not Working.
-  assert.deepEqual(names(phoneQueue([alpha, beta], undefined, undefined, "lifo")).slice(0, 4), ["alpha:a-ask", "beta:b-ask", "beta:b-mid", "alpha:a-old"])
 })
 
 test("a pinned thread leads even the asks, in pin order, and is listed once", () => {

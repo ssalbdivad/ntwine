@@ -452,11 +452,10 @@ test("queued: pre-restart snapshot (no kind/needsYou) degrades to an empty queue
 test("orderQueue: NO priority band — one strict time order across attention + passive alike", () => {
   // The hidden hard-attention band is gone (maintainer 2026-07-21: "too confusing"). Order is
   // last-active alone; kind (crash/question vs done/rest) never lifts a card into a separate tier.
-  // The timestamps deliberately INTERLEAVE attention and passive rows so BOTH directions differ from
-  // the old banded order — proving band removal, not just re-proving FIFO:
+  // The timestamps deliberately INTERLEAVE attention and passive rows so the strict order differs from
+  // the old banded one — proving band removal, not just re-proving FIFO:
   //   crash-newest 07-14 (hard) · done-newer 07-13 (passive) · question-older 07-11 (hard) · rest-oldest 07-10 (passive)
-  // Old banded FIFO would be [question-older, crash-newest, rest-oldest, done-newer]; old banded LIFO
-  // [crash-newest, question-older, done-newer, rest-oldest]. Both differ from the strict orders below.
+  // Old banded FIFO would be [question-older, crash-newest, rest-oldest, done-newer].
   const rows = () => [
     thread({ id: "crash-newest", lastUserAt: "2026-07-14T12:00:00.000Z", crashed: true }),
     thread({ id: "done-newer", lastUserAt: "2026-07-13T12:00:00.000Z", lastFence: { kind: "done", body: "shipped", hints: [] } }),
@@ -465,36 +464,31 @@ test("orderQueue: NO priority band — one strict time order across attention + 
   ]
   // FIFO oldest-first: the fresh CRASH sinks to the BOTTOM under an older done card — the accepted tradeoff.
   assert.deepEqual(orderQueue(rows()).map((item) => item.id), ["rest-oldest", "question-older", "done-newer", "crash-newest"])
-  // LIFO newest-first: a newer DONE card outranks an older question — impossible under the old band.
-  assert.deepEqual(orderQueue(rows(), "lifo").map((item) => item.id), ["crash-newest", "done-newer", "question-older", "rest-oldest"])
 })
 
-test("orderQueue: AT-REST rows key on REST TIME (lastAssistantAt), not lastActivityAt; direction flips it", () => {
+test("orderQueue: AT-REST rows key on REST TIME (lastAssistantAt), not lastActivityAt", () => {
   // The row that came to REST later (later lastAssistantAt = its final assistant output) is more
   // recently active. Ordering keys on this, NOT lastActivityAt — even though a much-later lastActivityAt
   // (a background sub-agent's completion notification) is present, it must NOT move the row. FIFO
-  // (default) leads with the longest-since-rested (earlier-rested) row.
+  // leads with the longest-since-rested (earlier-rested) row.
   const rows = () => [
     thread({ id: "rested-later", lastUserAt: "2026-07-14T12:00:00.000Z", lastAssistantAt: "2026-07-14T12:05:00.000Z", lastActivityAt: "2026-07-14T13:00:00.000Z" }),
     thread({ id: "rested-earlier", lastUserAt: "2026-07-14T12:00:00.000Z", lastAssistantAt: "2026-07-14T12:01:00.000Z", lastActivityAt: "2026-07-14T13:30:00.000Z" }),
   ]
   assert.deepEqual(orderQueue(rows()).map((item) => item.id), ["rested-earlier", "rested-later"])
-  // LIFO surfaces the most recently rested first.
-  assert.deepEqual(orderQueue(rows(), "lifo").map((item) => item.id), ["rested-later", "rested-earlier"])
 })
 
 test("orderQueue: a thread keys on when it ENTERED the queue, so a wait that lets go joins the BACK", () => {
   // The 2026-09-24 report: "when a new thread is ready, it moves to the top of the *stack*". `ci-held`
   // rested at 09:00 behind running CI and entered the queue only when CI settled at 12:30; keyed on its
   // rest time it cut in ahead of `reading`, the card the human had been waiting on since 12:00. Keyed on
-  // queuedAt it is the newest arrival, so FIFO puts it LAST and LIFO FIRST.
+  // queuedAt it is the newest arrival, so FIFO puts it LAST.
   const rows = () => [
     thread({ id: "ci-held", lastAssistantAt: "2026-09-24T09:00:00.000Z", queuedAt: "2026-09-24T12:30:00.000Z" }),
     thread({ id: "reading", lastAssistantAt: "2026-09-24T12:00:00.000Z", queuedAt: "2026-09-24T12:00:00.000Z" }),
     thread({ id: "older", lastAssistantAt: "2026-09-24T11:00:00.000Z", queuedAt: "2026-09-24T11:00:00.000Z" }),
   ]
   assert.deepEqual(orderQueue(rows()).map((item) => item.id), ["older", "reading", "ci-held"])
-  assert.deepEqual(orderQueue(rows(), "lifo").map((item) => item.id), ["ci-held", "reading", "older"])
   // The cue's column prints the same key, so it reads monotonically down the line it is printed in; the
   // conversation's "Last active" keeps the agent's own rest.
   const ciHeld = rows()[0]!

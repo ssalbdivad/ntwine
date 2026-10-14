@@ -6,7 +6,6 @@ import { threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { pageHref, reportRoute, queueReading, sidebarRoute } from "../lib/embedRoute.ts"
 import { registerQueueCursor } from "../lib/keyboardRuntime.ts"
 import { phoneCounts, phoneQueue } from "../lib/phonePage.ts"
-import { prefs } from "../lib/prefs.ts"
 import { store } from "../store.ts"
 import { useOpenThreadInPlace } from "./AllQueuesCard.tsx"
 import { StatusRow } from "./StatusRow.tsx"
@@ -86,7 +85,6 @@ export function SidebarPage({
   list: (activeKey: string | null) => ReactNode
 }) {
   const snap = useSnapshot(store)
-  const direction = useSnapshot(prefs).queueOrder
   const active = useReadingRow(projects)
   const location = useLocation()
 
@@ -104,7 +102,7 @@ export function SidebarPage({
   const scope = focusedSlug === undefined ? "All projects" : (viewed?.name ?? (loading ? focusedSlug : "All projects"))
   // The desktop's READY count, so the two never disagree on what "ready" means (a question is a card, and
   // counts), and what is spinning beside it — the rows' own glyphs say which ones ask.
-  const working = phoneCounts(phoneQueue(shown, hidden, undefined, direction)).working
+  const working = phoneCounts(phoneQueue(shown, hidden)).working
   const reading = loading || error ? null : queueReading({ ready, working })
   const route = sidebarRoute({
     settings: snap.showSettings,
