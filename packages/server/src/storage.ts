@@ -1,5 +1,5 @@
 import Database from "./sqlite.ts"
-import { ThreadSlug, slugify, threadIdentityName } from "@ntwine/shared"
+import { ThreadSlug, threadIdentityName } from "@ntwine/shared"
 import { createInteractionStore, type InteractionStore } from "./interaction-store.ts"
 import { scopeDatabase, type ProjectScope } from "./project-scope.ts"
 import { createScheduleStore, type ScheduleStore } from "./schedule-store.ts"
@@ -367,18 +367,6 @@ export function isBrokerClaudeRow(row: Pick<SessionRow, "backend" | "claude_runt
 // auto-title CAS all decide through this one predicate.
 export function sessionTitleLocked(row: Pick<SessionRow, "title_auto" | "title_locked">): boolean {
   return (row.title_locked ?? (row.title_auto === 1 ? 0 : 1)) === 1
-}
-
-// Does this slug read as one DISPATCH minted from this exact title? Only dispatch derives the two
-// from each other — `slugify(title)`, plus the `-2`/`-3` suffix resolveSlug appends on a collision —
-// so an affirmative means the stored title is still the one the thread was spawned with. Every human
-// title writer (rename, native /rename) rewrites the title and leaves the slug alone, so a renamed
-// thread answers NO. That asymmetry is the whole basis of the boot repair that unlocks titles a
-// dispatch-path bug froze; it is a heuristic, never an invariant, so nothing but that one-time repair
-// may decide anything on it.
-export function slugMintedFromTitle(slug: string, title: string): boolean {
-  const derived = slugify(title)
-  return derived === slug || derived === slug.replace(/-\d+$/, "")
 }
 
 export interface RuntimeExpectation {
@@ -1308,8 +1296,8 @@ export type SessionLifecycleEvent =
  * Complete AS OF the 2026-08-27 unification: this schema is only ever created by this code, into a
  * file this code owns, so there is no PRE-unification shape to reconcile with. Columns added since
  * ride the short additive ALTER list in ensureStorageSchema below — an existing unified file cannot
- * gain a column any other way. A project's pre-unification file is read by `legacy-project-db.ts`,
- * which still carries the old ALTER stack, and imported row by row by `ntwine-db.ts`. Every table's first column is `project_id`, every
+ * gain a column any other way. A project's pre-unification file is never read (see ntwine-db.ts).
+ * Every table's first column is `project_id`, every
  * natural key is prefixed with it, and every index leads with it — a tenant only ever asks for its
  * own rows (project-scope.ts), so that is the prefix every lookup has.
  *
@@ -1614,7 +1602,7 @@ export const STORAGE_SCHEMA = `
     -- arm as a shell. EXPIRES_AT is REQUIRED, chosen by the worker for this particular wait: on elapse
     -- the row is cancelled and the thread woken, so a registration cannot outlive its own relevance the
     -- way an un-restated fence never could. (An earlier thread_watch, retired 2026-08-14 with different
-    -- kinds and no expiry, is dropped from a legacy file before import — see legacy-project-db.ts.)
+    -- kinds and no expiry, lived only in the pre-unification per-project files, which are never read.)
     CREATE TABLE IF NOT EXISTS thread_watch (
       id          TEXT PRIMARY KEY,
       project_id  TEXT NOT NULL,
@@ -1973,8 +1961,7 @@ export function ensureStorageSchema(db: Database): void {
 // rather than a fresh table, and it keeps every row: `ALTER TABLE … RENAME TO` moves the table, its rows
 // and its primary key as they are. Runs BEFORE the schema's CREATE TABLE IF NOT EXISTS, which would
 // otherwise make an empty `thread_terminal` beside the old one. Idempotent: once renamed, the old name
-// is gone and this no-ops. Like the column drops in legacy-project-db.ts it reshapes a table an older
-// server could hold prepared statements on; the singleton launcher, which refuses a second server, is
+// is gone and this no-ops. It reshapes a table an older server could hold prepared statements on; the singleton launcher, which refuses a second server, is
 // what keeps that from happening.
 function renameCommandThreadTable(db: Database): void {
   if (!hasTable(db, "command_thread") || hasTable(db, "thread_terminal")) return
@@ -1998,7 +1985,7 @@ function mergeLeftoverCommandThreads(db: Database): void {
 }
 
 /** DROP COLUMN, a no-op when the column is already gone (or never existed). Dropped rather than left
- *  declared for the reason legacy-project-db.ts gives: a column no writer reaches is one the next reader
+ *  declared because a column no writer reaches is one the next reader
  *  has to work out is dead. `thread_terminal.queued_at` was a command thread's own queue stamp; since
  *  2026-09-29 a terminal waiting at a prompt queues its THREAD, whose `session.queued_at` keeps the place. */
 function dropColumnIfPresent(db: Database, table: string, column: string): void {

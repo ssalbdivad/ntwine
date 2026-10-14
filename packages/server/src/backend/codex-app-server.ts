@@ -1793,8 +1793,7 @@ export const CODEX_APP_SERVER_TABLES = ["codex_app_server_meta", "codex_app_serv
  * The bridge's schema, written COMPLETE and idempotent (2026-08-27). Every table carries `project_id`
  * and one file holds every project — see project-scope.ts. The additive ALTER stack that used to
  * follow the CREATEs (daemon_generation, auto-resume, sandbox, the `fray_session_id` rename) is gone
- * from here: a database this code creates is born with every column, and a legacy per-project file
- * gets those migrations from legacy-project-db.ts immediately before its rows are imported.
+ * from here: a database this code creates is born with every column.
  *
  * The version marker is checked BEFORE any authority table is created, so a file written by a future
  * schema is refused untouched. The required-columns assertion at the end is what catches a table that
