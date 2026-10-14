@@ -35,6 +35,8 @@
   "scripts": {
     "dev": "nub src/dev.ts",
     "desktop": "nub run --filter @ntwine/desktop dev",
+    "dev-desktop": "nub scripts/dev-desktop.ts",
+    "dd": "nub scripts/dev-desktop.ts",
     "ntwine-dev:install": "nub scripts/install-global-cli.mjs",
     "ntwine-dev:check": "nub scripts/install-global-cli.mjs --check",
     "ntwine-dev:uninstall": "nub scripts/install-global-cli.mjs --uninstall",
