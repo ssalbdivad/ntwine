@@ -1,6 +1,7 @@
 // ALL PROJECTS' LIST, BY WHAT NEEDS YOU — every project's threads in one list of bands, not a list of projects
-// (plans/all-projects-first.md, David 2026-10-14: "build all four steps"). It replaced ProjectList.tsx's
-// per-project groups on `/all`; a project's board (`/project/<slug>`) is still ProjectBoard.tsx.
+// (plans/all-projects-first.md, David 2026-10-14: "build all four steps"). It replaced both All projects'
+// per-project groups and a project's own board: `/project/<slug>` is this list over one project, with each
+// thread's sub-agents as rows under it, and a lens (lib/lens.ts) is this list over the projects in it.
 //
 // TOP TO BOTTOM: Pinned, Ready (in the queue's own order, so a row faces its card), Working (each project's
 // threads together, the project's square on the first of them and the cord tying the rest), Snoozed (the
@@ -10,7 +11,8 @@
 //
 // THE LIST NEVER SCROLLS. It measures itself and gives things up in a fixed order until it fits
 // (lib/sidebarBudget.ts): the Done tail first, then Working rolls its biggest projects into a line each,
-// and last Ready lists its oldest and counts the rest, which the queue beside it shows in full anyway.
+// then Ready and Working list their first rows and count the rest (Ready's are all in the queue beside it
+// anyway), and last Pinned does the same.
 // What the human opened by hand is never taken back. While the pointer is over the list nothing is
 // re-budgeted (lib/listHold.ts), so a row never moves out from under it.
 //
@@ -170,7 +172,8 @@ export function TierList({
     pinnedOpen: open("pinned"),
   }
   const listRef = useRef<HTMLDivElement>(null)
-  const level = useBudgetLevel(listRef, input, held)
+  const childRows = subAgentRows ? Object.values(live).flat().map((entry) => entry.t.subAgents?.length ?? 0).join(",") : ""
+  const level = useBudgetLevel(listRef, input, held, childRows)
   const budget = budgetAt(level, input)
   const rest = workingRest(runs, budget, expanded)
 
@@ -319,7 +322,15 @@ export function TierList({
         </section>
       )}
       {scheduled.length > 0 && (
-        <section aria-label="Schedules" data-xq-tier="schedules" data-xq-tier-count={schedules} className={TIER_GAP}>
+        // A schedule just created from the prompt box for a project in view: the header flashes once (store.ts
+        // flashScheduleCount, ARCHITECTURE.md § Scheduled threads).
+        <section
+          aria-label="Schedules"
+          data-xq-tier="schedules"
+          data-xq-tier-count={schedules}
+          data-sched-flash={snap.scheduleFlash && scheduled.some((p) => p.id === snap.scheduleFlash!.projectId) ? "" : undefined}
+          className={`${TIER_GAP} rounded-md`}
+        >
           <SectionHeader band="schedules" count={schedules} attention={scheduled.some((p) => p.schedules?.attention)} collapsed={!open("schedules")} onToggle={() => setTierFold("schedules", !open("schedules"))} />
           {open("schedules") && scheduled.map((project) => <ScheduleRows key={project.id} project={project} count={project.schedules!.count} attention={project.schedules!.attention} />)}
         </section>
@@ -365,10 +376,12 @@ const TIER_GAP = "mt-2"
  * started over from nothing whenever what the list holds or the room it has changes, so a list that
  * shrank gets its rows back. Never while the list is held: a re-budget would move rows under the pointer.
  */
-function useBudgetLevel(listRef: RefObject<HTMLDivElement | null>, input: BudgetInput, held: boolean): number {
+/** `extra` is anything else that changes the list's height without changing the input: a project's page's
+ *  sub-agent rows. A change re-runs the search. */
+function useBudgetLevel(listRef: RefObject<HTMLDivElement | null>, input: BudgetInput, held: boolean, extra: string): number {
   const [level, setLevel] = useState(0)
   const [room, setRoom] = useState(0)
-  const signature = `${input.tail}|${input.tailOpen}|${input.ready}|${input.workingOpen}|${input.pinned}|${input.pinnedOpen}|${input.runs.map((r) => `${r.id}:${r.size}`).join(",")}|${[...input.expanded].join(",")}|${room}`
+  const signature = `${input.tail}|${input.tailOpen}|${input.ready}|${input.workingOpen}|${input.pinned}|${input.pinnedOpen}|${input.runs.map((r) => `${r.id}:${r.size}`).join(",")}|${[...input.expanded].join(",")}|${room}|${extra}`
   const settled = useRef<string | null>(null)
   const max = maxLevel(input)
   // The scroll box's height moves with the window and with the prompt box above the list growing a line.
@@ -379,21 +392,27 @@ function useBudgetLevel(listRef: RefObject<HTMLDivElement | null>, input: Budget
     observer.observe(scroller)
     return () => observer.disconnect()
   }, [listRef])
+  // A BINARY SEARCH for the lowest level that fits, each probe one commit before paint. Levels only ever
+  // take lines away, so "fits" is monotonic in the level. It stepped one level a commit until 2026-10-14,
+  // and at the heavy load on a 720px screen that was more than React's 50 nested updates: the page threw.
+  const search = useRef<{ signature: string; lo: number; hi: number } | null>(null)
   useLayoutEffect(() => {
     if (held) return
     const scroller = listRef.current?.closest("[data-xq-rail]")
     if (!scroller) return
-    if (settled.current !== null && settled.current !== signature) {
-      settled.current = null
-      if (level !== 0) {
-        setLevel(0)
-        return
-      }
-    }
     if (settled.current === signature) return
-    const overflows = scroller.scrollHeight > scroller.clientHeight + 1
-    if (overflows && level < max) setLevel(level + 1)
-    else settled.current = signature
+    // Every level under `lo` overflows; `hi` fits, or is the last level there is.
+    if (search.current?.signature !== signature) search.current = { signature, lo: 0, hi: max }
+    const range = search.current
+    const probe = Math.min(level, max)
+    if (scroller.scrollHeight > scroller.clientHeight + 1) range.lo = Math.max(range.lo, probe + 1)
+    else range.hi = Math.min(range.hi, probe)
+    if (range.lo >= range.hi) {
+      settled.current = signature
+      if (level !== range.hi) setLevel(range.hi)
+      return
+    }
+    setLevel(Math.floor((range.lo + range.hi) / 2))
   })
   return Math.min(level, max)
 }

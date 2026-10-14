@@ -63,9 +63,9 @@ These are Colin's design principles from Frizz, and Ntwine keeps all of them. I 
 
 **The board shows what's true, densely.**
 
-- There are five bands: Pinned, Ready, Working, Snoozed and Done. Every thread is in exactly one, no view loses that, and on a board the first three never fold.
-- Projects stay separate. All projects is the default view and never interleaves them, and each project's board is one click away.
-- Density over decoration, and few settings. The default view shows at least as much as the original board at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/capacityParity.e2e.test.ts) holds it there.
+- There are five bands: Pinned, Ready, Working, Snoozed and Done. Every thread is in exactly one, no view loses that, and the first three never fold.
+- All projects first. The default view is one list of every project's threads by what they need, each wearing its project's square; one project, or a set of them, is one click away.
+- Density over decoration, and few settings. The list never scrolls: it gives up the least useful lines first, even at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/sidebarFit.e2e.test.ts) holds it there.
 
 **Ntwine is the process that outlives the agent.**
 

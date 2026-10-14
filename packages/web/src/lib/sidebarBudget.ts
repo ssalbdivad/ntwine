@@ -6,7 +6,7 @@
 //
 //   1. the Done-today tail shortens, one row at a time, to its header (unless the human opened Done);
 //   2. Working rolls up its projects' runs into one line each, the biggest run first (a run the human
-//      expanded is never rolled up again);
+//      expanded is never rolled up again, and a lone run, one project's page, never rolls);
 //   3. Ready and Working shorten together, a line at a time from whichever lists more, each down to a
 //      floor, and each says what it no longer lists: Ready how many more the queue holds (the queue
 //      column beside it shows every one in full), Working how many more are working, and where. On a tie
@@ -57,6 +57,9 @@ export interface Budget {
 }
 
 function rollable(input: BudgetInput): string[] {
+  // One run is the whole tier (a project's own page): rolled, it would be Working's header said twice, so it
+  // shortens like Ready instead.
+  if (input.runs.length < 2) return []
   // Biggest first; a tie keeps the order drawn, so the same input always rolls the same runs.
   return input.runs
     .map((run, index) => ({ ...run, index }))

@@ -21,12 +21,15 @@ points.
 - The worker contract states rules, not rationale. A new rule earns its tokens only if a worker measurably gets it wrong
   without it (header of `packages/server/src/workerPrompt.ts`).
 
-**The board (original design; § Board nomenclature)**
+**The board (all projects first, 2026-10-14; § Board nomenclature, `plans/all-projects-first.md`)**
 - Every thread is in exactly one of five rails (Pinned, Ready, Working, Snoozed, Done), and no view may lose that
-  distinction. On a board, Pinned, Ready and Working never fold.
-- Projects stay separate. All projects at `/all` is the default view and never interleaves projects; each project's board is at `/project/<slug>`.
-- The default view shows at least as much as upstream's board at heavy load (17 projects, ~70 threads).
-  `packages/web/src/capacityParity.e2e.test.ts` is the bar.
+  distinction. Pinned, Ready and Working never fold; short of room, they list their first rows and count the rest.
+- All projects at `/all` is the default view: ONE list of every project's threads by band, each row wearing its
+  project's square, under a dock of the projects themselves. A project's page (`/project/<slug>`) is the same list
+  over one project, and a lens the same list over several.
+- The list never scrolls. It gives things up in a fixed order until it fits (`lib/sidebarBudget.ts`), and what the
+  human opened is never taken back. `packages/web/src/sidebarFit.e2e.test.ts` holds it at upstream's heavy load
+  (17 projects, ~70 threads).
 - Density over decoration, and few settings.
 - One server serves every project. Nothing Ntwine runs on its own uses a pty or tmux.
 - Ntwine brings no model of its own: the few calls it makes itself (names, status lines, Auto effort,
@@ -244,7 +247,7 @@ Every thread Ntwine started is in exactly one of five bands, top to bottom:
 - **Snoozed** — the dimmed park band, and the HUMAN's alone (2026-10-14): a wall-clock snooze, the resting card's event-snoozes ("until new activity", "until all sub-agents return", a done card's Watch), and a schedule's next run. A worker's own park — `status: watching`, an armed timer — stays in Working under its wait's mark (shared `isSnoozed` / `agentParked`; maintainer: *"if I consider a thread to be active and an agent happens to be waiting for something, I still don't want to see it collapsed"*). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
 - **Done** — the archived section.
 
-**External** (agent sessions Ntwine did not start) is listed apart, never a sixth band. A project's board (`/project/<slug>`) names all five under headers, and Pinned, Ready and Working never fold; a working row's status there is a hover, with only its clock on the line. All projects (`/all`, one click away; a bare `/` goes back to whichever view the browser showed last) names none — each row says its band by its own mark (a pin, a rest time, a spinner), its status inline — and a folded project's row counts its Pinned, Queue and Running.
+**External** (agent sessions Ntwine did not start) is listed apart, never a sixth band. Every view draws one list (`components/TierList.tsx`): All projects (`/all`, the home page), a project's page (`/project/<slug>`) and a lens are the same bands under the same headers over a different set of projects. Pinned, Ready and Working never fold; Snoozed (and Schedules) start folded; Done lists only today's, with History one click away in the center column. Each row wears its project's square on the first row of a run, and a working row's status is inline.
 
 The trap is that `sectionOf` (`@ntwine/shared`, re-exported by `groups.ts`) returns `"active"` for Working AND Ready rows alike — that key names the `<section>` holding both bands, not the maintainer's word — and the band keys match those labels, `ready` and `working`. `partitionActive` splits the section (`.running` = Working, `.rested` = Ready), and `inActiveBand` is the one predicate that means Working exactly. Full detail, including why the archived key is `"inactive"` while its label reads Done, in `ARCHITECTURE.md` § Board nomenclature.
 

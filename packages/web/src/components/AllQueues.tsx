@@ -5,13 +5,13 @@
 // left is that project and the queue on the right is its cards, and the prompt box dispatches into it. ALL
 // PROJECTS — `/all`, one click away (the switcher's first entry, the board's home crumb), and the bare `/`
 // from 2026-09-30 until then — is every project's list and ONE queue across all of them. The two are
-// the same page drawn from the same parts, not two UIs: the list's bands (ProjectList.tsx) are identical in
-// both, and focus mode is All projects with one project in it and the prompt box's picker gone.
+// the same page drawn from the same parts, not two UIs: the list (TierList.tsx) is identical in both, and
+// focus mode is All projects with one project in it and the prompt box's picker gone.
 //
 // It is laid out as a project's own board was, one level up — the board was a floating sidebar beside a
-// 720px queue, until 2026-09-28 when this page replaced it. The list on the left is the view's PROJECTS,
-// each with its own queue rows and running rows beneath it, in the operator's own rail order
-// (ProjectList.tsx). The queue on the right is a column of cards in the order each card entered it; showing
+// 720px queue, until 2026-09-28 when this page replaced it. The list on the left is the view's THREADS by
+// band, every project's together, each row wearing its project's square (TierList.tsx), under a dock of
+// the projects themselves (ProjectDock.tsx). The queue on the right is a column of cards in the order each card entered it; showing
 // All projects it is ONE queue across every project (David 2026-09-28: "One queue across all
 // projects"), each card wearing its project's chip (AllQueuesCard.tsx ProjectChip). It was one LANE per
 // project, in rail order, until then, and a project listed above the one being read put its whole lane
@@ -653,7 +653,7 @@ export function AllQueuesPage() {
 function Switcher({ projects, hidden, current, row = false }: { projects: QueuesProject[]; hidden: (key: string) => boolean; current: QueuesProject | undefined; row?: boolean }) {
   const choose = useChooseView()
   const add = useAddProject()
-  // The machine-wide (drag) order; Home last, on its own — unlike ProjectList, where Home is dragged into
+  // The machine-wide (drag) order; Home last, on its own — unlike the dock, where Home is dragged into
   // place like any project.
   const ordered = projects.filter((project) => !project.card?.home)
   const item = (project: QueuesProject): SwitcherProject => ({
@@ -711,7 +711,7 @@ function useChooseView(): {
 }
 
 const noop = () => {}
-/** A Ready row with no card on the page to land on: it opens its thread (ProjectList.tsx useRowScope). */
+/** A Ready row with no card on the page to land on: it opens its thread (TierList.tsx useRowScopes). */
 const noCard = () => null
 
 // ---- The column head --------------------------------------------------------------------------------

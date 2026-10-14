@@ -80,5 +80,5 @@ test("a thread that entered the queue off a wait dates from its ENTRY, so the co
   // as the order being wrong.
   const html = row({ lastAssistantAt: ago(3 * 60 * 60_000), queuedAt: ago(12 * 60_000) })
   assert.match(html, />12m</)
-  assert.match(html, /aria-label="Queued 12m ago"/)
+  assert.match(html, /aria-label="Ready 12m ago"/)
 })

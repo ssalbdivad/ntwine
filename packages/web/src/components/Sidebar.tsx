@@ -33,14 +33,13 @@ import { prefs } from "../lib/prefs.ts"
 import { RailDeadline } from "./DeadlineControl.tsx"
 
 // THE THREAD ROW — one thread as a line of a list, with its indicator, its title and trailers, and the
-// verbs it offers on hover (pin, Retry, reopen). Everything's project list draws
-// every project's threads with these (ProjectList.tsx), each group under its project's ThreadProjectScope.
+// verbs it offers on hover (pin, Retry, reopen). The tier list draws every project's threads with these
+// (TierList.tsx), each row under its project's ThreadProjectScope.
 //
 // The file is named for the column it was written for: a project's own board, whose floating sidebar
 // listed these rows in named bands. The board went with the project view on 2026-09-28 and came back
-// on 2026-10-06 as `/project/<slug>` (ProjectBoard.tsx), banded under upstream's names — Pinned, Queue,
-// Running, Snoozed, Done, External — with SectionHeader below over each band. All projects lists every
-// project's current work with the same rows (ProjectList.tsx), and ARCHITECTURE.md § Board nomenclature
+// on 2026-10-06 as `/project/<slug>`, banded under upstream's names. Since 2026-10-14 one list draws both
+// views (TierList.tsx), with SectionHeader below over each band, and ARCHITECTURE.md § Board nomenclature
 // fixes the bands' names.
 //
 // ENTIRELY MOUSE-DRIVEN: no arrow-walk, no selection chevron. A row CLICK opens the thread — in the list,
@@ -106,7 +105,7 @@ export const SIDEBAR_COLUMN_CLASS =
   "fixed top-0 h-screen w-[clamp(272px,34vw,680px)] flex flex-col justify-center max-[800px]:static max-[800px]:h-auto max-[800px]:w-full max-[800px]:justify-start max-[800px]:pt-16"
 
 /**
- * Where a row's "open" leads. Every row is drawn in Everything's project list (ProjectList.tsx), where the
+ * Where a row's "open" leads. Every row is drawn in the tier list (TierList.tsx), where the
  * page project is the prompt box's pick and the row is usually another project's. Its verbs must not ask
  * the page: the row sits under a ThreadProjectScope, so pin, reopen and Retry go through its project's
  * own client (api/threadApi.tsx), and this says where "open" leads. Required: until 2026-09-28 a row
@@ -345,7 +344,7 @@ export const ThreadRow = memo(function ThreadRow({
    *  (ThreadConnector). */
   cardKey?: string
   /** The band the list drew this row in, as `data-xq-band` — Ready and Working carry no name over their
-   *  rows (ProjectList.tsx), so this is how a script tells them apart. */
+   *  rows (TierList.tsx), so this is how a script tells them apart. */
   band?: BandKey
   /** Drawn where the list last put it, not where it now belongs: the list is held under the pointer
    *  (lib/listHold.ts). Drawn exactly like any row; `data-xq-held` is for scripts. */
@@ -863,9 +862,7 @@ export function awaitingReason(t: Pick<ThreadView, "lastFence">): string | null 
 // ride the tooltip; the children themselves are one click away on the card and in the drawer, which is
 // where the row's own click already goes.
 //
-// THE PROJECT ROW'S COUNTS, SPOKEN THE SAME WAY (ProjectList QuietToggles): glyph first, then digits,
-// a 10px glyph 3px from them, in the column's type and grey — so the robot here and the Working count's
-// robot on a folded project are one mark. It yields to the hover actions as the clock does.
+// SPOKEN AS A COUNT: glyph first, then digits, a 10px glyph 3px from them, in the column's type and grey. It yields to the hover actions as the clock does.
 //
 // THE BOT'S FACE SITS ON THE DIGITS' CAP BAND, NOT ITS INK BOX: the antenna is a hairline and the eye
 // reads the face, so centring the whole ink (antenna included) left the face riding low beside the

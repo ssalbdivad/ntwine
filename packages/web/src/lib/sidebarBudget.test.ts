@@ -50,3 +50,8 @@ test("a tier at or under its floor never shortens", () => {
   assert.equal(maxLevel(input(small)), 0)
   assert.deepEqual(at(9, small), { tail: 0, rolled: [], ready: 3, working: 2, pinned: 1 })
 })
+
+test("a lone run never rolls: it shortens line by line like Ready", () => {
+  const page = { runs: [{ id: "a", size: 21 }], ready: 28, tail: 0, pinned: 0 }
+  assert.deepEqual(at(25, page), { tail: 0, rolled: [], ready: 12, working: 12, pinned: 0 })
+})
