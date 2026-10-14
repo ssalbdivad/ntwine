@@ -384,8 +384,14 @@ if (mode === 'nudge') {
 
   // The NEWEST write across the whole directory is the clock. A worker with several docs has "written
   // recently" if it touched ANY of them — the nudge asks whether the effort is being recorded at all,
-  // not whether one particular file moved. Zero when the directory is empty.
-  const mtimeMs = files.length ? Math.max(...files.map((f) => f.mtimeMs)) : 0;
+  // not whether one particular file moved.
+  //
+  // AN EMPTY DIRECTORY IS NEVER NUDGED (2026-10-14). Notes are optional, so a worker that kept none made
+  // a choice, and a reminder every 60k tokens that "this is fine, keep going" spent its tokens telling
+  // the worker to ignore it (four of them in one ~290k session). Only a worker that chose to keep
+  // notes is reminded that they have gone stale.
+  if (!files.length) process.exit(0);
+  const mtimeMs = Math.max(...files.map((f) => f.mtimeMs));
 
   let state = readState();
   // A changed mtime means something was just written — rebase the baseline to NOW and go quiet. This is
@@ -396,10 +402,7 @@ if (mode === 'nudge') {
     writeState(state);
   }
 
-  // An EMPTY directory measures growth from ZERO: the whole session is unrecorded, so the clock starts
-  // at the beginning, not at whenever this first looked.
-  const baseline = mtimeMs ? (state.tokensAtWrite ?? tokens) : 0;
-  const grown = tokens - baseline;
+  const grown = tokens - (state.tokensAtWrite ?? tokens);
   if (grown < STALE_TOKENS) process.exit(0);
   // Space repeat nudges by the same interval. Both channels share this state, so firing on every tool
   // call does not multiply reminders — it only makes the existing budget land sooner and mid-turn.
@@ -412,17 +415,9 @@ if (mode === 'nudge') {
     input.transcript_path && flagValue('--event') === 'PostToolUse' ? 'PostToolUse' : 'UserPromptSubmit'
   );
   emitJson(
-    mtimeMs
-      ? '⟦scratch notes stale⟧ Your context has grown ~' + k + 'k tokens since you last wrote anything ' +
-          'in `' + relPath + '`. Top the notes up in passing if you still want them current (a goal ' +
-          'armed with `ntwinectl goal start --post-compaction` can link them). This is a background note, NOT a task and ' +
-          'NOT a reason to pause: do not stop working to service it, and never end a turn on it while ' +
-          'the user\'s instruction still has parts left.'
-      : '⟦scratch directory empty⟧ This session is ~' + k + 'k tokens deep and `' + relPath + '` is ' +
-          'empty. That is fine — notes are optional and writing them is not doing the work. The ' +
-          'directory is available if you want notes, and `ntwinectl goal start ' +
-          '--post-compaction` can re-send a prompt linking them after a compaction. This is a ' +
-          'background note, NOT a task and NOT a reason to pause: keep going with what you were asked to do.',
+    '⟦scratch notes stale⟧ Your context has grown ~' + k + 'k tokens since you last wrote anything ' +
+      'in `' + relPath + '`. Top the notes up in passing if you still want them current. This is a ' +
+      'background note, NOT a task and NOT a reason to pause.',
     event,
   );
 }

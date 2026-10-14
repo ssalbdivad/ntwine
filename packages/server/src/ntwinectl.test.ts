@@ -512,13 +512,13 @@ test("every ntwinectl example the worker contract writes out runs as written, an
       const prompt = buildWorkerPrompt(kind)
       assert.doesNotMatch(prompt, /mcp__ntwine__/, `${kind}: the contract still names an MCP tool`)
       const named = [...prompt.matchAll(/`ntwinectl ([a-z][a-z_-]*)/g)].map((m) => m[1])
-      assert.ok(named.length >= 30, `${kind}: the contract names the command line throughout (${named.length})`)
+      assert.ok(named.length >= 20, `${kind}: the contract names the command line throughout (${named.length})`)
       for (const name of named) assert.ok(commands.has(name), `${kind}: the contract names \`ntwinectl ${name}\`, which is not a command`)
       // Every capability a worker is told about by name is one it was introduced to as `ntwinectl`.
       assert.match(prompt, /`ntwinectl --help` lists every command; `ntwinectl <command> --help` is that command's full\s+reference/)
 
       const examples = [...prompt.matchAll(/```sh\n(ntwinectl [^]*?)\n```/g)].map((m) => m[1])
-      assert.equal(examples.length, 3, `${kind}: the done heredoc and the two written-out questions`)
+      assert.equal(examples.length, 2, `${kind}: the done heredoc and the written-out question`)
       for (const example of examples) {
         fake.seen.length = 0
         const ran = await new Promise<Ran>((resolve) => {

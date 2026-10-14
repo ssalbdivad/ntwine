@@ -20,7 +20,7 @@ const render = (md: string) => (marked.parse(md, { async: false }) as string).tr
 
 function section(kind: "claude" | "codex"): string {
   const prompt = buildWorkerPrompt(kind)
-  const start = prompt.indexOf("## Markdown that Ntwine draws as more than text")
+  const start = prompt.indexOf("## Markdown that ntwine draws as more than text")
   assert.notEqual(start, -1, `the ${kind} contract carries the section`)
   const end = prompt.indexOf("\n## ", start + 3)
   return prompt.slice(start, end === -1 ? undefined : end)
