@@ -1191,9 +1191,16 @@ export function returnedSubAgentsView(tele: SessionTelemetry | undefined): Threa
  *  - when the HUMAN has spoken to the thread since (lastHumanAt counts typed turns only, never a child's
  *    report or a wake). Whatever they said supersedes a snooze set before it.
  *
- *  A question, a crash, a limit or a ```done outrank it without touching it: deriveNeedsYou checks those
- *  first. Nothing ever clears the column, and nothing needs to — once any of the above has happened it is
- *  true forever, so a stale arming is inert. */
+ *  A question, a crash, a limit or a ```done outrank it: deriveNeedsYou checks those first. So does a
+ *  `status: needs_input` rest NEWER than the click (subAgentsSnoozeHidesRest) — the rest the human was
+ *  looking at when they clicked is hidden, but a later report the worker says needs them is not.
+ *
+ *  AND ONCE IT LETS GO IT IS SPENT. Whatever brings the thread back into the queue clears the column
+ *  (spendSubAgentsSnooze, at the queue clock's entry). Until 2026-10-14 nothing cleared it, and an
+ *  outranking rest only outranked it for that rest: @precompile-design, snoozed at 13:58 on a lane that
+ *  then ran for five hours, came back to Ready at each `needs_input` report and folded into Snoozed again
+ *  at the next `working` rest, three times, with no click (maintainer: "snoozed is a human only state- it
+ *  has to be manually triggered"). Back in view, it takes another click to leave it. */
 export function subAgentsSnoozeHolds(row: Pick<SessionRow, "subagents_snoozed_at">, tele: SessionTelemetry | undefined): boolean {
   const armedMs = Date.parse(row.subagents_snoozed_at ?? "")
   if (!Number.isFinite(armedMs)) return false
@@ -1202,6 +1209,18 @@ export function subAgentsSnoozeHolds(row: Pick<SessionRow, "subagents_snoozed_at
   // A child with no parseable dispatch instant cannot show it was out at the click, so it holds nothing —
   // the safe side, since letting go only ever returns the thread to view.
   return (tele?.subAgents ?? []).some((a) => isDirectSubAgent(a) && a.state === "running" && Date.parse(a.startedAt) <= armedMs)
+}
+
+/** The same snooze for a thread that answers `status:` itself, whose rests needsInputQueues decides and
+ *  which never reach the legacy line in deriveNeedsYou. Without this the click on a `needs_input` card
+ *  hid nothing — that rest stayed queued — and the snooze only took effect at the next `working` rest,
+ *  folding into Snoozed a row the human had last seen in Ready. It hides every rest while it holds except
+ *  a `needs_input` one written AFTER the click, which is news the human has not seen. */
+function subAgentsSnoozeHidesRest(row: SessionRow, tele: SessionTelemetry | undefined, runtime: RuntimeState): boolean {
+  if (runtime === "exited" || tele?.lastFence?.kind === "done" || !subAgentsSnoozeHolds(row, tele)) return false
+  const fence = tele?.lastFence
+  const asks = fence?.kind === "awaiting" && awaitingNeedsInput(fence.hints) === true
+  return !(asks && Date.parse(tele?.lastAssistantAt ?? "") > Date.parse(row.subagents_snoozed_at ?? ""))
 }
 
 // A declared wait excuses an idle thread from the queue only for a specific external-human gate or a
@@ -1520,6 +1539,7 @@ export function deriveNeedsYou(
   // the legacy park rule would have excused it. The cut decides only whether the answer is REQUIRED.
   const answered = tele?.lastFence?.kind === "awaiting" && awaitingNeedsInput(tele.lastFence.hints) !== null
   if (answered || needsInputRequired(row.spawned_at)) {
+    if (subAgentsSnoozeHidesRest(row, tele, runtime)) return false
     return needsInputQueues(row, tele, runtime, nowMs, excuseLiveOwnWork, registeredPrWatches, armedTimerIds)
   }
   // Declared parks are STRONGER excusals than the awaiting-background card below, so they are checked
@@ -2772,9 +2792,22 @@ export function createBoard(
       }
     },
     persists: (thread) => thread.kind === "session",
-    save: (thread, at) => storage.setQueuedAt(thread.id, at),
+    save: (thread, at) => {
+      storage.setQueuedAt(thread.id, at)
+      if (at !== null) spendSubAgentsSnooze(thread.id)
+    },
     saveAlive: (at) => storage.setSetting(QUEUE_CLOCK_ALIVE_SETTING, at),
   })
+
+  // A thread entering the queue has let go of "until all sub-agents return", whatever let it go, and the
+  // snooze is spent: only another click parks it again (subAgentsSnoozeHolds). Keyed on the queue
+  // clock's ENTRY, which fires once per arrival on a reading the board can vouch for — never on a row
+  // that was already queued when the human clicked, or one a restart's prime merely shows queued.
+  function spendSubAgentsSnooze(slug: string): void {
+    const row = storage.getSession(slug)
+    if (!row?.subagents_snoozed_at) return
+    storage.setSubAgentsSnoozedAtIfCurrent(slug, row.session_id, row.runtime_generation ?? 0, null)
+  }
 
   // What a needs-decision notification SAYS. A thread held on a request says what the request asks —
   // "Run a command? Creating the lane worktrees" — rather than the progress line its turn printed

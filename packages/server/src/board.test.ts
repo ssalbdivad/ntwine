@@ -791,6 +791,77 @@ test("deriveNeedsYou: 'until all sub-agents return' waits only on the children o
   assert.equal(deriveAwaitingBackground(armed, declared, "turn-idle"), deriveAwaitingBackground(row({ rested_at: FAN_REREST }), declared, "turn-idle"), "the snooze never changes the resting-card fact")
 })
 
+// THE SAME SNOOZE ON A THREAD THAT ANSWERS `status:` ITSELF — @precompile-design's shape (2026-10-14). Its
+// rests are decided by needsInputQueues, which never read the snooze: the click on its `needs_input` card
+// hid nothing, and the snooze surfaced only as a fold into Snoozed at the next `working` rest.
+const PC_SPAWNED = "2026-10-14T10:00:00.000Z"
+const PC_LANE = "2026-10-14T17:48:03.000Z" // the lane is resumed on a new job
+const PC_CARD = "2026-10-14T17:48:16.000Z" // the parent's `needs_input` rest the human is looking at
+const PC_ARMED = "2026-10-14T17:58:29.000Z" // "Snooze until all return"
+const PC_REPORT = "2026-10-14T18:20:34.000Z" // a later `needs_input` report, the lane still out
+const PC_PARK = "2026-10-14T18:51:01.000Z" // …and a `working` re-park after it
+const statusFence = (status: "needs_input" | "working") =>
+  ({ kind: "awaiting" as const, body: "", hints: [{ kind: "agent" as const, value: "lane" }, { kind: "status" as const, value: status }, { kind: "for" as const, value: "30m" }] })
+const laneOut = (status: "needs_input" | "working", at: string) =>
+  tele({ subAgents: [agent("lane", "running", PC_LANE)], lastFence: statusFence(status), lastAssistantAt: at })
+
+test("deriveNeedsYou: on a `status:` thread the snooze hides the rest it was clicked on, and a newer `needs_input` report outranks it", () => {
+  const armed = row({ spawned_at: PC_SPAWNED, rested_at: PC_CARD, subagents_snoozed_at: PC_ARMED })
+  // NEGATIVE CONTROL: unarmed, the card the human clicked on is queued.
+  assert.equal(deriveNeedsYou(row({ spawned_at: PC_SPAWNED, rested_at: PC_CARD }), laneOut("needs_input", PC_CARD), "turn-idle"), true)
+  assert.equal(deriveNeedsYou(armed, laneOut("needs_input", PC_CARD), "turn-idle"), false, "the click takes the card it was made on")
+  assert.equal(deriveNeedsYou({ ...armed, rested_at: PC_REPORT }, laneOut("needs_input", PC_REPORT), "turn-idle"), true, "a report written after the click is news")
+  // The lane it waits on is the batch: once it is back the snooze holds nothing, as on the legacy path.
+  const back = tele({ subAgents: [], retiredSubAgents: [retired("lane", PC_REPORT)], lastFence: statusFence("needs_input"), lastAssistantAt: PC_CARD })
+  assert.equal(deriveNeedsYou(armed, back, "turn-idle"), true, "released when the lane is back")
+})
+
+test("board: a sub-agent snooze is spent the moment its thread comes back to the queue", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-spent-"))
+  const project: Project = { dir, id: "project-spent", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
+  const storage = createStorage(join(dir, "ui.db"), "p")
+  storage.upsertSession(row({ slug: "pc", session_id: "sess-pc", thread_name: "ntwine-pc", spawned_at: PC_SPAWNED, rested_at: PC_CARD }))
+  storage.setBackend("pc", "claude")
+  storage.setClaudeRuntime("pc", "broker")
+  let current = laneOut("needs_input", PC_CARD)
+  let now = Date.parse(PC_ARMED)
+  const tailer = {
+    get: () => current,
+    foreignIds: () => [], subAgent: () => undefined, forget: () => {},
+    start: () => {}, stop: () => {}, tick: () => {},
+  } satisfies Tailer
+  const board = createBoard(project, storage, new Bus(), tailer, "spent", { claudeBrokerDaemonAlive: () => true, now: () => now })
+  const read = () => board.refresh().threads.find((t) => t.id === "pc")!
+  try {
+    assert.equal(read().needsYou, true, "control: the `needs_input` card is queued")
+    assert.equal(storage.setSubAgentsSnoozedAtIfCurrent("pc", "sess-pc", 0, PC_ARMED), true)
+    let pc = read()
+    assert.equal(pc.needsYou, false, "the click takes it out of the queue")
+    assert.equal(pc.subAgentsSnoozed, true, "into Snoozed, by the human's hand")
+    assert.equal(storage.getSession("pc")?.subagents_snoozed_at, PC_ARMED, "leaving the queue does not spend it")
+
+    // A newer report brings it back while the lane is still out…
+    now = Date.parse(PC_REPORT) + 1_000
+    storage.setRestedAt("pc", PC_REPORT)
+    current = laneOut("needs_input", PC_REPORT)
+    pc = read()
+    assert.equal(pc.needsYou, true, "a newer `needs_input` report is queued")
+    assert.equal(storage.getSession("pc")?.subagents_snoozed_at, null, "and coming back spends the snooze")
+
+    // …so the next `working` re-park, the lane STILL out, stays in view instead of folding away again.
+    now = Date.parse(PC_PARK) + 1_000
+    storage.setRestedAt("pc", PC_PARK)
+    current = laneOut("working", PC_PARK)
+    pc = read()
+    assert.equal(pc.needsYou, false, "the worker's own park")
+    assert.equal(pc.subAgentsSnoozed, undefined, "is not the human's snooze any more")
+  } finally {
+    board.stop()
+    storage.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test("returnedSubAgentsView: the returns inside the wait still open, never an earlier batch's", () => {
   const earlier = retired("old", "2026-09-29T09:40:00.000Z", { startedAt: "2026-09-29T09:30:00.000Z" })
   const failed = retired("b", "2026-09-29T10:05:00.000Z", { status: "failed", subagentType: "ntwine:opus-high" })
