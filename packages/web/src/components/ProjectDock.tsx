@@ -17,14 +17,14 @@
 // projects until 2026-10-14, and was dropped as a second copy of this.
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus, X } from "lucide-react"
+import { LayoutGrid, Plus, X } from "lucide-react"
 import type { ProjectCard } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { deleteLens, saveLens, savedNameOf, setLens, useLens, useSavedLenses } from "../lib/lens.ts"
 import { usePageView } from "../lib/pageView.ts"
 import { ProjectMenu, useAddProject } from "./ProjectActions.tsx"
-import { AllProjectsSquare, ProjectSquare } from "./ProjectSquare.tsx"
+import { ProjectSquare } from "./ProjectSquare.tsx"
 
 const SQUARE = 20
 
@@ -87,9 +87,12 @@ export function ProjectDock({
         </div>
       )}
       <div data-xq-dock-squares data-tour="dock-squares" className={`flex min-w-0 flex-wrap items-center gap-x-[10px] gap-y-2 ${inline ? "py-[3px]" : "pt-[8px]"}`}>
-        {/* All LEADS the squares, a square itself (the phone's layers tile): one row reading "All, or one
-            of these" is what says a square narrows the page, and it is the way back from a project's page.
-            Ringed while it is the view, dimmed like any square outside it. It was a text chip until 2026-10-14. */}
+        {/* All LEADS the squares: one row reading "All, or one of these" is what says a square narrows the
+            page, and it is the way back from a project's page. A bare 2x2 grid — four small tiles, every
+            project — on no tile of its own: it is the view most of the time, so it is the quietest mark in
+            the row. No ring while it is the view, as
+            a square gets: it is the view most of the time, so its ink alone says so — bright, or muted when a
+            project or a lens is. */}
         <button
           type="button"
           data-tour="dock-all"
@@ -98,9 +101,11 @@ export function ProjectDock({
           aria-label="All projects"
           title="All projects"
           onClick={() => { setLens(null); onAll(focused) }}
-          className={`relative flex shrink-0 rounded-[5px] outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-focus-ink-60 ${!focused && !lens ? "ring-1 ring-fg/70 ring-offset-2 ring-offset-bg" : "opacity-40 hover:opacity-90"}`}
+          className={`relative flex shrink-0 rounded-[5px] outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-focus-ink-60 hover:[&>span]:text-fg`}
         >
-          <AllProjectsSquare size={SQUARE} />
+          <span className={`flex items-center justify-center ${!focused && !lens ? "text-fg" : "text-muted"}`} style={{ width: SQUARE, height: SQUARE }}>
+            <LayoutGrid size={16} strokeWidth={1.5} absoluteStrokeWidth aria-hidden />
+          </span>
         </button>
         {reorder.ordered.map((project) => {
           const ready = project.queued.filter((t) => !hidden(threadKey(project.id, t.id))).length
