@@ -50,7 +50,7 @@ test("the cwd's own record in .claude.json and the user settings file approve to
   assert.deepEqual(Object.keys(f.read()).sort(), ["a", "b"])
 })
 
-test("user scope: REMOTE servers ride along, stdio ones are exactly what a worker stops inheriting", () => {
+test("user scope: REMOTE servers ride along, stdio ones are exactly what a worker stops inheriting — unless local-scope", () => {
   const f = fixture()
   f.write(join(f.configDir, ".claude.json"), {
     mcpServers: {
@@ -58,11 +58,16 @@ test("user scope: REMOTE servers ride along, stdio ones are exactly what a worke
       "chrome-real": { type: "stdio", command: "npx", args: ["-y", "chrome-devtools-mcp@latest", "--autoConnect"] },
       legacy: { command: "some-local-binary" },
     },
-    projects: { [f.cwd]: { mcpServers: { local: { type: "sse", url: "https://local.example/sse" } } } },
+    projects: {
+      [f.cwd]: { mcpServers: { local: { type: "sse", url: "https://local.example/sse" }, windows: { type: "stdio", command: "uvx.exe", args: ["windows-mcp", "serve"] } } },
+      // Another project's local stdio server is that project's, not this one's.
+      [join(f.root, "other")]: { mcpServers: { elsewhere: { command: "elsewhere" } } },
+    },
   })
   assert.deepEqual(f.read(), {
     Neon: { type: "http", url: "https://mcp.neon.tech/mcp" },
     local: { type: "sse", url: "https://local.example/sse" },
+    windows: { command: "uvx.exe", args: ["windows-mcp", "serve"] },
   })
 })
 

@@ -11,10 +11,12 @@
 // it was the largest avoidable block in the two memory crashes of that day.
 //
 // WHAT A WORKER GETS, lowest precedence first (a later entry wins a name collision):
-//   1. the operator's user-scope REMOTE servers (`type: "http" | "sse"` in `~/.claude.json`, both the
-//      machine-wide map and the cwd's local-scope record). A URL costs no process, so nothing about the
-//      double-spawn applies to them, and dropping them would change what a worker can reach for no
-//      memory in return.
+//   1. the operator's own servers from `~/.claude.json`: every REMOTE one (`type: "http" | "sse"`) in the
+//      machine-wide map, and EVERY server, stdio included, in the cwd's local-scope record
+//      (`claude mcp add --scope local`, run in the project). A URL costs no process, so nothing about
+//      the double-spawn applies to a remote one. A local-scope stdio server is the operator saying "this
+//      project's sessions", one server and one project at a time — the opt-in a desktop-control server
+//      like `windows-mcp` needs, since a worker under bypass calls it unasked (maintainer 2026-10-14).
 //   2. the project's `.mcp.json`, filtered by the SAME approval Claude Code applies to it: a server loads
 //      iff it is not in `disabledMcpjsonServers` and either `enableAllProjectMcpServers` is set or it is
 //      named in `enabledMcpjsonServers` — read from the project's `.claude/settings.json` and
@@ -22,8 +24,8 @@
 //      unioned. A headless worker cannot answer the approval prompt, so an unapproved server is skipped
 //      exactly as `claude -p` skips it.
 //   3. the `ntwine` server, which always wins (workerMcpServers below).
-// User-scope STDIO servers are the one thing deliberately absent. An operator who wants one in the fleet
-// declares it in the project's `.mcp.json`: that is the scope that means "this repo's sessions".
+// User-scope STDIO servers are the one thing deliberately absent. An operator who wants one in a project's
+// workers adds it at local scope there, or declares it in the project's `.mcp.json` for everyone's.
 //
 // WHEN they start is the broker daemon's business, not this module's: it hands every project stdio server
 // to the lazy MCP host, which mounts it in the worker as a loopback `http` server and starts the real
@@ -154,15 +156,17 @@ function collectApproval(layers: Array<JsonObject | undefined>): Approval {
   return approval
 }
 
-/** The servers the operator's user scope contributes to a worker: remote ones only (see the header). */
-function userScopeRemoteServers(account: JsonObject | undefined, cwd: string, env: NodeJS.ProcessEnv): WorkerMcpServers {
+/** The servers the operator's own config contributes to a worker: every remote one, and the stdio ones of
+ *  the cwd's local scope (see the header). */
+function operatorServers(account: JsonObject | undefined, cwd: string, env: NodeJS.ProcessEnv): WorkerMcpServers {
   const out: WorkerMcpServers = {}
-  const maps = [objectField(account, "mcpServers"), objectField(objectField(objectField(account, "projects"), cwd), "mcpServers")]
-  for (const map of maps) {
-    for (const [name, raw] of Object.entries(map ?? {})) {
-      const server = normalizeMcpServer(raw, env)
-      if (server && server.type !== undefined && server.type !== "stdio") out[name] = server
-    }
+  for (const [name, raw] of Object.entries(objectField(account, "mcpServers") ?? {})) {
+    const server = normalizeMcpServer(raw, env)
+    if (server && server.type !== undefined && server.type !== "stdio") out[name] = server
+  }
+  for (const [name, raw] of Object.entries(objectField(objectField(objectField(account, "projects"), cwd), "mcpServers") ?? {})) {
+    const server = normalizeMcpServer(raw, env)
+    if (server) out[name] = server
   }
   return out
 }
@@ -176,7 +180,7 @@ export function projectMcpServers(cwd: string, options: ProjectMcpServersOptions
   const userSettingsFile = join(configOverride ?? join(home, ".claude"), "settings.json")
   const account = readJsonObject(accountFile)
 
-  const out: WorkerMcpServers = userScopeRemoteServers(account, cwd, env)
+  const out: WorkerMcpServers = operatorServers(account, cwd, env)
 
   const declared = objectField(readJsonObject(join(cwd, ".mcp.json")), "mcpServers")
   if (!declared) return out
