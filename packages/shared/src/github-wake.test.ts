@@ -42,7 +42,6 @@ import {
   ISSUE_WATCH_ARMED_TRAILER,
   ISSUE_WATCH_SPENT_TRAILER,
   issueWatchWakeMessage,
-  splitAwaitingFrontmatter,
   SHELL_DONE_TRAILER,
   type GithubWakeSteer,
   interruptEndedSubAgentsMessage,
@@ -758,13 +757,15 @@ test("a watcher wake written before the command line still loses its trailer", (
   const armedIssue = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or assignee change, and once more when the issue closes. Drop it with `mcp__ntwine__watch_issue` when it stops mattering.)"
   assert.notEqual(armedPr, PR_WATCH_ARMED_TRAILER, "the trailer a worker gets today names the command")
   assert.match(PR_WATCH_ARMED_TRAILER, /Drop it with `ntwinectl watch-pr drop <id>`/)
-  assert.match(ISSUE_WATCH_ARMED_TRAILER, /Drop it with `ntwinectl watch-issue drop <id>`/)
-  for (const [now, then] of [[PR_WATCH_ARMED_TRAILER, armedPr], [ISSUE_WATCH_ARMED_TRAILER, armedIssue]]) {
+  // `watch-issue` was removed on 2026-10-14; a worker's issue watcher from before then is dropped by id.
+  const armedIssueCli = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or assignee change, and once more when the issue closes. Drop it with `ntwinectl watch-issue drop <id>` when it stops mattering.)"
+  assert.match(ISSUE_WATCH_ARMED_TRAILER, /Drop it with `ntwinectl unwatch <id>`/)
+  for (const [now, then] of [[PR_WATCH_ARMED_TRAILER, armedPr], [ISSUE_WATCH_ARMED_TRAILER, armedIssue], [ISSUE_WATCH_ARMED_TRAILER, armedIssueCli]]) {
     const wake = prWatchWakeMessage({ target: "nubjs/nub#879", changes: ["labels +blocked"] }).replace(PR_WATCH_ARMED_TRAILER, now)
     const old = wake.replace(now, then)
     assert.ok(old.endsWith(then))
     assert.equal(stripWakeTrailer(old), stripWakeTrailer(wake), "the old trailer comes off exactly as the new one does")
-    assert.doesNotMatch(stripWakeTrailer(old), /STILL ARMED|mcp__ntwine__/)
+    assert.doesNotMatch(stripWakeTrailer(old), /STILL ARMED|mcp__ntwine__|watch-issue/)
   }
 })
 
@@ -788,23 +789,12 @@ test("issueWatchWakeMessage: state changes and a comment steer share one deliver
   assert.doesNotMatch(stripWakeTrailer(text), /watch[-_]issue/)
 })
 
-test("prWatchExpiredWakeMessage: an issue's expiry parses through the same head and points at watch-issue", () => {
+test("prWatchExpiredWakeMessage: an issue's expiry parses through the same head and offers no re-registration", () => {
   const text = prWatchExpiredWakeMessage("acme/app#7", "issue")
   assert.deepEqual(parsePrWatchExpiredWake(text), { ref: "acme/app#7" })
   assert.match(text, /nothing on that issue will wake/)
-  assert.match(text, /register it again with `ntwinectl watch-issue add` and a fresh `--for`/)
+  assert.doesNotMatch(text, /register it again|watch-issue/)
   assert.match(prWatchExpiredWakeMessage("acme/app#7"), /register it again with `ntwinectl watch-pr add` and a fresh `--for`/, "the default is still a PR")
-})
-
-test("splitAwaitingFrontmatter: `issues:` is a structural key producing `issue` hints", () => {
-  const { hints, body } = splitAwaitingFrontmatter("issues: [acme/app#7, https://github.com/acme/app/issues/9]\nprs: [acme/app#391]\nfor: 90d\n---\nWaiting on the reporter.")
-  assert.deepEqual(hints, [
-    { kind: "issue", value: "acme/app#7" },
-    { kind: "issue", value: "https://github.com/acme/app/issues/9" },
-    { kind: "pr", value: "acme/app#391" },
-    { kind: "for", value: "90d" },
-  ])
-  assert.equal(body, "Waiting on the reporter.")
 })
 
 // A watch the human armed is one they follow: only green CI alone may stay snoozed (2026-10-07).

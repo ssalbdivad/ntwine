@@ -759,7 +759,7 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //   prose bodies       narrowed to `reason:` so the fence is machine-checkable — then given back in full
 //                      below the `---` delimiter, where prose cannot be mistaken for structure.
 export const AwaitingHint = z.object({
-  kind: z.enum(["shell", "agent", "timer", "pr", "issue", "thread", "command", "for", "title", "status", "needs_input", "step", "question"]),
+  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command", "for", "title", "status", "needs_input", "step", "question"]),
   value: z.string(),
 })
 export type AwaitingHint = z.infer<typeof AwaitingHint>
@@ -776,7 +776,7 @@ export type AwaitingHint = z.infer<typeof AwaitingHint>
  *  writes the same one again. Recognising them by name is what lets the bump say "you wrote `pr-watch:`,
  *  that kind is gone, here is what replaced it" (maintainer 2026-08-17: "BLOCK THEM with an error
  *  message… tell them what is now supported"). */
-export const RETIRED_AWAITING_KINDS = ["watch", "pr-watch", "human", "ci", "session", "shell", "agent", "timer", "pr", "reason"] as const
+export const RETIRED_AWAITING_KINDS = ["watch", "pr-watch", "human", "ci", "session", "shell", "agent", "timer", "pr", "reason", "issues"] as const
 export type RetiredAwaitingKind = (typeof RETIRED_AWAITING_KINDS)[number]
 
 const RETIRED_LINE_RE = new RegExp(`^\\s*(${RETIRED_AWAITING_KINDS.join("|")}):\\s*\\S`, "im")
@@ -812,6 +812,9 @@ export const RETIRED_AWAITING_REPLACEMENT: Record<RetiredAwaitingKind, string> =
   "timer": "`timers: [tmr_…]` — one YAML sequence, not one line per timer",
   "pr": "`prs: [owner/repo#123]` — one YAML sequence, not one line per PR",
   "reason": "put it below the `---` as ordinary Markdown — the frontmatter is YAML now and takes no prose",
+  // THE WORKER'S ISSUE WATCH WAS REMOVED ON 2026-10-14, `ntwinectl watch-issue` with it. A worker
+  // dispatched before then still has `issues:` in its contract.
+  "issues": "there is no issue wait any more — if nothing else is left, end with ```done and name the issue; the user can watch it from there",
 }
 
 /** The four kinds that NAME A LIVE THING. Every one is checked against something ntwine can look up — a
@@ -844,7 +847,7 @@ const AWAITING_KEY_RE = /^([a-z][a-z_-]*):\s*(\S.*)?$/i
  *  recognised here so they never fall to the body, but are read verbatim rather than as YAML (see
  *  splitAwaitingFrontmatter). Anything else falls through to the body. `needs-input` is the same key
  *  spelled the way the other hyphenated kinds are. */
-const AWAITING_YAML_KEYS = new Set(["shells", "agents", "timers", "prs", "issues", "threads", "commands", "questions", "for", "title", "steps", "status", "needs_input", "needs-input"])
+const AWAITING_YAML_KEYS = new Set(["shells", "agents", "timers", "prs", "threads", "commands", "questions", "for", "title", "steps", "status", "needs_input", "needs-input"])
 
 /** Which singular hint kind each plural sequence key produces. The WIRE SHAPE is unchanged by the
  *  2026-08-24 cutover — every consumer still reads a flat `{kind, value}` list with SINGULAR kinds — so
@@ -854,10 +857,6 @@ const AWAITING_SEQUENCE_KEYS: { [key: string]: AwaitingItemKind | undefined } = 
   agents: "agent",
   timers: "timer",
   prs: "pr",
-  // `issues:` (2026-09-14) names a GitHub ISSUE registered with `ntwinectl watch-issue`. Its own key
-  // rather than a second spelling under `prs:`, because the two are different registrations: an issue
-  // has no CI and no merge, and the correction for an unregistered one names a different command.
-  issues: "issue",
   // `commands:` (2026-10-11) names a command watch registered with `ntwinectl watch-command`, by its
   // `cmw_…` id. Checked like a timer: the row must be armed on THIS thread.
   commands: "command",
@@ -1237,7 +1236,7 @@ export function awaitingNeedsInput(hints: readonly AwaitingHint[] | undefined): 
   return needsInput
 }
 
-export const AWAITING_ITEM_KINDS = ["shell", "agent", "timer", "pr", "issue", "thread", "command"] as const
+export const AWAITING_ITEM_KINDS = ["shell", "agent", "timer", "pr", "thread", "command"] as const
 export type AwaitingItemKind = (typeof AWAITING_ITEM_KINDS)[number]
 export function isAwaitingItemKind(kind: string): kind is AwaitingItemKind {
   return (AWAITING_ITEM_KINDS as readonly string[]).includes(kind)
@@ -1726,8 +1725,10 @@ export const PR_WATCH_ARMED_TRAILER = "(Registered PR watcher — STILL ARMED. I
 export const SHELL_DONE_TRAILER = "(Ntwine sends this because it finished after you came to rest, where your runtime's own completion"
   + " notification does not reach you. Read its output if you still need it.)"
 export const ISSUE_WATCH_SPENT_TRAILER = "(This watcher is spent — there is nothing further to report on a closed issue.)"
+// A worker can no longer register an issue watcher (removed 2026-10-14); this trailer ends the wakes of
+// one it registered before then, which keeps polling until it settles or expires.
 export const ISSUE_WATCH_ARMED_TRAILER = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or"
-  + " assignee change, and once more when the issue closes. Drop it with `ntwinectl watch-issue drop <id>` when"
+  + " assignee change, and once more when the issue closes. Drop it with `ntwinectl unwatch <id>` when"
   + " it stops mattering.)"
 // THE TWO ARMED TRAILERS AS THEY WERE WRITTEN UNTIL 2026-10-11, when the drop verb they name was an MCP
 // tool. Nothing composes them any more, but every transcript written before that date ends its watcher
@@ -1738,6 +1739,10 @@ const LEGACY_PR_WATCH_ARMED_TRAILER = "(Registered PR watcher — STILL ARMED. I
   + " mattering.)"
 const LEGACY_ISSUE_WATCH_ARMED_TRAILER = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or"
   + " assignee change, and once more when the issue closes. Drop it with `mcp__ntwine__watch_issue` when"
+  + " it stops mattering.)"
+// The same, as written from 2026-10-11 until `ntwinectl watch-issue` was removed on 2026-10-14.
+const LEGACY_ISSUE_WATCH_CLI_ARMED_TRAILER = "(Registered issue watcher — STILL ARMED. It reports again on the next comment, label or"
+  + " assignee change, and once more when the issue closes. Drop it with `ntwinectl watch-issue drop <id>` when"
   + " it stops mattering.)"
 // The same two, for a watcher the HUMAN armed from the done card (router.watchDoneRef, 2026-10-07). The
 // worker signed off `done` and never registered it, so the wake says whose it is, that it stays, and how
@@ -2016,8 +2021,6 @@ export interface SignoffLiveOps {
   timers?: { id?: string; label: string }[]
   /** Registered pull requests, by ref (`owner/repo#N`) — what a `prs:` list names. */
   prs?: { id?: string; label: string }[]
-  /** Registered GitHub issues, by ref (`owner/repo#N`) — what an `issues:` entry names. */
-  issues?: { id?: string; label: string }[]
   /** Other threads this one awaits a reply from (`message_thread` with `await_reply`), by `@handle` —
    *  what a `threads:` entry names. */
   threads?: { id?: string; label: string }[]
@@ -2058,7 +2061,6 @@ export function liveOpsLines(ops?: SignoffLiveOps, needsInput = false): string[]
   section(needsInput ? "Sub-agents still running:" : "Sub-agents still running (they re-invoke you on their own, so parking on one is optional):", "agents", ops?.subAgents ?? [])
   section("Timers you have armed:", "timers", ops?.timers ?? [])
   section("Pull requests you registered:", "prs", ops?.prs ?? [])
-  section("Issues you registered:", "issues", ops?.issues ?? [])
   section("Threads you are awaiting a reply from:", "threads", ops?.threads ?? [])
   section("Command watches you registered:", "commands", ops?.commands ?? [])
   return lines
@@ -2086,7 +2088,7 @@ export function liveOpsLines(ops?: SignoffLiveOps, needsInput = false): string[]
 // — a `Workflow` run is one too — excuses its parent from the queue on its own, so the nudge does not
 // fire behind one at all (board.signoffNudgeVerdict) — EXCEPT on a thread with a Goal armed at rest,
 // which a child does not hold: there the children are listed here too, with an `agents:` line, because
-// that fence is the one thing that quiets the Goal until they return. Timers, PRs and issues are
+// that fence is the one thing that quiets the Goal until they return. Timers and PRs are
 // registrations, not running work; they ride along as lines to add, never pre-filled, because a shell
 // wait and a PR wait are different waits and the fence must name only what this rest is for.
 /** The `for:` the waiting variant pre-fills. A guess, deliberately on the short side: running out only
@@ -2126,7 +2128,7 @@ export function signoffWaitingNudgeMessage(ops: SignoffLiveOps, needsInput = fal
       ? (one ? "this sub-agent" : `${count} sub-agents`)
       : "this background work"
   const extras = (
-    [["timers", ops.timers], ["prs", ops.prs], ["issues", ops.issues]] as const
+    [["timers", ops.timers], ["prs", ops.prs]] as const
   ).filter(([, items]) => items?.length).map(([key, items]) => `\`${key}: [${items!.map(handle).join(", ")}]\``)
   return [
     `${SIGNOFF_NUDGE_MARKER} You rested without a fence, with ${what} still running:`,
@@ -2163,7 +2165,7 @@ function replyWaitNudgeMessage(threads: readonly { id?: string; label: string }[
   const one = threads.length === 1
   const names = threads.map((t) => t.id ?? t.label)
   const extras = (
-    [["timers", ops.timers], ["prs", ops.prs], ["issues", ops.issues]] as const
+    [["timers", ops.timers], ["prs", ops.prs]] as const
   ).filter(([, items]) => items?.length).map(([key, items]) => `\`${key}: [${items!.map((i) => (i.id ? fenceScalar(i.id) : JSON.stringify(i.label))).join(", ")}]\``)
   return [
     `${SIGNOFF_NUDGE_MARKER} You rested without a fence, waiting on ${one ? `a reply from ${names[0]}` : `replies from ${names.join(", ")}`}. Registering the wait is not parking: if you are waiting on ${one ? "it" : "them"}, end your next message with this fence, setting \`for:\` to how long to wait before you go on without ${one ? "it" : "them"}:`,
@@ -2723,12 +2725,12 @@ export function parkFinishedWakeMessage(status: readonly string[], several: bool
 /** Scheduler SOURCE 11: a registered PR watcher whose own `for:` ran out. */
 export function prWatchExpiredWakeMessage(ref: string, kind: "pull" | "issue" = "pull"): string {
   // The head keeps its exact wording for either subject — `PR_WATCH_EXPIRED_HEAD` reads it — and only
-  // the noun and the command it points back at change.
-  const noun = kind === "issue" ? "issue" : "PR"
-  const command = kind === "issue" ? "ntwinectl watch-issue add" : "ntwinectl watch-pr add"
+  // the noun and the advice change. An issue watcher cannot be registered again by a worker (its
+  // command was removed 2026-10-14), so its expiry points only at the terminal state.
+  const head = `⏰ Your watcher on ${ref} has expired and is no longer armed — nothing on that ${kind === "issue" ? "issue" : "PR"} will wake you now.\n\n`
+  if (kind === "issue") return `${head}If it was the only thing you were waiting on, end in a proper terminal state instead of parking on it again.`
   return (
-    `⏰ Your watcher on ${ref} has expired and is no longer armed — nothing on that ${noun} will wake ` +
-    `you now.\n\nIf you still care about it, register it again with \`${command}\` and a ` +
+    `${head}If you still care about it, register it again with \`ntwinectl watch-pr add\` and a ` +
     `fresh \`--for\`. If you do not, and it was the only thing you were waiting on, end in a proper ` +
     `terminal state instead of parking on it again.`
   )
@@ -2951,8 +2953,10 @@ export const PrWatchView = z.object({
   id: z.string(),
   /** `owner/repo#N`, normalized — the same string the board's row and the status book are keyed by. */
   target: z.string(),
-  /** A pull request or an issue. Both live in one registry (`pr_watch`) and answer to one drop verb;
-   *  `watch_pr` and `watch_issue` each list only their own. Defaulted for a row an older server sends. */
+  /** A pull request or an issue. Both live in one registry (`pr_watch`) and answer to one drop verb; an
+   *  issue row is the human's, from the done card's Watch (or a worker's from before 2026-10-14, when
+   *  `watch_issue` was removed), and `watch_pr` lists only pull requests. Defaulted for a row an older
+   *  server sends. */
   kind: z.enum(["pull", "issue"]).default("pull"),
   state: z.enum(["armed", "dropped", "settled"]),
   createdAt: z.string(),
@@ -2987,12 +2991,6 @@ export const AddOwnPrWatchInput = z.object({
    *  still BOUNDS the poll; the point of the field is that a worker chooses, and one that cannot choose
    *  is better bounded than broken. */
   for: z.string().trim().min(1).max(16).optional(),
-  /** What `target` names. `issue` (from `ntwinectl watch-issue`, 2026-09-14) registers a watcher on a
-   *  GitHub issue — same registry, same poll cadence, same drop verb, but a different probe (`gh issue
-   *  view`), a different GraphQL fragment and a report with no CI in it. ABSENT MEANS A PULL REQUEST,
-   *  for the same reason `for` is optional on the wire: every `watch_pr` binary dispatched before this
-   *  field existed sends nothing here and must go on meaning what it always did. */
-  kind: z.enum(["pull", "issue"]).optional(),
 }).strict()
 export type AddOwnPrWatchInput = z.infer<typeof AddOwnPrWatchInput>
 
@@ -4831,7 +4829,7 @@ export function watchingRest(t: Pick<ThreadView, "waitStatus" | "runtime">): boo
 // never a disappearance — the same argument restingOnLiveBackgroundWork makes below.
 //
 // A FENCED GITHUB PARK JOINS IT (2026-09-24). The server now excuses every honoured ```awaiting park from
-// the queue, a registered PR or issue included (board.hasHonouredPark) — a watcher wake the worker answers
+// the queue, a registered PR included (board.hasHonouredPark) — a watcher wake the worker answers
 // with "still waiting" was re-queuing a thread with nothing for the human to do. So `!needsYou` plus an
 // awaiting fence plus an armed GitHub watch is that verdict, and the row parks like a timer. Two
 // exceptions keep their old band: CI still RUNNING stays in Active under the spinning octocat
@@ -4846,10 +4844,10 @@ export function parkedOnRegistrationAlone(t: ThreadView): boolean {
   return watches.some((w) => w.kind === "timer" && w.state === "armed")
 }
 
-// The FENCE, not the registry: the server parks only on a `prs:`/`issues:` line it could honour, so a
+// The FENCE, not the registry: the server parks only on a `prs:` line it could honour, so a
 // timer-only fence beside a registered watch is not the GitHub park.
 function fenceNamesGithub(t: ThreadView): boolean {
-  return t.lastFence?.kind === "awaiting" && t.lastFence.hints.some((h) => (h.kind === "pr" || h.kind === "issue") && h.value.trim() !== "")
+  return t.lastFence?.kind === "awaiting" && t.lastFence.hints.some((h) => h.kind === "pr" && h.value.trim() !== "")
 }
 
 /** IS CI RUNNING ON A PULL REQUEST THIS THREAD WATCHES? The one reading of a PR wait that is MOTION —
@@ -5869,7 +5867,7 @@ export type OwnThreadTimersResult = z.infer<typeof OwnThreadTimersResult>
 // compaction, a long turn, a wake it did not expect) cannot write a correct fence at all. This is how it
 // gets them back, and it is the same list the sign-off nudge prints, so the two can never disagree.
 export const ThreadActivityItem = z.object({
-  kind: z.enum(["shell", "agent", "timer", "pr", "issue", "thread", "command"]),
+  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command"]),
   /** The string a `<kind>:` fence line must carry. For a shell that is the runtime task id the worker
    *  was shown; for a PR, `owner/repo#N`; for a timer, its `tmr_…` row id; for a thread this one awaits a
    *  reply from, its `@handle`. */
@@ -6399,7 +6397,7 @@ export function stripWakeTimeHeader(text: string): string {
 // instead, which is the same outcome by the other route.
 // The three a human-armed watch writes also strip in their pre-2026-10-08 wording (legacyHumanWording).
 const HUMAN_WATCH_TRAILERS = [PR_WATCH_HUMAN_TRAILER, ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_QUIET_TRAILER]
-const WAKE_TRAILERS = [PR_WATCH_ARMED_TRAILER, PR_WATCH_SPENT_TRAILER, ISSUE_WATCH_ARMED_TRAILER, ISSUE_WATCH_SPENT_TRAILER, LEGACY_PR_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_ARMED_TRAILER, ...HUMAN_WATCH_TRAILERS, ...HUMAN_WATCH_TRAILERS.map(legacyHumanWording), SHELL_DONE_TRAILER]
+const WAKE_TRAILERS = [PR_WATCH_ARMED_TRAILER, PR_WATCH_SPENT_TRAILER, ISSUE_WATCH_ARMED_TRAILER, ISSUE_WATCH_SPENT_TRAILER, LEGACY_PR_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_CLI_ARMED_TRAILER, ...HUMAN_WATCH_TRAILERS, ...HUMAN_WATCH_TRAILERS.map(legacyHumanWording), SHELL_DONE_TRAILER]
 
 /** Display projection: an ntwine wake without the agent-facing trailer ntwine appended for the worker.
  *

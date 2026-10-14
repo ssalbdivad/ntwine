@@ -131,10 +131,8 @@ list. If a specific external human reviewer/approver is the only remaining gate,
 registered question (`ntwinectl ask`) — waiting on a person is never a park. For a GitHub PR, register it with
 `ntwinectl watch-pr add` and name it in the fence's `prs:` list (`prs: [OWNER/REPO#NUMBER]`): ntwine
 baselines current reviews/comments and wakes on ANY new activity after registration — bot or human —
-durably across restarts. The registration creates the wait; the fence only declares it. For a GitHub ISSUE — a
-reporter you asked for a reproduction, a maintainer you asked to triage — register it with `ntwinectl watch-issue add` and
-name it in the fence's `issues:` list (`issues: [OWNER/REPO#NUMBER]`): ntwine wakes you on every later comment, on a label
-or assignee change, and when the issue closes. The dashboard operator's own go/no-go remains a registered question.
+durably across restarts. The registration creates the wait; the fence only declares it. The dashboard
+operator's own go/no-go remains a registered question.
 
 ## Fitting gh work into your thread type
 

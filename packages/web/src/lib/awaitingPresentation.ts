@@ -55,13 +55,11 @@ export const STEPS_DONE = "Done"
 export function prWatchRefs(hints: readonly AwaitingHint[]): { ref: string; url: string | null }[] {
   const seen = new Set<string>()
   return hints.flatMap((hint) => {
-    // An `issues:` entry is the same chip with the issue path — the card is about it in exactly the
-    // way it is about a `prs:` entry, and the ref exists nowhere else on the card either.
-    if (hint.kind !== "pr" && hint.kind !== "issue") return []
+    if (hint.kind !== "pr") return []
     const ref = hint.value.trim()
-    if (!ref || seen.has(`${hint.kind}:${ref}`)) return []
-    seen.add(`${hint.kind}:${ref}`)
-    return [{ ref, url: githubRefUrl(ref, hint.kind === "issue" ? "issue" : "pull") }]
+    if (!ref || seen.has(ref)) return []
+    seen.add(ref)
+    return [{ ref, url: githubRefUrl(ref) }]
   })
 }
 
@@ -155,7 +153,7 @@ export function awaitingProseBlock(body: string | undefined): string | null {
  *  keyed on "has a colon" would eat it. */
 // The answer lines are machinery too: `status:` (2026-10-05) and the `needs_input:` it replaced, in both
 // spellings the parser reads.
-const FENCE_SYNTAX_KEYS = new Set<string>([...RETIRED_AWAITING_KINDS, "shells", "agents", "timers", "prs", "issues", "commands", "for", "title", "status", "needs_input", "needs-input"])
+const FENCE_SYNTAX_KEYS = new Set<string>([...RETIRED_AWAITING_KINDS, "shells", "agents", "timers", "prs", "commands", "for", "title", "status", "needs_input", "needs-input"])
 function stripFenceSyntax(body: string): string {
   return body
     .split("\n")
@@ -224,7 +222,5 @@ function joinList(parts: readonly string[]): string {
  *  off it, exactly as it does on the rail. */
 export function hintGloss(hints: readonly AwaitingHint[]): string | null {
   const pr = hints.find((h) => h.kind === "pr")
-  if (pr) return `PR ${pr.value}`
-  const issue = hints.find((h) => h.kind === "issue")
-  return issue ? `Issue ${issue.value}` : null
+  return pr ? `PR ${pr.value}` : null
 }

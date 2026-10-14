@@ -550,7 +550,8 @@ export interface PrWatchRow {
   /** JSON: `{ seen: string[]; checks?: string }` — the review activity already reported, and the last
    *  check verdict reported, so only a CHANGE fires. Opaque to storage; the scheduler owns its grammar. */
   cursor: string | null
-  /** Who armed it (2026-10-07). `worker` is `mcp__ntwine__watch_pr` / `watch_issue`; `human` is the Watch
+  /** Who armed it (2026-10-07). `worker` is `ntwinectl watch-pr` (or a `watch_issue` from before
+   *  its removal on 2026-10-14); `human` is the Watch
    *  button on a done card (router.watchDoneRef). A human's watch is not the worker's outstanding wait, so
    *  it does not block `done`, it leaves the done card standing, and its wake says whose it is. Optional so
    *  a row read through an older select still types; absent reads as `worker`. */

@@ -204,7 +204,8 @@ export interface AppContext {
   // the poll could never read is refused with the reason instead of armed in silence. Production wires
   // `probePrReadable` (one `gh pr view`); a test context injects its own answer.
   probePr: (ref: PrRef) => Promise<PrProbe>
-  /** The issue twin, for `ntwinectl watch-issue` — `probeIssueReadable` (one `gh issue view`). */
+  /** The issue twin, for the done card's Watch on a ref that is not a PR — `probeIssueReadable` (one
+   *  `gh issue view`). */
   probeIssue: (ref: PrRef) => Promise<PrProbe>
   /** `ntwinectl watch-command`'s gate and runner, bound to this project (command-watch.ts). Shared with the
    *  scheduler, so registration and every later check ask the same gate. */

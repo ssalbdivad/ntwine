@@ -760,12 +760,6 @@ function registeredPrWatchesOf(storage: Storage, slug: string): ReadonlySet<stri
   return new Set(storage.listPrWatches(slug, { armedOnly: true }).filter((w) => w.kind !== "issue").map((w) => `${w.owner}/${w.repo}#${w.number}`))
 }
 
-/** The ISSUES a thread has registered (`ntwinectl watch-issue`), by the same `owner/repo#N` — what an
- *  `issues:` fence entry is checked against. */
-function registeredIssueWatchesOf(storage: Storage, slug: string): ReadonlySet<string> {
-  return new Set(storage.listPrWatches(slug, { armedOnly: true }).filter((w) => w.kind === "issue").map((w) => `${w.owner}/${w.repo}#${w.number}`))
-}
-
 /** This thread's ARMED command watch ids (`ntwinectl watch-command`) — what a `commands:` entry is
  *  checked against. Only ARMED: a watch that passed has delivered its wake, and one that expired or was
  *  cancelled will never send one, so a park naming either is waiting on nothing. */
@@ -1318,8 +1312,9 @@ export async function probePrReadable(ref: PrRef): Promise<PrProbe> {
   }
 }
 
-/** The issue twin of `probePrReadable`: one `gh issue view`, asked at registration, so a
- *  `watch_issue` on something the server's own `gh` cannot see is refused rather than armed.
+/** The issue twin of `probePrReadable`: one `gh issue view`, asked when the done card's Watch
+ *  (router.watchDoneRef) finds its ref is not a pull request, so a watch on something the server's own
+ *  `gh` cannot see is refused rather than armed.
  *
  *  AND A PULL REQUEST NUMBER IS REFUSED HERE TOO. `gh issue view` answers for a PR number (measured
  *  2026-09-14 against a Zod PR (#6382): `{"state":"CLOSED","url":".../pull/6382"}`), while the poll's
@@ -1484,8 +1479,8 @@ export interface Scheduler {
 /** The FENCE key a wire kind is written as. The wire kinds stayed SINGULAR through the 2026-08-24 YAML
  *  cutover; the grammar the worker writes did not, so every message that quotes a fence line back at a
  *  worker has to translate — printing `i.kind` raw teaches a spelling the parser now refuses. */
-const AWAITING_KEY_OF: Record<"shell" | "agent" | "timer" | "pr" | "issue" | "thread" | "command", string> = {
-  shell: "shells", agent: "agents", timer: "timers", pr: "prs", issue: "issues", thread: "threads", command: "commands",
+const AWAITING_KEY_OF: Record<"shell" | "agent" | "timer" | "pr" | "thread" | "command", string> = {
+  shell: "shells", agent: "agents", timer: "timers", pr: "prs", thread: "threads", command: "commands",
 }
 
 // ---- THE MID-TURN HOLD'S BOUND ------------------------------------------------------------------
@@ -2403,8 +2398,6 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         ...timerOpsOf(deps.storage, row.slug),
         prs: deps.storage.listPrWatches(row.slug, { armedOnly: true }).filter((w) => w.kind !== "issue")
           .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
-        issues: deps.storage.listPrWatches(row.slug, { armedOnly: true }).filter((w) => w.kind === "issue")
-          .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
         commands: commandWatchOps(deps.storage, row.slug),
       }
       // A question CARRIED from an earlier rest takes the carried variant instead (upstream 2026-10-05):
@@ -2656,7 +2649,6 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         tele,
         registeredPrWatchesOf(deps.storage, row.slug),
         armedTimerIdsOf(deps.storage, row.slug),
-        registeredIssueWatchesOf(deps.storage, row.slug),
         armedCommandWatchIdsOf(deps.storage, row.slug),
       )
       // A command watch's settled rows, by id: one that PASSED has already woken the thread, the way a
@@ -2863,8 +2855,6 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           ? "GONE WITHOUT A COMPLETION NOTICE — ntwine knows this shell, but nothing holds its output file and no process it could be is still running; read its output to see how it ended"
           : i.kind === "pr"
           ? "NOT REGISTERED — register it with `ntwinectl watch-pr add` first, then name it here"
-          : i.kind === "issue"
-          ? "NOT REGISTERED — register it with `ntwinectl watch-issue add` first, then name it here"
           : i.kind === "thread"
           ? "NOT AWAITED — ask it with `ntwinectl message-thread` and `--await-reply` first, then name it here"
           : i.kind === "command"
@@ -2919,7 +2909,6 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "agents: [<runtime agent id>]  sub-agents you dispatched",
           "timers: [tmr_…]               timers from `ntwinectl timer set`",
           "prs:    [owner/repo#123]      PRs registered with `ntwinectl watch-pr add`",
-          "issues: [owner/repo#45]       GitHub issues registered with `ntwinectl watch-issue add`",
           "commands: [cmw_…]             command watches from `ntwinectl watch-command add`",
           "for:    2h                    REQUIRED — a DURATION, never an instant",
           "---",
@@ -2942,8 +2931,6 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "",
           "- a pull request → `ntwinectl watch-pr add` (it wakes you on CI going green or red, and on every",
           "  later review and comment) → `prs: [owner/repo#123]`",
-          "- a GitHub issue → `ntwinectl watch-issue add` (every later comment, a label or assignee moving,",
-          "  and the close) → `issues: [owner/repo#45]`",
           "- a wall-clock check → `ntwinectl timer set` → `timers: [tmr_…]`",
           "- an outside condition a command can check (a package version, a release run, a URL coming up)",
           "  → `ntwinectl watch-command add` → `commands: [cmw_…]`",
@@ -2994,8 +2981,6 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         subAgents: (tele.subAgents ?? []).filter((a) => a.state === "running").map((a) => ({ id: a.taskId ?? a.id, label: a.label })),
         ...timerOpsOf(deps.storage, row.slug),
         prs: deps.storage.listPrWatches(row.slug, { armedOnly: true }).filter((w) => w.kind !== "issue")
-          .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
-        issues: deps.storage.listPrWatches(row.slug, { armedOnly: true }).filter((w) => w.kind === "issue")
           .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
         commands: commandWatchOps(deps.storage, row.slug),
       })

@@ -25,21 +25,6 @@ export function parsePrRef(value: string): PrRef | undefined {
   return { owner: m[1], repo: m[2].replace(/\.git$/, ""), number }
 }
 
-// The ISSUE twin: `owner/repo#123` or a GitHub issue URL (`/issues/N`). Same owner/repo/number shape
-// as a PR ref — GitHub numbers issues and pull requests from one sequence, so the ref alone cannot say
-// which it is; only the URL's path segment can, and a `/pull/` URL is refused here exactly as an
-// `/issues/` URL is refused by PR_REF_RE. The bare `#N` form is accepted by both, and the registration
-// probe (`gh issue view` vs `gh pr view`) is what settles it.
-const ISSUE_REF_RE = /(?:https?:\/\/github\.com\/)?([A-Za-z0-9][\w.-]*)\/([A-Za-z0-9][\w.-]*?)(?:\/issues\/|#)(\d+)/
-
-export function parseIssueRef(value: string): PrRef | undefined {
-  const m = value.trim().match(ISSUE_REF_RE)
-  if (!m) return undefined
-  const number = Number.parseInt(m[3], 10)
-  if (!Number.isFinite(number) || number <= 0) return undefined
-  return { owner: m[1], repo: m[2].replace(/\.git$/, ""), number }
-}
-
 // ---- THE PARK, READ OUT OF A FENCE AND CHECKED ----------------------------------------------------
 // One reader for the 2026-08-15 grammar, used by BOTH the scheduler (which bumps) and the board (which
 // decides Snoozed), so the two can never disagree about whether a thread is parked.
@@ -98,17 +83,14 @@ export interface LiveActivity {
   timers: ReadonlySet<string>
   /** Registered PR watcher refs on this thread, normalized (`owner/repo#N`). */
   prs: ReadonlySet<string>
-  /** Registered ISSUE watcher refs on this thread, normalized the same way. Optional only so a caller
-   *  written before issues existed still type-checks; absent reads as "none registered", which makes
-   *  an `issues:` entry unaccounted — the safe direction. */
-  issues?: ReadonlySet<string>
-  /** Armed COMMAND WATCH ids on this thread (`cmw_…`, 2026-10-11). Optional for the reason `issues` is:
-   *  absent reads as "none armed", which makes a `commands:` entry unaccounted — the safe direction. */
+  /** Armed COMMAND WATCH ids on this thread (`cmw_…`, 2026-10-11). Optional so a caller written before
+   *  command watches existed still type-checks: absent reads as "none armed", which makes a `commands:`
+   *  entry unaccounted — the safe direction. */
   commands?: ReadonlySet<string>
 }
 
 const LIVE_SET: Record<AwaitingItemKind, keyof LiveActivity> = {
-  shell: "shells", agent: "agents", timer: "timers", pr: "prs", issue: "issues", thread: "timers", command: "commands",
+  shell: "shells", agent: "agents", timer: "timers", pr: "prs", thread: "timers", command: "commands",
 }
 
 /** One shell or sub-agent as the fold reports it — the handles it answers to and whether it still runs. */
@@ -136,7 +118,6 @@ export function liveActivityOf(
   tele: { bgShells?: readonly LiveHandleRow[]; subAgents?: readonly LiveHandleRow[] } | undefined,
   registeredPrWatches: ReadonlySet<string>,
   armedTimerIds: ReadonlySet<string>,
-  registeredIssueWatches: ReadonlySet<string> = new Set(),
   armedCommandWatches: ReadonlySet<string> = new Set(),
 ): LiveActivity {
   const shells = new Set<string>()
@@ -149,7 +130,7 @@ export function liveActivityOf(
     if (a.state !== "running") continue
     for (const h of [a.taskId, a.id, a.label]) if (h) agents.add(h)
   }
-  return { shells, agents, timers: armedTimerIds, prs: registeredPrWatches, issues: registeredIssueWatches, commands: armedCommandWatches }
+  return { shells, agents, timers: armedTimerIds, prs: registeredPrWatches, commands: armedCommandWatches }
 }
 
 /** The items this fence names that ntwine CANNOT account for — dead, unknown, or another thread's.
@@ -171,10 +152,6 @@ export function unaccountedItems(items: readonly AwaitingItem[], live: LiveActiv
 function liveKey(i: AwaitingItem): string {
   if (i.kind === "pr") {
     const ref = parsePrRef(i.value)
-    return ref ? githubStatusKey(ref) : i.value
-  }
-  if (i.kind === "issue") {
-    const ref = parseIssueRef(i.value)
     return ref ? githubStatusKey(ref) : i.value
   }
   // A thread is named by its `@handle` (or its slug), folded as every handle is.
@@ -242,13 +219,12 @@ export function parkForMaxMs(park: AwaitingPark): number {
   // review is.
   if (park.items.length === 0) return parkOnHuman(park) ? PR_WATCH_FOR_MAX_MS : AWAITING_FOR_MAX_MS
   if (park.items.some((i) => i.kind === "agent")) return AGENT_PARK_FOR_MAX_MS
-  // An issue earns the PR's ceiling for the PR's reason: it sits on its maintainers' clock too.
-  if (park.items.every((i) => i.kind === "pr" || i.kind === "issue")) return PR_WATCH_FOR_MAX_MS
+  if (park.items.every((i) => i.kind === "pr")) return PR_WATCH_FOR_MAX_MS
   // A COMMAND WATCH earns its own registration's ceiling, a week (2026-10-11): it is a server-run check
   // with its own `for`, not a process of the session's, so the day a shell gets is the wrong clock for
   // it — a park on an npm version stuck in review would be bumped daily for a wait that is healthy. A
-  // park mixing it with PRs or issues takes the week too, the shorter of the two.
-  if (park.items.every((i) => i.kind === "command" || i.kind === "pr" || i.kind === "issue")) return COMMAND_WATCH_FOR_MAX_MS
+  // park mixing it with PRs takes the week too, the shorter of the two.
+  if (park.items.every((i) => i.kind === "command" || i.kind === "pr")) return COMMAND_WATCH_FOR_MAX_MS
   return AWAITING_FOR_MAX_MS
 }
 

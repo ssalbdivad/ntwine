@@ -242,6 +242,6 @@ test("only the Claude contract teaches command watches, and it routes outside-co
     assert.doesNotMatch(prompt, /watch-command|commands:|cmw_/, backend)
     assert.doesNotMatch(prompt, /\{\{NTWINE_/, backend)
     assert.match(prompt, /where it runs to a year — and at 30 minutes/, backend)
-    assert.match(prompt, /`ntwinectl watch-issue`\.\n    For anything else stay ACTIVE/, backend)
+    assert.match(prompt, /`ntwinectl watch-pr`\.\n    For anything else stay ACTIVE/, backend)
   }
 })

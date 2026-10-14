@@ -24,7 +24,7 @@ import type { Tailer, SessionTelemetry, FenceView } from "./tailer.ts"
 import { firstTextLine } from "./tailer.ts"
 import type { InteractionChange } from "./interaction-store.ts"
 import { ntwineDirExists } from "./ntwine.ts"
-import { githubStatusKey, liveActivityOf, needsInputParkHolds, parkExpiresAt, parkIsHonoured, parseIssueRef, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
+import { githubStatusKey, liveActivityOf, needsInputParkHolds, parkExpiresAt, parkIsHonoured, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
 import { findByPath } from "./project-registry.ts"
 import { homeWorkspaceSlug, isHomeWorkspace } from "./home-workspace.ts"
 import { parseDeliveryLedger } from "./delivery-ledger.ts"
@@ -1010,11 +1010,9 @@ function hasLiveOwnWork(tele: SessionTelemetry | undefined, registeredPrWatches:
 function hasParkedPrWatch(tele: SessionTelemetry | undefined, registered: ReadonlySet<string>): boolean {
   // Registration-first, same as hasParkedTimerWatch: an armed PR watch with no fence is the wait itself.
   if (tele?.lastFence?.kind !== "awaiting") return registered.size > 0
-  // `registered` holds BOTH kinds' refs (see the board's armedPrWatches): an `issues:` entry is the same
-  // declared-and-registered check with the issue ref grammar.
   return tele.lastFence.hints.some((hint) => {
-    if (hint.kind !== "pr" && hint.kind !== "issue") return false
-    const ref = hint.kind === "pr" ? parsePrRef(hint.value) : parseIssueRef(hint.value)
+    if (hint.kind !== "pr") return false
+    const ref = parsePrRef(hint.value)
     return ref !== undefined && registered.has(githubStatusKey(ref))
   })
 }
@@ -1047,8 +1045,7 @@ function hasHonouredPark(
   if (tele?.lastFence?.kind !== "awaiting") return false
   const park = readAwaitingPark(tele.lastFence.hints)
   const handles = liveWaitHandles(tele)
-  // `registered` carries both kinds' refs (armedPrWatches), so it answers for `issues:` too.
-  if (!parkIsHonoured(park, { shells: handles, agents: handles, timers: armedTimerIds, prs: registered, issues: registered })) return false
+  if (!parkIsHonoured(park, { shells: handles, agents: handles, timers: armedTimerIds, prs: registered })) return false
   const expiresAt = parkExpiresAt(park, Date.parse(tele.lastAssistantAt ?? ""))
   return expiresAt !== null && nowMs < expiresAt
 }
@@ -1671,7 +1668,6 @@ function needsInputQueues(
     runtime !== "exited" &&
     !parkCutByDeadline &&
     fence?.kind === "awaiting" &&
-    // `registeredPrWatches` carries both kinds' refs (see hasParkedPrWatch), so it answers for `issues:` too.
     // `armedTimerIds` carries the command watches too, split back by kind here (isCommandWatchId).
     needsInputParkHolds(
       fence.hints,
@@ -1679,7 +1675,6 @@ function needsInputQueues(
         tele,
         registeredPrWatches,
         new Set([...armedTimerIds].filter((id) => !isCommandWatchId(id))),
-        registeredPrWatches,
         new Set([...armedTimerIds].filter(isCommandWatchId)),
       ),
       Date.parse(tele?.lastAssistantAt ?? ""),

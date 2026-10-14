@@ -6,7 +6,7 @@
 //
 // The `/pull/N` path is the default and GitHub redirects it to `/issues/N` when the number is an issue,
 // so a mistyped kind still lands the human on the right page. A caller that KNOWS it holds an issue
-// (a `subject: "issue"` watch row, an `issues:` fence entry) says so and gets the direct path.
+// (a `subject: "issue"` watch row) says so and gets the direct path.
 export function githubRefUrl(ref: string, kind: "pull" | "issue" = "pull"): string | null {
   const m = /^([A-Za-z0-9][\w.-]*)\/([A-Za-z0-9][\w.-]*)#(\d+)$/.exec(ref.trim())
   return m ? `https://github.com/${m[1]}/${m[2]}/${kind === "issue" ? "issues" : "pull"}/${m[3]}` : null

@@ -68,7 +68,7 @@ test("replyWaitOf reads back the thread a reply-wait prompt names, and nothing f
   assert.equal(replyWaitOf("Re-run the suite and report"), undefined)
 })
 
-// `threads:` is the awaiting fence's list of awaited threads, parsed like `prs:` and `issues:`.
+// `threads:` is the awaiting fence's list of awaited threads, parsed like `prs:`.
 // `@` is a character YAML reserves, so the list is read verbatim: a bare `@handle` must not cost the fence
 // its other lines.
 test("splitAwaitingFrontmatter: `threads:` is a structural key producing `thread` hints, `@` and all", () => {

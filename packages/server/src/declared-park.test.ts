@@ -16,7 +16,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { declaredWaitIds, hasDeclaredBackgroundPark, hasDeclaredWait } from "./board.ts"
 import { parkExpiresAt, parkForMaxMs, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems } from "./awaiting.ts"
-import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, isParkCorrection, parseParkWake, NEEDS_INPUT_REQUIRED_AT, PARK_CORRECTION_NEEDS_INPUT_LEAD, PR_WATCH_FOR_MAX_MS } from "@ntwine/shared"
+import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, isParkCorrection, parseParkWake, NEEDS_INPUT_REQUIRED_AT, PARK_CORRECTION_NEEDS_INPUT_LEAD, PR_WATCH_FOR_MAX_MS, splitAwaitingFrontmatter } from "@ntwine/shared"
 import { createScheduler } from "./scheduler.ts"
 import type { FenceView, SessionTelemetry } from "./tailer.ts"
 import { mkdtempSync, rmSync } from "node:fs"
@@ -1114,23 +1114,21 @@ test("a `threads:` wait answered after the rest draws no correction; the answer 
   } finally { before.close() }
 })
 
-// ---- `issues:` (2026-09-14) ---------------------------------------------------------------------------
-test("unaccountedItems: an `issues:` entry is checked against the ISSUE registrations, by URL or ref, never against the PRs", () => {
-  const live = { shells: new Set<string>(), agents: new Set<string>(), timers: new Set<string>(), prs: new Set(["acme/app#7"]), issues: new Set(["acme/app#9"]) }
-  assert.deepEqual(unaccountedItems([{ kind: "issue", value: "https://github.com/acme/app/issues/9" }], live), [])
-  assert.deepEqual(unaccountedItems([{ kind: "issue", value: "acme/app#9" }], live), [])
-  assert.equal(unaccountedItems([{ kind: "issue", value: "acme/app#7" }], live).length, 1, "a PR registration does not account for an issue entry")
-  assert.equal(unaccountedItems([{ kind: "pr", value: "acme/app#9" }], live).length, 1, "nor an issue registration for a `prs:` entry")
-  // A caller written before issues existed passes no `issues` set: an issue entry is then unaccounted,
-  // which is the safe direction (bumped, never silently parked).
-  const older = { shells: new Set<string>(), agents: new Set<string>(), timers: new Set<string>(), prs: new Set<string>() }
-  assert.equal(unaccountedItems([{ kind: "issue", value: "acme/app#9" }], older).length, 1)
-})
-
-test("parkForMaxMs: a park naming only issues and PRs earns the year; an issue beside a shell keeps the day", () => {
-  assert.equal(parkForMaxMs({ items: [{ kind: "issue", value: "acme/app#9" }], forMs: 1, steps: [], questions: [] }), PR_WATCH_FOR_MAX_MS)
-  assert.equal(parkForMaxMs({ items: [{ kind: "issue", value: "acme/app#9" }, { kind: "pr", value: "acme/app#7" }], forMs: 1, steps: [], questions: [] }), PR_WATCH_FOR_MAX_MS)
-  assert.equal(parkForMaxMs({ items: [{ kind: "issue", value: "acme/app#9" }, { kind: "shell", value: "bash_1" }], forMs: 1, steps: [], questions: [] }), AWAITING_FOR_MAX_MS)
+// ---- `issues:` RETIRED (2026-10-14) ----------------------------------------------------------------
+// A worker dispatched before the worker's issue watch was removed still has `issues:` in its contract.
+// The key no longer parses, so it lands in the body and is bumped by name like every retired kind.
+test("a fence still naming `issues:` is bumped by name, and told to end in done instead", async () => {
+  const { body, hints } = splitAwaitingFrontmatter("issues: [acme/app#9]\nfor: 30d\n---\nWaiting on the reporter.")
+  assert.deepEqual(hints, [{ kind: "for", value: "30d" }], "the key is not structure any more")
+  const h = parkHarness(hints, { body })
+  try {
+    await h.s.tick()
+    const rows = h.queued()
+    assert.equal(rows.length, 1)
+    assert.match(rows[0].fence_id, /^park:retired:/)
+    assert.match(rows[0].message, /`issues:` is GONE → there is no issue wait any more/)
+    assert.doesNotMatch(rows[0].message, /watch-issue/)
+  } finally { h.close() }
 })
 
 test("parkForMaxMs: a sub-agent anywhere in the park caps it at the 30-minute check-in", () => {

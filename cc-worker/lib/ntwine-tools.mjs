@@ -355,66 +355,6 @@ const WATCH_PR = {
   },
 }
 
-const WATCH_ISSUE = {
-  name: "watch_issue",
-  description:
-    "REGISTER A GITHUB ISSUE and ntwine brings you back whenever something happens on it — every later " +
-    "comment, from a user or a bot alike, a label added or removed, someone assigned, and the issue " +
-    "closing. Register it, come to rest, and you are woken. Drop it when it stops mattering.\n\n" +
-    "IT REPORTS REPEATEDLY, like `watch-pr` and unlike a timer: one registration covers the whole life " +
-    "of the issue, and it settles itself when the issue closes, because there is then nothing left to " +
-    "report. There is no CI and no merge on an issue, so those are the only things it can say.\n\n" +
-    "USE IT WHEN THE NEXT STEP IS SOMEONE ELSE'S REPLY ON AN ISSUE — a reporter you asked for a " +
-    "reproduction, a maintainer you asked to triage, a discussion you are waiting to see resolved. " +
-    "Nothing else watches for you: your runtime knows nothing about GitHub, and an ```awaiting fence " +
-    "STATES what you are waiting on without creating any wait at all. This command is the wait. A PULL " +
-    "REQUEST is `ntwinectl watch-pr`, not this — `gh issue view` refuses a PR number, and so does this.\n\n" +
-    "THE ```awaiting FENCE IS STILL WORTH WRITING, for the same reason it is beside `watch-pr`: it is " +
-    "how you come to REST without ntwine asking for a handoff, and how the user sees what you wait for. " +
-    "Register the watcher, then name the same issue in the fence's `issues:` list, with the same long " +
-    "`for:`.\n\n" +
-    "GIVE IT A LONG `--for` — an issue in someone else's repo moves on their clock, and a short watcher " +
-    "expires against an issue nobody has touched: a wake with nothing in it. Months are free; real " +
-    "activity wakes you the instant it lands either way.\n\n" +
-    "REGISTERING IS IDEMPOTENT per issue: asking twice returns the SAME id and says so, so re-registering " +
-    "after a compaction is safe. `ntwinectl watch-issue list` reads back the issues watched on this thread without changing " +
-    "anything. You can only ever watch an issue on your OWN thread.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      action: {
-        type: "string",
-        enum: ["add", "list", "drop"],
-        description:
-          "`add` registers a watcher (idempotent per issue); `drop` withdraws one by id; `list` reads " +
-          "back every issue armed on this thread, with its latest state, without changing anything.",
-      },
-      target: {
-        type: "string",
-        description:
-          "Required for `add`. The issue, as `owner/repo#123` or a GitHub issue URL. A ref that cannot " +
-          "be parsed, a PR URL, or an issue the server's own `gh` cannot read, is REFUSED rather than " +
-          "stored — a watcher that can never fire is worse than none. A refusal names the reason.",
-      },
-      for: {
-        type: "string",
-        description:
-          "REQUIRED for `add`. How long to watch, as a DURATION — `2h`, `3d`, `180d` (max 365d). Never " +
-          "an instant, and there is no default. The watcher settles itself when this runs out and tells " +
-          "you. An issue you are waiting on someone else to answer deserves MONTHS.",
-      },
-      id: {
-        type: "string",
-        description: "Required for `drop`. The watcher id returned by `add` (or listed by `list`).",
-      },
-    },
-    required: ["action"],
-  },
-}
-
-// The registry that replaces a ```awaiting fence's `shells:` line: a wait the worker CREATES rather
-// than one it restates at every rest. Two commands rather than one action-switch, because they are two
-// verbs and a worker reaching for `unwatch` should find `unwatch`. See plans/rest-by-registration.md.
 const WATCH = {
   name: "watch",
   description:
@@ -527,14 +467,14 @@ const UNWATCH = {
     "you are about to end the thread. A watch you no longer care about still wakes you for nothing, and " +
     "it blocks `done` until it is withdrawn.\n\n" +
     "You do NOT need this when the work simply finishes: ntwine settles the row itself and wakes you. " +
-    "`ntwinectl activity` prints the id of everything you hold. A `watch-pr` / `watch-issue` id (`prw_…` / " +
-    "`isw_…`), a `timer` id (`tmr_…`) or a `watch-command` id (`cmw_…`) is withdrawn here too.",
+    "`ntwinectl activity` prints the id of everything you hold. A `watch-pr` id (`prw_…`), a " +
+    "`timer` id (`tmr_…`) or a `watch-command` id (`cmw_…`) is withdrawn here too.",
   inputSchema: {
     type: "object",
     properties: {
       id: {
         type: "string",
-        description: "The watch id `ntwinectl watch` printed (or that `ntwinectl activity` lists), or a PR, issue, timer or command-watch id. Only your own thread's.",
+        description: "The watch id `ntwinectl watch` printed (or that `ntwinectl activity` lists), or a PR, timer or command-watch id. Only your own thread's.",
       },
     },
     required: ["id"],
@@ -1200,13 +1140,13 @@ const WATCH_COMMAND = {
   },
 }
 
-// WATCH_ISSUE rides at the END (2026-09-14): the tool list is read by position in ntwine-mcp.test.ts, and a
-// worker's runtime reads it by name, so the order costs nothing and appending breaks nothing.
-// EXTEND_SHELL is appended after it for the same reason (2026-09-29), EDITOR after MESSAGE_THREAD (2026-10-02),
-// SCHEDULE after EDITOR (2026-10-05), DEADLINE after SCHEDULE (2026-10-06), upstream's SECRET after
-// DEADLINE (2026-10-08), and upstream's WATCH_COMMAND after SECRET (2026-10-12). Upstream's STEER is not
+// New commands ride at the END: the tool list is read by position in ntwine-mcp.test.ts, and a worker's
+// runtime reads it by name, so the order costs nothing and appending breaks nothing. EXTEND_SHELL was
+// appended (2026-09-29) after `watch_issue`, which was removed on 2026-10-14; EDITOR after MESSAGE_THREAD
+// (2026-10-02), SCHEDULE after EDITOR (2026-10-05), DEADLINE after SCHEDULE (2026-10-06), upstream's
+// SECRET after DEADLINE (2026-10-08), and upstream's WATCH_COMMAND after SECRET (2026-10-12). Upstream's STEER is not
 // here: MESSAGE_THREAD is the fork's thread-to-thread command (plans/upstream-superset.md).
-const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, WATCH_ISSUE, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST]
+const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST]
 
 // A COMMAND WHOSE FEATURE CAN BE ABSENT, and the capability the server reports for it (router
 // `workerCapabilities`, the same predicate that gates the contract's sections, dispatch.ts). Of the
@@ -1226,7 +1166,6 @@ const HANDLERS = {
   [GOAL.name]: goal,
   [TIMER.name]: timer,
   [WATCH_PR.name]: watchPr,
-  [WATCH_ISSUE.name]: watchIssue,
   [WATCH.name]: watch,
   [ASK.name]: ask,
   [UNASK.name]: unask,
@@ -1465,15 +1404,15 @@ async function activity() {
   // keys are PLURAL sequences, so an id printed on its own line is no longer something a worker can copy
   // into a fence — it has to see the shape. This command is where the contract sends a worker that has lost
   // an id, so printing the retired one-line-per-item form would teach the very grammar ntwine refuses.
-  const byKind = { shell: [], agent: [], timer: [], pr: [], issue: [], thread: [], command: [] }
+  const byKind = { shell: [], agent: [], timer: [], pr: [], thread: [], command: [] }
   for (const i of items) if (byKind[i.kind] && i.id) byKind[i.kind].push(i.id)
-  const block = Object.entries({ shells: byKind.shell, agents: byKind.agent, timers: byKind.timer, prs: byKind.pr, issues: byKind.issue, threads: byKind.thread, commands: byKind.command })
+  const block = Object.entries({ shells: byKind.shell, agents: byKind.agent, timers: byKind.timer, prs: byKind.pr, threads: byKind.thread, commands: byKind.command })
     .filter(([, ids]) => ids.length > 0)
     .map(([key, ids]) => `  ${key}: [${ids.join(", ")}]`)
   // Every open question rides the fence too: a fence that leaves one out is refused, and a fence on
   // questions always queues, so its `status:` answer is `needs_input` whatever else it names. Otherwise
   // the template guesses from the kinds — a shell or a sub-agent is usually work that finishes by itself,
-  // a PR, an issue, a timer or another thread's reply a watch — and the prose tells the worker to correct
+  // a PR, a timer or another thread's reply a watch — and the prose tells the worker to correct
   // it.
   const questionIds = questions.map((q) => q.id).filter(Boolean)
   if (questionIds.length > 0) block.push(`  questions: [${questionIds.join(", ")}]`)
@@ -2404,8 +2343,8 @@ async function timer(args) {
 /** How the armed PR-watcher set reads back, on every action, so a worker never needs a second call.
  * @param {{ watches?: Array<{id: string, target: string, github?: {checks: string, running: number, passed: number, failed: number, failing: string[], merge: string, state: string}}> }|undefined} result */
 function armedPrWatchList(result) {
-  // Only the PULL REQUESTS: the registry holds issues too (`watch_issue`), and each command reads back its
-  // own kind so a worker asking where its PRs stand is not told about an issue it registered elsewhere.
+  // Only the PULL REQUESTS: the registry holds issues too (the done card's Watch), which are not the
+  // worker's to list.
   const watches = (Array.isArray(result?.watches) ? result.watches : []).filter((w) => w.kind !== "issue")
   if (!watches.length) return "No pull requests are watched on this thread — nothing will wake you."
   const lines = watches.map((w) => {
@@ -2423,23 +2362,6 @@ function armedPrWatchList(result) {
     return `  ${w.id}  ${w.target}  —  ${state}${g && g.state === "open" && g.merge === "mergeable" ? ", mergeable" : ""}`
   })
   return `Watched on this thread now:\n${lines.join("\n")}`
-}
-
-/** The issue twin of armedPrWatchList: the ISSUES watched on this thread, with each one's last-polled state.
- * @param {{ watches?: Array<{id: string, kind?: string, target: string, issue?: {state: string, stateReason?: string, title?: string, comments: number}}> }|undefined} result */
-function armedIssueWatchList(result) {
-  const watches = (Array.isArray(result?.watches) ? result.watches : []).filter((w) => w.kind === "issue")
-  if (!watches.length) return "No issues are watched on this thread — nothing will wake you."
-  const lines = watches.map((w) => {
-    const i = w.issue
-    const state = !i
-      ? "not polled yet"
-      : i.state === "closed"
-        ? `closed${i.stateReason ? ` (${i.stateReason.replace(/_/g, " ")})` : ""}`
-        : `open, ${i.comments} comment${i.comments === 1 ? "" : "s"}`
-    return `  ${w.id}  ${w.target}${i?.title ? `  "${i.title}"` : ""}  —  ${state}`
-  })
-  return `Issues watched on this thread now:\n${lines.join("\n")}`
 }
 
 /** The armed watches on this thread, as the read-back prints them. */
@@ -2490,7 +2412,7 @@ async function unwatch(args) {
   const slug = threadSlug()
   const id = typeof args.id === "string" ? args.id.trim() : ""
   if (!id) throw new Error("`id` is required — take it from `ntwinectl watch` or from `ntwinectl activity`")
-  // A PR, issue or timer id is not a `watch` row, and dropOwnWatch would report it "already settled"
+  // A PR or timer id is not a `watch` row, and dropOwnWatch would report it "already settled"
   // while it stayed armed. The id prefix names its kind, so the one verb a worker reaches for routes it
   // to the call that really withdraws it.
   if (id.startsWith("prw_") || id.startsWith("isw_")) {
@@ -2499,7 +2421,9 @@ async function unwatch(args) {
     const head = dropped?.dropped
       ? `Watcher ${id} dropped. It will not wake you.`
       : `No ARMED ${kind} watcher ${id} on this thread — it was already settled, or the id is not one of yours.`
-    return `${head}\n\n${id.startsWith("isw_") ? armedIssueWatchList(dropped) : armedPrWatchList(dropped)}`
+    // An `isw_…` id is an issue watcher a worker registered before `watch-issue` was removed
+    // (2026-10-14); it still drops here, and reads back no list.
+    return id.startsWith("isw_") ? head : `${head}\n\n${armedPrWatchList(dropped)}`
   }
   if (id.startsWith("cmw_")) {
     const dropped = (await callRpc("dropOwnCommandWatch", { slug, id }))?.result
@@ -2766,53 +2690,6 @@ async function watchPr(args) {
   )
 }
 
-/** The `watch_issue` handler: register, withdraw, or read back this thread's issue watchers. The same
- * three RPCs as `watchPr` — one registry — with `kind: "issue"` on the add.
- * @param {Record<string, unknown>} args @returns {Promise<string>} */
-async function watchIssue(args) {
-  const slug = threadSlug()
-  const action = typeof args.action === "string" ? args.action.trim() : ""
-  if (action !== "add" && action !== "list" && action !== "drop") {
-    throw new Error("`action` must be one of \"add\", \"list\" or \"drop\"")
-  }
-
-  if (action === "list") {
-    return armedIssueWatchList((await callRpc("listOwnPrWatches", { slug }))?.result)
-  }
-
-  if (action === "drop") {
-    const id = typeof args.id === "string" ? args.id.trim() : ""
-    if (!id) throw new Error("`id` is required to drop a watcher — take it from `add` or from `list`")
-    const result = (await callRpc("dropOwnPrWatch", { slug, id }))?.result
-    const head = result?.dropped
-      ? `Watcher ${id} dropped. It will not wake you.`
-      : `No ARMED watcher ${id} on this thread — it was already settled, or the id is not one of yours.`
-    return `${head}\n\n${armedIssueWatchList(result)}`
-  }
-
-  const target = typeof args.target === "string" ? args.target.trim() : ""
-  if (!target) throw new Error("`target` is required — the issue, as `owner/repo#123` or a GitHub issue URL")
-  const forValue = typeof args.for === "string" ? args.for.trim() : ""
-  if (!forValue) throw new Error("`for` is required — a DURATION like `3d`, `30d` or `180d` (max 365d), never an instant")
-  const result = (await callRpc("addOwnPrWatch", { slug, target, for: forValue, kind: "issue" }))?.result
-  const id = result?.id ?? "(unknown)"
-  const ref = result?.target ?? target
-  const until = result?.expiresAt ? ` until ${result.expiresAt}` : ""
-  const head = result?.alreadyArmed
-    ? `Already watching ${ref} as ${id}${until} — nothing new was registered, its original expiry stands, and you will be woken once per event.`
-    : `Watching issue ${ref} as ${id}${until}. Ntwine wakes you on every later comment, on a label or ` +
-      "assignee change, and when the issue closes; the registration survives your turn ending, a compaction and an ntwine restart."
-  const clamped = result?.clampedFrom
-    ? `\n\nYOUR \`--for ${result.clampedFrom}\` WAS CAPPED at the ceiling — the expiry above is what you ` +
-      "actually hold. Nothing else about the watcher changed."
-    : ""
-  return (
-    `${head}${clamped}\n\nNAME IT IN YOUR \`\`\`awaiting FENCE TOO (\`issues: [${ref}]\`) — the watcher does the ` +
-    `waking, the fence is what lets you come to rest and shows the user what you are waiting for.\n\n` +
-    `DROP IT when it stops mattering (\`ntwinectl watch-issue drop ${id}\`).\n\n${armedIssueWatchList(result)}`
-  )
-}
-
 /** The command watches armed on this thread, as every `watch-command` action reads them back.
  * @param {{ watches?: Array<{id: string, command: string, every: string, expiresAt: string, runs: number, lastRun?: {outcome: string, exitCode: number|null}}> }|undefined} result */
 function armedCommandWatchList(result) {
@@ -3005,13 +2882,6 @@ const CLI = {
     positional: ["action"],
     then: { add: ["target"], drop: ["id"] },
     examples: ["ntwinectl watch-pr add acme/app#391 --for 180d", "ntwinectl watch-pr list", "ntwinectl watch-pr drop prw_ab12cd34"],
-  },
-  watch_issue: {
-    group: "Waiting",
-    summary: "Wake on a GitHub issue's comments, labels, assignees and close",
-    positional: ["action"],
-    then: { add: ["target"], drop: ["id"] },
-    examples: ["ntwinectl watch-issue add acme/app#482 --for 30d", "ntwinectl watch-issue list", "ntwinectl watch-issue drop isw_ab12cd34"],
   },
   watch_command: {
     group: "Waiting",

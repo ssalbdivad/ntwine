@@ -612,7 +612,7 @@ export function awaitingPrWatch(t: ThreadView): boolean {
  *  parked on a REGISTERED watch it never fenced wore the clock. */
 export function waitNamesPr(t: Pick<ThreadView, "watches" | "lastFence">): boolean {
   if ((t.watches ?? []).some((w) => w.kind === "github" && w.state === "armed")) return true
-  return t.lastFence?.kind === "awaiting" && t.lastFence.hints.some((h) => (h.kind === "pr" || h.kind === "issue") && h.value.trim() !== "")
+  return t.lastFence?.kind === "awaiting" && t.lastFence.hints.some((h) => h.kind === "pr" && h.value.trim() !== "")
 }
 
 /** AWAITING A TIMER — parked on the clock, and since 2026-09-07 the hourglass wherever the row lands,
