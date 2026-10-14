@@ -393,27 +393,35 @@ test("a name is NOT forgotten while its tunnel refuses to die", async () => {
 })
 
 
-test("one key holds ONE name — a loop of claims cannot take the namespace", async () => {
-  // The zone caps at 200 records, so without this a `for` loop over generated keypairs is a complete
-  // denial of the product. It is a speed bump, not a wall: keys are free, so a determined squatter
-  // just makes more. It closes the version that happens by accident.
+test("one key holds ONE name — claiming a second swaps the first away", async () => {
+  // The zone caps at 200 records, so one keypair must never hold two. There is no release call, so a
+  // second claim is how a machine moves from its private name to a custom one: the old name goes.
   const cf = fakeCloudflare()
   const st = fakeStore()
   const identity = await generateClaimIdentity()
   const d = deps({ api: cf.api, store: st.store })
 
   assert.equal((await handleClaim(await claimFor(identity, "first"), d)).status, 200)
-
   const second = await handleClaim(await claimFor(identity, "second"), d)
-  assert.equal(second.status, 409)
-  assert.deepEqual(second.body, {
-    error: "one-name-per-key",
-    message: "this machine already holds a name — release it first, or claim from a different Ntwine identity",
-  })
-  assert.equal(cf.tunnels.size, 1, "the second name provisioned nothing")
+  assert.equal(second.status, 200)
+  assert.deepEqual([...st.rows.keys()], ["second"])
+  assert.deepEqual([...cf.dns.keys()], [`second.${ZONE}`])
+  assert.equal(cf.tunnels.size, 1, "the first name's tunnel went with it")
+  assert.deepEqual([...st.owners.values()], ["second"])
 
-  // Renewing the name it DOES hold is unaffected — that is the call every launch makes.
-  assert.equal((await handleClaim(await claimFor(identity, "first"), d)).status, 200)
+  // The old name is free for anyone, and the swapped-to name renews like any other.
+  assert.equal((await handleClaim(await claimFor(identity, "second"), d)).status, 200)
+  assert.equal((await handleClaim(await claimFor(await generateClaimIdentity(), "first"), d)).status, 200)
+})
+
+test("a swap that fails to provision keeps the old name", async () => {
+  const st = fakeStore()
+  const identity = await generateClaimIdentity()
+  assert.equal((await handleClaim(await claimFor(identity, "first"), deps({ api: fakeCloudflare().api, store: st.store }))).status, 200)
+  const failing = deps({ api: fakeCloudflare("createTunnel").api, store: st.store })
+  assert.equal((await handleClaim(await claimFor(identity, "second"), failing)).status, 502)
+  assert.deepEqual([...st.rows.keys()], ["first"])
+  assert.deepEqual([...st.owners.values()], ["first"])
 })
 
 test("a key whose name lapsed may claim again", async () => {

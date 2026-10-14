@@ -211,36 +211,48 @@ export async function handleClaim(body: unknown, deps: ClaimDeps): Promise<Claim
     if (heldByAccount && heldByAccount !== name) {
       const other = await deps.store.read(heldByAccount)
       if (other && other.githubId === who.id && !claimLeaseExpired(other.renewedAt, now)) {
-        return reject("one-name-per-account", 409)
+        // The same machine moving its own name is a swap, settled below; another key is a second name.
+        if (other.pubkey !== pubkey) return reject("one-name-per-account", 409)
+      } else {
+        await deps.store.removeGithubOwner(who.id)
       }
-      await deps.store.removeGithubOwner(who.id)
     }
     githubId = who.id
   }
 
-  // CAPACITY, checked only for a NEW name — a renewal consumes nothing and must never be refused for
-  // being late to a full namespace. Counting here rather than letting Cloudflare refuse means the
-  // answer says what is actually wrong instead of "provisioning failed".
-  if (deps.maxNames !== undefined) {
-    const taken = (await deps.store.list()).length
-    if (taken >= deps.maxNames) return reject("namespace-full", 503)
-  }
-
-  // ONE LIVE NAME PER KEY. Without it a loop of generated keypairs takes the whole namespace, and the
-  // zone caps at 200 records. This is a speed bump rather than a wall — keys are free, so a determined
-  // squatter just makes more — and the real answer is tying a claim to an identity that costs
-  // something to obtain. It closes the trivial version, which is the one that happens by accident.
+  // ONE LIVE NAME PER KEY, kept by SWAPPING. Without it a loop of claims from one keypair takes the
+  // whole namespace, and the zone caps at 200 records. A key claiming a second name therefore gives up
+  // the first — but only once the new one is provisioned, so a failed claim leaves the old name working.
+  // The registry offers no release call, so this is the only way a machine moves from its private name
+  // to a custom one (or between custom names) before a 30-day lease lapses. It is a speed bump, not a
+  // wall — keys are free — and the per-account check above is the limit a fresh keypair cannot walk around.
+  let previous: ClaimRecord | null = null
+  let previousName: string | null = null
   const held = await deps.store.readOwner(pubkey)
   if (held && held !== name) {
     const other = await deps.store.read(held)
     if (other && other.pubkey === pubkey && !claimLeaseExpired(other.renewedAt, now)) {
-      return reject("one-name-per-key", 409)
+      previous = other
+      previousName = held
+    } else {
+      // The index outlived the name it pointed at, so it is stale rather than binding.
+      await deps.store.removeOwner(pubkey)
     }
-    // The index outlived the name it pointed at, so it is stale rather than binding.
-    await deps.store.removeOwner(pubkey)
   }
 
-  return create({ name, hostname, port, pubkey, githubId }, deps, now)
+  // CAPACITY, checked only for a NEW name — a renewal, or a swap that frees the name it replaces,
+  // consumes nothing and must never be refused for being late to a full namespace. Counting here rather
+  // than letting Cloudflare refuse means the answer says what is actually wrong instead of "provisioning failed".
+  if (deps.maxNames !== undefined && !previous) {
+    const taken = (await deps.store.list()).length
+    if (taken >= deps.maxNames) return reject("namespace-full", 503)
+  }
+
+  const outcome = await create({ name, hostname, port, pubkey, githubId }, deps, now)
+  if (outcome.status === 200 && previous && previousName) {
+    await releaseReplaced(deps, previousName, `${previousName}.${deps.zone}`, previous)
+  }
+  return outcome
 }
 
 interface ClaimTarget {
@@ -385,6 +397,22 @@ async function releaseQuietly(
     ...(githubId !== undefined ? [deps.store.removeGithubOwner(githubId)] : []),
   ])
   return true
+}
+
+/**
+ * Tear down the name a swap replaced. Its owner indexes already point at the new name, so unlike
+ * releaseQuietly this leaves them alone. A tunnel that will not die keeps its row: the name stays
+ * merely taken, and the sweeper frees it once its lease lapses.
+ */
+async function releaseReplaced(deps: ClaimDeps, name: string, hostname: string, record: ClaimRecord): Promise<void> {
+  if (deps.api) {
+    const [, tunnel] = await Promise.allSettled([
+      deps.api.deleteDnsRecord(hostname),
+      deps.api.deleteTunnel(record.tunnelId),
+    ])
+    if (tunnel.status !== "fulfilled") return
+  }
+  await deps.store.remove(name).catch(() => {})
 }
 
 /**
