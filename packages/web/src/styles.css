@@ -276,14 +276,6 @@ body {
 .card-icon-offset {
   translate: 0 var(--card-icon-offset);
 }
-/* AI-rename refresh mark: measured 0.40px high against the 15px sans title cap band.
-   Translate without growing the title row; re-measure after changing its font or size. */
-:root {
-  --title-refresh-offset: 0.4px;
-}
-.title-refresh-offset {
-  translate: 0 var(--title-refresh-offset);
-}
 /* Markdown prose rendered INSIDE a .ntwine-bash card (the SendMessage peer-message body) is PROSE, not
    code — so it must read in the app's sans-serif prose font,
    matching the surrounding assistant messages. Re-assert the body-font rule here so the mono that

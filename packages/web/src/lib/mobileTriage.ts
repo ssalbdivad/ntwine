@@ -3,7 +3,6 @@ import { rpc } from "../api/rpc.ts"
 import { closeDrawersById, openThread, showToast, store } from "../store.ts"
 import { appPushedCurrentEntry } from "./router.ts"
 import { displayTitle, needsAction, sectionThreads } from "../groups.ts"
-import { prefs } from "./prefs.ts"
 import { archivingAtNow, clearArchived, markArchived, optimisticallyArchived } from "./optimisticArchive.ts"
 import { completionArchivesImmediately } from "./threadLifecycle.ts"
 
@@ -20,8 +19,8 @@ import { completionArchivesImmediately } from "./threadLifecycle.ts"
  * order. The SAME composition MobileBoard renders (its `queue` memo) — Done advancing to a row the board
  * would not have put next would make the loop feel random.
  */
-export function phoneQueue(threads: readonly ThreadView[], direction = prefs.queueOrder): ThreadView[] {
-  const sections = sectionThreads(threads, direction)
+export function phoneQueue(threads: readonly ThreadView[]): ThreadView[] {
+  const sections = sectionThreads(threads)
   const asks = sections.active.filter(needsAction)
   const rest = sections.active.filter((t) => !needsAction(t))
   return [...sections.pinned, ...asks, ...rest]
@@ -37,11 +36,10 @@ export function phoneQueue(threads: readonly ThreadView[], direction = prefs.que
 export function nextThreadNeedingYou(
   threads: readonly ThreadView[],
   fromSlug: string,
-  direction = prefs.queueOrder,
   archivingAt: Readonly<Record<string, number>> = archivingAtNow(),
 ): ThreadView | undefined {
   const overlaid = threads.map((t) => optimisticallyArchived(t, archivingAt[t.id]))
-  return phoneQueue(overlaid, direction).find((t) => t.id !== fromSlug && t.needsYou === true)
+  return phoneQueue(overlaid).find((t) => t.id !== fromSlug && t.needsYou === true)
 }
 
 // Leave the thread just filed: open the next one that needs you, or close back to the board.

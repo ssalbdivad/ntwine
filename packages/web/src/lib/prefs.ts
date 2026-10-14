@@ -1,5 +1,4 @@
 import { proxy, subscribe } from "valtio"
-import type { QueueDirection } from "../groups.ts"
 import { DEFAULT_SNOOZE_PRESET, isSnoozePreset, type SnoozePreset } from "./snooze.ts"
 import { sanitizeOverrides, type Overrides } from "./keybindings.ts"
 
@@ -17,10 +16,6 @@ export interface Prefs {
   // preset (SnoozeMenu.tsx), because a remembered default made one click mean different spans on
   // different days. A custom date is deliberately one-off and never overwrites this reusable preset.
   snoozePreset: SnoozePreset
-  // Direction the Needs-you queue + the sidebar's rested band order by. FIFO (default) surfaces the
-  // longest-waiting item first so the human cycles through everything; LIFO surfaces the most recent
-  // arrival first. See groups.ts orderQueue.
-  queueOrder: QueueDirection
   // The fullscreen rail's "Edited files" group folded to its heading (maintainer 2026-09-03: "make
   // Edited Files collapsible"). Open by default — the list is the rail's one non-wait group and the
   // reason the page has a rail at all — and remembered here rather than in the store because a
@@ -45,10 +40,6 @@ export interface Prefs {
   // ignored: the eye had not reached anyone's installed extension.)
 }
 
-function coerceQueueOrder(v: unknown, fallback: QueueDirection): QueueDirection {
-  return v === "fifo" || v === "lifo" ? v : fallback
-}
-
 // One-time re-default markers. They ride along in the stored blob but never in `Prefs` (what
 // components read), and they are seeded into the fallback too — otherwise a browser starting FRESH
 // after a migration ships stores no marker, and the very next load would revert the deliberate
@@ -63,7 +54,6 @@ export function parseStoredPrefs(raw: string | null): Prefs {
   const fallback: Prefs & RedefaultMarkers = {
     compactDiffs: true,
     snoozePreset: DEFAULT_SNOOZE_PRESET,
-    queueOrder: "fifo",
     railFilesCollapsed: false,
     keybindings: {},
     alwaysShowStatusLines: false,
@@ -81,6 +71,9 @@ export function parseStoredPrefs(raw: string | null): Prefs {
     // Local file links setting now (lib/editorWindows.ts codeFilesDestination). Dropped the same way.
     delete (stored as Record<string, unknown>).codeFiles
     delete (stored as Record<string, unknown>).codeFilesRedefaulted
+    // "Queue order" (oldest or newest first) was a per-browser pref until 2026-10-14; the queue is always
+    // oldest first now (groups.ts orderQueue). Dropped the same way.
+    delete (stored as Record<string, unknown>).queueOrder
     // ONE-TIME migration (2026-07-09): the maintainer settled diffs as collapsed-by-default for
     // card-family consistency. A stored `compactDiffs: false` predating that decision was the OLD
     // default, not a choice — re-default it once. The marker makes a subsequent deliberate
@@ -100,7 +93,6 @@ export function parseStoredPrefs(raw: string | null): Prefs {
       ...fallback,
       ...stored,
       snoozePreset: isSnoozePreset(stored.snoozePreset) ? stored.snoozePreset : fallback.snoozePreset,
-      queueOrder: coerceQueueOrder(stored.queueOrder, fallback.queueOrder),
       railFilesCollapsed: typeof stored.railFilesCollapsed === "boolean" ? stored.railFilesCollapsed : fallback.railFilesCollapsed,
       keybindings: sanitizeOverrides(stored.keybindings),
       alwaysShowStatusLines: stored.alwaysShowStatusLines === true,

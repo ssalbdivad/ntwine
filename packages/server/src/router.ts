@@ -78,8 +78,6 @@ import {
   BackgroundShellOutputInput,
   BackgroundShellOutputResult,
   RenameThreadInput,
-  AiRenameThreadInput,
-  AiRenameThreadResult,
   SetThreadPermissionInput,
   SetThreadPermissionResult,
   ThreadProfileOptionsInput,
@@ -5881,52 +5879,6 @@ export function createRouter(ctx: AppContext) {
       ),
     }),
 
-    // Ask the provider to name this thread — the "Rename with Claude" verb in the drawer header.
-    //
-    // This used to type `/rename` into the session's terminal and scrape the result back out. It now
-    // goes through the broker's typed control channel to the SDK's own `generateSessionTitle`, which is
-    // the same call the daemon already makes to seed a title on the first message. The scraping path was
-    // not merely legacy: it threw on every broker-backed thread, i.e. on every thread dispatched since
-    // the broker cutover, so this verb was dead in the UI until now.
-    aiRenameThread: mutation({
-      input: AiRenameThreadInput,
-      output: AiRenameThreadResult,
-      handler: async ({ input }) => {
-        const row = ctx.storage.getSession(input.slug)
-        if (!row) throw new Error(`thread ${input.slug} is not editable`)
-        const bridge = ctx.claudeBroker
-        if (!bridge || row.claude_runtime !== "broker") {
-          throw new Error("Only a running broker-backed Claude thread can be renamed by the provider")
-        }
-        const namer = ctx.threadNamer
-        if (!namer?.available) throw new Error("Claude is not available to name this thread")
-        // What to name it FROM: the thread's own opening request, which is what the daemon seeds from.
-        // The live tail would name the session after whatever was said most recently, which for a long
-        // thread is a side conversation rather than the work — until 2026-08-24 this read the tail's
-        // `lastAssistant` (a ~200-char preview of the NEWEST reply), which is how issue #22's titles
-        // came out naming "the very last agent action". `displayText` is the opening prompt with
-        // ntwine's dispatch envelope peeled off, so the titler summarizes the operator's task rather
-        // than boilerplate shared by every dispatched thread.
-        //
-        // A SPINOFF CHILD is the exception (2026-09-30): its opening turn's `displayText` is the human's
-        // bare instructions (the spinoff header's projection), which are often subject-less —
-        // "evaluate whether this is a good idea" — so it is named from the instructions AND the parent's
-        // context, the same text its dispatch minted its name from (spinoffNameSource).
-        const opening = readTranscript(ctx.project, row.session_id, row.fork_anchor).find((m) => m.role === "user")
-        const description = (opening?.spinoffOrigin && spinoffNameSource(opening.spinoffOrigin)) ||
-          opening?.displayText?.trim() || opening?.text?.trim() || row.title?.trim() || input.slug
-        // Ntwine's own namer, not the provider's titler (`bridge.renameSession`): that one runs Claude
-        // Code's fixed prompt — two to five words, every instruction in its input treated as data — so it
-        // can neither keep a name to one or two words nor be told which names are taken (thread-names.ts).
-        const named = await namer.name(description, input.slug)
-        // Re-checked against the registry as it stands NOW, synchronously with the write.
-        const title = namer.holder(named, input.slug) ? namer.distinct(named, description, input.slug) : named
-        ctx.storage.setTitle(input.slug, title)
-        ctx.board.refresh()
-        return { title }
-      },
-    }),
-
     killAgent: mutation({
       input: SlugInput,
       handler: async ({ input }) => {
@@ -6735,7 +6687,7 @@ const HUMAN_THREAD_ACTS = [
   "archiveThread", "markRead", "threadSeen", "setThreadState", "completeThread", "markComplete", "setThreadStatus",
   "dismissThread", "setThreadSnooze", "setThreadPinned", "setThreadRecurringPrompt", "setThreadHeartbeat",
   "snoozeAwaitingBackground", "watchDoneRef", "snoozeUntilSubAgentsReturn", "requestParkCheckIn", "answerQuestions", "dismissQuestions", "holdQuestionDefault", "renameThread",
-  "aiRenameThread", "killAgent", "subAgentSteer", "subAgentStop", "stopBackgroundOp", "interactionResolve",
+  "killAgent", "subAgentSteer", "subAgentStop", "stopBackgroundOp", "interactionResolve",
   "interactionCancel", "terminalStart", "terminalRun", "openThreadFolder", "reviewInEditor", "updateHeldPrompt", "startHeldThread",
   "setThreadDeadline",
 ] as const satisfies readonly (keyof ReturnType<typeof createRouter>)[]

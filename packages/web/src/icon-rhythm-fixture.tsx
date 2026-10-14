@@ -43,7 +43,6 @@ window.fetch = async (input, init) => {
 const { ThreadLifecycleActions } = await import("./components/ThreadLifecycle.tsx")
 const { RecurringPromptControl } = await import("./components/RecurringPromptControl.tsx")
 const { HeaderActions } = await import("./components/HeaderActions.tsx")
-const { AiRenameButton } = await import("./components/AiRenameButton.tsx")
 const { Composer } = await import("./components/Composer.tsx")
 const { ThreadPermissionControl } = await import("./components/ThreadPermissionControl.tsx")
 const { TooltipProvider } = await import("./components/Tooltip.tsx")
@@ -102,18 +101,15 @@ function Fixture() {
       <TooltipProvider>
         <main className="min-h-screen bg-bg p-8">
           <div className="flex w-full max-w-[720px] flex-col gap-8">
-            {/* The HEADER strip, in the queue card's shape — the title row (whose hover reveals the
-                rename refresh) on the left, the shared action icons on the right. `group/thread-title`
-                is what the refresh mark listens to; the fixture forces it visible instead, because a
-                mark measured only under a live pointer cannot be measured at all. */}
+            {/* The HEADER strip, in the queue card's shape — the title on the left, the shared action
+                icons on the right. */}
             <section className="flex flex-col gap-2">
               <h2 className="text-[11px] uppercase tracking-wide text-muted">Thread header actions</h2>
               <div data-header-shell className="rounded-lg border border-border bg-panel">
-                <div className="flex items-center gap-2 px-5 py-3.5 [&_[data-ai-rename]]:opacity-100">
+                <div className="flex items-center gap-2 px-5 py-3.5">
                   <div className="min-w-0 flex-1">
-                    <div className="group/thread-title flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <div className="min-w-0 shrink truncate font-semibold text-[15px] leading-snug">Icon rhythm</div>
-                      <AiRenameButton thread={thread} />
                     </div>
                   </div>
                   {/* The strip's own `gap-0.5` cluster, as both real headers draw it: the shared actions,

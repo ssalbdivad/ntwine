@@ -40,7 +40,7 @@ function currentPerm(): NotifPerm {
 }
 
 // The drawer holds ONLY what belongs to the machine and this browser — appearance, the rail, how local
-// links open, density, queue order and notifications. Everything that belongs to a project or to one
+// links open, density and notifications. Everything that belongs to a project or to one
 // runtime is edited where it applies: a runtime's launch settings behind the gear on its band in the
 // model picker (AgentSettingsPopover). A "Project settings" tab stood here for a few hours on 2026-09-19
 // carrying a project prompt a second time; the maintainer's call was that moving a setting to its context
@@ -170,12 +170,6 @@ export function SettingsDrawer({ offerUpdate = false }: {
                 choice here is the sidebar's alone — said under each, since nothing else would tell you. */}
             <SettingsField label="Density" help={SETTINGS_HELP.density}>
               <DensityToggle />
-              {inEditor ? <EditorHint>Your browser keeps its own.</EditorHint> : null}
-            </SettingsField>
-
-            {/* Client-only VIEW preference (localStorage): applies immediately, wired to prefs. */}
-            <SettingsField label="Queue order" help={SETTINGS_HELP.queueOrder}>
-              <QueueOrderControl />
               {inEditor ? <EditorHint>Your browser keeps its own.</EditorHint> : null}
             </SettingsField>
 
@@ -410,7 +404,7 @@ function MobileSettingsPage({
   offerUpdate: boolean
 }) {
   const { connection } = useSnapshot(store)
-  const { queueOrder, snoozePreset } = useSnapshot(prefs)
+  const { snoozePreset } = useSnapshot(prefs)
   const conn = CONNECTION_WORD[connection]
   const supervisor = useSupervisorStatus().data
   const version = supervisor?.version
@@ -457,16 +451,6 @@ function MobileSettingsPage({
         </MobileSection>
 
         <MobileSection label="Queue">
-          <MobilePickerRow
-            data="queue-order"
-            label="Order"
-            value={queueOrder}
-            options={[
-              { value: "fifo", label: "Oldest first" },
-              { value: "lifo", label: "Newest first" },
-            ]}
-            onChange={(v) => (prefs.queueOrder = v)}
-          />
           <MobilePickerRow
             data="snooze-length"
             label="Snooze length"
@@ -627,32 +611,6 @@ function AlwaysShowStatusLinesToggle() {
 function ShowRecentThreadsToggle() {
   const { showRecentThreads } = useSnapshot(prefs)
   return <OnOffToggle value={showRecentThreads} onChange={(on) => (prefs.showRecentThreads = on)} />
-}
-
-// Queue/rested-band direction: client-only (localStorage prefs proxy), applies live to the Needs-you
-// queue and the sidebar's rested rows the instant it flips. FIFO by default (longest in the queue first).
-function QueueOrderControl() {
-  const { queueOrder } = useSnapshot(prefs)
-  const opts: { v: "fifo" | "lifo"; label: string }[] = [
-    { v: "fifo", label: "Oldest first" },
-    { v: "lifo", label: "Newest first" },
-  ]
-  return (
-    <div className="inline-flex w-fit rounded-md border border-border bg-bg p-0.5">
-      {opts.map((o) => (
-        <button
-          key={o.v}
-          onClick={() => (prefs.queueOrder = o.v)}
-          aria-pressed={queueOrder === o.v}
-          className={`rounded px-3 py-1 text-[12px] transition-colors ${
-            queueOrder === o.v ? "bg-fg text-bg" : "text-muted hover:text-fg"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 // A row's value where an editor's sidebar fixes it (the theme): the reading in the

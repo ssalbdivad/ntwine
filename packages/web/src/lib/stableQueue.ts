@@ -4,10 +4,9 @@
 //
 // ONCE A CARD IS DRAWN, IT KEEPS ITS PLACE, AND EVERYTHING THAT ENTERS THE QUEUE JOINS THE BOTTOM
 // (maintainer, the same day: "they should always be added to the bottom"). The queue's own order
-// (groups.ts orderQueue: when each thread entered the queue, oldest or newest first) decides a FRESH
-// draw — the page loading, a filter or the order setting changing — and nothing after it. An arrival is
-// appended below every card on the page whatever its stamp says, in either order: newest-first puts the
-// newest on top when the page is drawn, never by sliding a card in above the one being read.
+// (groups.ts orderQueue: when each thread entered the queue, oldest first) decides a FRESH draw — the
+// page loading or a filter changing — and nothing after it. An arrival is appended below every card on
+// the page whatever its stamp says, never slid in above the one being read.
 //
 // This used to be subtler, and every subtlety was a way to move something. Arrivals waited below the cards
 // on screen and then crossed above them once off screen, the viewport lock absorbing the move — which

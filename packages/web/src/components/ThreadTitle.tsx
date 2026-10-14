@@ -5,15 +5,13 @@ import { rpc } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
 import { displayName, displayTitle } from "../groups.ts"
 import { THREAD_TITLE_MAX_LENGTH, manualThreadTitleSeed, threadTitleToCommit } from "../lib/threadTitle.ts"
-import { AiRenameButton } from "./AiRenameButton.tsx"
 
-// THE THREAD'S NAME, AND BOTH WAYS OF CHANGING IT — click the name to type a new one, or point at it
-// and press the refresh mark to have Claude re-derive one. Rendered by the thread header (ChatView),
+// THE THREAD'S NAME, AND THE WAY TO CHANGE IT — click the name to type a new one. Rendered by the thread header (ChatView),
 // and by the project board's queue card header (TodosView) from this ONE component until that board
 // went on 2026-09-28, so the two surfaces could not drift. The cross-project card (AllQueuesCard)
 // does NOT render it — its title is a link that opens the drawer — so the queue has no rename in place
 // today, which is the asymmetry below come back. They drifted once before: the queue card carried only
-// the refresh mark until 2026-09-13 — its title was a plain div, on the theory that the queue is a
+// an AI re-title mark until 2026-09-13 — its title was a plain div, on the theory that the queue is a
 // triage surface and a manual rename belongs in the drawer — and the maintainer met the asymmetry on
 // the first card they wanted to retitle ("It only lets me rename. I should be able to click on it to
 // retitle it.").
@@ -22,8 +20,9 @@ import { AiRenameButton } from "./AiRenameButton.tsx"
 // the current title (never the slug or a placeholder — lib/threadTitle.ts), Enter or blur commits,
 // Escape cancels. Empty and unchanged commits are no-ops, so a stray click cannot erase a good name.
 //
-// Foreign rows and legacy docs have no registry row to rename, so the name is plain text there; the
-// refresh mark makes its own call (AiRenameButton) and hides while the editor is open.
+// Foreign rows and legacy docs have no registry row to rename, so the name is plain text there. (A hover
+// mark beside the name that had Claude re-derive the title was removed on 2026-10-14 as unused; the
+// automatic naming at dispatch is unaffected.)
 // The name's two-line wrap in the narrow (two-row) thread header: `line-clamp-2` brings its own overflow
 // and box, `whitespace-normal` undoes `truncate`'s nowrap, and `overflow-wrap:anywhere` breaks a slug-like
 // run with no space in it rather than letting it run out of the row.
@@ -55,8 +54,7 @@ export function ThreadTitle({ thread, className = "" }: { thread: ThreadView; cl
     setDraft("")
     setRefusal(undefined)
   }, [slug])
-  // Manual rename is registry metadata for either backend; the AI rename is Claude-only and gated
-  // inside AiRenameButton.
+  // Manual rename is registry metadata for any backend.
   const canRename = thread.kind === "session" && thread.foreign !== true
   // The name SHOWS as its `@` handle (`shell-budgets`) but is stored as the words it was minted as
   // ("Shell budgets"), and a rename writes words — so the editor opens on the words, and "unchanged" is
@@ -89,9 +87,8 @@ export function ThreadTitle({ thread, className = "" }: { thread: ThreadView; cl
       },
     })
   }
-  // `group/thread-title` is the refresh mark's hover zone. `min-w-0 shrink` on the name rather than
-  // `flex-1`, so a short title does not push the mark to the far side of the row — and so a short
-  // name does not claim the whole row as a click target.
+  // `min-w-0 shrink` on the name rather than `flex-1`, so a short name does not claim the whole row as
+  // a click target.
   //
   // IN THE TWO-ROW HEADER THE NAME WRAPS to a second line (`NARROW_WRAP`), on the header's own condition
   // (lib/threadHeaderLayout.ts THREAD_HEADER_NARROW — spelled out in full, since Tailwind generates a class
@@ -101,7 +98,7 @@ export function ThreadTitle({ thread, className = "" }: { thread: ThreadView; cl
   // action, not the title. Two lines, then the ellipsis; anywhere else (the desktop's one-row bar) it
   // truncates on one line exactly as before.
   return (
-    <div className="group/thread-title flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       {editing ? (
         <input
           ref={inputRef}
@@ -167,7 +164,6 @@ export function ThreadTitle({ thread, className = "" }: { thread: ThreadView; cl
           {refusal}
         </span>
       )}
-      <AiRenameButton thread={thread} hidden={editing} />
     </div>
   )
 }

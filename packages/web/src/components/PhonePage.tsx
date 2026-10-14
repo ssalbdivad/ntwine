@@ -8,7 +8,6 @@ import type { ScheduleView, ThreadView } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
-import { prefs } from "../lib/prefs.ts"
 import { displayTitle, futureSnoozedUntil, lastActiveLabelAt, queued, queueLabelAt, restIsWorking, sessionIndicatorKind, type SessionIndicatorKind } from "../groups.ts"
 import { ageSpan, spanUntil } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
@@ -603,9 +602,8 @@ function PhoneThreads({ shown, viewed, focusedSlug, hidden, loading, error, comp
     window.scrollTo(0, 0)
   }, [viewId])
 
-  const direction = useSnapshot(prefs).queueOrder
   const { live, onPage, overlayFor } = useJustActed()
-  const queue = phoneQueue(shown, hidden, overlayFor, direction)
+  const queue = phoneQueue(shown, hidden, overlayFor)
   const counts = phoneCounts(queue)
   const subtitle = phoneSubtitle(counts)
   const snoozed = phoneSnoozed(shown)

@@ -254,11 +254,6 @@ export function lastActiveLabelAt(t: Pick<ThreadView, "runtime" | "lastActivityA
   return t.lastAssistantAt ?? t.lastActivityAt ?? t.spawnedAt
 }
 
-// The listing DIRECTION the queue/rested band orders by (a per-browser view preference — see
-// lib/prefs.ts). FIFO (default) surfaces the longest-waiting item first so the human cycles through
-// all work; LIFO surfaces the most recent arrival first.
-export type QueueDirection = "fifo" | "lifo"
-
 // Attention first (needsAction), then most-recent LAST-ACTIVE first within each band (see
 // lastActiveAt). id-tiebroken so equal-time rows hold a stable order. New array; input untouched.
 export function sortThreads(threads: readonly ThreadView[]): ThreadView[] {
@@ -272,8 +267,8 @@ export function sortThreads(threads: readonly ThreadView[]): ThreadView[] {
 }
 
 // Order a thread set by most-recent LAST-ACTIVE first (lastActiveAt), id-tiebroken. Used for the
-// running band and the Snoozed/Inactive sections — surfaces where newest-on-top is always wanted (the
-// FIFO/LIFO preference governs only the queue/rested band via orderQueue). A running row keys off its
+// running band and the Snoozed/Inactive sections — surfaces where newest-on-top is always wanted (only
+// the queue/rested band orders oldest first, via orderQueue). A running row keys off its
 // stable user-interaction time (lastActiveAt's churn guard), so live agent motion never reshuffles it;
 // an at-rest row keys off when it came to rest, matching its "Last active" label. New array; input
 // untouched.
@@ -289,17 +284,15 @@ export function orderByInteraction(threads: readonly ThreadView[]): ThreadView[]
   return keyed.map((k) => k.t)
 }
 
-// The queue is a SINGLE strictly time-ordered list — no priority band. Every waiting card orders by
-// DIRECTION (a per-browser view preference — see lib/prefs.ts) alone, so the visible "oldest first"
-// rule is literally true across every card, attention and passive alike (maintainer 2026-07-21:
-// removed the hidden hard-attention band — "too confusing"; a fresh crash/permission-prompt no longer
-// floats above an older done card):
-//   • FIFO (default): the thread that has been IN THE QUEUE longest surfaces first, so answering it
-//     sends it to the BACK of the line and the next-oldest rises — the human cycles through every
-//     waiting item instead of endlessly re-triaging whatever rested most recently (maintainer
-//     2026-07-15: "first in first out is a better system… you are not constantly cycling through all
-//     of the tasks").
-//   • LIFO: the most recent arrival first (descending) — the older last-in-first-out feel.
+// The queue is a SINGLE strictly time-ordered list — no priority band, and no direction to choose. Every
+// waiting card orders oldest first, so the visible "oldest first" rule is literally true across every
+// card, attention and passive alike (maintainer 2026-07-21: removed the hidden hard-attention band — "too
+// confusing"; a fresh crash/permission-prompt no longer floats above an older done card). The thread that
+// has been IN THE QUEUE longest surfaces first, so answering it sends it to the BACK of the line and the
+// next-oldest rises — the human cycles through every waiting item instead of endlessly re-triaging
+// whatever rested most recently (maintainer 2026-07-15: "first in first out is a better system… you are
+// not constantly cycling through all of the tasks"). A newest-first setting existed until 2026-10-14 and
+// was cut as unused.
 // THE KEY IS WHEN IT ENTERED THE QUEUE (`queuedAt`, stamped by the server's queue clock), not when its
 // agent last spoke. The two agree for a plain rest and nothing else: a thread that rested behind a wait
 // — CI, a sub-agent, a park, a snooze — enters when the wait lets go, and keyed on its old rest time it
@@ -309,10 +302,9 @@ export function orderByInteraction(threads: readonly ThreadView[]): ThreadView[]
 // time only for a row from a server that predates the stamp.
 // Equal entries (several snoozes elapsing in one assembly) fall back to rest order, then id, so a tie
 // holds a stable order.
-export function orderQueue(threads: readonly ThreadView[], direction: QueueDirection = "fifo"): ThreadView[] {
-  const dir = direction === "lifo" ? -1 : 1
+export function orderQueue(threads: readonly ThreadView[]): ThreadView[] {
   return [...threads].sort((a, b) => {
-    const age = (queueKeyAt(a) - queueKeyAt(b)) * dir || (lastActiveAt(a) - lastActiveAt(b)) * dir
+    const age = queueKeyAt(a) - queueKeyAt(b) || lastActiveAt(a) - lastActiveAt(b)
     return age !== 0 ? age : a.id.localeCompare(b.id)
   })
 }
@@ -832,10 +824,10 @@ export function offersRetry(t: ThreadView): boolean {
 // drew the two bands in the order they came out of here, so the array and the rail could never disagree
 // about which band was on top. No surface renders straight from it now; sectionThreads still orders its
 // `active` bucket with it.
-export function orderActive(threads: readonly ThreadView[], direction: QueueDirection = "fifo"): ThreadView[] {
+export function orderActive(threads: readonly ThreadView[]): ThreadView[] {
   const running = threads.filter(inActiveBand)
   const rested = threads.filter((t) => !inActiveBand(t))
-  return [...orderQueue(rested, direction), ...orderByInteraction(running)]
+  return [...orderQueue(rested), ...orderByInteraction(running)]
 }
 
 // Split an ALREADY-ordered list (see orderActive) into its Active/Rested bands WITHOUT re-sorting —
@@ -877,7 +869,7 @@ export function bandOf(t: ThreadView): Band | null {
 // row must be claimable by NO band, and keeping it out of the Record is what makes that true by
 // construction instead of by every band remembering to exclude it.
 export type SectionedThreads = Record<SectionKey, ThreadView[]> & { pinned: ThreadView[] }
-export function sectionThreads(threads: readonly ThreadView[], direction: QueueDirection = "fifo"): SectionedThreads {
+export function sectionThreads(threads: readonly ThreadView[]): SectionedThreads {
   const out: SectionedThreads = { pinned: [], active: [], snoozed: [], inactive: [] }
   for (const t of threads) {
     if (t.kind === "session" && t.foreign === true) continue // foreign sessions never row (nor strip — dropped)
@@ -891,7 +883,7 @@ export function sectionThreads(threads: readonly ThreadView[], direction: QueueD
   // Pin order, oldest pin first: the band is a shelf the human arranged, so nothing about the threads'
   // own activity may reorder it. Slug tiebreak keeps two same-instant pins stable across renders.
   out.pinned.sort((a, b) => (a.pinnedAt ?? "").localeCompare(b.pinnedAt ?? "") || a.id.localeCompare(b.id))
-  out.active = orderActive(out.active, direction)
+  out.active = orderActive(out.active)
   out.snoozed = orderByInteraction(out.snoozed)
   out.inactive = orderByInteraction(out.inactive)
   return out

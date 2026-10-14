@@ -2560,8 +2560,7 @@ const SPINOFF_FORK_ORIENTATION = "This thread was FORKED from that one."
 /** What a spinoff child is NAMED from: the human's instructions, then the context under them. The
  *  instructions alone are often subject-less ("evaluate whether this is a good idea") — the context is
  *  where the subject lives — and the composed prompt's opening "A spinoff of @parent…" line would name
- *  every child after its parent. One definition for the dispatch's mint (router.ts spinoff) and the later
- *  "Rename with Claude" (aiRenameThread), so the two cannot name one thread from different text. */
+ *  every child after its parent. Used by the dispatch's mint (router.ts spinoff). */
 export function spinoffNameSource(origin: { instructions: string; brief: string }): string {
   return [origin.instructions.trim(), origin.brief.trim()].filter(Boolean).join("\n\n")
 }
@@ -5969,14 +5968,6 @@ export const RenameThreadInput = z.object({
   title: z.string().trim().min(1).max(200),
 })
 export type RenameThreadInput = z.infer<typeof RenameThreadInput>
-
-// Claude-only native title generation. The server submits Claude Code's exact `/rename` command,
-// observes the resulting custom-title transcript record, and returns the title it durably saved.
-// Codex intentionally has no analog: its thread header exposes the manual metadata rename only.
-export const AiRenameThreadInput = z.object({ slug: ThreadSlug })
-export type AiRenameThreadInput = z.infer<typeof AiRenameThreadInput>
-export const AiRenameThreadResult = z.object({ title: z.string().min(1).max(200) })
-export type AiRenameThreadResult = z.infer<typeof AiRenameThreadResult>
 
 // THE WORKER NAMING ITS OWN THREAD, from `ntwinectl title`. Both backends get a name automatically at
 // spawn — Claude from the provider's own titler, Codex from the first-line `<!-- ntwine title="…" -->`

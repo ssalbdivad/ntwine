@@ -53,7 +53,6 @@ import { ALL_PROJECTS, homeHref, projectViewHref, usePageView, viewHref, viewKey
 import { carryDispatchDraft, routeDispatchDraft } from "../lib/scheduleDraftState.ts"
 import { QUEUE_CARD_VIEWPORT_TOP, registerRoutedLanding, resolveRoutedThread, showToast, slugsInThreadDrawers, store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
-import { prefs } from "../lib/prefs.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
 import { stableQueue, type QueueSlot } from "../lib/stableQueue.ts"
@@ -189,7 +188,6 @@ export function AllQueuesPage() {
     // projects that cannot wait — and only while the human has turned them on.
     refetchInterval: view.kind === "all" ? POLL_MS : OTHER_PROJECTS_POLL_MS,
   })
-  const direction = useSnapshot(prefs).queueOrder
   // The FOCUS — the page project (routes.tsx CrossProjectPage). Its board is live in the store, so it
   // is drawn from that rather than from the poll, and so is the project the focus just LEFT, until the
   // poll has caught up with what was done there (useDepartedQueue).
@@ -202,10 +200,10 @@ export function AllQueuesPage() {
   // is when it landed and can postdate an action the read never saw.
   const readAt = readStartedAt(queues.data)
   const departed = useDepartedQueue(live, readAt)
-  const base = useMemo(() => queuesProjects(cards.data, polled, direction), [cards.data, polled, direction])
+  const base = useMemo(() => queuesProjects(cards.data, polled), [cards.data, polled])
   // The pins this tab just set or cleared, ahead of the board that will confirm them (lib/optimisticPin.ts).
   const pinOverrides = usePinOverrides()
-  const projects = useMemo(() => pinOverlayQueues(overlayQueues(base, [live, departed], direction), pinOverrides), [base, live, departed, direction, pinOverrides])
+  const projects = useMemo(() => pinOverlayQueues(overlayQueues(base, [live, departed]), pinOverrides), [base, live, departed, pinOverrides])
   const focusProject = projects.find((project) => project.slug === focus)
   const runningThreads = useMemo(() => projects.flatMap((project) => project.running), [projects])
   const viewed = view.kind === "project" ? projects.find((project) => project.slug === view.slug) : undefined
@@ -334,13 +332,13 @@ export function AllQueuesPage() {
   // currently viewing on the screen don't move in their position"). A card whose thread left the queue
   // by any hand but the human's in THIS tab (lib/humanActs.ts) — its agent woke itself, it was answered
   // from the phone, its project closed — is held there as a ghost; one the human put away from here —
-  // finished, replied to, snoozed — leaves the ordinary way, held only while it fades. Re-sorting or
-  // re-filtering is the human choosing a different queue, so it starts over from the queue's own order.
-  const ordered = mergedQueue(shown, direction).filter(({ project, thread }) => !leaving.hidden(threadKey(project.id, thread.id)))
+  // finished, replied to, snoozed — leaves the ordinary way, held only while it fades. Changing the view is
+  // the human choosing a different queue, so it starts over from the queue's own order.
+  const ordered = mergedQueue(shown).filter(({ project, thread }) => !leaving.hidden(threadKey(project.id, thread.id)))
   const prevSlots = useRef<QueueSlot<QueueEntry>[]>([])
-  const orderedAs = useRef(`${direction}|${viewKey(view)}`)
-  if (orderedAs.current !== `${direction}|${viewKey(view)}`) {
-    orderedAs.current = `${direction}|${viewKey(view)}`
+  const orderedAs = useRef(viewKey(view))
+  if (orderedAs.current !== viewKey(view)) {
+    orderedAs.current = viewKey(view)
     prevSlots.current = []
   }
   // THE CARD THE HUMAN IS ENGAGED WITH STAYS A CARD. Its thread can leave the queue on its own while the

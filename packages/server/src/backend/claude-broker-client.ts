@@ -67,8 +67,6 @@ export interface ClaudeBrokerClient {
   cancelInput(id: string): Promise<boolean>
   /** Stop one provider background task and resolve only after the daemon confirms the SDK call. */
   stopTask(taskId: string): Promise<void>
-  /** Re-title the live session through the provider (the SDK's `generateSessionTitle`). */
-  renameSession(description: string): Promise<string | undefined>
   /** Mount one of the operator's user-scope MCP servers into the live session (`mount-mcp`). */
   mountMcpServer(name: string): Promise<void>
   /** The session's invocable skills, as the harness reports them (names + descriptions). */
@@ -94,8 +92,8 @@ interface Options {
   retryDelayMs?: number
   /** How long a `cancelInput` waits for the daemon's verdict before rejecting. Default 10s. */
   cancelTimeoutMs?: number
-  /** How long a `renameSession` waits for the provider's answer before rejecting. Default 30s. */
-  renameTimeoutMs?: number
+  /** How long a `mountMcpServer` waits for the daemon's answer before rejecting. Default 30s. */
+  mountTimeoutMs?: number
 }
 
 // Derived from the shared enum rather than re-spelled, so the router's strict zod and this guard can
@@ -109,9 +107,9 @@ export function connectClaudeBroker(
 ): ClaudeBrokerClient {
   const retryDelayMs = options.retryDelayMs ?? 250
   const cancelTimeoutMs = options.cancelTimeoutMs ?? 10_000
-  // A re-title is a provider round trip, so it is genuinely slower than the bookkeeping answers
-  // cancel/stop give. Still bounded: a wedged daemon must not hang a click.
-  const renameTimeoutMs = options.renameTimeoutMs ?? 30_000
+  // Mounting an MCP server starts a process and handshakes with it, so it is genuinely slower than the
+  // bookkeeping answers cancel/stop give. Still bounded: a wedged daemon must not hang a click.
+  const mountTimeoutMs = options.mountTimeoutMs ?? 30_000
   let sock: net.Socket | null = null
   let closed = false
   let buf = ""
@@ -122,7 +120,6 @@ export function connectClaudeBroker(
   // In-flight cancelInput round-trips, keyed by the request id echoed on the reply.
   const pendingCancels = new Map<string, { settle: (cancelled: boolean) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingStops = new Map<string, { settle: () => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
-  const pendingRenames = new Map<string, { settle: (t: string | undefined) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingMounts = new Map<string, { settle: () => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingSkills = new Map<string, { settle: (s: ClaudeSkillInfo[]) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   // In-flight deliverInput calls, keyed by the requestId the daemon echoes on `input-result`.
@@ -202,15 +199,6 @@ export function connectClaudeBroker(
           clearTimeout(entry.timer)
           if (typeof frame.error === "string" && frame.error) entry.fail(new Error(frame.error))
           else entry.settle()
-          break
-        }
-        case "rename-result": {
-          const entry = pendingRenames.get(frame.requestId as string)
-          if (!entry) break
-          pendingRenames.delete(frame.requestId as string)
-          clearTimeout(entry.timer)
-          if (typeof frame.error === "string" && frame.error) entry.fail(new Error(frame.error))
-          else entry.settle(typeof frame.title === "string" ? frame.title : undefined)
           break
         }
         case "skills-result": {
@@ -315,7 +303,7 @@ export function connectClaudeBroker(
       send({ t: "stop-task", requestId, taskId })
     }),
     // The skill list is answered from the SDK's own memory (captured at initialize), so it shares the
-    // short cancel deadline rather than the rename one.
+    // short cancel deadline rather than the mount one.
     listSkills: () => new Promise<ClaudeSkillInfo[]>((resolve, reject) => {
       if (closed) { reject(new Error("the broker connection is closed")); return }
       const requestId = `skills-${++cancelSeq}`
@@ -327,26 +315,14 @@ export function connectClaudeBroker(
       pendingSkills.set(requestId, { settle: resolve, fail: reject, timer })
       send({ t: "list-skills", requestId })
     }),
-    // The longer deadline: a re-title is a provider round trip, not local bookkeeping.
-    renameSession: (description: string) => new Promise<string | undefined>((resolve, reject) => {
-      if (closed) { reject(new Error("the broker connection is closed")); return }
-      const requestId = `rename-${++cancelSeq}`
-      const timer = setTimeout(() => {
-        pendingRenames.delete(requestId)
-        reject(new Error("the Claude session did not answer the rename request"))
-      }, renameTimeoutMs)
-      if (timer.unref) timer.unref()
-      pendingRenames.set(requestId, { settle: resolve, fail: reject, timer })
-      send({ t: "rename", requestId, description })
-    }),
-    // The rename deadline: connecting a server is a process start and a handshake, not bookkeeping.
+    // The longer deadline: connecting a server is a process start and a handshake, not bookkeeping.
     mountMcpServer: (name: string) => new Promise<void>((resolve, reject) => {
       if (closed) { reject(new Error("the broker connection is closed")); return }
       const requestId = `mount-${++cancelSeq}`
       const timer = setTimeout(() => {
         pendingMounts.delete(requestId)
         reject(new Error("the Claude session did not answer the MCP mount"))
-      }, renameTimeoutMs)
+      }, mountTimeoutMs)
       if (timer.unref) timer.unref()
       pendingMounts.set(requestId, { settle: resolve, fail: reject, timer })
       send({ t: "mount-mcp", requestId, name })
@@ -361,8 +337,6 @@ export function connectClaudeBroker(
       pendingCancels.clear()
       for (const [, entry] of pendingStops) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the stop was answered")) }
       pendingStops.clear()
-      for (const [, entry] of pendingRenames) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the rename was answered")) }
-      pendingRenames.clear()
       for (const [, entry] of pendingMounts) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the MCP mount was answered")) }
       pendingMounts.clear()
       for (const [, entry] of pendingSkills) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the skill listing was answered")) }

@@ -22,7 +22,7 @@ test("an arrival joins the bottom, and the cards drawn stay as drawn", () => {
   assert.equal(drawn(next(slots("a", "b"), ["a", "b", "c"], ["a", "b"])), "a b c")
 })
 
-test("newest first, an arrival still joins the bottom — and stays there once the reader moves on", () => {
+test("an arrival the queue's order puts first still joins the bottom — and stays there once the reader moves on", () => {
   const arrived = next(slots("a", "b", "c"), ["n", "a", "b", "c"], ["a", "b"])
   assert.equal(drawn(arrived), "a b c n")
   assert.equal(drawn(next(arrived, ["n", "a", "b", "c"], ["c"])), "a b c n")

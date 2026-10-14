@@ -1,5 +1,5 @@
 import { activeBandThread, type BoardSnapshot, type ThreadView } from "@ntwine/shared"
-import { isPinned, orderByInteraction, orderQueue, queued, sectionThreads, sessionIndicatorKind, type QueueDirection } from "../groups.ts"
+import { isPinned, orderByInteraction, orderQueue, queued, sectionThreads, sessionIndicatorKind } from "../groups.ts"
 import { isBusy, threadKey, type QueuesProject } from "./allQueues.ts"
 import { loudBands } from "./listBands.ts"
 
@@ -69,7 +69,6 @@ export function phoneQueue(
   projects: readonly QueuesProject[],
   hidden: (key: string) => boolean = () => false,
   overlayFor: OverlayFor = noOverlay,
-  direction: QueueDirection = "fifo",
 ): PhoneRow[] {
   const owner = new Map<ThreadView, QueuesProject>()
   const pinned: ThreadView[] = []
@@ -85,7 +84,7 @@ export function phoneQueue(
     ready.push(...bands.ready)
     working.push(...bands.working)
   }
-  const active = [...orderQueue(ready, direction), ...orderByInteraction(working)]
+  const active = [...orderQueue(ready), ...orderByInteraction(working)]
   return rowsOf([...pinned.sort(byPin), ...active.filter(isAsk), ...active.filter((t) => !isAsk(t))], owner)
 }
 

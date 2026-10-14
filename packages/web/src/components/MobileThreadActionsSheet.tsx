@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Loader2, Pencil, RefreshCw, RotateCcw, RotateCw } from "lucide-react"
+import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Loader2, Pencil, RefreshCw, RotateCcw } from "lucide-react"
 import { SNOOZE_PROMPT_MAX, type ThreadLinkView, type ThreadView } from "@ntwine/shared"
 import { ThreadProjectScope, useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
 import { showToast, store } from "../store.ts"
@@ -17,7 +17,7 @@ import {
   type SnoozePreset,
 } from "../lib/snooze.ts"
 import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
-import { aiRenameAvailability, manualThreadTitleSeed, THREAD_TITLE_MAX_LENGTH, threadTitleToCommit } from "../lib/threadTitle.ts"
+import { manualThreadTitleSeed, THREAD_TITLE_MAX_LENGTH, threadTitleToCommit } from "../lib/threadTitle.ts"
 import { copyTextToClipboard } from "../lib/clipboard.ts"
 import { outerPath } from "../lib/base-path.ts"
 import { openLocalPath } from "../lib/local-file-links.ts"
@@ -429,8 +429,7 @@ function displayPath(path: string, projectDir: string | undefined): string {
 // ── rename ────────────────────────────────────────────────────────────────────────────────────────
 
 // The header's click-to-type rename (ThreadTitle), as a field: the same seed, the same no-op rules for
-// an empty or unchanged name, the same RPC and toasts. Claude's rename rides along where the header
-// offers it on hover — a phone has no hover, so here it is a row.
+// an empty or unchanged name, the same RPC and toasts.
 function RenameView({ thread, back, dismiss }: { thread: ThreadView; back: () => void; dismiss: (then?: () => void) => void }) {
   const shown = displayTitle(thread)
   const [draft, setDraft] = useState(() => manualThreadTitleSeed(shown, thread.id))
@@ -438,8 +437,6 @@ function RenameView({ thread, back, dismiss }: { thread: ThreadView; back: () =>
   const api = useThreadApi()
   const afterWrite = useAfterScopedWrite()
   const rename = useMutation({ mutationFn: (title: string) => api.renameThread({ slug: thread.id, title }), onSuccess: afterWrite })
-  const aiRename = useMutation({ mutationFn: () => api.aiRenameThread({ slug: thread.id }), onSuccess: afterWrite })
-  const ai = aiRenameAvailability(thread)
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       input.current?.focus()
@@ -478,24 +475,6 @@ function RenameView({ thread, back, dismiss }: { thread: ThreadView; back: () =>
           Save
         </button>
       </div>
-      {ai.show && (
-        <>
-          <div className="mt-3 mb-1 h-px bg-border" />
-          <ActionRow
-            data="ai-rename"
-            disabled={aiRename.isPending}
-            icon={aiRename.isPending ? <Loader2 size={19} className="animate-spin" /> : <RotateCw size={19} />}
-            label={aiRename.isPending ? "Claude is naming it…" : "Rename with Claude"}
-            onClick={() => {
-              if (!ai.enabled) return showToast(ai.label)
-              aiRename.mutate(undefined, {
-                onSuccess: ({ title }) => dismiss(() => showToast(`Renamed to “${title}”`)),
-                onError: (error) => showToast(error instanceof Error ? error.message : "Could not rename with Claude", { duration: 7000 }),
-              })
-            }}
-          />
-        </>
-      )}
     </form>
   )
 }
