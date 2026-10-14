@@ -74,7 +74,9 @@ recomputes only on resize, on a tier's membership change, and never while the po
 Measured on the concept (heavy load, 51 open threads with this seed): no scroll at 1920×1080, 1440×900
 and 1280×720. At 1440×900 that is 2 pins, 13 Needs-you rows plus a "3 more" line, 8 Working rollups plus
 one single, and Waiting and Finished as headers. At 1920×1080 only 4 of 9 Working runs roll up. Today's
-list at the same load shows 22 lines at 1440×900 and scrolls for the rest.
+list at the same load fits 23 lines at 1440×900 (`ProjectList.tsx` `GROUP_GAP`), project headings
+included, and scrolls for the rest. One seed, so the row counts are illustrative; the no-scroll property is
+what the budget guarantees.
 
 ## Done, easily
 
