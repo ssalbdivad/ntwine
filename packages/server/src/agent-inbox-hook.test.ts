@@ -181,27 +181,50 @@ test("a child that cached no limit picks up the one the user set later, introduc
   assert.deepEqual(JSON.parse(readFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.json`), "utf8")), { none: true }, "and the hook cached that")
 
   const now = Date.now()
-  assert.equal(setChildDeadline(s.sessionDir, PLAIN, { atMs: now + 10 * 60_000, nowMs: now }), true)
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, now + 10 * 60_000, now), "moved")
   const intro = childSays(s.transcript)
   assert.match(intro, /⏰ Your time limit: .* set by the user operating Ntwine, after you started/)
   assert.equal(childSays(s.transcript), "", "introduced once")
 
   // Past the deadline already: the next tool call brings the `over` check-in.
-  assert.equal(setChildDeadline(s.sessionDir, PLAIN, { atMs: now - 1_000, nowMs: now - 120_000 }), true)
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, now - 1_000, now - 120_000), "moved")
   assert.match(childSays(s.transcript), /Your time is up/)
 })
 
-test("a sooner limit the child already has is kept; a lift touches only a limit the user set", () => {
+test("a share of the thread's limit follows it: extended later, and lifted when the user removes it", () => {
   const s = plainChild()
   const now = Date.now()
   mkdirSync(join(s.sessionDir, DEADLINES_DIRNAME), { recursive: true })
-  const own = { atMs: now + 5 * 60_000, setAtMs: now, announce: false }
-  writeFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.json`), JSON.stringify(own))
-  assert.equal(setChildDeadline(s.sessionDir, PLAIN, { atMs: now + 30 * 60_000, nowMs: now }), false, "later than its own: kept")
-  assert.equal(setChildDeadline(s.sessionDir, PLAIN, null), false, "its dispatcher's share is not the user's to lift")
-  assert.deepEqual(JSON.parse(readFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.json`), "utf8")), own)
+  // The share its dispatcher carved from the thread's limit, already past and already told so.
+  writeFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.json`), JSON.stringify({ atMs: now - 60_000, setAtMs: now - 5 * 60_000, announce: false }))
+  writeFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.over`), "")
 
-  assert.equal(setChildDeadline(s.sessionDir, PLAIN, { atMs: now + 2 * 60_000, nowMs: now }), true, "sooner: taken")
-  assert.equal(setChildDeadline(s.sessionDir, PLAIN, null), true, "and the user's own limit can be lifted")
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, now + 30 * 60_000, now), "moved", "the thread was extended: so is its share")
+  assert.match(childSays(s.transcript), /⏰ Your time limit: .* set by the user operating Ntwine/, "a new generation, introduced")
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, now + 30 * 60_000 + 400, now + 400), false, "the same ceiling a beat later is no change")
+
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, null, now), "lifted")
   assert.deepEqual(JSON.parse(readFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.json`), "utf8")), { none: true })
+  assert.equal(childSays(s.transcript), "", "and nothing more is said")
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, null, now), false, "negative control: nothing left to lift")
+})
+
+test("a limit the dispatcher declared stays its own: clamped under the thread's, restored when that is removed", () => {
+  const s = newSession([])
+  mkdirSync(join(s.sessionDir, "subagents"), { recursive: true })
+  const now = Date.now()
+  const declaredAtMs = now + 20 * 60_000
+  // The dispatch hook's marker, as `deadlineParagraph` writes it for `Time limit: 20m` under a 2h thread.
+  const marker = `⟦ntwine-deadline⟧ ${new Date(declaredAtMs).toISOString()} ${new Date(now).toISOString()} declared=${new Date(declaredAtMs).toISOString()}`
+  writeFileSync(join(s.sessionDir, "subagents", `agent-${PLAIN}.jsonl`), JSON.stringify({ type: "user", timestamp: new Date(now).toISOString(), message: { role: "user", content: `Audit the parser.\n${marker}` } }) + "\n")
+  assert.equal(childSays(s.transcript), "", "its prompt already said; nothing due yet")
+  const file = () => JSON.parse(readFileSync(join(s.sessionDir, DEADLINES_DIRNAME, `${PLAIN}.json`), "utf8"))
+  assert.equal(file().declaredAtMs, declaredAtMs, "the hook keeps the declared end")
+
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, now + 60 * 60_000, now), false, "extending the thread past it changes nothing")
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, now + 5 * 60_000, now), "moved", "a ceiling under it clamps it")
+  assert.equal(file().atMs, now + 5 * 60_000)
+  assert.equal(setChildDeadline(s.sessionDir, PLAIN, null, now), "moved", "removing the thread's limit restores the declared one")
+  assert.deepEqual(file(), { atMs: declaredAtMs, setAtMs: now, announce: true, declaredAtMs })
+  assert.match(childSays(s.transcript), /set by the agent that dispatched you/)
 })

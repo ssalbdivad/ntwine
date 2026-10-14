@@ -2315,11 +2315,13 @@ export function createRouter(ctx: AppContext) {
     for (const child of target.tailer.liveMailboxes?.(slug) ?? []) {
       try {
         if (change.kind === "cleared") {
-          if (!setChildDeadline(child.sessionDir, child.agentId, null)) continue
-          postToAgentInbox(child.sessionDir, child.agentId, { from: "operator", text: "The user removed the time limit on this work. Carry on to the best result, not to a clock." })
+          const lifted = setChildDeadline(child.sessionDir, child.agentId, null, nowMs)
+          if (!lifted) continue
+          // A child left with its dispatcher's own limit is told so by its hook's introduction instead.
+          if (lifted === "lifted") postToAgentInbox(child.sessionDir, child.agentId, { from: "operator", text: "The user removed the time limit on this work. Carry on to the best result, not to a clock." })
         } else {
-          const atMs = childDeadlineMs({ nowMs, parentDeadlineMs: change.atMs }) ?? change.atMs
-          const moved = setChildDeadline(child.sessionDir, child.agentId, { atMs, nowMs })
+          const ceilingMs = childDeadlineMs({ nowMs, parentDeadlineMs: change.atMs }) ?? change.atMs
+          const moved = setChildDeadline(child.sessionDir, child.agentId, ceilingMs, nowMs)
           if (change.note) postToAgentInbox(child.sessionDir, child.agentId, { from: "operator", text: `Sent with a time limit on this work:\n\n${change.note.split("\n").map((line) => `> ${line}`).join("\n")}` })
           else if (!moved) continue
         }

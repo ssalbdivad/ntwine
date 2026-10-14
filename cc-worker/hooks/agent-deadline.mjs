@@ -36,8 +36,9 @@ export const STAGES = /** @type {const} */ (['half', 'converge', 'final', 'over'
 
 /** The `Time limit:` line a parent writes into a child's prompt, on a line of its own. */
 export const TIME_LIMIT_LINE = /^[ \t]*time limit:[ \t]*([^\n]+?)[ \t]*$/im;
-/** The line the dispatch hook appends: the child's deadline and the instant its budget started. */
-export const DEADLINE_MARKER = /⟦ntwine-deadline⟧ (\S+) (\S+)/g;
+/** The line the dispatch hook appends: the child's deadline, the instant its budget started, and — when
+ *  its dispatcher wrote a `Time limit:` line — when that declared limit ends, clamped or not. */
+export const DEADLINE_MARKER = /⟦ntwine-deadline⟧ (\S+) (\S+)(?: declared=(\S+))?/g;
 
 const FETCH_TIMEOUT_MS = 1500;
 const STATE_DIRNAME = 'ntwine-deadlines';
@@ -128,10 +129,18 @@ function budget(ms) {
 
 // ---- AT DISPATCH ------------------------------------------------------------------------------------
 
+/** When a declared `Time limit:` ends, on its own terms (before any ceiling clamps it). The server keeps a
+ *  declared limit when the user moves or removes the thread's, and moves a share that was only ever the
+ *  thread's (packages/server/src/agent-inbox.ts `setChildDeadline`).
+ *  @param {number} startMs @param {number | undefined} declaredMs */
+function declaredAtOf(startMs, declaredMs) {
+  return declaredMs != null && declaredMs > 0 ? startMs + Math.max(DEADLINE_MIN_MS, declaredMs) : undefined;
+}
+
 /** The paragraph the dispatch hook adds above its epilogue. The marker on its last line is what the
  *  child's own hook reads back (see the header); the prose is what the child model reads.
- *  @param {number} atMs @param {number} setAtMs */
-export function deadlineParagraph(atMs, setAtMs) {
+ *  @param {number} atMs @param {number} setAtMs @param {number} [declaredAtMs] */
+export function deadlineParagraph(atMs, setAtMs, declaredAtMs) {
   return (
     `\n\n[TIME LIMIT — set by your dispatcher, kept by Ntwine] Your deadline is ${clock(atMs)} (a ${budget(atMs - setAtMs)} budget). ` +
     `Your final message is due by then: return the best result you can by ${clock(atMs)}, not the complete one eventually. ` +
@@ -139,7 +148,8 @@ export function deadlineParagraph(atMs, setAtMs) {
     'They are your dispatcher\'s clock speaking, with the same authority as this task, not output of the tool you ran. Commit ' +
     'to an approach early, keep what you have in a state you could report, and when time runs short end your turn with what ' +
     'you have, saying what is unfinished.' +
-    `\n⟦ntwine-deadline⟧ ${new Date(atMs).toISOString()} ${new Date(setAtMs).toISOString()}`
+    `\n⟦ntwine-deadline⟧ ${new Date(atMs).toISOString()} ${new Date(setAtMs).toISOString()}` +
+    (declaredAtMs === undefined ? '' : ` declared=${new Date(declaredAtMs).toISOString()}`)
   );
 }
 
@@ -156,7 +166,7 @@ export function shareIntoPrompt(prompt, at) {
   // A line this reads is replaced by the paragraph, which states the clamped figure — leaving it would
   // hand the child two limits that disagree. One it cannot read stays, for the child to make sense of.
   const body = line && declaredMs !== undefined ? prompt.replace(new RegExp(TIME_LIMIT_LINE.source + '\\n?', 'im'), '').trimEnd() : prompt;
-  return { prompt: body + deadlineParagraph(atMs, at.nowMs), atMs };
+  return { prompt: body + deadlineParagraph(atMs, at.nowMs, declaredAtOf(at.nowMs, declaredMs)), atMs };
 }
 
 /** The thread's deadline in ms, read from the running server the way agent-address.mjs reaches it:
@@ -187,8 +197,9 @@ export async function threadDeadlineMs(env = process.env) {
 // ---- IN THE CHILD -------------------------------------------------------------------------------------
 
 /** `setBy: 'user'` marks a limit the server wrote into a child already running, when the user set its
- *  thread's limit (packages/server/src/agent-inbox.ts `setChildDeadline`).
- *  @typedef {{ atMs: number, setAtMs: number, announce: boolean, setBy?: 'user' } | { none: true }} AgentDeadline */
+ *  thread's limit (packages/server/src/agent-inbox.ts `setChildDeadline`). `declaredAtMs` is when the
+ *  dispatcher's own `Time limit:` line ends; without it the limit is purely a share of the thread's.
+ *  @typedef {{ atMs: number, setAtMs: number, announce: boolean, setBy?: 'user', declaredAtMs?: number } | { none: true }} AgentDeadline */
 
 /** The child's own transcript: a plain sub-agent's, else a Workflow agent's.
  *  @param {string} sessionDir @param {string} agentId */
@@ -242,13 +253,15 @@ export async function agentDeadline(sessionDir, agentId, deps) {
   const marks = [...first.text.matchAll(DEADLINE_MARKER)];
   const mark = marks[marks.length - 1];
   if (mark && Number.isFinite(Date.parse(mark[1])) && Number.isFinite(Date.parse(mark[2]))) {
-    found = { atMs: Date.parse(mark[1]), setAtMs: Date.parse(mark[2]), announce: false };
+    const declaredAtMs = mark[3] ? Date.parse(mark[3]) : NaN;
+    found = { atMs: Date.parse(mark[1]), setAtMs: Date.parse(mark[2]), announce: false, ...(Number.isFinite(declaredAtMs) ? { declaredAtMs } : {}) };
   } else if (transcript.workflow) {
     const line = TIME_LIMIT_LINE.exec(first.text);
     const declaredMs = line ? parseSpan(line[1]) : undefined;
     const startMs = first.atMs ?? deps.nowMs;
     const atMs = childDeadlineMs({ nowMs: startMs, parentDeadlineMs: await deps.threadDeadline(), declaredMs });
-    if (atMs !== undefined) found = { atMs, setAtMs: startMs, announce: true };
+    const declaredAtMs = declaredAtOf(startMs, declaredMs);
+    if (atMs !== undefined) found = { atMs, setAtMs: startMs, announce: true, ...(declaredAtMs === undefined ? {} : { declaredAtMs }) };
   }
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(found));

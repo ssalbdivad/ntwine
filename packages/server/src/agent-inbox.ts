@@ -67,12 +67,20 @@ export function postToAgentInbox(sessionDir: string, agentId: string, message: {
 // the USER sets a thread's limit, the server rewrites that file for each running child — the hook then
 // introduces the limit after the child's next tool call and runs its check-ins against it. Same format as
 // the hook writes, plus `setBy: "user"`, which the hook's introduction reads; agent-inbox-hook.test.ts pins
-// the pair. A child already due sooner keeps its own limit.
+// the pair.
+//
+// A SHARE OF THE THREAD'S LIMIT FOLLOWS IT. A child with no `Time limit:` line of its own was only ever
+// given a slice of the thread's clock, so when the user extends that clock the slice grows, and when the
+// user removes it the slice goes too. Until 2026-10-14 neither happened: only a later limit the user had
+// written could be lifted, and only a sooner one taken, so a cleared or extended thread kept its children
+// counting down to the old time and telling them it was up. A limit the dispatcher DECLARED is its own
+// call and stays, clamped under the thread's new ceiling while there is one. A grandchild's share is
+// treated as the thread's too: its file does not say which dispatcher it came from.
 
 export const DEADLINES_DIRNAME = "ntwine-deadlines"
 const STAGE_NAMES = ["half", "converge", "final", "over"] as const
 
-type ChildDeadlineFile = { atMs: number; setAtMs: number; announce: boolean; setBy?: "user" } | { none: true }
+type ChildDeadlineFile = { atMs: number; setAtMs: number; announce: boolean; setBy?: "user"; declaredAtMs?: number } | { none: true }
 
 function readChildDeadline(dir: string, agentId: string): ChildDeadlineFile | undefined {
   try {
@@ -82,20 +90,32 @@ function readChildDeadline(dir: string, agentId: string): ChildDeadlineFile | un
   }
 }
 
-/** Give a running child a time limit the user set (`atMs`), or lift one the user set (`null`). Returns
- *  whether its file changed. A sooner limit the child already has is kept; a lift touches only a limit
- *  the user set, never the share its own dispatcher gave it. */
-export function setChildDeadline(sessionDir: string, agentId: string, change: { atMs: number; nowMs: number } | null): boolean {
+/** Move a running child's limit with its thread's. `ceilingMs` is the share a child dispatched now would
+ *  get of the thread's new limit (`childDeadlineMs`), or `null` when the user removed it. Returns
+ *  `"lifted"` when the child is left with no limit, `"moved"` when it has a different one, and `false`
+ *  when nothing changed. */
+export function setChildDeadline(sessionDir: string, agentId: string, ceilingMs: number | null, nowMs: number): "moved" | "lifted" | false {
   if (!AGENT_ID.test(agentId)) throw new Error(`not an agent id: ${JSON.stringify(agentId)}`)
   const dir = join(sessionDir, DEADLINES_DIRNAME)
   const current = readChildDeadline(dir, agentId)
+  const limit = current && !("none" in current) ? current : undefined
+  const declaredAtMs = limit?.declaredAtMs
+  const atMs = ceilingMs === null ? declaredAtMs : declaredAtMs === undefined ? ceilingMs : Math.min(declaredAtMs, ceilingMs)
   let next: ChildDeadlineFile
-  if (change === null) {
-    if (!current || "none" in current || current.setBy !== "user") return false
+  if (atMs === undefined) {
+    if (!limit) return false
     next = { none: true }
   } else {
-    if (current && !("none" in current) && current.atMs <= change.atMs) return false
-    next = { atMs: change.atMs, setAtMs: change.nowMs, announce: true, setBy: "user" }
+    // Under a second is the same limit: the ceiling is recomputed from a fresh `now` on every call.
+    if (limit && Math.abs(limit.atMs - atMs) < 1_000) return false
+    next = {
+      atMs,
+      setAtMs: nowMs,
+      announce: true,
+      // Back to exactly what the dispatcher declared is the dispatcher's limit again, and introduced as such.
+      ...(atMs === declaredAtMs ? {} : { setBy: "user" as const }),
+      ...(declaredAtMs === undefined ? {} : { declaredAtMs }),
+    }
   }
   mkdirSync(dir, { recursive: true })
   // A new limit is a new generation: its intro and every check-in are due again.
@@ -103,5 +123,5 @@ export function setChildDeadline(sessionDir: string, agentId: string, change: { 
   const tmp = join(dir, `.${agentId}.${randomUUID()}.tmp`)
   writeFileSync(tmp, JSON.stringify(next))
   renameSync(tmp, join(dir, `${agentId}.json`))
-  return true
+  return "none" in next ? "lifted" : "moved"
 }

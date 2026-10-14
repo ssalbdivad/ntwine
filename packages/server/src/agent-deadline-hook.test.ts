@@ -69,8 +69,8 @@ const childTool = (transcript: string, agentId: string, agentType = "general-pur
 })
 const promptOf = (out: Record<string, any>) => out.hookSpecificOutput?.updatedInput?.prompt as string
 const markerOf = (prompt: string) => {
-  const m = [...prompt.matchAll(/⟦ntwine-deadline⟧ (\S+) (\S+)/g)].at(-1)
-  return m ? { atMs: Date.parse(m[1]!), setAtMs: Date.parse(m[2]!) } : undefined
+  const m = [...prompt.matchAll(/⟦ntwine-deadline⟧ (\S+) (\S+)(?: declared=(\S+))?/g)].at(-1)
+  return m ? { atMs: Date.parse(m[1]!), setAtMs: Date.parse(m[2]!), declaredAtMs: m[3] ? Date.parse(m[3]) : undefined } : undefined
 }
 const contextOf = (out: Record<string, any>) => out.hookSpecificOutput?.additionalContext as string | undefined
 
@@ -127,6 +127,11 @@ test("a declared Time limit is honoured under the ceiling, clamped above it, and
     assert.match(short, /Survey the cache keys\.\nReport the hit rate\./)
     const long = promptOf(await runHook("agent-dispatch.mjs", dispatch("Survey the cache keys.\nTime limit: 3h"), root.env))
     assert.ok(Math.abs(markerOf(long)!.atMs - (deadline - 6 * M)) < 2_000, "never past the parent's deadline minus its reserve")
+    // The declared figure rides along unclamped: the server keeps it when the user moves the thread's limit.
+    assert.ok(Math.abs(markerOf(short)!.declaredAtMs! - (Date.now() + 10 * M)) < 3_000)
+    assert.ok(Math.abs(markerOf(long)!.declaredAtMs! - (Date.now() + 3 * 60 * M)) < 3_000)
+    assert.equal(markerOf(promptOf(await runHook("agent-dispatch.mjs", dispatch("Survey."), root.env)))!.declaredAtMs, undefined,
+      "negative control: a share of the thread's alone declares nothing")
     const odd = promptOf(await runHook("agent-dispatch.mjs", dispatch("Survey.\nTime limit: until lunch"), root.env))
     assert.match(odd, /^Time limit: until lunch$/m, "a line it cannot read stays, for the child")
   } finally {

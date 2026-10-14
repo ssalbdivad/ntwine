@@ -12,10 +12,10 @@ export function childDeadlineMs(input: { nowMs: number; parentDeadlineMs?: numbe
 export function parseSpan(raw: string): number | undefined
 export function spanLabel(ms: number): string
 export function preciseSpanLabel(ms: number): string
-export function deadlineParagraph(atMs: number, setAtMs: number): string
+export function deadlineParagraph(atMs: number, setAtMs: number, declaredAtMs?: number): string
 export function shareIntoPrompt(prompt: string, at: { nowMs: number; parentDeadlineMs?: number | null }): { prompt: string; atMs?: number }
 export function threadDeadlineMs(env?: Record<string, string | undefined>): Promise<number | undefined>
-export type AgentDeadline = { atMs: number; setAtMs: number; announce: boolean } | { none: true }
+export type AgentDeadline = { atMs: number; setAtMs: number; announce: boolean; setBy?: "user"; declaredAtMs?: number } | { none: true }
 export function agentDeadline(
   sessionDir: string,
   agentId: string,
