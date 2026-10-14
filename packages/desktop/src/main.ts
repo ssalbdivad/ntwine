@@ -50,9 +50,13 @@ app.setName("Ntwine")
 // NOT Electron's default for an app named Ntwine: on macOS that is ~/Library/Application Support/Ntwine,
 // which is Ntwine's own data root (ntwine-paths.ts), and Chromium would fill it with a browser profile.
 // setPath throws for a directory that does not exist yet, which on a first launch this one does not.
-const userData = join(app.getPath("appData"), "Ntwine Desktop")
-mkdirSync(userData, { recursive: true })
-app.setPath("userData", userData)
+// Chromium's own `--user-data-dir=` still wins: a second profile is how a second window runs beside the
+// first, since the single-instance lock below is per profile.
+if (!app.commandLine.hasSwitch("user-data-dir")) {
+  const userData = join(app.getPath("appData"), "Ntwine Desktop")
+  mkdirSync(userData, { recursive: true })
+  app.setPath("userData", userData)
+}
 if (process.platform === "win32") app.setAppUserModelId(APP_ID)
 
 /** The server this app is showing — the one origin its windows may navigate within. */
@@ -105,7 +109,8 @@ function restorableBounds(bounds: Rectangle | undefined): Partial<Rectangle> {
 }
 
 function windowOptions(): BrowserWindowConstructorOptions {
-  const icon = join(here, "icon.png")
+  // Ntwine's mark, not the Electron logo an unpackaged app otherwise shows (scripts/dev.ts copies both files in).
+  const icon = join(here, process.platform === "win32" ? "icon.ico" : "icon.png")
   return {
     minWidth: 420,
     minHeight: 360,
@@ -114,7 +119,7 @@ function windowOptions(): BrowserWindowConstructorOptions {
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#0d0e10" : "#f7f7f7",
     autoHideMenuBar: true,
     title: "Ntwine",
-    ...(process.platform === "linux" && existsSync(icon) ? { icon } : {}),
+    ...(process.platform !== "darwin" && existsSync(icon) ? { icon } : {}),
     webPreferences: {
       preload: join(here, "preload.cjs"),
       sandbox: true,
@@ -337,8 +342,11 @@ function fromOwnPage(event: IpcMainEvent): BrowserWindow | undefined {
   return BrowserWindow.fromWebContents(event.sender) ?? undefined
 }
 
+/** The exit code of a launch that found a window already open and raised it instead (scripts/dev.ts). */
+const ALREADY_OPEN = 75
+
 if (!app.requestSingleInstanceLock()) {
-  app.quit()
+  app.exit(ALREADY_OPEN)
 } else {
   app.on("second-instance", focusApp)
   app.on("web-contents-created", (_event, contents) => guardNavigation(contents))
@@ -376,6 +384,8 @@ if (!app.requestSingleInstanceLock()) {
     const pidFile = argValue("ntwine-pid-file")
     if (pidFile) writeFileSync(pidFile, String(process.pid))
     Menu.setApplicationMenu(buildMenu())
+    // macOS takes the Dock's icon from the app bundle, which in dev is Electron's own.
+    if (isMac && existsSync(join(here, "icon.png"))) app.dock?.setIcon(join(here, "icon.png"))
     createMainWindow()
   })
 }

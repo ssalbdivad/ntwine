@@ -75,21 +75,31 @@ export async function prepareWindowsElectron(): Promise<WindowsElectron> {
   }
 
   const appDir = join(root, "app")
-  const pidFile = join(root, "electron.pid")
+  // One pid file per launch, never one per folder: a second loop on the same folder must not clear or
+  // overwrite the file the first needs to stop its own window.
+  const pidFiles = new Map<ChildProcess, string>()
+  let launches = 0
   mkdirSync(appDir, { recursive: true })
   writeFileSync(join(appDir, "package.json"), JSON.stringify({ name: "ntwine-desktop-dev", productName: "Ntwine", main: "main.mjs" }))
 
   return {
     root,
     start(dist, args) {
-      for (const file of ["main.mjs", "preload.cjs"]) copyFileSync(join(dist, file), join(appDir, file))
-      rmSync(pidFile, { force: true })
-      return spawn(exe, [toWindowsPath(appDir), `--ntwine-pid-file=${toWindowsPath(pidFile)}`, ...args], { cwd: root, stdio: "inherit" })
+      for (const file of ["main.mjs", "preload.cjs", "icon.ico"]) copyFileSync(join(dist, file), join(appDir, file))
+      const pidFile = join(root, `electron-${process.pid}-${++launches}.pid`)
+      const child = spawn(exe, [toWindowsPath(appDir), `--ntwine-pid-file=${toWindowsPath(pidFile)}`, ...args], { cwd: root, stdio: "inherit" })
+      pidFiles.set(child, pidFile)
+      child.once("exit", () => {
+        pidFiles.delete(child)
+        rmSync(pidFile, { force: true })
+      })
+      return child
     },
     async stop(child) {
       if (child.exitCode !== null || child.signalCode !== null) return
       const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()))
       // The pid is written once the app is ready; a stop that races a launch waits for it briefly.
+      const pidFile = pidFiles.get(child)!
       let pid: string | undefined
       for (let i = 0; i < 50 && !pid; i++) {
         pid = existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim() : undefined

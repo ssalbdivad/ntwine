@@ -107,6 +107,39 @@ const PNGS: [string, number][] = [
   ["icon-512.png", 512],
 ]
 
+// The desktop app's Windows icon (packages/desktop): one ICO, every size the shell asks for drawn from the
+// SVG at that size, because Windows picks the nearest entry and stretches it — given only 16, 32 and 512 it
+// answered a 48px request with the 32 (measured 2026-10-14 through System.Drawing.Icon).
+const ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 256]
+const DESKTOP_ICO = join(repo, "packages/desktop/icon.ico")
+
+/** An ICO holding PNG entries as they are: the Vista+ form, which every Windows Electron reads. */
+export function icoOf(pngs: Buffer[]): Buffer {
+  const header = Buffer.alloc(6)
+  header.writeUInt16LE(1, 2)
+  header.writeUInt16LE(pngs.length, 4)
+  let offset = 6 + 16 * pngs.length
+  const entries = pngs.map((png) => {
+    const entry = Buffer.alloc(16)
+    // Width and height from the PNG's IHDR; 256 is written as 0, which is how ICO spells 256.
+    entry.writeUInt8(png.readUInt32BE(16) % 256, 0)
+    entry.writeUInt8(png.readUInt32BE(20) % 256, 1)
+    entry.writeUInt16LE(1, 4)
+    entry.writeUInt16LE(32, 6)
+    entry.writeUInt32LE(png.length, 8)
+    entry.writeUInt32LE(offset, 12)
+    offset += png.length
+    return entry
+  })
+  return Buffer.concat([header, ...entries, ...pngs])
+}
+
+export async function renderIco(render: (svg: string, size: number) => Promise<Buffer>): Promise<Buffer> {
+  const pngs: Buffer[] = []
+  for (const size of ICO_SIZES) pngs.push(await render(faviconSvg, size))
+  return icoOf(pngs)
+}
+
 const MIME: Record<string, string> = { ".html": "text/html", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2" }
 
 /** site/og/og.html served from site/ (it names /og/… and /public/… from that root), shot at 1200x630. */
@@ -153,6 +186,7 @@ async function main() {
     writeFileSync(join(finalDir, "icon-maskable-512.png"), await render(maskable.svg, 512, { opaque: true }))
     const markOnly = join(finalDir, "maskable-mark-512.png")
     writeFileSync(markOnly, await render(maskable.markOnlySvg, 512))
+    writeFileSync(join(finalDir, "icon.ico"), await renderIco(render))
     const painted = assertAlphaWithinSafeCircle(decodePngAlpha(markOnly))
     console.log(`maskable: ${painted} painted pixels, all inside the central 80% safe circle`)
   })
@@ -166,6 +200,7 @@ async function main() {
   if (existsSync(join(SITE, "img/fff-tile.png"))) renameSync(join(SITE, "img/fff-tile.png"), join(SITE, "img/tile.png"))
   writeFileSync(join(SITE, "img/tile.png"), readFileSync(join(finalDir, "tile.png")))
   writeFileSync(join(repo, "packages/vscode/media/ntwine.svg"), mono)
+  writeFileSync(DESKTOP_ICO, readFileSync(join(finalDir, "icon.ico")))
   writeFileSync(join(repo, "site/components/mark-path.ts"), sitePathModule())
   await shootOg(join(SITE, "img/og.png"))
   console.log("installed")

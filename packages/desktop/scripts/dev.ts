@@ -51,8 +51,11 @@ if (windowsUrl) console.log(`[desktop] Windows Electron onto ${windowsUrl}`)
 
 rmSync(dist, { recursive: true, force: true })
 mkdirSync(dist, { recursive: true })
-// The window icon on Linux.
+// The window icon: Ntwine's mark. A PNG for Linux and the macOS Dock, from the web app's own icon set;
+// an ICO for Windows, whose taskbar, title bar and Alt-Tab each ask for their own size. Both are written
+// by assets/logo-ntwine/final.ts --install, so neither can drift from the favicon.
 copyFileSync(join(pkg, "..", "web", "public", "icon-512.png"), join(dist, "icon.png"))
+copyFileSync(join(pkg, "icon.ico"), join(dist, "icon.ico"))
 
 let electron: ChildProcess | undefined
 let quitting = false
