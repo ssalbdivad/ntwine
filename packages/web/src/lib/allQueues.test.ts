@@ -241,4 +241,7 @@ test("a done supersedes the earlier answer; a status line after a wake does not"
   assert.equal(answerProse(answer, handoffParts("Every check is green; nothing has changed."), false), answer)
   assert.equal(answerProse(`${answer}\n\n\`\`\`awaiting\nfor: 1h\n---\nScouts.\n\`\`\``, handoffParts("Still green."), false), answer, "its own fences are dropped")
   assert.equal(answerProse(undefined, null, false), "")
+  // An answer that was itself a done is the write-up; the done after a wake is its postscript.
+  assert.equal(answerProse("**Fixed.** A grid.\n\n```done\n- Made it.\n```", handoffParts("```done\n- Stopped the stack.\n```"), false, [], true), "**Fixed.** A grid.")
+  assert.equal(answerProse("**Fixed.** A grid.", handoffParts("Stopped the stack."), true, [], true), "**Fixed.** A grid.", "under a registered done too")
 })

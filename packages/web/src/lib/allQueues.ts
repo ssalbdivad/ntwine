@@ -297,9 +297,12 @@ export function handoffParts(text: string, registered: readonly Pick<RegisteredQ
  * rested after it), or "" when the newest rest supersedes it. A `done` is the whole stretch's write-up, so
  * an earlier rest above it can only be stale: on 2026-10-01 a card opened on "The six scouts are still
  * reading the codebase" over the finished integration's done card. The answer earns its place only over
- * a newest rest that is a status line after a wake — the CI-went-green case it was added for.
+ * a newest rest that is a status line after a wake — the CI-went-green case it was added for. An answer
+ * that signed off done itself (`answerDone`) IS the write-up, and a done after it is a postscript to a
+ * wake: on @project-filter (2026-10-14) "Stopped the disposable stack" hid the whole answer.
  */
-export function answerProse(answer: string | undefined, newest: Pick<HandoffParts, "fences"> | null, registeredDone: boolean, registered: readonly Pick<RegisteredQuestionView, "id" | "spec">[] = []): string {
-  if (!answer || registeredDone || newest?.fences.some((fence) => fence.kind === "done")) return ""
+export function answerProse(answer: string | undefined, newest: Pick<HandoffParts, "fences"> | null, registeredDone: boolean, registered: readonly Pick<RegisteredQuestionView, "id" | "spec">[] = [], answerDone = false): string {
+  if (!answer) return ""
+  if (!answerDone && (registeredDone || newest?.fences.some((fence) => fence.kind === "done"))) return ""
   return handoffParts(answer, registered).prose
 }

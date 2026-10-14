@@ -362,10 +362,12 @@ function CardArticle({
   const text = handoff.data?.text
   const parts = useMemo(() => (text ? handoffParts(text, thread.questions) : null), [text, thread.questions])
   // The reply to the human's message when wakes rested after it (router handoffOf): its prose alone, since
-  // its fences were superseded by the newest rest's — and none of it under a done, which says it all.
+  // its fences were superseded by the newest rest's — and none of it under a done, which says it all,
+  // unless the answer signed off done itself.
   const answer = handoff.data?.answer
   const registeredDone = showsRegisteredDoneCard(thread, text)
-  const answered = useMemo(() => answerProse(answer, parts, registeredDone, thread.questions), [answer, parts, registeredDone, thread.questions])
+  const answerDone = handoff.data?.answerDone ?? false
+  const answered = useMemo(() => answerProse(answer, parts, registeredDone, thread.questions, answerDone), [answer, parts, registeredDone, thread.questions, answerDone])
   // Does the awaiting card list the children, or the ops column under the reply box (QueueChildOps)?
   const drawsSubAgentWait = drawsSubAgentWaitCard(thread, parts?.fences)
   // Is the thread at rest on its own declared wait, so the RESTING card states it (CardAwaiting)? The

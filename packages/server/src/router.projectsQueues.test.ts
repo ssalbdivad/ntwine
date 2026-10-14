@@ -243,6 +243,41 @@ test("wakes that rest after the human's answer keep that answer on the card, as 
   assert.equal(silent.text, "Here.")
 })
 
+test("a wake mid-turn does not end the answer, and an answer that signed off done says so", () => {
+  // @project-filter, 2026-10-14, in the shape the transcript projects: the stack shell finished while the
+  // turn was still running, the write-up came after it, then the same shell's completion woke the worker
+  // again and it rested on a one-line done.
+  const rest = msg("assistant", "Agent rested", { kind: "event", boundary: "rest" })
+  const wake = msg("assistant", "Agent terminal «Booting the stack» finished", { kind: "event", boundary: "wake" })
+  const writeUp = "**Fixed.** All is a bare grid.\n\n```done\n- **Made All a bare grid glyph**.\n```"
+  const handoff = handoffOf([
+    msg("user", "Reevaluate the logo."),
+    msg("assistant", "I'm dropping the outline."),
+    wake,
+    msg("assistant", writeUp),
+    rest,
+    wake,
+    msg("assistant", "```done\n- **Stopped the disposable stack**.\n```"),
+    rest,
+  ])
+  assert.equal(handoff.answer, writeUp)
+  assert.equal(handoff.answerDone, true)
+  // A registered done counts as a sign-off; an answer that parked does not.
+  const registered = handoffOf([
+    msg("user", "Go."),
+    msg("assistant", "Landed it."),
+    msg("assistant", "", { tools: [{ name: "Bash", detail: "ntwinectl done --body-file -" } as TranscriptMessage["tools"][number]] }),
+    rest,
+    wake,
+    msg("assistant", "Stopped the stack."),
+    rest,
+  ])
+  assert.equal(registered.answerDone, true)
+  const parked = handoffOf([msg("user", "Go."), msg("assistant", "Scouts are reading."), rest, wake, msg("assistant", "```done\n- Shipped.\n```"), rest])
+  assert.equal(parked.answer, "Scouts are reading.")
+  assert.equal(parked.answerDone, undefined)
+})
+
 test("an answer written before the work it starts rides the rest's card; narration between tool calls does not", () => {
   // @disk-usage, 2026-10-07: the human asked, the worker answered, dispatched a sub-agent, and rested on a
   // fence whose body was one status line. The card showed the status line alone.

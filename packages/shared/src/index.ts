@@ -8091,10 +8091,12 @@ export type ThreadSearchEntry = z.infer<typeof ThreadSearchEntry>
  *
  * `answer` is the worker's reply to `asked` when wakes rested after it, so `text` — the newest rest —
  * answers a wake rather than the human (router.ts `handoffOf`). Absent when `text` is the reply.
+ * `answerDone` says that answer's own rest signed off done, so a later done is a postscript to it.
  */
 export const ThreadHandoff = z.object({
   text: z.string().optional(),
   answer: z.string().optional(),
+  answerDone: z.boolean().optional(),
   at: z.string().optional(),
   asked: z.string().optional(),
   askedAt: z.string().optional(),

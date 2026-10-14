@@ -1129,17 +1129,26 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   // too; the replies to wakes in between are dropped, because the newest one already says where things
   // stand. A turn ends at its `rest` boundary — unless the sign-off nudge follows it, whose reply is the
   // same rest — or at the next wake, which a shell or sub-agent wake marks only as a `wake` boundary.
+  //
+  // A WAKE LINE ENDS THE TURN ONLY WHERE NO REST IS MARKED. A background shell that finishes while the
+  // turn is still running draws its wake line mid-turn, and taking that as the turn's end made the
+  // answer a line of narration from before it: on @project-filter (2026-10-14) the card showed "I'm
+  // dropping it: bright when selected" and the write-up after the wake was nowhere on it. Wherever the
+  // projection marks rests, the rest is the turn's end and a wake before it is part of the turn.
   const nextSpoken = (from: number) => messages.slice(from).find((m) => !m.kind)
+  const marksRests = messages.some((m) => m.boundary === "rest")
   let answer: string | undefined
+  let answerDone = false
   for (let i = anchor + 1, end = -1; i < (latest?.start ?? 0); i++) {
     const m = messages[i]!
     if (says(m)) { end = i; continue }
     if (end === -1) continue
     const next = m.boundary === "rest" ? nextSpoken(i + 1) : undefined
     const turnEnds = (m.boundary === "rest" && !(next && next.role === "user" && isNudge(next))) ||
-      m.boundary === "wake" || (m.role === "user" && !isNudge(m))
+      (m.boundary === "wake" && !marksRests) || (m.role === "user" && !isNudge(m))
     if (turnEnds) {
       answer = restEndingAt(end).texts.join("\n\n")
+      answerDone = messages.slice(anchor + 1, i).some(signsOffDone)
       break
     }
   }
@@ -1150,10 +1159,15 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   const askedText = askedRaw && isUpdateRequest(askedRaw) ? askedRaw.split("\n")[0]! : askedRaw
   return {
     ...(reply ? { text: latest!.texts.join("\n\n"), at: reply.at } : {}),
-    ...(answer ? { answer } : {}),
+    ...(answer ? { answer, ...(answerDone ? { answerDone } : {}) } : {}),
     ...(askedText ? { asked: askedText.length > HANDOFF_ASKED_MAX ? `${askedText.slice(0, HANDOFF_ASKED_MAX - 1)}…` : askedText, askedAt: asked!.at } : {}),
   }
 }
+
+/** A message that signs its turn off done: a ```done fence in its text, or an `ntwinectl done` it ran. */
+const signsOffDone = (m: TranscriptMessage): boolean =>
+  (m.role === "assistant" && /^```done\b/m.test(m.text)) ||
+  m.tools.some((t) => /\bntwinectl\s+done\b/.test(t.command ?? t.detail ?? ""))
 
 /** More than one paragraph: an answer or a write-up, as against a line of narration between tool calls. */
 const isParagraphs = (text: string): boolean => /\S\s*\n\s*\n\s*\S/.test(text.trim())
