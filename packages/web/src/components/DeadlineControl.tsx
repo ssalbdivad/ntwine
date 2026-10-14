@@ -273,12 +273,14 @@ export function liveDeadline(thread: Pick<ThreadView, "deadline" | "state" | "he
 export function DeadlineFact({ thread, lead, slot }: { thread: ThreadView; lead?: ReactNode; slot: "urgent" | "quiet" }) {
   const deadline = liveDeadline(thread)
   if (!deadline) return null
-  return <DeadlineSlot slug={thread.id} deadline={deadline} lead={lead} slot={slot} />
+  return <DeadlineSlot slug={thread.id} deadline={deadline} lead={lead} slot={slot} handedOff={thread.needsYou === true} />
 }
 
-function DeadlineSlot({ slug, deadline, lead, slot }: { slug: string; deadline: ThreadDeadlineView; lead?: ReactNode; slot: "urgent" | "quiet" }) {
+function DeadlineSlot({ slug, deadline, lead, slot, handedOff }: { slug: string; deadline: ThreadDeadlineView; lead?: ReactNode; slot: "urgent" | "quiet"; handedOff: boolean }) {
   const nowMs = useDeadlineNow(Date.parse(deadline.at))
-  if ((deadlineTone(deadline, nowMs) === "plenty") !== (slot === "quiet")) return null
+  const tone = deadlineTone(deadline, nowMs)
+  if (handedOff && tone === "over") return null
+  if ((tone === "plenty") !== (slot === "quiet")) return null
   return (
     <>
       {lead}
@@ -325,13 +327,17 @@ function DeadlineChip({ slug, deadline }: { slug: string; deadline: ThreadDeadli
 export function RailDeadline({ thread, yieldsToRetry }: { thread: ThreadView; yieldsToRetry?: boolean }) {
   const deadline = liveDeadline(thread)
   if (!deadline) return null
-  return <RailDeadlineReading deadline={deadline} yieldsToRetry={yieldsToRetry} />
+  return <RailDeadlineReading deadline={deadline} yieldsToRetry={yieldsToRetry} handedOff={thread.needsYou === true} />
 }
 
-function RailDeadlineReading({ deadline, yieldsToRetry }: { deadline: ThreadDeadlineView; yieldsToRetry?: boolean }) {
+function RailDeadlineReading({ deadline, yieldsToRetry, handedOff }: { deadline: ThreadDeadlineView; yieldsToRetry?: boolean; handedOff: boolean }) {
   const atMs = Date.parse(deadline.at)
   const nowMs = useDeadlineNow(atMs)
   const tone = deadlineTone(deadline, nowMs)
+  // A thread that has handed off is not running over: nothing of its own is working, so its turn ended inside
+  // the limit as far as the human is concerned. The overrun reading is for a thread still spinning past it
+  // (a rested queue card read `−2m` beside a finished orchestration, 2026-10-14). Same rule on the facts line.
+  if (handedOff && tone === "over") return null
   const reading = deadlineReading(deadline, nowMs) ?? ""
   // `42m left` → `42m`; `over by 8m` → `−8m` (a true minus): the column has no room for the words, and a
   // countdown past zero reads negative everywhere a countdown is read.
