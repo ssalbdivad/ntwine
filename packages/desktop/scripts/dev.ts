@@ -69,17 +69,30 @@ function launch(): void {
     // Closing the window ends the loop, as closing a dev server's tab does not — there is nothing left
     // to show the rebuild in.
     if (!quitting) {
-      console.log(`[desktop] Electron exited (${signal ?? code}); stopping the watcher`)
+      // main.ts ALREADY_OPEN: another loop's window holds the profile, and was raised instead.
+      if (code === 75) console.log("[desktop] an Ntwine window is already open (brought to the front); pass --user-data-dir=<dir> to open a second")
+      else console.log(`[desktop] Electron exited (${signal ?? code}); stopping the watcher`)
       void shutdown()
     }
   })
 }
 
+// Set from a restart's stop until its relaunch. A second rebuild inside that window (a Windows stop
+// takes seconds) once found `electron` already cleared and launched at once, beside the window still
+// closing: the new one lost the single-instance lock, quit, and took the whole loop down with it.
+let relaunching = false
+
 function restart(): void {
+  // The pending relaunch copies whatever was built last, so this rebuild rides on it.
+  if (relaunching) return
   const previous = electron
   if (!previous) return launch()
   electron = undefined
-  previous.once("exit", launch)
+  relaunching = true
+  previous.once("exit", () => {
+    relaunching = false
+    if (!quitting) launch()
+  })
   void stop(previous)
 }
 
