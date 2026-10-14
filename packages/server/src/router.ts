@@ -275,7 +275,7 @@ import { clearProjectIcon, customIconPath, findById, forgetProject, listProjects
 import { HOME_WORKSPACE_NAME, isHomeWorkspace, listWorkspaces, reorderWorkspaces } from "./home-workspace.ts"
 import { basename, dirname, isAbsolute, relative } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, ProjectQueue, ProjectRailCounts, activeBandThread, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
+import { ProjectCard, ProjectQueue, ProjectRailCounts, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
 import { EditorComposeInputSchema, EditorReviewTargetSchema, EditorSnapshotSchema, type EditorKind, type EditorReviewTarget, type EditorStateCheckout, type FilePosition } from "@ntwine/shared"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
@@ -4869,8 +4869,9 @@ export function createRouter(ctx: AppContext) {
 
     // THE MACHINE-WIDE WRAP-UP: one deadline, and the human's note, on every Running thread in every open
     // project — the way to say "restarting in 15m" before a reboot ends the broker daemons an Ntwine restart
-    // would not. Running means the rail's own band (`activeBandThread`): a queued thread is already at rest
-    // and a snoozed one is parked on a registration that outlives the reboot, so neither is woken. A thread
+    // would not. Running means the rail's own band (`activeBandThread`) less the rows parked on a wait their
+    // worker declared (`agentParked`): a queued thread is already at rest, and a parked one — snoozed by the
+    // human or by its worker — waits on a registration that outlives the reboot, so none of them is woken. A thread
     // already due SOONER keeps its time, but still gets a new generation so the note reaches it.
     setRunningDeadlines: mutation({
       input: SetRunningDeadlinesInput,
@@ -4903,7 +4904,7 @@ export function createRouter(ctx: AppContext) {
             // though the thread is at rest (2026-10-08, one such thread's two children got nothing). Its
             // limit and the children's are set, but the RESTING worker is not woken: it has handed off,
             // and its children's results wake it anyway.
-            const running = activeBandThread(thread)
+            const running = activeBandThread(thread) && !agentParked(thread)
             const resting = !running && queuedThread(thread) && (target.tailer.liveMailboxes?.(thread.id).length ?? 0) > 0
             if (!running && !resting) continue
             const row = target.storage.getSession(thread.id)

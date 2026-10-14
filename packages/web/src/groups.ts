@@ -1,4 +1,5 @@
 import {
+  agentParked,
   atRest,
   doneButRunning,
   futureSnoozedUntil,
@@ -24,7 +25,7 @@ import {
 // The band predicates live in @ntwine/shared so the server counts the rail's running badge with the
 // same rule the sidebar bands on. Re-exported here, where every web caller already imports them.
 // `needsAction` (the queue's ask definition) moved there too, so the server can count a project's asks.
-export { doneButRunning, futureSnoozedUntil, isActivelyRunning, isSnoozed, needsAction, prChecksRunning, sectionOf, type SectionKey }
+export { agentParked, doneButRunning, futureSnoozedUntil, isActivelyRunning, isSnoozed, needsAction, prChecksRunning, sectionOf, type SectionKey }
 import { canRetry } from "./lib/status.ts"
 
 // Shared listing logic: the queue definition (needsAction), the sidebar's status-keyed sections
@@ -655,7 +656,7 @@ export function awaitingTimerWatch(t: ThreadView): boolean {
 // an archived row at rest stays archived even if stale attention metadata lingers; a real human ask
 // stays a question after the worker exits; live work stays working; and a completed handoff stays a
 // check instead of being mislabelled as a crash merely because `needsYou` also puts it in the queue.
-export type SessionIndicatorKind = "archived" | "needs-input" | "working" | "background" | "pr" | "timer" | "done" | "stalled" | "limit" | "snoozed" | "rest"
+export type SessionIndicatorKind = "archived" | "needs-input" | "working" | "background" | "pr" | "timer" | "done" | "stalled" | "limit" | "snoozed" | "parked" | "rest"
 
 // NO RAIL MARK FOR AN ARMED STOP HOOK, and the reason is worth keeping because one shipped briefly
 // (2026-08-02, removed the same day — maintainer: "the whole point of a stop hook is that it means the
@@ -768,6 +769,11 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // Every branch ABOVE wins first, so an archived / needs-input / working / held / done-fenced row
   // keeps its own better-suited mark and affordance even when its process happens to be gone.
   if (canRetry(t)) return "stalled"
+  // AT REST ON A WAIT ITS WORKER DECLARED, with nothing above to draw it as — a `watching` rest on a
+  // reply, a command watch or a sub-agent left to watch the world. It sat in Snoozed under the hourglass
+  // until 2026-10-14, when Snoozed became the human's band (shared isSnoozed); it keeps the hourglass in
+  // Working, where the human can still see it, because a declared wait is not a bare rest.
+  if (agentParked(t)) return "parked"
   // Bare rest with a LIVE process (turn-idle, nothing pending, NOTHING it launched still running): it
   // can simply be typed at, so it stays the quiet […] and never advertises a recovery verb.
   return "rest"

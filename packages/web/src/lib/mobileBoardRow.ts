@@ -154,6 +154,6 @@ export function rowSecondLine(
   if (kind === "snoozed" && futureSnoozedUntil(t, nowMs) !== undefined) return { text: "Snoozed by you" }
   const gloss = t.lastFence?.kind === "awaiting" ? hintGloss(t.lastFence.hints) : null
   if (gloss) return { text: gloss }
-  if ((kind === "snoozed" || kind === "timer") && armedTimerFireAt(t, nowMs)) return { text: "Waiting on a timer" }
+  if ((kind === "snoozed" || kind === "parked" || kind === "timer") && armedTimerFireAt(t, nowMs)) return { text: "Waiting on a timer" }
   return handoff() ?? (t.activity ? { text: t.activity } : null)
 }

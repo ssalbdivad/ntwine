@@ -182,7 +182,9 @@ EOF
 // (maintainer: "This doesn't need input, but that doesn't mean that it should be marked as currently
 // active"), and a second boolean beside the first would have had a combination that means nothing
 // ("Maybe we should just consolidate all of this to a status enum"). `status:` names the place:
-// `working` (running), `watching` (snoozed), `needs_input` (the queue). The old line is still read.
+// `working` (running), `watching` (at rest, out of the queue), `needs_input` (the queue). The old line is
+// still read. `watching` folded the thread into Snoozed until 2026-10-14, when Snoozed became the human's
+// band alone (shared isSnoozed): a worker's park now stays in view, undimmed, in Working.
 //
 // STEPS FOR THE HUMAN RIDE THE AWAITING FENCE (2026-10-03, maintainer: "There should be a way for an
 // agent to sign off with explicit instructions for the user to perform. A new awaitable thing." — then,
@@ -441,7 +443,7 @@ or \`done\` alike, renders BELOW your last message.
       PR whose checks have settled shows as the watch it is.
     - \`watching\` — NOTHING of yours is doing work, and the wait ends on someone else's act OUTSIDE
       the thread: a reviewer on a PR, a release, a reporter's reply, another agent's merge, a poller
-      you left running. The thread is snoozed — out of the queue and out of the running rows — until
+      you left running. The thread rests out of the queue, shown as waiting rather than running, until
       the watch wakes you. Pick it beside a sub-agent too when that child does nothing but watch the
       world for you. The USER'S review of what you handed over is never \`watching\`: they can read it
       now, so it is \`needs_input\`.

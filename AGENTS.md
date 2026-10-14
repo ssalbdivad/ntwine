@@ -44,9 +44,10 @@ points.
 - Size work by scope, never in days. "Shipped" means merged.
 - Use `nub` for the toolchain, and write every new script as `.ts`.
 - Never interrupt a running agent (§ Agent completion invariant).
-- A worker snoozes a thread only while its own task still waits on something (a merge the human asked for, CI
-  that could fail it, a release, a reply). Following a FINISHED thread's PR or issue is the human's choice, made
-  from its done card, never a worker's silent park (2026-10-07: a comment-only push sat 180d in Snoozed).
+- Only the human snoozes a thread (2026-10-14). A worker parks on a wait only while its own task still waits on
+  something (a merge the human asked for, CI that could fail it, a release, a reply), and that park stays in
+  Working, in view, never folded into Snoozed. Following a FINISHED thread's PR or issue is the human's choice,
+  made from its done card, never a worker's silent park (2026-10-07: a comment-only push sat 180d in Snoozed).
 
 # Git: how work lands here
 
@@ -240,7 +241,7 @@ Every thread Ntwine started is in exactly one of five bands, top to bottom:
 - **Pinned** — the human's shelf, above everything. A pinned thread stays here, whatever it is doing, until it is unpinned.
 - **Ready** — the maintainer's **Rested**, the CUE: directly under the pins, the same set as **"the queue"** / "items in the queue", one row per card, each with a right-justified rest time.
 - **Working** — the maintainer's **Active**: the rows below that rule, in practice the ones currently spinning. Never carries a queue card, and never a rest time — the rule is drawn on the CARD, so a thread the server excused from the queue while it rests lands here too, and so does an archived thread whose worker is still running, until it rests (see `ARCHITECTURE.md`).
-- **Snoozed** — the dimmed park band (an armed timer, a wall-clock snooze, the resting card's event-snooze, a rest its worker called `status: watching`). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
+- **Snoozed** — the dimmed park band, and the HUMAN's alone (2026-10-14): a wall-clock snooze, the resting card's event-snoozes ("until new activity", "until all sub-agents return", a done card's Watch), and a schedule's next run. A worker's own park — `status: watching`, an armed timer — stays in Working under its wait's mark (shared `isSnoozed` / `agentParked`; maintainer: *"if I consider a thread to be active and an agent happens to be waiting for something, I still don't want to see it collapsed"*). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
 - **Done** — the archived section.
 
 **External** (agent sessions Ntwine did not start) is listed apart, never a sixth band. A project's board (`/project/<slug>`) names all five under headers, and Pinned, Ready and Working never fold; a working row's status there is a hover, with only its clock on the line. All projects (`/all`, one click away; a bare `/` goes back to whichever view the browser showed last) names none — each row says its band by its own mark (a pin, a rest time, a spinner), its status inline — and a folded project's row counts its Pinned, Queue and Running.

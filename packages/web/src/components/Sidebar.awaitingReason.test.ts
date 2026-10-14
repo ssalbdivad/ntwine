@@ -63,7 +63,7 @@ test("a parked awaiting thread reads as one sentence, with the worker's own line
   // fence names finishes the sentence. The reason is the only line ntwine did not write, so it is the
   // only one set off on its own: a PARAGRAPH, because the sentence above it wraps and a reason tucked
   // straight under a wrapped line reads as its third line.
-  assert.deepEqual((sessionIndicatorFor(t).tip ?? "").split("\n\n"), ["Snoozed — waiting on an agent terminal", SET])
+  assert.deepEqual((sessionIndicatorFor(t).tip ?? "").split("\n\n"), ["At rest — waiting on an agent terminal", SET])
 })
 
 // The same fence ntwine could NOT honour (nothing running behind it) leaves the row in the queue wearing
@@ -90,14 +90,14 @@ test("a legacy activity gloss is not a subtitle either", () => {
 
 test("a fence with no reason leaves the popover saying only what it knows", () => {
   const tip = sessionIndicatorFor(thread(WAIT)).tip ?? ""
-  assert.deepEqual(tip.split("\n"), ["Snoozed — waiting on an agent terminal"], "and no blank paragraph where a reason would have gone")
+  assert.deepEqual(tip.split("\n"), ["At rest — waiting on an agent terminal"], "and no blank paragraph where a reason would have gone")
   assert.doesNotMatch(tip, new RegExp(REASON.slice(0, 20)), "nothing invented")
 })
 
 test("a watched PR leads the list, because it names a thing rather than a shape", () => {
   const t = thread([{ kind: "pr", value: "acme/app#391" }, ...WAIT], {}, REASON)
   assert.deepEqual((sessionIndicatorFor(t).tip ?? "").split("\n\n"), [
-    "Snoozed — waiting on acme/app#391 and an agent terminal",
+    "At rest — waiting on acme/app#391 and an agent terminal",
     SET,
   ])
 })
@@ -125,7 +125,7 @@ test("a snooze stacks under the state, never inside the worker's paragraph", () 
 test("the popover shows the fence's Markdown body", () => {
   const t = thread([...WAIT], {}, "The tap submission is queued behind their CI backlog.")
   assert.deepEqual((sessionIndicatorFor(t).tip ?? "").split("\n\n"), [
-    "Snoozed — waiting on an agent terminal",
+    "At rest — waiting on an agent terminal",
     "The tap submission is queued behind their CI backlog.",
   ])
 })
