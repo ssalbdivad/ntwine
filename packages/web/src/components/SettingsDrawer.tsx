@@ -180,12 +180,6 @@ export function SettingsDrawer({ offerUpdate = false }: {
               {inEditor ? <EditorHint>Your browser keeps its own.</EditorHint> : null}
             </SettingsField>
 
-            {/* Client-only (localStorage): whether the prompt box offers its own microphone. */}
-            <SettingsField label="Dictation" help={SETTINGS_HELP.dictation}>
-              <DictationToggle />
-              {inEditor ? <EditorHint>Your browser keeps its own.</EditorHint> : null}
-            </SettingsField>
-
             {/* Same segmented Off/On control as every other row (the old bare checkbox matched
                 nothing else in the form). Off left, On right — switch convention. */}
             {/* The machine's setting, so it is changed here as anywhere; but a frame cannot raise a
@@ -592,13 +586,6 @@ function AppearanceControl() {
       ariaLabel="Appearance"
     />
   )
-}
-
-// The prompt box's microphone: client-only (localStorage prefs proxy), applies live — every composer on
-// the page drops or regains its button the instant it flips (lib/dictation.ts reads it as `enabled`).
-function DictationToggle() {
-  const { dictation } = useSnapshot(prefs)
-  return <OnOffToggle value={dictation} onChange={(on) => (prefs.dictation = on)} />
 }
 
 // Diff density: client-only (localStorage prefs proxy), applies live — diff blocks across the app

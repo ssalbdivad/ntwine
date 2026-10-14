@@ -1,6 +1,6 @@
 import { createContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useSnapshot } from "valtio"
-import { ArrowUp, FileText, Loader2, Mic, Paperclip, Plus, Repeat, X } from "lucide-react"
+import { ArrowUp, FileText, Loader2, Paperclip, Plus, Repeat, X } from "lucide-react"
 import { ATTACHMENT_ACCEPT, ATTACHMENT_MAX_BYTES, isAllowedAttachmentName, type EmbedPickedFile, type ThreadSkill } from "@ntwine/shared"
 import { showToast } from "../store.ts"
 import { joinComposerValue, splitComposerValue } from "../lib/imagePaths.ts"
@@ -13,9 +13,7 @@ import { focusQuestionFrom } from "../lib/questionKeys.ts"
 import { composerRail, SEND_SPLIT_WIDTH } from "../lib/iconRhythm.ts"
 import type { SendMode } from "../lib/sendMode.ts"
 import { SendSplitButton } from "./SendSplitButton.tsx"
-import { useDictation } from "../lib/dictation.ts"
 import { prefs } from "../lib/prefs.ts"
-import { DictationLevel } from "./DictationLevel.tsx"
 import { apiBase } from "../lib/base-path.ts"
 import { detectPlatform, effortStepOf } from "../lib/keybindings.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
@@ -982,28 +980,7 @@ export function Composer({
     requestAnimationFrame(() => taRef.current?.setSelectionRange(next.caret, next.caret))
   }
 
-  // DICTATION (lib/dictation.ts): the microphone beside Send, on the desktop layout only — a phone's
-  // keyboard carries its own. It writes into the prose at the caret (or at the end, when the box was
-  // not focused), and any edit that is not its own ends it: typing, sending, Escape.
-  const { dictation: dictationEnabled } = useSnapshot(prefs)
-  const dictation = useDictation({
-    read: () => {
-      const el = taRef.current
-      const current = el?.value ?? prose
-      const focused = el !== null && document.activeElement === el
-      return { prose: current, start: focused ? el.selectionStart : current.length, end: focused ? el.selectionEnd : current.length }
-    },
-    write: (next, caret) => {
-      setProse(next)
-      requestAnimationFrame(() => taRef.current?.setSelectionRange(caret, caret))
-    },
-    enabled: dictationEnabled,
-  })
-  const micShown = !phone && dictation.state !== "unsupported"
-  const submit = () => {
-    dictation.cancel()
-    onSubmit()
-  }
+  const submit = () => onSubmit()
 
   const hasContent = value.trim().length > 0
   const interruptChord = useMemo(() => (detectPlatform() === "mac" ? "⌘⏎" : "Ctrl+Enter"), [])
@@ -1017,7 +994,7 @@ export function Composer({
   const railAction = leftAction ?? null
   // Where each rail mark sits, and the padding every text row keeps clear of the absolutely-placed rail.
   // The Goal (`railLead`, the thread composer only) sits beyond the paperclip.
-  const rail = composerRail({ action: Boolean(railAction), perm: Boolean(railPermission), lead: Boolean(railLead), mic: micShown, sendWidth: send && !phone ? SEND_SPLIT_WIDTH : undefined })
+  const rail = composerRail({ action: Boolean(railAction), perm: Boolean(railPermission), lead: Boolean(railLead), sendWidth: send && !phone ? SEND_SPLIT_WIDTH : undefined })
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     const el = e.currentTarget
@@ -1111,7 +1088,6 @@ export function Composer({
     if (shouldInterruptSubmitComposerEnter(keyboardEvent, canSend)) {
       e.preventDefault()
       e.stopPropagation()
-      dictation.cancel()
       ;(onInterruptSubmit ?? onSubmit)()
       return
     }
@@ -1136,13 +1112,6 @@ export function Composer({
       })
     }
     if (e.key === "Escape" && !e.nativeEvent.isComposing) {
-      // While dictating, the first Escape only stops listening — the box keeps focus and the text.
-      if (dictation.state === "listening") {
-        e.preventDefault()
-        e.stopPropagation()
-        dictation.cancel()
-        return
-      }
       // On the /full page the key is not ours: Escape there always leaves fullscreen (DrawerStack's
       // `onEscapeAtRest`), and a blur first would make the reader press it twice with nothing visible
       // happening the first time. The draft is persisted, so the drawer or card it lands in shows it.
@@ -1618,8 +1587,6 @@ export function Composer({
               const native = e.nativeEvent as InputEvent
               onInputEvent({ type: "edit", prose: e.target.value, caret: e.target.selectionStart, inputType: native.inputType, composing: native.isComposing === true })
             }
-            // Typing takes the box back from dictation (lib/dictation.ts).
-            dictation.cancel()
             const route = onLeadingProject && !(e.nativeEvent as InputEvent).isComposing && !leadingProjectRoute(prose, projectMentions) ? leadingProjectRoute(e.target.value, projectMentions) : undefined
             if (route && onLeadingProject!(route.slug, joinComposerValue(route.rest, attachmentPaths))) return
             setProse(e.target.value)
@@ -1726,51 +1693,6 @@ export function Composer({
       >
         {uploading ? <Loader2 size={15} strokeWidth={2} className="animate-spin" /> : <Paperclip size={15} strokeWidth={2} />}
       </button>
-      {micShown && (
-        <button
-          type="button"
-          data-dictation={dictation.state}
-          // Keep the caret where it is: dictation inserts there (the send button's own rule).
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            // Starting from outside the box: dictate at the end of the draft, with the caret there, so
-            // whatever is typed next follows the spoken words.
-            const el = taRef.current
-            if (dictation.state === "idle" && el && document.activeElement !== el) {
-              el.focus({ preventScroll: true })
-              el.setSelectionRange(el.value.length, el.value.length)
-            }
-            void dictation.toggle()
-          }}
-          disabled={busy || dictation.state === "installing" || dictation.state === "starting"}
-          aria-pressed={dictation.state === "listening"}
-          title={
-            dictation.state === "listening"
-              ? "Stop dictation"
-              : dictation.state === "installing"
-                ? "Downloading the on-device speech model…"
-                : dictation.state === "starting"
-                  ? "Starting the microphone…"
-                  : "Dictate — transcribed on this device"
-          }
-          aria-label={dictation.state === "listening" ? "Stop dictation" : "Dictate"}
-          style={{ right: rail.right.mic }}
-          // Listening swaps the GLYPH for live level bars at full foreground, never a fill: a filled square
-          // is ink edge to edge, and at this slot's box gap it would sit ~6px off the paperclip's ink
-          // instead of ~14. (A red, pulsing microphone was tried first and rejected, 2026-10-08.)
-          className={`icon-hover-outline absolute bottom-2 flex h-7 w-7 items-center justify-center rounded-lg transition-[color,background-color] enabled:hover:bg-panel-2/70 disabled:opacity-50 ${
-            dictation.state === "listening" ? "text-fg" : "text-muted enabled:hover:text-fg"
-          }`}
-        >
-          {dictation.state === "installing" || dictation.state === "starting" ? (
-            <Loader2 size={15} strokeWidth={2} className="animate-spin" />
-          ) : dictation.state === "listening" && dictation.stream ? (
-            <DictationLevel stream={dictation.stream} />
-          ) : (
-            <Mic size={15} strokeWidth={2} />
-          )}
-        </button>
-      )}
       {send ? (
         <SendSplitButton
           // `uploading` mirrors the Enter gate above: sending mid-upload dropped the pending attachment.

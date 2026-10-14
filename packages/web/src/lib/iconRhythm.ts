@@ -42,8 +42,7 @@
  *  read `deadLeft`/`deadRight` off each mark). */
 
 
-/** THE RAIL, right to left: send, the microphone (only where on-device dictation exists — see
- *  lib/dictation.ts), the rail action (the dispatch composer's GitHub picker), the paperclip, and the
+/** THE RAIL, right to left: send, the rail action (the dispatch composer's GitHub picker), the paperclip, and the
  *  lead (the thread composer's Goal). Each is a 28px square; any of the middle marks may be absent, and
  *  the marks to its left close up.
  *
@@ -52,8 +51,8 @@
  *  box; the bare 15px icons carry 7–9px of empty box per side. Hover outlines do not take part in the
  *  resting rhythm. A pair missing from the table falls back to the paperclip→send gap; add the
  *  measurement rather than relying on it. */
-export type RailMark = "perm" | "lead" | "paperclip" | "action" | "mic" | "send"
-const RAIL_ORDER: readonly RailMark[] = ["perm", "lead", "paperclip", "action", "mic", "send"]
+export type RailMark = "perm" | "lead" | "paperclip" | "action" | "send"
+const RAIL_ORDER: readonly RailMark[] = ["perm", "lead", "paperclip", "action", "send"]
 const RAIL_BOX = 28
 const RAIL_SEND_RIGHT = 8
 // Clearance the prose keeps from the leftmost mark.
@@ -72,9 +71,6 @@ const RAIL_BOX_GAP: Partial<Record<`${RailMark}>${RailMark}`, number>> = {
   // The permission shield beside the Goal: two bare glyphs in hover squares, spaced as Goal is from the paperclip.
   "perm>lead": -1,
   "perm>paperclip": -1,
-  "mic>send": 6,
-  "paperclip>mic": -2,
-  "action>mic": -3,
 }
 
 /** THE THREAD COMPOSER'S SEND IS A SPLIT BUTTON, not a 28px square: the word "Send", a hairline, and a
@@ -90,11 +86,11 @@ export const SEND_SPLIT_WIDTH = SEND_SPLIT_LABEL_WIDTH + SEND_SPLIT_SEAM_WIDTH +
  *  `sendWidth` is the Send control's own width when it is not the 28px square. A fractional one is
  *  rounded UP for the marks beside it: the button is filled and may end on a half pixel, but a bare
  *  15px icon placed on one draws soft on a 1x screen. */
-export function composerRail(present: { perm?: boolean; lead?: boolean; action?: boolean; mic?: boolean; sendWidth?: number }): {
+export function composerRail(present: { perm?: boolean; lead?: boolean; action?: boolean; sendWidth?: number }): {
   right: Partial<Record<RailMark, number>>
   reserve: number
 } {
-  const shown: Record<RailMark, boolean> = { send: true, paperclip: true, perm: !!present.perm, lead: !!present.lead, action: !!present.action, mic: !!present.mic }
+  const shown: Record<RailMark, boolean> = { send: true, paperclip: true, perm: !!present.perm, lead: !!present.lead, action: !!present.action }
   const marks = RAIL_ORDER.filter((m) => shown[m])
   const right: Partial<Record<RailMark, number>> = {}
   let edge = 0
