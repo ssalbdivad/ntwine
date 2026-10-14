@@ -60,7 +60,7 @@ async function main() {
     const m16 = await render(monoGrey, 16)
     const m24 = await render(monoGrey, 24)
     sections.push(`<h2>The mark</h2>
-<p>Three threads come in, plait through three crossings, and leave as three. Installed as the app icon, the site's icons and hero, the social card and the VS Code activity bar.</p>
+<p>A lowercase n of three threads, plaited three times down its right leg (n9 in <a href="ntwine-n.html">ntwine-n.html</a>). The rounds below led to the straight plait it bends. Installed as the app icon, the site's icons and hero, the social card and the VS Code activity bar.</p>
 ${await row(render, "final", "App icon", "packages/web/public/favicon.svg", faviconSvg, `${(Buffer.byteLength(faviconSvg) / 1024).toFixed(1)} KB`)}
 <section><h3>Alone and one-colour</h3>
   <p>The mark without its tile (social card, site hero), and the line-art version VS Code paints as a mask, at 16 and 24px.</p>

@@ -3,11 +3,10 @@
 //
 //   nub assets/logo-ntwine/n-concepts.ts           -> ntwine-n.html (+ out/n/ with every svg and png)
 //   nub assets/logo-ntwine/n-concepts.ts --shoot   also screenshot the page to out/n/sheet.png
-import { mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { build, GOLD, inkBox, smoothstep, TRI, wovenTileSvg, type Centreline, type Paint, type Rule, type Spec, type Vec } from "./lib.ts"
-import { faviconSvg } from "./final.ts"
 import { shootPage, withRenderer } from "./render.ts"
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -136,7 +135,7 @@ function threadOffsets(t: Threads, L: number) {
 /** A skeleton is either an n's proportions or any polyline. */
 export type Candidate = { id: string; title: string; note: string; n?: N; path?: Path; threads: Threads; pen: number; clear: number; rule?: Rule; paint?: Paint }
 
-function specOf(c: Candidate, k = 1, d: Vec = [0, 0]): Spec {
+export function specOf(c: Candidate, k = 1, d: Vec = [0, 0]): Spec {
   const raw = c.path ?? nPath(c.n!)
   const cl = centrelineOf(raw.map(([x, y]) => [k * x + d[0], k * y + d[1]]))
   const L0 = cl.length / k
@@ -156,7 +155,7 @@ export function fitted(c: Candidate) {
   const k = Math.min(392 / (y1 - y0), 372 / (x1 - x0))
   const d: Vec = [256 - (k * (x0 + x1)) / 2, 256 - (k * (y0 + y1)) / 2]
   const spec = specOf(c, k, d)
-  return { spec, built: build(spec), k }
+  return { spec, built: build(spec), k, d }
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -258,8 +257,10 @@ export async function writeSheet(sheet: Sheet, entries: Entry[]) {
   mkdirSync(sheet.out, { recursive: true })
   const sections: string[] = []
   const thumbs = entries.map((e) => `<figure><img src="${svgUri(e.svg)}" width="160" height="160" alt=""><figcaption>${e.id} · ${e.title}</figcaption></figure>`)
+  // the installed icon, read from disk: final.ts builds it from this file, so importing it here would be a cycle
+  const faviconSvg = readFileSync(join(here, "../../packages/web/public/favicon.svg"), "utf8")
   await withRenderer(async (render) => {
-    sections.push(`<h2>For reference</h2>\n${await row(render, sheet.out, "shipped", "Today's plait", "packages/web/public/favicon.svg", faviconSvg, "")}`)
+    sections.push(`<h2>For reference</h2>\n${await row(render, sheet.out, "shipped", "The installed mark", "packages/web/public/favicon.svg", faviconSvg, "")}`)
     for (const e of sheet.reference ?? []) sections.push(await row(render, sheet.out, e.id, e.title, e.note, e.svg, e.meta))
     sections.push(`<h2>${sheet.heading}</h2>`)
     for (const e of entries) sections.push(await row(render, sheet.out, e.id, e.title, e.note, e.svg, e.meta))

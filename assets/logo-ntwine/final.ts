@@ -1,4 +1,4 @@
-// The ntwine mark: three threads plaited through three crossings, loose at both ends.
+// The ntwine mark: a lowercase n of three threads, plaited three times down its right leg.
 //
 //   nub assets/logo-ntwine/final.ts             write assets/logo-ntwine/final/
 //   nub assets/logo-ntwine/final.ts --install   also write every installed copy (see INSTALL below)
@@ -12,7 +12,8 @@ import { dirname, extname, join, normalize, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { assertAlphaWithinSafeCircle, buildMaskableSvg, decodePngAlpha } from "../../scripts/generate-icons.mjs"
 import { launchHeadless } from "../../scripts/lib/headless-browser.mjs"
-import { build, inkBox, tailedPlait, woven, wovenTileSvg, GOLD, type Built, type PlaitParams, type Spec } from "./lib.ts"
+import { build, inkBox, woven, wovenTileSvg, GOLD } from "./lib.ts"
+import { candidates, fitted, specOf } from "./n-concepts.ts"
 import { withRenderer } from "./render.ts"
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -20,31 +21,18 @@ const repo = resolve(here, "../..")
 const finalDir = join(here, "final")
 
 // ---------------------------------------------------------------------------------------------------
-// THE GEOMETRY. Three crossings is the fewest that still read as a plait, and the only count whose two
-// big X's survive 16px (four and up turned the column into a hatched bar at 16 in rounds four and five).
-// The tails ease in over `ramp`, so each thread straightens out of the weave instead of kinking; a short
-// ramp (40) drew a visible corner where a tail met the braid. The outer threads' swing before their first
-// crossing is the sine itself, not an artefact: at the even spread the tails leave from, the outer
-// strands are still travelling outward.
-const BASE: PlaitParams & { width: number; clear: number } = { n: 3, spacing: 78, A: 126, tail: 40, ramp: 96, width: 56, clear: 22 }
-/** Ink height inside the 480-unit tile: 38 units of margin top and bottom. */
-const INK_HEIGHT = 404
-
-function specAt(k: number, width = BASE.width * k, clear = BASE.clear * k): Spec {
-  const p = tailedPlait({ n: BASE.n, spacing: BASE.spacing * k, A: BASE.A * k, tail: BASE.tail * k, ramp: BASE.ramp * k })
-  return { centreline: p.centreline, strands: 3, offset: p.offset, rule: "plait", width, clear }
-}
-
-const unit = build(specAt(1))
-const [, uy0, , uy1] = inkBox(unit, BASE.width)
-const K = INK_HEIGHT / (uy1 - uy0)
-const spec = specAt(K)
-const mark = build(spec)
+// THE GEOMETRY is concept n9 in n-concepts.ts (chosen 2026-10-13 from ntwine-n.html): three threads rise
+// parallel up the n's left stem, run together over the shoulder, and plait three times down the right
+// stem — the previous mark's straight plait, bent into the letter. Its parameters live there so the
+// concept sheet and the installed icon cannot drift; `fitted` scales it to 392 units tall (372 wide at
+// most) inside the 480-unit tile.
+const N9 = candidates.find((c) => c.id === "n9")!
+const { spec, built: mark, k: K, d: D } = fitted(N9)
 const box = inkBox(mark, spec.width)
 
 const f1 = (x: number) => String(Math.round(x * 10) / 10)
 
-const tileComment = `ntwine: three threads plaited through three crossings, loose at both ends. Each
+const tileComment = `ntwine: a lowercase n of three threads, plaited three times down its right leg. Each
        thread is one path; its under-crossings are cut by a mask drawn along the thread on top. Rebuild
        with assets/logo-ntwine/final.ts; do not hand-edit.`
 
@@ -68,22 +56,22 @@ ${w.body}
 
 // The VS Code activity bar paints the icon as a mask at 16px (bar on top) and 24px (bar at the side).
 // packages/vscode/src/package-contents.test.ts pins the pen at 0.7/16 of a square box and the ink at
-// 15/16 of it, measured for the fff against VS Code's codicons; this keeps both rules, so the braid is
+// 15/16 of it, measured for the fff against VS Code's codicons; this keeps both rules, so the n is
 // drawn as LINE ART there: same centrelines, a 0.7px pen, gaps opened to one device pixel at 24px.
 // Not re-measured against the codicons for this mark.
 export function monoSvg(): string {
   const [gx0, gy0, gx1, gy1] = inkBox(mark, 0)
-  const geomH = gy1 - gy0
+  const geomH = Math.max(gy1 - gy0, gx1 - gx0)
   const B = geomH / (15 / 16 - 0.7 / 16)
   const pen = (0.7 / 16) * B
   const clear = B / 24
-  const s = specAt(K, pen, clear)
+  const s = specOf({ ...N9, pen: pen / K, clear: clear / K }, K, D)
   const b = build(s)
   const w = woven(b, s, { inks: ["currentColor"] }, "m", "")
   const cx = (gx0 + gx1) / 2
   const cy = (gy0 + gy1) / 2
   const vb = [cx - B / 2, cy - B / 2, B, B].map((v) => v.toFixed(4)).join(" ")
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="${vb}"><!-- The app icon's plait (packages/web/public/favicon.svg) as one-colour line art for the activity bar, which paints it as a mask at 16px with the bar on top and 24px at the side. The box is square with the ink at 15/16 of its height and the pen at 0.7/16 of it, the rules package-contents.test.ts pins (measured for the previous mark against the codicons; not re-measured for this one). Gaps are B/24: one device pixel at 24px on a 1x screen. Rebuild with assets/logo-ntwine/final.ts. -->${w.body}<defs>${w.defs}</defs></svg>
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="${vb}"><!-- The app icon's plaited n (packages/web/public/favicon.svg) as one-colour line art for the activity bar, which paints it as a mask at 16px with the bar on top and 24px at the side. The box is square with the ink at 15/16 of its height and the pen at 0.7/16 of it, the rules package-contents.test.ts pins (measured for the previous mark against the codicons; not re-measured for this one). Gaps are B/24: one device pixel at 24px on a 1x screen. Rebuild with assets/logo-ntwine/final.ts. -->${w.body}<defs>${w.defs}</defs></svg>
 `
 }
 

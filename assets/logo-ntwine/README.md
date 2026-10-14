@@ -1,6 +1,6 @@
 # ntwine mark
 
-Three threads come in, plait through three crossings, and leave as three: n threads, entwined. Teal (`#2dd4bf`, the dark-theme accent) on the same dark tile as the mark it replaces (the cursive `fff`, whose history is in [`../logo-concepts/`](../logo-concepts/)).
+A lowercase n of three threads: they rise parallel up the left stem, run together over the shoulder, and plait three times down the right stem — n threads, entwined, spelling the n. It is concept n9 from [`ntwine-n.html`](ntwine-n.html), chosen 2026-10-13 over the straight plait it bends (the mark from 2026-10-12 to 2026-10-13) and over every capital N in [`ntwine-capital-n.html`](ntwine-capital-n.html). Teal (`#2dd4bf`, the dark-theme accent) on the same dark tile as the mark it replaces (the cursive `fff`, whose history is in [`../logo-concepts/`](../logo-concepts/)).
 
 [`ntwine-concepts.html`](ntwine-concepts.html) is every direction tried — plaits, ropes, rings, an `n` built from strands — round by round, each with what it taught, rendered at 512, 180, 32 and 16. Self-contained; open it from disk.
 
@@ -44,13 +44,13 @@ Every PNG comes from Chrome's rasterizer (this machine has no `rsvg-convert`). `
 
 **The tails.** The phase runs 0 → 180° over the three crossings. At every multiple of 60° the three strands sit evenly spread, so the tails leave from an even spread; the phase's rate eases in and out over 96 units so each thread straightens into its tail. A 40-unit ramp left a visible corner there.
 
-**Locked values** (`final.ts`): `n 3 · spacing 78 · A 126 · tail 40 · ramp 96 · pen 56 · clear 22`, then scaled uniformly (×0.867) to a 404-unit ink height inside the 480-unit tile. Pen 48.5 and gap 19.1 at 512 are 1.5px and 0.6px at 16px. `favicon.svg` is 5.6 KB; the old one was a 58 KB path.
+**Locked values** live in n9's entry in `n-concepts.ts`, which `final.ts` imports so the sheet and the icon cannot drift: stems 192 apart, 180 of stem under a half-circle shoulder, `A 40 · 3 crossings over 200 units centred at 0.8 of the stroke · ramp 60 · pen 25 · clear 9`, scaled (×1.168) to 392 units tall inside the 480-unit tile. Pen 29.2 and gap 10.5 at 512 are 0.9px and 0.3px at 16px. (The straight plait before it: `n 3 · spacing 78 · A 126 · tail 40 · ramp 96 · pen 56 · clear 22`, ×0.867 to 404 units.)
 
 ## What the sizes show
 
-- **512, 180:** three distinct threads, two big crossings and a third under the middle; the loose ends read as thread.
-- **32:** still a plait.
-- **16:** three bars top and bottom with an X between. It reads as a woven glyph, not as three threads; nothing woven with three strands survives 16px as a weave. It is cleaner than the `fff`, which landed there as a mottled block.
+- **512, 180:** an n of three distinct threads; the plait down the right leg reads as a braid.
+- **32:** still three threads and a plait.
+- **16:** a solid arch with a lighter, knotted right leg. It reads as an n; the threads merge, as nothing with three strands survives 16px as a weave.
 - **VS Code:** line art with a 0.7px pen, per the rule `package-contents.test.ts` pins. Not re-measured against the codicons for this mark.
 
 ## Colour
