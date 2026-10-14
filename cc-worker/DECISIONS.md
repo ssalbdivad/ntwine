@@ -731,7 +731,7 @@ absence means off.
   marker file so "did the hook RUN" stayed separate from "did its output reach the model".
 - **`codex app-server` DOES run them** when they arrive as config overrides. Verified through the real
   `CodexAppServerBridge` with the real `scratchpad.mjs`: SessionStart, UserPromptSubmit and Stop all
-  fired. Probe kept at `backend/_live_codex_hooks.mts`.
+  fired. (Probe: `backend/_live_codex_hooks.mts`, deleted 2026-10-14 with the other finished probes.)
 - **`bypass_hook_trust` is required** — codex SILENTLY SKIPS untrusted hook definitions, so without it
   the config is delivered and ignored, which looks exactly like a broken feature.
 - **Codex reports its OWN rollout session id to the hook** (e.g. `019fb427-…`, `transcript_path` under

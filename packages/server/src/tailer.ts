@@ -1910,7 +1910,7 @@ function launchTaskId(text: string): string | undefined {
 // which is honest but is also all it could say).
 //
 // The provider does record it, twice over. Measured on a real three-level broker session
-// (`_live_broker_depth.mts`, 2026-07-28 — read that harness's output before changing anything here):
+// (`_live_broker_depth.mts`, 2026-07-28, a probe since deleted; re-measure before changing anything here):
 //
 //  1. ON THE STREAM. Everything is ONE session: the grandchild's dispatch arrives as an assistant event
 //     whose `parentToolUseId` is the CHILD's dispatch id, and the grandchild gets its own task_started /

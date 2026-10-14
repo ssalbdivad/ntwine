@@ -2,7 +2,7 @@
 // Update & Restart. These drive the REAL daemon process over its REAL socket, standing in a scripted
 // fake for `codex app-server` so the protocol edges (handshake caching, id rewriting, queue-while-
 // detached) can be asserted deterministically. The end-to-end proof against the real app-server lives
-// in _live_appserver_restart_repro.mts.
+// in _live_appserver_daemon_survival.mts.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { mkdtempSync, writeFileSync, existsSync, unlinkSync } from "node:fs"
