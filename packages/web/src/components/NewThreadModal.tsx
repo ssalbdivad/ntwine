@@ -75,8 +75,9 @@ export function DispatchForm({
    */
   dirs?: DispatchDirs
   /** A prompt opening with `#slug ` goes to that project (Composer `onLeadingProject`) — where the box has a
-   *  project to choose, which is the queue page's. */
-  onLeadingProject?: (slug: string, value: string) => boolean
+   *  project to choose, which is the queue page's. Returns the directory the words went to, or false when
+   *  they could not go and the token stays text. */
+  onLeadingProject?: (slug: string, value: string) => string | false
 }) {
   return (
     <div data-dispatch-form className="w-full flex flex-col gap-1.5">
@@ -98,7 +99,7 @@ function PromptForm({
   onDispatched?: () => void
   target?: ReactNode
   dirs?: DispatchDirs
-  onLeadingProject?: (slug: string, value: string) => boolean
+  onLeadingProject?: (slug: string, value: string) => string | false
 }) {
   // A settings write still in flight — a compaction window picked in the model picker a moment ago —
   // must land before a dispatch that would read it.
@@ -119,6 +120,22 @@ function PromptForm({
   // Queue and modal are the same semantic new-thread composer.
   const [prompt, setPrompt] = useDraft(draftKey.dispatch(projectDir))
   const promptKey = draftKey.dispatch(projectDir)
+  // AFTER A LEADING `#slug` SENT THE WORDS ELSEWHERE, this box is on its way out — but on a project's board
+  // the re-aim is a navigation, and a key typed before it lands still reaches this box. It goes after the
+  // words it followed rather than into a stray draft here. This box was emptied by the move, so each edit
+  // it sees is only what was typed since.
+  const handedTo = useRef<string | null>(null)
+  const onPromptChange = (value: string) => {
+    if (handedTo.current === null) return setPrompt(value)
+    const key = draftKey.dispatch(handedTo.current)
+    draftStore.set(key, draftStore.get(key) + value)
+  }
+  const leadingProject = onLeadingProject && ((slug: string, value: string) => {
+    const dir = onLeadingProject(slug, value)
+    if (dir === false) return false
+    if (dir !== projectDir) handedTo.current = dir
+    return true
+  })
   const submittedDraftRef = useRef("")
   // SELECTED CONTEXT in a new thread's prompt — a selection sent from an editor window lands here as an
   // `@a.ts:12-20` chip (lib/editorCompose.ts), staged under this box's own draft key and serialized into
@@ -524,7 +541,7 @@ function PromptForm({
         surface="newComposer"
         autoFocus={autoFocus}
         value={prompt}
-        onChange={setPrompt}
+        onChange={onPromptChange}
         onSubmit={submit}
         marks={schedule.marks}
         onInputEvent={schedule.onInputEvent}
@@ -548,7 +565,7 @@ function PromptForm({
         footer={footer}
         onEffortStep={stepEffort}
         leftAction={githubTriggerVisible ? <GithubTrigger /> : undefined}
-        onLeadingProject={onLeadingProject}
+        onLeadingProject={leadingProject}
       />
       {/* THE ONE SLOT under the box: the schedule strip, or a line about the schedule (ScheduleComposer.tsx).
           Pulled up by the column's own gap so it hangs from the box's bottom edge; its row opens from 0fr, so

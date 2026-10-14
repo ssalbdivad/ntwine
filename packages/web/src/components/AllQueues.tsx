@@ -241,14 +241,17 @@ export function AllQueuesPage() {
   // A PROMPT OPENING WITH `#slug ` GOES TO THAT PROJECT (lib/projectMentions.ts leadingProjectRoute): the
   // box re-aims as a pick or a step would — focused, by moving the page — with the words, minus the token,
   // carried along even into a box that already holds a draft (routeDispatchDraft).
-  const routeToProject = (slug: string, value: string): boolean => {
+  const routeToProject = (slug: string, value: string): string | false => {
     const to = projects.find((project) => project.slug === slug && !project.stale)
-    if (!to || !routeDispatchDraft(dirs?.projectDir, to.projectDir, value)) return false
-    if (to.slug === focus) return true
+    // A project not open yet has no directory from the poll; its registered path is the one its board
+    // will key the box's drafts by once it opens.
+    const toDir = to && (to.projectDir ?? to.card?.path)
+    if (!to || !toDir || !routeDispatchDraft(dirs?.projectDir, toDir, value)) return false
+    if (to.slug === focus) return toDir
     setFocusComposerFor({ slug: to.slug })
     if (focused) navigate(projectViewHref(to.slug))
     else pickProject(to, dirs?.projectDir)
-    return true
+    return toDir
   }
   const onColumnKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const box = event.target
@@ -942,7 +945,7 @@ function FocusedComposer({
   onFocused: () => void
   /** A thread was started — the phone's New thread sheet closes on it. */
   onDispatched?: () => void
-  onLeadingProject: (slug: string, value: string) => boolean
+  onLeadingProject: (slug: string, value: string) => string | false
 }) {
   const ready = dirs !== undefined
   const [slow, setSlow] = useState(false)
