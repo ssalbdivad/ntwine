@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { expandMcpEnvRefs, normalizeMcpServer, projectMcpServers, workerMcpServers } from "./project-mcp-servers.ts"
+import { expandMcpEnvRefs, normalizeMcpServer, projectMcpServers, requestableMcpServers, workerMcpServers } from "./project-mcp-servers.ts"
 
 // A fixture is a fake cwd plus a fake Claude config dir. `claudeConfigDir` is always passed explicitly,
 // so no test ever reads the operator's REAL `~/.claude.json`. Under an override dir, `.claude.json` and
@@ -122,4 +122,21 @@ test("CLAUDE_CONFIG_DIR in the worker's env locates the config when no dir is in
   const home = join(f.root, "no-such-home")
   assert.deepEqual(projectMcpServers(f.cwd, { env: { CLAUDE_CONFIG_DIR: f.configDir }, home }), { Neon: { type: "http", url: "https://n/mcp" } })
   assert.deepEqual(projectMcpServers(f.cwd, { env: {}, home }), {})
+})
+
+test("a thread's grants mount named user-scope stdio servers; what is left is what it could request", () => {
+  const f = fixture()
+  f.write(join(f.configDir, ".claude.json"), {
+    mcpServers: { windows: { command: "uvx.exe", args: ["windows-mcp", "serve"] }, other: { command: "other" }, Neon: { type: "http", url: "https://n/mcp" } },
+    projects: { [f.cwd]: { mcpServers: { other: { command: "other-local" } } } },
+  })
+  const opts = (grants: string[] = []) => ({ claudeConfigDir: f.configDir, env: {}, grants })
+  // `other` is mounted from local scope, so only `windows` is requestable; a remote is never on the list.
+  assert.deepEqual(Object.keys(requestableMcpServers(f.cwd, opts())), ["windows"])
+  // A grant mounts it at user scope's definition, and a local-scope definition of the same name still wins.
+  const granted = projectMcpServers(f.cwd, opts(["windows", "other", "gone"]))
+  assert.deepEqual(granted.windows, { command: "uvx.exe", args: ["windows-mcp", "serve"] })
+  assert.deepEqual(granted.other, { command: "other-local" })
+  assert.equal("gone" in granted, false)
+  assert.deepEqual(requestableMcpServers(f.cwd, opts(["windows"])), {})
 })

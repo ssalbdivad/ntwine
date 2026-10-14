@@ -800,6 +800,31 @@ const SECRET = {
   },
 }
 
+const MCP_REQUEST = {
+  name: "mcp_request",
+  description:
+    "ASK THE USER FOR ONE OF THEIR MCP SERVERS — one your system prompt lists under MCP SERVERS ON REQUEST, " +
+    "configured on their machine but not mounted in this thread. Only when it would materially help the task: " +
+    "a desktop-control server for a screenshot of a native window, say.\n\n" +
+    "It registers a question like `ntwinectl ask`, worded by Ntwine: the user allows the server for this thread, " +
+    "for every thread in this project, or not at all. Once allowed, its tools (`mcp__<name>__*`) are yours from " +
+    "your next turn. Like a question, it is your rest's sign-off and gates `done` until answered; name it under " +
+    "`questions:` at later rests, or withdraw it with `ntwinectl unask <id>`.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      server: { type: "string", description: "The server's name, exactly as your system prompt lists it." },
+      reason: {
+        type: "string",
+        description:
+          "One or two sentences the user reads on the card: what the server is for in THIS task. NO \"I\" AND NO " +
+          "\"you\": \"To screenshot the Ntwine desktop window and check the title bar renders.\"",
+      },
+    },
+    required: ["server", "reason"],
+  },
+}
+
 const DONE = {
   name: "done",
   description:
@@ -1181,7 +1206,7 @@ const WATCH_COMMAND = {
 // SCHEDULE after EDITOR (2026-10-05), DEADLINE after SCHEDULE (2026-10-06), upstream's SECRET after
 // DEADLINE (2026-10-08), and upstream's WATCH_COMMAND after SECRET (2026-10-12). Upstream's STEER is not
 // here: MESSAGE_THREAD is the fork's thread-to-thread command (plans/upstream-superset.md).
-const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, WATCH_ISSUE, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND]
+const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, WATCH_ISSUE, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST]
 
 // A COMMAND WHOSE FEATURE CAN BE ABSENT, and the capability the server reports for it (router
 // `workerCapabilities`, the same predicate that gates the contract's sections, dispatch.ts). Of the
@@ -1190,6 +1215,10 @@ const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, 
 // (bin/ntwine-mcp.mjs), because a listed MCP tool is paid for on every turn; `ntwinectl` costs nothing per
 // command, so it always answers one, and the command itself says when there is nothing to read.
 const GATED_TOOLS = /** @type {Record<string, string>} */ ({ [EDITOR.name]: "editor" })
+
+// A COMMAND THE MCP FRONT-END NEVER LISTS. `mcp_request` mounts a server into a CLAUDE session, and the
+// front-end is what Codex and ACP workers run, which load their own MCP servers themselves.
+const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name])
 
 /** @type {Record<string, (args: Record<string, unknown>) => Promise<string>>} */
 const HANDLERS = {
@@ -1202,6 +1231,7 @@ const HANDLERS = {
   [ASK.name]: ask,
   [UNASK.name]: unask,
   [SECRET.name]: secret,
+  [MCP_REQUEST.name]: mcpRequest,
   [DONE.name]: done,
   [TITLE.name]: title,
   [UNWATCH.name]: unwatch,
@@ -2560,6 +2590,24 @@ async function secret(args) {
   )
 }
 
+/** The `mcp_request` handler: ask the user to allow one of their MCP servers in this thread. The server
+ *  writes the card (mcp-requests.ts); this only names the server and carries the reason.
+ * @param {Record<string, unknown>} args @returns {Promise<string>} */
+async function mcpRequest(args) {
+  const slug = threadSlug()
+  const server = typeof args.server === "string" ? args.server.trim() : ""
+  const reason = typeof args.reason === "string" ? args.reason.trim() : ""
+  if (!server) throw new Error("`server` is required — the name your system prompt lists under MCP SERVERS ON REQUEST")
+  if (!reason) throw new Error("`reason` is required — say what the server is for in this task")
+  const result = (await callRpc("ask", { slug, questions: [{ question: reason, kind: "question", mcp: server }] }))?.result
+  const registered = Array.isArray(result?.registered) ? result.registered[0] : undefined
+  if (!registered?.id) throw new Error("Ntwine did not register the request — this server predates `mcp-request`; restart Ntwine and retry")
+  return (
+    `Registered request ${registered.id} for the \`${server}\` MCP server. Rest now: the user's answer wakes you, and if ` +
+    `they allow it, its tools (\`mcp__${server}__*\`) are in your registry on that turn.\n\n${openQuestionList(result)}`
+  )
+}
+
 /** The `unask` handler: withdraw one registered question by id.
  * @param {Record<string, unknown>} args @returns {Promise<string>} */
 async function unask(args) {
@@ -2910,6 +2958,12 @@ const CLI = {
     positional: ["question"],
     examples: ['ntwinectl secret "The npm one-time code for publishing ntwine 0.14.0" --header "npm OTP"'],
   },
+  mcp_request: {
+    group: "This thread",
+    summary: "Ask the user to allow one of their MCP servers in this thread",
+    positional: ["server"],
+    examples: ["ntwinectl mcp-request windows --reason-file - <<'EOF'\nTo screenshot the desktop app's window and check the title bar renders.\nEOF"],
+  },
   done: {
     group: "Sign off",
     summary: "Declare the effort finished, with the write-up the user reads (exits 2 if refused)",
@@ -3055,4 +3109,4 @@ const CLI = {
   },
 }
 
-export { TOOLS, HANDLERS, CLI, Refused, GATED_TOOLS, serverLockPort, rpcPath }
+export { TOOLS, HANDLERS, CLI, Refused, GATED_TOOLS, CLI_ONLY_TOOLS, serverLockPort, rpcPath }

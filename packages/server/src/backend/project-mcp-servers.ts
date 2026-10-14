@@ -24,6 +24,9 @@
 //      unioned. A headless worker cannot answer the approval prompt, so an unapproved server is skipped
 //      exactly as `claude -p` skips it.
 //   3. the `ntwine` server, which always wins (workerMcpServers below).
+// Plus any user-scope server the human GRANTED this thread (`grants`), at the precedence of layer 1. A
+// worker sees the rest of the user scope only by name, in its prompt, and asks for one with
+// `ntwinectl mcp-request`: the card is the gate a desktop-control server needs (router.ts applyMcpGrants).
 // User-scope STDIO servers are the one thing deliberately absent. An operator who wants one in a project's
 // workers adds it at local scope there, or declares it in the project's `.mcp.json` for everyone's.
 //
@@ -56,6 +59,9 @@ export interface ProjectMcpServersOptions {
   claudeConfigDir?: string
   /** Defaults to `os.homedir()`. */
   home?: string
+  /** User-scope servers the human granted THIS thread through `ntwinectl mcp-request` (router.ts
+   *  threadMcpGrants). Mounted like local-scope ones; a name the user scope no longer defines is skipped. */
+  grants?: readonly string[]
 }
 
 type JsonObject = Record<string, unknown>
@@ -171,16 +177,47 @@ function operatorServers(account: JsonObject | undefined, cwd: string, env: Node
   return out
 }
 
-/** Everything a worker in `cwd` mounts besides the ntwine server. See the header for the rule. */
-export function projectMcpServers(cwd: string, options: ProjectMcpServersOptions = {}): WorkerMcpServers {
+function configPaths(options: ProjectMcpServersOptions): { env: NodeJS.ProcessEnv; accountFile: string; userSettingsFile: string } {
   const env = options.env ?? process.env
   const home = options.home ?? homedir()
   const configOverride = options.claudeConfigDir ?? (env.CLAUDE_CONFIG_DIR?.trim() ? env.CLAUDE_CONFIG_DIR.trim() : undefined)
-  const accountFile = configOverride ? join(configOverride, ".claude.json") : join(home, ".claude.json")
-  const userSettingsFile = join(configOverride ?? join(home, ".claude"), "settings.json")
+  return {
+    env,
+    accountFile: configOverride ? join(configOverride, ".claude.json") : join(home, ".claude.json"),
+    userSettingsFile: join(configOverride ?? join(home, ".claude"), "settings.json"),
+  }
+}
+
+/** The operator's user-scope STDIO servers — the ones a worker does not mount unless granted. */
+export function userScopeStdioServers(options: ProjectMcpServersOptions = {}): Record<string, StdioMcpServer> {
+  const { env, accountFile } = configPaths(options)
+  const out: Record<string, StdioMcpServer> = {}
+  for (const [name, raw] of Object.entries(objectField(readJsonObject(accountFile), "mcpServers") ?? {})) {
+    const server = normalizeMcpServer(raw, env)
+    if (server && (server.type === undefined || server.type === "stdio")) out[name] = server as StdioMcpServer
+  }
+  return out
+}
+
+/** The user-scope stdio servers a worker in `cwd` could REQUEST: every one it does not already mount.
+ *  What `ntwinectl mcp-request` accepts and what the worker's prompt lists (mcpOnRequestSection). */
+export function requestableMcpServers(cwd: string, options: ProjectMcpServersOptions = {}): Record<string, StdioMcpServer> {
+  const mounted = projectMcpServers(cwd, options)
+  const out: Record<string, StdioMcpServer> = {}
+  for (const [name, server] of Object.entries(userScopeStdioServers(options))) if (!(name in mounted)) out[name] = server
+  return out
+}
+
+/** Everything a worker in `cwd` mounts besides the ntwine server. See the header for the rule. */
+export function projectMcpServers(cwd: string, options: ProjectMcpServersOptions = {}): WorkerMcpServers {
+  const { env, accountFile, userSettingsFile } = configPaths(options)
   const account = readJsonObject(accountFile)
 
   const out: WorkerMcpServers = operatorServers(account, cwd, env)
+  if (options.grants?.length) {
+    const user = userScopeStdioServers(options)
+    for (const name of options.grants) if (user[name] && !(name in out)) out[name] = user[name]
+  }
 
   const declared = objectField(readJsonObject(join(cwd, ".mcp.json")), "mcpServers")
   if (!declared) return out

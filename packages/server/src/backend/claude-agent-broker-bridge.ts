@@ -9,7 +9,7 @@ import { adoptOrForkBroker, killBroker, lastKnownBrokerDaemon, liveBrokerRecord,
 import { connectClaudeBroker, type ClaudeBrokerClient } from "./claude-broker-client.ts"
 import { describeClaudeBrokerExit, readClaudeBrokerExit, type ClaudeBrokerExitRecord } from "./claude-broker-diagnostics.ts"
 import type { ClaudeDiagnostic, ClaudePermissionDecision, ClaudePermissionRequest, ClaudeQueryEvent, ClaudeSkillInfo } from "./claude-agent-sdk-protocol.ts"
-import { CLAUDE_AGENT_SDK_MAX_INPUT_BYTES, CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_INPUT_ACK, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, validateInputMessage } from "./claude-agent-sdk-protocol.ts"
+import { CLAUDE_AGENT_SDK_MAX_INPUT_BYTES, CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_INPUT_ACK, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_MOUNT_MCP, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, validateInputMessage } from "./claude-agent-sdk-protocol.ts"
 import type { BrokerRecord, ClaudeBrokerConfig } from "./claude-agent-broker.ts"
 import type { InteractionSessionScope, InteractionStore } from "../interaction-store.ts"
 import {
@@ -85,6 +85,12 @@ export interface ClaudeBrokerBridgeDeps {
      *  command itself needs no PATH entry here: Claude Code puts the plugin's `bin/` on its Bash PATH. */
     cli?: NtwineCli
   }
+  /** The user-scope MCP servers the human granted `slug` (router.ts threadMcpGrants), read at every
+   *  fork so a cold resume keeps them. */
+  mcpGrants?: (slug: string) => string[]
+  /** The system-prompt section listing the user-scope MCP servers a worker in `cwd` could request
+   *  (mcp-requests.ts mcpOnRequestSection), appended at every fork. */
+  mcpOnRequest?: (cwd: string, grants: readonly string[]) => string
   /** The live Settings, read at every fork so the auto-compact window (Settings.autoCompactWindow →
    *  CLAUDE_CODE_AUTO_COMPACT_WINDOW) follows the drawer without a restart. Only the fork reads it: a
    *  daemon already running keeps the value it was forked with. Absent ⇒ the CLI's own default. */
@@ -221,6 +227,11 @@ export interface ClaudeAgentBrokerBridge {
    * Resolves with the provider's chosen title, or undefined when it declined to name the session.
    */
   renameSession(input: { threadSlug: string; sessionId: string; description: string }): Promise<string | undefined>
+  /**
+   * Mount a user-scope MCP server the human just granted into the LIVE session. Never cold-starts one:
+   * a thread with no daemon gets the grant at its next fork (deps.mcpGrants).
+   */
+  mountMcpServer(input: { threadSlug: string; sessionId: string; name: string }): Promise<void>
   /**
    * Take a follow-up BACK out of the session's command queue — the operator clicked their own queued
    * bubble to unqueue it. `deliveryId` is the id `followUp` handed the SDK, which is the uuid the CLI
@@ -619,10 +630,16 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
     // both the restart and the record's deletion. Empty ⇒ we genuinely cannot say, and reportDeath
     // declines to guess rather than quoting a predecessor.
     const lostGeneration = sessions.get(slug)?.generation ?? lastKnownBrokerDaemon(deps.stateDir, sessionId)?.generation ?? ""
+    // Read at the fork, like the rest of the worker environment: what the human granted this thread,
+    // and the prompt section naming the user-scope servers it could still ask for (mcp-requests.ts).
+    const grants = deps.mcpGrants?.(slug) ?? []
+    const onRequest = deps.mcpOnRequest?.(cwd, grants)
     const { record, reattached } = await adoptOrForkBroker({
       stateDir: deps.stateDir, cwd, sessionId, executablePath, permissionMode, env: deps.env,
       pluginDir: we?.pluginDir, mcpServers, allowedTools: we?.allowedTools, workerEnv,
+      grantedMcpServers: grants,
       ...fork,
+      ...(onRequest ? { appendSystemPrompt: [fork.appendSystemPrompt, onRequest].filter(Boolean).join("\n\n") } : {}),
     })
     // A RESUME that had to cold-start is the moment ntwine discovers a daemon died while nobody was
     // watching — the one death the live diagnostic relay structurally cannot see. Attribute it from the
@@ -883,6 +900,19 @@ export function createClaudeAgentBrokerBridge(deps: ClaudeBrokerBridgeDeps): Cla
         throw new Error("This thread's Claude session predates in-place rename — its next turn will restart on a session that supports it")
       }
       return await held.client.renameSession(input.description)
+    },
+
+    async mountMcpServer(input) {
+      const held = current(input.threadSlug, input.sessionId)
+      if (!held || !holdsLiveDaemon(held)) {
+        if (held) { held.client.close(); sessions.delete(input.threadSlug) }
+        throw new Error("This thread's Claude session is not running; the server mounts at its next turn")
+      }
+      const record = liveBrokerRecord(claudeBrokerRecordPath(deps.stateDir, held.sessionId))
+      if (!record?.capabilities?.includes(CLAUDE_BROKER_CAPABILITY_MOUNT_MCP)) {
+        throw new Error("This thread's Claude session predates in-place MCP mounting; the server mounts when it restarts")
+      }
+      await held.client.mountMcpServer(input.name)
     },
 
     // Ask the LIVE session for its skills. Same capability discipline as the verbs above: an older

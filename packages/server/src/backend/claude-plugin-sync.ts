@@ -26,9 +26,11 @@
 // turn boundary is the one place nothing is in flight to miss. That is also why an input waits behind
 // a reload already under way instead of racing it: the turn it starts must see one plugin, not two.
 //
-// What it does NOT move is an MCP server: a reload reports the plugin's servers and re-spawns none of
-// them (measured, plans/live-worker-updates.md §0). The Ntwine MCP shim is written so that does not
-// matter — it re-resolves the server it talks to on every call.
+// What it does NOT move is a server the session already holds: a reload reports the plugin's servers and
+// re-spawns none of them (measured, plans/live-worker-updates.md §0). It DOES start servers it newly
+// finds, and it ignores `--strict-mcp-config` while looking: measured 2026-10-14 on 2.1.296, a reload
+// mounted the operator's user-scope `windows` server into a live worker. The daemon denies those
+// commands in the session's settings (claude-agent-broker.ts reloadDeniedCommands).
 
 import { createHash } from "node:crypto"
 import { readFileSync, readdirSync, statSync } from "node:fs"

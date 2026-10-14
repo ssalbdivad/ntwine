@@ -1,3 +1,4 @@
+import { mcpOnRequestSection, threadMcpGrants } from "./mcp-requests.ts"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
 import {
@@ -928,6 +929,8 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
         // Read at every fork, not captured once: the compaction window is a Settings value the drawer
         // can change while the server runs, and the next dispatch or cold resume should carry it.
         getSettings: () => getSettings(storage, home),
+        mcpGrants: (slug) => threadMcpGrants(storage.listThreadQuestions(slug)),
+        mcpOnRequest: (cwd, grants) => mcpOnRequestSection(cwd, grants),
         // Which broker threads warmUp() may reattach at boot. Same predicate codex's shouldAutoResume
         // applies: never wake a thread the human has already put away — a boot reattach is only for a
         // thread that is still open and still theirs to come back to. Broker-backed rows only; a

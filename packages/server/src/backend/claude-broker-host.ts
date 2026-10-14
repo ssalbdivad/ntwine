@@ -295,6 +295,8 @@ export interface ForkBrokerOptions {
   mcpServers?: WorkerMcpServers
   allowedTools?: string[]
   workerEnv?: Record<string, string>
+  /** User-scope MCP servers granted to this thread — see ClaudeBrokerConfig.grantedMcpServers. */
+  grantedMcpServers?: string[]
   /** Override the daemon entry (tests). Defaults to the bundled/sibling claude-agent-broker. */
   daemonEntry?: string
   timeoutMs?: number
@@ -317,6 +319,7 @@ export function forkBroker(options: ForkBrokerOptions): Promise<BrokerRecord> {
     ...(options.forkFrom ? { forkFrom: options.forkFrom } : {}),
     pluginDir: options.pluginDir, mcpServers: options.mcpServers, allowedTools: options.allowedTools,
     workerEnv: options.workerEnv,
+    ...(options.grantedMcpServers?.length ? { grantedMcpServers: options.grantedMcpServers } : {}),
   }
   const entry = options.daemonEntry ?? resolveDetachedDaemonEntry(import.meta.url, "claude-agent-broker")
   const child = spawn(process.execPath, [entry], {

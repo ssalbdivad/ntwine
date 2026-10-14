@@ -13,7 +13,7 @@
  * aesthetic. The server NEVER crashes on a bad tool call: failures come back as an isError tool
  * result so the worker sees a message instead of a dead tool.
  */
-import { GATED_TOOLS, HANDLERS, Refused, TOOLS, rpcPath, serverLockPort } from "../lib/ntwine-tools.mjs"
+import { CLI_ONLY_TOOLS, GATED_TOOLS, HANDLERS, Refused, TOOLS, rpcPath, serverLockPort } from "../lib/ntwine-tools.mjs"
 
 const PROTOCOL_FALLBACK = "2025-06-18"
 
@@ -92,7 +92,7 @@ function hasCapability(caps, capability) {
 
 /** The tools to list under `caps`. @param {Record<string, unknown> | undefined} caps */
 function listedTools(caps) {
-  return TOOLS.filter((tool) => !GATED_TOOLS[tool.name] || hasCapability(caps, GATED_TOOLS[tool.name]))
+  return TOOLS.filter((tool) => !CLI_ONLY_TOOLS.has(tool.name) && (!GATED_TOOLS[tool.name] || hasCapability(caps, GATED_TOOLS[tool.name])))
 }
 
 /** One poll: re-read the report and, when a gated capability has come or gone, change what is listed

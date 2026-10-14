@@ -205,6 +205,9 @@ import {
 import { type AppContext } from "./context.ts"
 import { listAcpAgentsCached } from "./backend/acp-agents.ts"
 import { secretFilePath, serveSecret } from "./secret-files.ts"
+import { grantMcpToProject, mcpGrantOf, mcpRequestQuestion, threadMcpGrants } from "./mcp-requests.ts"
+import { requestableMcpServers, userScopeStdioServers } from "./backend/project-mcp-servers.ts"
+import { resolveClaudeExecutableAbsolute } from "./backend/claude-broker-host.ts"
 import { sessionTitleLocked } from "./storage.ts"
 import { createThreadNamer, openThreadsElsewhere, rowThreadName, threadNameProblem, type NamedThread, type ThreadNamer } from "./thread-names.ts"
 import { handleOf, isReplyWaitFor, knownHandles, replyWaitOf, replyWaitPrompt, resolveSubAgent, resolveThreadHandle, subAgentAddresses, THREAD_MESSAGE_HOURLY_CAP, threadMessageBody } from "./thread-mentions.ts"
@@ -2101,6 +2104,29 @@ export function createRouter(ctx: AppContext) {
     return settled
   }
 
+  // AN ANSWERED MCP SERVER REQUEST IS A GRANT (mcp-requests.ts), carried out before the answer is handed
+  // to the worker, so the turn that reads "allowed" already has the tools. A failure is logged and not
+  // thrown: the answer stands, and a thread grant still mounts at the thread's next fork.
+  async function applyMcpGrants(slug: string, settled: readonly QuestionAnswer[]): Promise<void> {
+    for (const answer of settled) {
+      const q = ctx.storage.getThreadQuestion(answer.questionId)
+      const granted = q ? mcpGrantOf(q) : undefined
+      if (!granted) continue
+      const cwd = workDirOf(ctx.project)
+      try {
+        if (granted.grant === "project") {
+          const server = userScopeStdioServers()[granted.name]
+          if (!server) throw new Error(`the user scope no longer defines "${granted.name}"`)
+          await grantMcpToProject(resolveClaudeExecutableAbsolute(undefined), cwd, granted.name, server)
+        }
+        const row = ctx.storage.getSession(slug)
+        if (row && ctx.claudeBroker) await ctx.claudeBroker.mountMcpServer({ threadSlug: slug, sessionId: row.session_id, name: granted.name })
+      } catch (error) {
+        ntwineLog.warn("server", `${slug}: MCP grant for ${granted.name} (${granted.grant}): ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+  }
+
   // THE PROMPT BOX'S ONE SEND (maintainer 2026-10-11). Three things the operator's follow-up can now be,
   // all of which end in the same deliverFollowUp:
   //
@@ -2131,6 +2157,7 @@ export function createRouter(ctx: AppContext) {
         throw new Error("Wait for the current permission change to finish before sending a follow-up")
       }
       const settled = settleQuestionAnswers(input.slug, answers, Date.now(), { delivered: true })
+      await applyMcpGrants(input.slug, settled)
       if (settled.length > 0) {
         message = withAnswersNote(questionAnswerMessage(settled), input.message)
         ctx.board.refresh()
@@ -2486,7 +2513,7 @@ export function createRouter(ctx: AppContext) {
       const spec = parseQuestionSpec(q.spec)
       // A SECRET REQUEST SURVIVES IT TOO, for a plainer reason: there is nothing to decide. The worker
       // cannot invent a one-time code, so cancelling the request strands the work it was for.
-      if (spec?.danger || spec?.secret) continue
+      if (spec?.danger || spec?.secret || spec?.mcp) continue
       if (ctx.storage.dismissThreadQuestion(q.id, now)) cancelled++
     }
     return cancelled
@@ -4997,7 +5024,8 @@ export function createRouter(ctx: AppContext) {
         const goal = autonomousGoal(row)
         // A batch of SECRET requests is exempt: a credential is not a call the worker can decide, it is
         // a value only the human holds — the same footing as `steps:`, which autonomous mode allows.
-        if (goal && !input.questions.every((q) => q.secret)) {
+        // So is an MCP server request: whether a worker may hold the operator's desktop is theirs to say.
+        if (goal && !input.questions.every((q) => q.secret || q.mcp)) {
           throw new Error(
             "This thread is running autonomously — decide it yourself and proceed. Its standing " +
             `instruction is:\n\n${goal}\n\nSay which way you went and why in your write-up, so the ` +
@@ -5013,6 +5041,19 @@ export function createRouter(ctx: AppContext) {
         // free-text box, silently).
         const faults = input.questions.flatMap((q) => askedQuestionFaults(q))
         if (faults.length > 0) throw new Error(faults.join("\n"))
+        // AN MCP SERVER REQUEST IS WORDED BY THE SERVER (mcp-requests.ts): the worker names the server and
+        // gives a reason, and the card it gets is the same for every worker, so what the human approves is
+        // never the worker's paraphrase of it.
+        input.questions = input.questions.map((q) => {
+          if (!q.mcp) return q
+          if (row.backend && row.backend !== "claude") throw new Error("MCP server requests are for Claude threads; a Codex worker loads the servers in ~/.codex/config.toml itself")
+          const requestable = requestableMcpServers(workDirOf(ctx.project), { grants: threadMcpGrants(ctx.storage.listThreadQuestions(input.slug)) })
+          const server = requestable[q.mcp]
+          if (!server) throw new Error(`"${q.mcp}" is not one of the user's MCP servers this thread could request${Object.keys(requestable).length ? ` — those are: ${Object.keys(requestable).join(", ")}` : " — there are none (it may already be mounted)"}`)
+          const pending = ctx.storage.listThreadQuestions(input.slug, { openOnly: true }).some((open) => parseQuestionSpec(open.spec)?.mcp === q.mcp)
+          if (pending) throw new Error(`A request for "${q.mcp}" is already open on this thread`)
+          return mcpRequestQuestion(q.mcp, server, q.question)
+        })
         // A PIVOT STICKS: a question dropped is never asked again (David 2026-09-28, after a worker
         // `unask`ed both of its stale cards and re-registered them word for word under the human's
         // unrelated next request). Dropping is an act — the human's ×, or the worker's own `unask` after
@@ -5064,7 +5105,9 @@ export function createRouter(ctx: AppContext) {
         "answerQuestions",
         () => ({ project: thisProject, thread: input.slug, detail: { answers: input.answers.map((answer) => answerDigest(input.slug, answer)) } }),
         async () => {
-          const answered = settleQuestionAnswers(input.slug, input.answers, Date.now()).map((answer) => answer.questionId)
+          const settled = settleQuestionAnswers(input.slug, input.answers, Date.now())
+          await applyMcpGrants(input.slug, settled)
+          const answered = settled.map((answer) => answer.questionId)
           // ANSWERING IS NOT DELIVERING. The row is stored answered-but-undelivered and the scheduler
           // hands it over (evalQuestionAnswers), so an answer given while the worker's process is down
           // survives the gap instead of being lost in the same silence the fence lost the question in.

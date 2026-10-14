@@ -133,6 +133,13 @@ export interface ClaudeQueryStartOptions {
   // and no user-scope server by itself. This is just the seam; WHICH servers a worker gets is decided in
   // project-mcp-servers.ts and applied by the broker daemon.
   strictMcpConfig?: boolean
+  // Stdio commands (`[command, ...args]`) the session may never start, as Claude Code's own
+  // `deniedMcpServers` in the session's flag settings. `strictMcpConfig` holds only at launch:
+  // `reloadPlugins()` re-reads every MCP scope and starts what it finds — measured 2026-10-14 on 2.1.296,
+  // a reload under strict mode mounted the operator's user-scope `windows` server into a live worker.
+  // Matching by COMMAND blocks that copy while a server mounted through the lazy host (an `http` URL,
+  // even under the same name) still connects.
+  deniedMcpCommands?: Array<[string, ...string[]]>
   // Tools taken away from the session outright — the SDK equivalent of the argv path's
   // `--disallowedTools=`. The broker passes WORKER_DISALLOWED_TOOLS (backend/types.ts) here.
   disallowedTools?: readonly string[]
@@ -189,6 +196,12 @@ export interface ClaudeQueryHandle extends AsyncIterable<ClaudeQueryEvent> {
    * an ntwine-side re-implementation could only ever drift from it.
    */
   listSkills(): Promise<ClaudeSkillInfo[]>
+  /**
+   * Replace the session's DYNAMIC MCP servers (the SDK's `setMcpServers`) — what a grant from
+   * `ntwinectl mcp-request` mounts into a running thread. Servers from the `--mcp-config` file are not
+   * dynamic and are untouched. Resolves with the names the CLI added and any that failed to connect.
+   */
+  setMcpServers(servers: WorkerMcpServers): Promise<{ added: string[]; errors: Record<string, string> }>
   setPermissionMode(mode: ClaudePermissionMode): Promise<void>
   // Ask the provider to name the session from `description` and PERSIST the name as the `ai-title`
   // record ntwine's tailer reads. See CLAUDE_TITLE_NEEDS_EXPLICIT_REQUEST below for why the broker has
@@ -514,6 +527,19 @@ class RealClaudeQueryHandle implements ClaudeQueryHandle {
       ).filter(Boolean),
       errorCount: Number.isFinite(result?.error_count) ? Number(result.error_count) : 0,
     }
+  }
+
+  async setMcpServers(servers: WorkerMcpServers): Promise<{ added: string[]; errors: Record<string, string> }> {
+    this.assertOpen()
+    if (typeof this.sdkQuery.setMcpServers !== "function") {
+      throw new Error("this Claude Agent SDK build has no setMcpServers(); ntwine cannot mount an MCP server in place")
+    }
+    await this.ready()
+    this.assertOpen()
+    const result = await this.awaitOpenControl(this.sdkQuery.setMcpServers(servers as never))
+    const errors: Record<string, string> = {}
+    for (const [name, message] of Object.entries((result?.errors ?? {}) as Record<string, unknown>)) errors[name] = String(message).slice(0, 2000)
+    return { added: boundedStringArray(Array.isArray(result?.added) ? result.added.map(String) : [], "setMcpServers.added", 64, 128), errors }
   }
 
   // The session's invocable skills: the initialize handshake already carries every slash entry WITH
@@ -1063,7 +1089,14 @@ function startClaudeQuery(executablePath: string, options: ClaudeQueryStartOptio
       // must travel TOGETHER or the setting is silently ignored (see resolveClaudeEffort). `settings` is
       // an additional highest-precedence settings source, layered over `settingSources` above.
       ...(claudeEffort.effort ? { effort: claudeEffort.effort as "low" | "medium" | "high" | "xhigh" | "max" } : {}),
-      ...(claudeEffort.ultracode ? { settings: claudeUltracodeSettings() } : {}),
+      ...(claudeEffort.ultracode || options.deniedMcpCommands?.length
+        ? {
+            settings: {
+              ...(claudeEffort.ultracode ? claudeUltracodeSettings() : {}),
+              ...(options.deniedMcpCommands?.length ? { deniedMcpServers: options.deniedMcpCommands.map((serverCommand) => ({ serverCommand })) } : {}),
+            },
+          }
+        : {}),
       // AN INTERRUPT MUST NOT KILL THE WORKER'S SUB-AGENTS. The CLI fails closed here: unless the
       // consumer declares that it renders a per-task stop control wired to `stop_task`, every
       // interrupt (the ⌘-Enter "interrupt and send", the queued bubble's push-now, a "pause now")

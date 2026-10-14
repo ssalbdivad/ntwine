@@ -119,6 +119,11 @@ export const CLAUDE_BROKER_CAPABILITY_RENAME = "rename-v1"
 // its deadline reporting "the session did not answer" instead of "this session is too old".
 export const CLAUDE_BROKER_CAPABILITY_LIST_SKILLS = "list-skills-v1"
 
+// Mounting one of the operator's user-scope MCP servers into the LIVE session, through the SDK's
+// `setMcpServers` — what answering an `ntwinectl mcp-request` card with a grant does. Gated like the
+// rest: an older daemon ignores the frame, and the grant then reaches the thread at its next fork.
+export const CLAUDE_BROKER_CAPABILITY_MOUNT_MCP = "mount-mcp-v1"
+
 // An ACKNOWLEDGED input: the `input` frame carries a `requestId`, and the daemon answers it with an
 // `input-result` once the session has taken the message into its input queue (or with the error that
 // refused it). Before this the input frame was the one control action with NO reply, so a follow-up

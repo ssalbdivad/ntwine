@@ -69,6 +69,8 @@ export interface ClaudeBrokerClient {
   stopTask(taskId: string): Promise<void>
   /** Re-title the live session through the provider (the SDK's `generateSessionTitle`). */
   renameSession(description: string): Promise<string | undefined>
+  /** Mount one of the operator's user-scope MCP servers into the live session (`mount-mcp`). */
+  mountMcpServer(name: string): Promise<void>
   /** The session's invocable skills, as the harness reports them (names + descriptions). */
   listSkills(): Promise<ClaudeSkillInfo[]>
   setPermissionMode(mode: string): void
@@ -121,6 +123,7 @@ export function connectClaudeBroker(
   const pendingCancels = new Map<string, { settle: (cancelled: boolean) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingStops = new Map<string, { settle: () => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingRenames = new Map<string, { settle: (t: string | undefined) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
+  const pendingMounts = new Map<string, { settle: () => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   const pendingSkills = new Map<string, { settle: (s: ClaudeSkillInfo[]) => void; fail: (error: Error) => void; timer: NodeJS.Timeout }>()
   // In-flight deliverInput calls, keyed by the requestId the daemon echoes on `input-result`.
   const pendingInputs = new Map<string, { settle: () => void; fail: (error: Error) => void; timer: NodeJS.Timeout; written: boolean }>()
@@ -187,6 +190,15 @@ export function connectClaudeBroker(
           const entry = pendingStops.get(frame.requestId as string)
           if (!entry) break
           pendingStops.delete(frame.requestId as string)
+          clearTimeout(entry.timer)
+          if (typeof frame.error === "string" && frame.error) entry.fail(new Error(frame.error))
+          else entry.settle()
+          break
+        }
+        case "mount-mcp-result": {
+          const entry = pendingMounts.get(frame.requestId as string)
+          if (!entry) break
+          pendingMounts.delete(frame.requestId as string)
           clearTimeout(entry.timer)
           if (typeof frame.error === "string" && frame.error) entry.fail(new Error(frame.error))
           else entry.settle()
@@ -327,6 +339,18 @@ export function connectClaudeBroker(
       pendingRenames.set(requestId, { settle: resolve, fail: reject, timer })
       send({ t: "rename", requestId, description })
     }),
+    // The rename deadline: connecting a server is a process start and a handshake, not bookkeeping.
+    mountMcpServer: (name: string) => new Promise<void>((resolve, reject) => {
+      if (closed) { reject(new Error("the broker connection is closed")); return }
+      const requestId = `mount-${++cancelSeq}`
+      const timer = setTimeout(() => {
+        pendingMounts.delete(requestId)
+        reject(new Error("the Claude session did not answer the MCP mount"))
+      }, renameTimeoutMs)
+      if (timer.unref) timer.unref()
+      pendingMounts.set(requestId, { settle: resolve, fail: reject, timer })
+      send({ t: "mount-mcp", requestId, name })
+    }),
     setPermissionMode: (mode: string) => send({ t: "set-mode", mode }),
     connected: () => sock !== null && !sock.destroyed,
     isClosed: () => closed,
@@ -339,6 +363,8 @@ export function connectClaudeBroker(
       pendingStops.clear()
       for (const [, entry] of pendingRenames) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the rename was answered")) }
       pendingRenames.clear()
+      for (const [, entry] of pendingMounts) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the MCP mount was answered")) }
+      pendingMounts.clear()
       for (const [, entry] of pendingSkills) { clearTimeout(entry.timer); entry.fail(new Error("the broker connection closed before the skill listing was answered")) }
       pendingSkills.clear()
       pendingStops.clear()

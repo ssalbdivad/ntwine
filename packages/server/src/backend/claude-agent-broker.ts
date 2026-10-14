@@ -9,11 +9,13 @@
 //   ntwine -> broker:  {t:"input", message, requestId?} | {t:"permission", requestId, decision} | {t:"interrupt", ifQueued?} | {t:"set-mode", mode}
 //                  | {t:"cancel-input", requestId, id} | {t:"stop-task", requestId, taskId}
 //                  | {t:"reload-plugins", requestId} | {t:"rename", requestId, description} | {t:"list-skills", requestId}
+//                  | {t:"mount-mcp", requestId, name}
 //   broker -> ntwine:  {t:"hello", sessionId, generation} | {t:"event", event} | {t:"permission-request", requestId, request} | {t:"diagnostic", diagnostic}
 //                  | {t:"permission-withdrawn", requestId}   (a request ntwine was shown that nothing can answer any more)
 //                  | {t:"input-result", requestId, error?}   (only for an input that carried a requestId)
 //                  | {t:"cancel-result", requestId, cancelled, error?} | {t:"stop-result", requestId, error?}
 //                  | {t:"reload-result", requestId, reloaded?, error?} | {t:"rename-result", requestId, title?, error?} | {t:"skills-result", requestId, skills?, error?}
+//                  | {t:"mount-mcp-result", requestId, added?, error?}
 //
 // Control actions that make a user-visible promise are REQUEST/RESPONSE pairs: `cancel-input` carries
 // the CLI's verdict about whether a message will still run, and `stop-task` returns only after the SDK
@@ -33,7 +35,7 @@ import { createClaudeQueryFactory, sanitizeProviderChildEnvironment } from "./cl
 import { inheritWorkerEnvironment } from "./worker-env.ts"
 import { leaseRuntime } from "../runtime-lease.ts"
 import { daemonBirthMarker } from "./daemon-identity.ts"
-import { projectMcpServers, workerMcpServers, type StdioMcpServer, type WorkerMcpServers } from "./project-mcp-servers.ts"
+import { projectMcpServers, userScopeStdioServers, workerMcpServers, type StdioMcpServer, type WorkerMcpServers } from "./project-mcp-servers.ts"
 import { lazyMcpEnabled, startLazyMcpHost, type LazyMcpHost } from "./lazy-mcp-host.ts"
 import { ntwineRoots } from "../ntwine-paths.ts"
 import { WORKER_DISALLOWED_TOOLS, claudeCompactionWindowOf } from "./types.ts"
@@ -41,7 +43,7 @@ import { socketPathOwnership } from "./socket-ownership.ts"
 import { createClaudeBrokerDiagnosticWriter, createClaudeBrokerExitWriter, type ClaudeBrokerExitReason } from "./claude-broker-diagnostics.ts"
 import { claudeClosureFingerprint, claudePluginSyncEnabled, createClaudePluginSync } from "./claude-plugin-sync.ts"
 import { recordObservedClaudeQuota } from "./claude-quota-observed.ts"
-import { CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_INPUT_ACK, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX } from "./claude-agent-sdk-protocol.ts"
+import { CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_INPUT_ACK, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_MOUNT_MCP, CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, CLAUDE_INPUT_DROP_DIAGNOSTIC_PREFIX } from "./claude-agent-sdk-protocol.ts"
 import type {
   ClaudeDiagnostic,
   ClaudeInputMessage,
@@ -80,6 +82,9 @@ export interface ClaudeBrokerConfig {
   mcpServers?: WorkerMcpServers
   allowedTools?: string[]
   workerEnv?: Record<string, string>
+  /** User-scope MCP servers the human granted this thread (`ntwinectl mcp-request`), mounted at the
+   *  fork beside the project's (project-mcp-servers.ts `grants`). */
+  grantedMcpServers?: string[]
   /** When set, the daemon writes a discovery record here after its socket is listening. */
   recordPath?: string
   /** When set, the daemon appends its OWN lifecycle/stderr diagnostics here, synchronously. This is
@@ -127,7 +132,7 @@ export interface BrokerRecord {
 // of a VALUE from here — rather than an `import type` — initializes this module inside the server
 // process, where the entry-point check is satisfied by the bundle's own path and the guard fires. That
 // took down the whole control plane on the artifact while dev source (separate files) stayed green.
-const BROKER_CAPABILITIES = [CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_INPUT_ACK]
+const BROKER_CAPABILITIES = [CLAUDE_BROKER_CAPABILITY_SUBAGENT_STEER, CLAUDE_BROKER_CAPABILITY_CANCEL_INPUT, CLAUDE_BROKER_CAPABILITY_STOP_TASK, CLAUDE_BROKER_CAPABILITY_RELOAD_PLUGINS, CLAUDE_BROKER_CAPABILITY_RENAME, CLAUDE_BROKER_CAPABILITY_LIST_SKILLS, CLAUDE_BROKER_CAPABILITY_INPUT_ACK, CLAUDE_BROKER_CAPABILITY_MOUNT_MCP]
 
 const IDLE_EXIT_MS = 6 * 60 * 60 * 1000
 // How long a permission request waits in this process before ntwine is shown it — long enough for the
@@ -157,6 +162,24 @@ function mountLazily(project: WorkerMcpServers, ntwine: WorkerMcpServers | undef
     if ((server.type === undefined || server.type === "stdio") && !(ntwine && name in ntwine)) stdio[name] = server as StdioMcpServer
   }
   return { ...project, ...host.mount(stdio, context) }
+}
+
+/** The stdio commands a plugin reload must not start (ClaudeQueryStartOptions.deniedMcpCommands): every
+ *  user-scope stdio server, and — when the lazy host stands in for them, so none is ever mounted by its
+ *  command — every stdio server this worker mounts too, which a reload would otherwise start a second,
+ *  eager copy of. Without the lazy host a mounted server IS its command, so only the unmounted are denied. */
+function reloadDeniedCommands(cwd: string, options: { env: NodeJS.ProcessEnv; grants?: string[] }, lazy: boolean): Array<[string, ...string[]]> {
+  const mounted = projectMcpServers(cwd, options)
+  const commands: Array<[string, ...string[]]> = []
+  for (const [name, server] of Object.entries(userScopeStdioServers(options))) {
+    if (lazy || !(name in mounted)) commands.push([server.command, ...(server.args ?? [])])
+  }
+  if (lazy) {
+    for (const server of Object.values(mounted)) {
+      if (server.type === undefined || server.type === "stdio") commands.push([server.command, ...((server as StdioMcpServer).args ?? [])])
+    }
+  }
+  return commands
 }
 
 export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBrokerOptions = {}): RunningBroker {
@@ -240,6 +263,16 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
         log: (message) => writeDiagnostic?.({ kind: "stderr", message: `[plugin-sync] ${message}`, truncated: false }),
       })
     : undefined
+  const lazyContext: Parameters<LazyMcpHost["mount"]>[1] = {
+    cwd: config.cwd,
+    // What the CLI itself would have spawned the server with: the env the factory hands it, after
+    // the same sanitizing (no inherited NODE_OPTIONS, no nub shim on PATH).
+    env: sanitizeProviderChildEnvironment(env) as Record<string, string>,
+    log: (message) => writeDiagnostic?.({ kind: "stderr", message: `[lazy-mcp] ${message}`, truncated: false }),
+  }
+  // What `mount-mcp` has added to this session, by name. The SDK's setMcpServers REPLACES the dynamic
+  // set, so every call carries all of them.
+  const dynamicMcp: WorkerMcpServers = {}
   const handle = factory.start({
     cwd: config.cwd,
     session: config.resume
@@ -261,16 +294,11 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
     // Stdio servers are not started here: the lazy host stands in for each one and starts the real
     // command on the first tool call (lazy-mcp-host.ts has the measurement that motivated it).
     mcpServers: workerMcpServers(
-      mountLazily(projectMcpServers(config.cwd, { env }), config.mcpServers, options.lazyMcpHost, {
-        cwd: config.cwd,
-        // What the CLI itself would have spawned the server with: the env the factory hands it, after
-        // the same sanitizing (no inherited NODE_OPTIONS, no nub shim on PATH).
-        env: sanitizeProviderChildEnvironment(env) as Record<string, string>,
-        log: (message) => writeDiagnostic?.({ kind: "stderr", message: `[lazy-mcp] ${message}`, truncated: false }),
-      }),
+      mountLazily(projectMcpServers(config.cwd, { env, grants: config.grantedMcpServers }), config.mcpServers, options.lazyMcpHost, lazyContext),
       config.mcpServers,
     ),
     strictMcpConfig: true,
+    deniedMcpCommands: reloadDeniedCommands(config.cwd, { env, grants: config.grantedMcpServers }, options.lazyMcpHost !== undefined),
     allowedTools: config.allowedTools,
     // The same prohibition as the argv path (WORKER_DISALLOWED_TOOLS). This path kept AskUserQuestion
     // until 2026-09-30 because canUseTool could render it as a real dashboard card — but the tool's own
@@ -582,6 +610,23 @@ export function runClaudeBroker(config: ClaudeBrokerConfig, options: RunClaudeBr
             (skills) => write(sock, { t: "skills-result", requestId, skills }),
             (error: unknown) => write(sock, { t: "skills-result", requestId, error: error instanceof Error ? error.message : String(error) }),
           )
+        }
+        else if (msg.t === "mount-mcp") {
+          // A grant the human just gave on an `ntwinectl mcp-request` card. Resolved HERE, from the
+          // operator's user scope as this daemon reads it, so the server never ships a command line
+          // over the socket; a stdio server rides the lazy host like any other.
+          const requestId = msg.requestId as string
+          const name = typeof msg.name === "string" ? msg.name : ""
+          const server = userScopeStdioServers({ env })[name]
+          if (!server) {
+            write(sock, { t: "mount-mcp-result", requestId, error: `no user-scope MCP server named "${name}"` })
+          } else {
+            Object.assign(dynamicMcp, mountLazily({ [name]: server }, config.mcpServers, options.lazyMcpHost, lazyContext))
+            void handle.setMcpServers(dynamicMcp).then(
+              (result) => write(sock, { t: "mount-mcp-result", requestId, added: result.added, ...(result.errors[name] ? { error: result.errors[name] } : {}) }),
+              (error: unknown) => write(sock, { t: "mount-mcp-result", requestId, error: error instanceof Error ? error.message : String(error) }),
+            )
+          }
         }
         else if (msg.t === "set-mode") void handle.setPermissionMode(msg.mode as never).catch(() => {})
       }
