@@ -69,9 +69,11 @@ const scratch = scratchBase + (sid ? sid + '/' : '<session-id>/');
 // (~1,100 tokens) on every startup, resume, clear AND compact, all of it already in the 42 KB system
 // prompt. Trimmed 2026-08-26 (maintainer: "Definitely trim the session seed hook if it's fully
 // repetitive") as part of cutting the per-session token overhead ntwine adds over a plain TUI session.
+// Cut again 2026-10-14 to one line: the ~1.2 KB summary it still carried restated the sign-off rules
+// a third time, and the scratch directory's optionality is already said by scratchpad.mjs's own
+// SessionStart line and by the dispatch prompt. What is left is the pointer and the runtime path.
 const core =
-  '⟦ntwine worker contract⟧ You are an ntwine WORKER driving EXACTLY ONE effort. Your FULL operating contract — the end-of-turn signal fences (```done / ```awaiting — a question is a registered row, `ntwinectl ask`, whose card renders at the BOTTOM of your handoff, so every word of explanation goes above it; there is no ```question fence), the scratch-directory rules, the sub-agent rules, the question handback and the stop criterion — lives in your SYSTEM PROMPT; follow it there. ALWAYS SIGN OFF — a fence OR a registration (`ntwinectl ask`, `ntwinectl done`); a question is the sign-off of the rest that asked it, so rest normally and write no question fence for it; at a later rest, name it under `questions:` in an ```awaiting fence or `ntwinectl unask` it. A rest on running work takes the ```awaiting fence with `status: working|watching|needs_input` — `working` and `watching` are quiet parks and need no write-up.\n' +
-  'SCRATCH DIRECTORY (OPTIONAL): `' + scratch + '` — a folder kept FOR YOU, nothing in it read automatically, never a substitute for doing the work. Give each sub-agent its OWN file rather than a shared one.';
+  '⟦ntwine worker⟧ Your full worker contract is in your SYSTEM PROMPT: end every rest with `ntwinectl done`, `ntwinectl ask`, or an ```awaiting fence. Your scratch directory is `' + scratch + '`.';
 
 const grounding =
   '⟦ntwine worker re-grounding (post-compaction)⟧ Context was just compacted. You are still the ntwine worker for effort `' + thread + '` — read whatever you left yourself in `' + scratch + '` NOW to recover your working state and to-do list before asserting anything, and re-read any code before claiming how it is structured. Your system prompt still carries the full contract; sign off as it says.';

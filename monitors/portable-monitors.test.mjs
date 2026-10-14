@@ -46,15 +46,17 @@ test("worker guidance prefers declared tooling and makes no Luna child mandatory
   const codexPrompt = readFileSync(join(promptDir, "WORKER_PROMPT.codex.golden.txt"), "utf8")
   const claudePrompt = readFileSync(join(promptDir, "WORKER_PROMPT.claude.golden.txt"), "utf8")
 
-  assert.match(codexPrompt, /project-local `AGENTS\.md`/)
-  assert.match(codexPrompt, /terminal event\/exit semantics/)
+  const codex = codexPrompt.replace(/\s+/g, " ")
+  assert.match(codex, /monitor tooling the project declares \(`AGENTS\.md`, skills, scripts\)/)
+  assert.match(codex, /terminal event\/exit semantics/)
   assert.match(codexPrompt, /silently shadow/)
   assert.match(codexPrompt, /Luna child is optional/)
   assert.doesNotMatch(codexPrompt, /cheap monitor child/)
 
   // What the Claude contract still says about waiting, so condensing it again cannot silently empty
   // the section: which mechanism to reach for, who owns a wait you REST on, and no faked waits.
-  assert.match(claudePrompt, /The mechanism is decided by whether you will REST while it runs/)
-  assert.match(claudePrompt, /dispatch a sub-agent to own the wait/)
-  assert.match(claudePrompt, /Never fake a wait with `echo waiting`/)
+  const claudeFlat = claudePrompt.replace(/\s+/g, " ")
+  assert.match(claudeFlat, /Resting on an outside condition:\*\* `ntwinectl watch-pr`/)
+  assert.match(claudeFlat, /a wait no command can judge goes to a sub-agent that blocks until the verdict/)
+  assert.match(claudeFlat, /never poll from the turn/)
 })

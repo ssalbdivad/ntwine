@@ -249,26 +249,24 @@ test("the nudge tracks context GROWTH, not an absolute threshold or wall clock",
   const nudge = (tokens: number) =>
     runHook(dir, ["--mode=nudge"], { session_id: SID, transcript_path: writeTranscript(dir, tokens) }, stale)
 
-  assert.equal(nudge(20_000), "", "below the threshold the hook must say nothing")
-
-  // An EMPTY directory measures growth from ZERO — the whole session is unrecorded.
-  const empty = additionalContext(nudge(70_000))
-  assert.match(empty, /⟦scratch directory empty⟧/)
-  assert.match(empty, /~70k tokens deep/)
-
-  assert.equal(nudge(75_000), "", "a second nudge must not follow immediately")
+  // Notes are optional, so a worker that kept none is never nudged, however long the session runs.
+  assert.equal(nudge(70_000), "", "an empty directory is never nudged")
+  assert.equal(nudge(500_000), "", "not even half a million tokens in")
 
   writeScratch(dir, "now written with real content\n", "plan.md")
-  assert.equal(nudge(76_000), "", "a fresh write silences the nudge")
-  assert.equal(nudge(120_000), "", "44k of growth is still under the interval")
+  assert.equal(nudge(510_000), "", "a fresh write starts the clock")
+  assert.equal(nudge(550_000), "", "40k of growth is still under the interval")
 
-  const restale = additionalContext(nudge(140_000))
+  const restale = additionalContext(nudge(574_000))
   assert.match(restale, /⟦scratch notes stale⟧/)
   assert.match(restale, /grown ~64k tokens/)
+  assert.equal(nudge(580_000), "", "a second nudge must not follow immediately")
 })
 
 test("the mid-turn channel reports itself as PostToolUse so the harness accepts the injection", () => {
   const dir = newProject()
+  writeScratch(dir, "notes\n", "plan.md")
+  runHook(dir, ["--mode=nudge"], { session_id: SID, transcript_path: writeTranscript(dir, 10_000) }, { NTWINE_SCRATCHPAD_STALE_TOKENS: "60000" })
   const out = runHook(
     dir,
     ["--mode=nudge", "--event=PostToolUse"],
@@ -278,13 +276,15 @@ test("the mid-turn channel reports itself as PostToolUse so the harness accepts 
   // An ntwine worker runs enormous autonomous turns; a turn-boundary-only nudge can miss a whole
   // session's work. The event name must match the firing hook or the payload is rejected.
   assert.equal(JSON.parse(out).hookSpecificOutput.hookEventName, "PostToolUse")
-  assert.match(additionalContext(out), /⟦scratch directory empty⟧/)
+  assert.match(additionalContext(out), /⟦scratch notes stale⟧/)
 })
 
 test("both nudge channels share one interval, so mid-turn firing does not multiply reminders", () => {
   const dir = newProject()
   const stale = { NTWINE_SCRATCHPAD_STALE_TOKENS: "60000" }
   const t = (tokens: number) => ({ session_id: SID, transcript_path: writeTranscript(dir, tokens) })
+  writeScratch(dir, "notes\n", "plan.md")
+  assert.equal(runHook(dir, ["--mode=nudge"], t(5_000), stale), "", "the first observation sets the baseline")
 
   assert.notEqual(runHook(dir, ["--mode=nudge", "--event=PostToolUse"], t(70_000), stale), "", "first fires")
   // The turn-boundary channel must respect the budget the mid-turn channel just spent.
