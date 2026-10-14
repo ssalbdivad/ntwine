@@ -283,6 +283,7 @@ export function Composer({
   aside,
   leftAction,
   railLead,
+  railPermission,
   contextTokens,
   contextSources,
   slashSuggest,
@@ -349,6 +350,8 @@ export function Composer({
   // A control at the rail's LEFT end, beyond the paperclip — the thread composer's Goal
   // (ThreadComposerBox). It owns its own popover; this component only places it.
   railLead?: React.ReactNode
+  /** The thread's permission mode as a glyph, beyond the Goal (useThreadComposerControls). */
+  railPermission?: React.ReactNode
   // SKILLS TYPEAHEAD. When set, a draft that is exactly one `/`-led token opens a suggestion menu of
   // the thread's invocable skills and slash commands (`/context`, `/usage`, …) above the box (fetched lazily, once, on first trigger). The list is
   // whatever the thread's own harness reports — the caller owns sourcing entirely; this component only
@@ -1003,7 +1006,7 @@ export function Composer({
   const railAction = leftAction ?? null
   // Where each rail mark sits, and the padding every text row keeps clear of the absolutely-placed rail.
   // The Goal (`railLead`, the thread composer only) sits beyond the paperclip.
-  const rail = composerRail({ action: Boolean(railAction), lead: Boolean(railLead), mic: micShown, sendWidth: send && !phone ? SEND_SPLIT_WIDTH : undefined })
+  const rail = composerRail({ action: Boolean(railAction), perm: Boolean(railPermission), lead: Boolean(railLead), mic: micShown, sendWidth: send && !phone ? SEND_SPLIT_WIDTH : undefined })
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     const el = e.currentTarget
@@ -1682,6 +1685,7 @@ export function Composer({
       {/* Outlined controls keep 8px between edges; prose reserves the same clearance. */}
       {railAction && <div className="absolute bottom-2 flex items-center" style={{ right: rail.right.action }}>{railAction}</div>}
       {railLead && <div className="absolute bottom-2 flex items-center" style={{ right: rail.right.lead }}>{railLead}</div>}
+      {railPermission && <div className="absolute bottom-2 flex items-center" style={{ right: rail.right.perm }}>{railPermission}</div>}
       {/* Attach: a hidden file input driven by the paperclip. Sits in the right rail LEFT of the send
           button (and left of any railAction), so it never overlaps the mode/model footer or the send
           affordance. Accept is the shared extension allowlist; the /attach route re-validates. */}

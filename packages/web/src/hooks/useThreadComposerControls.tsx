@@ -8,7 +8,7 @@ import { threadFollowUpBlocked, threadComposerStatus, threadPermissionBlockedRea
 import { showToast, store } from "../store.ts"
 import { ProfileGridSelector } from "../components/ProfileGridSelector.tsx"
 import { AcpModelSelect } from "../components/AcpModelSelect.tsx"
-import { Select } from "../components/ui/Select.tsx"
+import { ThreadPermissionControl } from "../components/ThreadPermissionControl.tsx"
 import { CLAUDE_DISPATCH_PERMISSION_OPTIONS, claudePermValue } from "../lib/options.ts"
 import { threadProfileControlState } from "../lib/threadProfile.ts"
 import { stepProfileGridEffort } from "../lib/profileGrid.ts"
@@ -42,7 +42,7 @@ import { ownedByThisPage } from "../lib/projectOwnership.ts"
 //
 // ON A PHONE the strip is `phoneTools`: the model chip alone (it opens the phone's model sheet — the
 // ProfileGridSelector's own phone branch), with no permission picker. Permissions stay on the desktop.
-export function useThreadComposerControls(slug: string, scopedThread?: ThreadView): { busy: boolean; footer: ReactNode; phoneTools: ReactNode; status: ReactNode; stepEffort?: (step: 1 | -1) => void } {
+export function useThreadComposerControls(slug: string, scopedThread?: ThreadView): { busy: boolean; footer: ReactNode; permission?: ReactNode; phoneTools: ReactNode; status: ReactNode; stepEffort?: (step: 1 | -1) => void } {
   const snap = useSnapshot(store)
   // The page's project is read either way: a valtio snapshot that reads nothing re-renders on every store
   // change. The board's threads only without a scoped thread — reading them subscribed every queue card's
@@ -249,8 +249,23 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
     </>
   )
 
+  // THE PERMISSION MODE IS A RAIL GLYPH, not a footer pill: it is almost never changed, and a labelled
+  // dropdown beside the model pill gave it the same weight as the one control that is (maintainer
+  // 2026-10-14). The title carries the COST the glyph cannot: a Claude permission mode is a launch flag,
+  // so changing it retires the worker process and the next turn resumes the conversation in a new one.
+  const permissionTitle = permissionBlocked
+    ? `${permissionBlocked} — changing permissions restarts this thread's worker process`
+    : shownPermission === "bypassPermissions"
+      ? "Permissions: bypass — the worker never asks for approval. Changing this restarts the worker process."
+      : "Permissions: auto — risky actions raise an approval card here. Changing this restarts the worker process."
+  const permissionDisabled = busy || permissionBlocked !== null
+  const permissionControl = backend === "claude"
+    ? <ThreadPermissionControl value={shownPermission} onChange={changePermission} title={permissionTitle} disabled={permissionDisabled} />
+    : undefined
+
   return {
     busy,
+    permission: permissionControl,
     footer: (
       <div
         data-thread-composer-controls
@@ -262,31 +277,6 @@ export function useThreadComposerControls(slug: string, scopedThread?: ThreadVie
         className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5"
       >
         {profileControl}
-        {backend === "claude" && (
-          <Select
-            variant="readout"
-            side="top"
-            value={shownPermission}
-            onValueChange={(v) => changePermission(v as PermissionMode)}
-            options={CLAUDE_DISPATCH_PERMISSION_OPTIONS}
-            ariaLabel="Thread permission mode"
-            // The title carries the COST, because this control's cost is the one thing the two words in
-            // the trigger cannot say: a Claude permission mode is a launch flag, so changing it retires
-            // the worker process and the next turn resumes the same conversation in a new one. An
-            // operator who expected a live retune would otherwise discover the restart by watching it.
-            title={permissionBlocked
-              ? `${permissionBlocked} — changing permissions restarts this thread's worker process`
-              : shownPermission === "bypassPermissions"
-                ? "Bypass: the worker never asks for approval. Changing this restarts the worker process; the conversation resumes from disk on the next turn."
-                : "Auto: risky actions raise an approval card here. Changing this restarts the worker process; the conversation resumes from disk on the next turn."}
-            disabled={busy || permissionBlocked !== null}
-            // NO padding override: the readout variant's own box (4px/8px, 12px type) already matches
-            // the profile pill beside it exactly — measured, both 26px tall — and passing one would only
-            // look like it was doing something. `shrink-0` keeps the two words whole when the profile
-            // pill beside it takes its 20rem.
-            className="shrink-0"
-          />
-        )}
         {pendingModel && pendingEffort && (
           <span className="min-w-0 truncate text-[9px] text-muted-50">
             → {pendingModel} · {pendingEffort} pending

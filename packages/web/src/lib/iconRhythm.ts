@@ -52,8 +52,8 @@
  *  box; the bare 15px icons carry 7–9px of empty box per side. Hover outlines do not take part in the
  *  resting rhythm. A pair missing from the table falls back to the paperclip→send gap; add the
  *  measurement rather than relying on it. */
-export type RailMark = "lead" | "paperclip" | "action" | "mic" | "send"
-const RAIL_ORDER: readonly RailMark[] = ["lead", "paperclip", "action", "mic", "send"]
+export type RailMark = "perm" | "lead" | "paperclip" | "action" | "mic" | "send"
+const RAIL_ORDER: readonly RailMark[] = ["perm", "lead", "paperclip", "action", "mic", "send"]
 const RAIL_BOX = 28
 const RAIL_SEND_RIGHT = 8
 // Clearance the prose keeps from the leftmost mark.
@@ -69,6 +69,9 @@ const RAIL_BOX_GAP: Partial<Record<`${RailMark}>${RailMark}`, number>> = {
   // 14.75px from the paperclip to send. Measured on a real queue card with scripts/ink-gaps.mjs at dsf 4,
   // 2026-10-05; the two glyphs also read at one weight there (mean contrast 338.5 against 338.9).
   "lead>paperclip": -1,
+  // The permission shield beside the Goal: two bare glyphs in hover squares, spaced as Goal is from the paperclip.
+  "perm>lead": -1,
+  "perm>paperclip": -1,
   "mic>send": 6,
   "paperclip>mic": -2,
   "action>mic": -3,
@@ -87,11 +90,11 @@ export const SEND_SPLIT_WIDTH = SEND_SPLIT_LABEL_WIDTH + SEND_SPLIT_SEAM_WIDTH +
  *  `sendWidth` is the Send control's own width when it is not the 28px square. A fractional one is
  *  rounded UP for the marks beside it: the button is filled and may end on a half pixel, but a bare
  *  15px icon placed on one draws soft on a 1x screen. */
-export function composerRail(present: { lead?: boolean; action?: boolean; mic?: boolean; sendWidth?: number }): {
+export function composerRail(present: { perm?: boolean; lead?: boolean; action?: boolean; mic?: boolean; sendWidth?: number }): {
   right: Partial<Record<RailMark, number>>
   reserve: number
 } {
-  const shown: Record<RailMark, boolean> = { send: true, paperclip: true, lead: !!present.lead, action: !!present.action, mic: !!present.mic }
+  const shown: Record<RailMark, boolean> = { send: true, paperclip: true, perm: !!present.perm, lead: !!present.lead, action: !!present.action, mic: !!present.mic }
   const marks = RAIL_ORDER.filter((m) => shown[m])
   const right: Partial<Record<RailMark, number>> = {}
   let edge = 0

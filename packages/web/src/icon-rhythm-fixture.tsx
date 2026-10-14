@@ -51,6 +51,7 @@ const { RecurringPromptControl } = await import("./components/RecurringPromptCon
 const { HeaderActions } = await import("./components/HeaderActions.tsx")
 const { AiRenameButton } = await import("./components/AiRenameButton.tsx")
 const { Composer } = await import("./components/Composer.tsx")
+const { ThreadPermissionControl } = await import("./components/ThreadPermissionControl.tsx")
 const { GithubTrigger } = await import("./components/GithubTrigger.tsx")
 const { TooltipProvider } = await import("./components/Tooltip.tsx")
 
@@ -148,6 +149,7 @@ function Fixture() {
                 surface="iconRhythmFixtureGoal"
                 placeholder="Reply to the agent…"
                 railLead={<RecurringPromptControl thread={thread} />}
+                railPermission={<ThreadPermissionControl value="bypassPermissions" onChange={() => {}} title="Permissions" />}
               />
             </section>
             <section className="flex flex-col gap-2">

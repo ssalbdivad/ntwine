@@ -363,6 +363,7 @@ export function ThreadComposerBox({
         busy={controls.busy}
         footer={controls.footer}
         railLead={goal}
+        railPermission={controls.permission}
         fileDrop={fileDrop}
         // An external session keeps the ↑: sending there takes the session over, and there is no turn
         // of Ntwine's to steer or queue behind until it has.
