@@ -68,7 +68,6 @@ export function DiffBlock({ edits, meta }: { edits: TranscriptEdit[]; meta?: Rea
         label={`${open ? "Collapse" : "Expand"} Edit diff: ${file}`}
         onToggle={() => setOverride(!open)}
         meta={meta}
-        chevronSize={11}
       >
         {/* Left group: petite-caps "Edit" label (sibling of Bash/Read), file path, +N −M summary. The
             chevron is pushed to the far right by the header's space-between (aligns the three families). */}

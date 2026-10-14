@@ -76,7 +76,7 @@ import { ThreadTitle } from "./ThreadTitle.tsx"
 import { ThreadStatusLine } from "./ThreadStatusLine.tsx"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
-import { ToolDisclosureHeader } from "./ToolDisclosureHeader.ts"
+import { ToolDisclosureHeader, toolChevron } from "./ToolDisclosureHeader.ts"
 import { subAgentProfileCell } from "../lib/subAgentProfile.ts"
 import { FOREGROUND_MARK_AFTER_MS, foregroundToolIsRunning, hasRunningToolIndicator, isPendingForegroundTool, liveBackgroundOperationState } from "../lib/operationIndicators.ts"
 import { formatRuntimeElapsed, formatToolDuration } from "../lib/durationLabels.ts"
@@ -2881,7 +2881,7 @@ function SentFilesCard({ images, files, caption, status, durationMs }: { images:
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <ToolStatusMeta status={status} durationMs={durationMs} />
-          <ChevronRight aria-hidden="true" size={12} className={`shrink-0 text-muted transition-transform ${open ? "rotate-90" : ""}`} />
+          {toolChevron(open, "text-muted")}
         </span>
       </button>
       <div id={bodyId} hidden={!open}>
@@ -2972,7 +2972,7 @@ function BashBlock({
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <ToolStatusMeta status={status} backgroundState={backgroundState} liveBackgroundState={liveBackgroundState} exitCode={exitCode} durationMs={shownDurationMs} />
-          {expandable && <ChevronRight aria-hidden="true" size={12} className={`shrink-0 text-muted transition-transform ${open ? "rotate-90" : ""}`} />}
+          {expandable && toolChevron(open, "text-muted")}
         </span>
       </button>
       {expandable && (

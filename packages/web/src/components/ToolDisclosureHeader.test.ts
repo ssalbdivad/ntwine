@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { ToolDisclosureHeader, isToolDisclosureAction } from "./ToolDisclosureHeader.ts"
+import { ToolDisclosureHeader, isToolDisclosureAction, toolChevron } from "./ToolDisclosureHeader.ts"
 
 function disclosureBounds(html: string): { start: number; end: number } {
   const marker = html.indexOf("data-tool-disclosure")
@@ -90,7 +90,9 @@ test("renders a running indicator only when the individual tool disclosure suppl
   assert.match(running, /data-running-indicator="tool-disclosure"/)
   assert.match(running, /ntwine-live-dot/)
   assert.match(running, /flex shrink-0 items-center gap-1\.5/, "the status cluster and disclosure control use the compact shared rhythm")
-  assert.match(running, /relative -top-px shrink-0 transition-transform/, "the disclosure glyph receives its optical vertical correction")
+  // The whole-row button headers (Bash, Todo, Sent to you) draw toolChevron directly; this header must draw
+  // the very same glyph, or the card family is back to two chevron placements a pixel apart.
+  assert.ok(running.includes(renderToStaticMarkup(toolChevron(false))), "the disclosure header draws the shared card chevron")
   assert.doesNotMatch(terminal, /data-running-indicator/)
   assert.doesNotMatch(terminal, /ntwine-live-dot/)
 })

@@ -9,7 +9,6 @@ type ToolDisclosureHeaderProps = {
   label: string
   meta?: ReactNode
   onToggle: () => void
-  chevronSize?: number
 }
 
 // Anything in the header that owns its OWN click — a file deep-link, the sub-agent drill-in, the
@@ -23,6 +22,29 @@ const HEADER_ACTION_SELECTOR = 'a, button, input, select, textarea, summary, lab
 export function isToolDisclosureAction(target: unknown): boolean {
   const element = target as { closest?: (selectors: string) => unknown } | null | undefined
   return typeof element?.closest === "function" && element.closest(HEADER_ACTION_SELECTOR) != null
+}
+
+// THE CARD HEADER'S CHEVRON — one glyph, one size, one placement for every tool card, whichever header
+// shape draws it: this disclosure header (Read, Edit, Agent, a returned picture) and the whole-row
+// button headers (Bash, Todo, Sent to you). Each used to place its own and they disagreed: this header
+// lifted its chevron (`-top-px`), the button headers did not, and the Edit card alone drew it at 11px.
+// Measured from rendered pixels at dsf 6 (sans, 2026-10-14) against the petite-caps ink beside it —
+// the kind label and the right-hand reading share one ink centre, 14.08px down a 25.8px header:
+//
+//   Read / Agent (this header, lifted)    chevron ink centre 12.00  → 2.08px HIGH
+//   Bash / Grep / Glob (button headers)   chevron ink centre 13.00  → 1.08px high
+//   Edit (this header, 11px, lifted)      chevron ink centre 12.50  → 1.58px high
+//
+// An `items-center` row puts the chevron's ink on the row's centre, and the small caps sit below it
+// (`.ntwine-tool-header-caps` drops them a pixel onto the path's baseline). So the chevron drops by the
+// measured pixel and lands 0.08px off the caps on every card. The open state needs no second value:
+// lucide's chevron path is symmetric about its box centre, so rotating it keeps its ink centre where it
+// was, and `translate` and `rotate` are separate properties, so the two compose.
+//
+// No colour of its own: in this header it takes its button's tone and hover; a whole-row button header
+// passes `text-muted`.
+export function toolChevron(open: boolean, className = "") {
+  return createElement(ChevronRight, { "aria-hidden": true, size: 12, className: `shrink-0 translate-y-px transition-transform ${open ? "rotate-90" : ""} ${className}` })
 }
 
 // Tool headers sometimes contain an action of their own (open a file or drill into a sub-agent).
@@ -49,7 +71,6 @@ export function ToolDisclosureHeader({
   label,
   meta,
   onToggle,
-  chevronSize = 12,
 }: ToolDisclosureHeaderProps) {
   function onHeaderClick(event: MouseEvent<HTMLDivElement>) {
     // The link / drill-in / chevron each handle themselves. Standing down here also keeps the
@@ -82,13 +103,7 @@ export function ToolDisclosureHeader({
           className:
             "-m-1 inline-flex shrink-0 items-center justify-center rounded p-1 text-muted outline-none transition-colors hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60",
         },
-        createElement(ChevronRight, {
-          "aria-hidden": true,
-          size: chevronSize,
-          // Lucide's right-chevron sits a fraction low in its viewbox. A tiny optical lift makes
-          // its visual center agree with the petite-caps running state beside it.
-          className: `relative -top-px shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`,
-        }),
+        toolChevron(expanded),
       ),
     ),
   )

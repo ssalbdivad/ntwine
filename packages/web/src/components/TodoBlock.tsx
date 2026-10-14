@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react"
-import { ChevronRight, Square, SquareCheckBig, SquareDot } from "lucide-react"
+import { Square, SquareCheckBig, SquareDot } from "lucide-react"
+import { toolChevron } from "./ToolDisclosureHeader.ts"
 import type { TranscriptTodo } from "@ntwine/shared"
 
 // THE TO-DO LIST CARD — for the calls that actually list the whole thing out.
@@ -103,7 +104,7 @@ export function TodoBlock({
             </span>
           )}
           {meta}
-          {expandable && <ChevronRight aria-hidden="true" size={12} className={`shrink-0 text-muted transition-transform ${open ? "rotate-90" : ""}`} />}
+          {expandable && toolChevron(open, "text-muted")}
         </span>
       </button>
       {expandable && (
