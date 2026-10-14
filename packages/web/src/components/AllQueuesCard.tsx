@@ -44,7 +44,7 @@ import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/
 import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { drawnHeight, observeCardSlot, whenCardRendered } from "../lib/cardVisibility.ts"
-import { IN_PLACE_OPEN_STATE, openThread, showToast, store } from "../store.ts"
+import { IN_PLACE_OPEN_STATE, openThread, pushTerminalDrawer, showToast, store } from "../store.ts"
 import { crossProjectHref, innerPath, projectSlug } from "../lib/base-path.ts"
 import { GithubWatchRows, LimitPauseNotice, QueueDismissContext, TerminalNetCard } from "./ChatView.tsx"
 import { isLimitPaused } from "../lib/limitPause.ts"
@@ -461,6 +461,14 @@ function CardArticle({
     if (here) openProcessDrawer(thread.id, process)
   }
 
+  // The header's terminal button, the same way: the drawer stack is the focused project's, so a terminal
+  // drawer pushed there for another project's thread found no thread and read "This terminal is closed".
+  const openTerminal = (terminalId: string) => {
+    const here = focusedProject(project.slug)
+    openInPlace(project, thread.id, displayTitle(thread))
+    if (here) pushTerminalDrawer(thread.id, terminalId)
+  }
+
   const openHere = (event: ReactMouseEvent<HTMLAnchorElement>) => {
     if (!isPlainLeftClick(event)) return
     event.preventDefault()
@@ -552,7 +560,7 @@ function CardArticle({
           <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
             {/* The drawer header's strip, in its order (ChatView ThreadHeader): terminal, spinoff,
                 fullscreen, ⋯. The terminal carries `t` on the card as it does in the drawer. */}
-            <ThreadTerminalButton slug={thread.id} />
+            <ThreadTerminalButton slug={thread.id} show={openTerminal} />
             <SpinoffButton thread={thread} className={HEADER_ICON_CLASS} />
           </ThreadProjectScope>
           {/* THE FULLSCREEN DOOR (ExpandThreadLink), before Retry as on upstream's card (TodosView

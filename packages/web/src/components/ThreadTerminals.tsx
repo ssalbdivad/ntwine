@@ -611,15 +611,17 @@ export function TerminalPromptPane({ thread, base, onOpen }: {
 
 // ── opening one ───────────────────────────────────────────────────────────────────────────────────────
 
-/** Start a terminal on a thread and show it: the terminal's drawer, over the thread's. */
-export async function openThreadTerminal(api: Api, slug: string, input: { command?: string; cwd?: string }): Promise<void> {
+/** Start a terminal on a thread and show it: by default the terminal's drawer, over the thread's. A caller
+ *  whose thread may be another project's (a card on All projects) passes its own `show`, since the drawer
+ *  stack is the focused project's and a terminal drawer pushed there finds no thread and reads as closed. */
+export async function openThreadTerminal(api: Api, slug: string, input: { command?: string; cwd?: string }, show: (id: string) => void = (id) => pushTerminalDrawer(slug, id, { label: input.command })): Promise<void> {
   const { id } = await api.terminalStart({ slug, ...input })
-  pushTerminalDrawer(slug, id, { label: input.command })
+  show(id)
 }
 
 /** Open a terminal from the thread composer's `$` line (lib/threadTerminals.ts composerTerminalLine). */
-export function startComposerTerminal(api: Api, slug: string, command: string | undefined, onFailed: () => void): void {
-  openThreadTerminal(api, slug, { command }).catch((error: unknown) => {
+export function startComposerTerminal(api: Api, slug: string, command: string | undefined, onFailed: () => void, show?: (id: string) => void): void {
+  openThreadTerminal(api, slug, { command }, show).catch((error: unknown) => {
     onFailed()
     showToast(`Could not open a terminal: ${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`)
   })

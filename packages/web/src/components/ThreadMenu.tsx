@@ -74,11 +74,11 @@ export function openFullscreen(slug: string, from: HTMLElement | null, href = st
 // 2026-09-29 (maintainer: "it should open shell by default, don't ask what command to run"): the server
 // already resolves the agent's folder when none is sent (router terminalStart -> threadWorkingDir), and a
 // one-off command already has its own door, a `$ cmd` line in the thread's prompt box.
-export function ThreadTerminalButton({ slug }: { slug: string }) {
+export function ThreadTerminalButton({ slug, show }: { slug: string; show?: (id: string) => void }) {
   const api = useThreadApi()
   const button = useRef<HTMLButtonElement>(null)
   const keys = useShortcutLabel("thread.terminal")
-  const open = () => startComposerTerminal(api, slug, undefined, () => {})
+  const open = () => startComposerTerminal(api, slug, undefined, () => {}, show)
   useCommandHandler(button, open)
   const label = "Open a terminal where this agent is working"
   return (
