@@ -1,5 +1,5 @@
 import type { ThreadView } from "@ntwine/shared"
-import { lastActiveLabelAt, sectionOf, sessionIndicatorKind } from "../groups.ts"
+import { agentParked, lastActiveLabelAt, sectionOf, sessionIndicatorKind } from "../groups.ts"
 import { ageSpan } from "./activityTime.ts"
 import { formatRuntimeElapsed } from "./durationLabels.ts"
 import { EFFORT_LABEL } from "./options.ts"
@@ -21,12 +21,13 @@ export function mobileThreadState(t: ThreadView): MobileThreadState {
   if (t.runtime === "running" || t.runtime === "spawning") return "working"
   if (kind === "archived") return "done"
   // THE WORD NAMES THE BAND the desktop board files the row in, so every park in Snoozed says "Snoozed":
-  // the operator's wall-clock snooze, the resting card's event-snooze, a worker's `status: watching` rest,
-  // and a done the human parked on "Watch #N" (server doneParkedOnWatch → waitStatus `watching` over the
-  // event-snooze). Until 2026-10-07 this read only the wall-clock park — the split the board's AlarmMark
+  // the operator's wall-clock snooze, the resting card's event-snooze, and a done the human parked on
+  // "Watch #N" (server doneParkedOnWatch → waitStatus `watching` over the event-snooze). A worker's own
+  // park — a `status: watching` rest — sits in Working since 2026-10-14, and says so. Until 2026-10-07 this read only the wall-clock park — the split the board's AlarmMark
   // draws, which is a GLYPH choice — so a thread the human had just watched from its done card sat in
   // the Snoozed band on desktop while the phone header still called it "Rested".
   if (sectionOf(t) === "snoozed") return "snoozed"
+  if (agentParked(t)) return "working"
   return "rested"
 }
 

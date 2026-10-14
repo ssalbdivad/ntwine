@@ -171,9 +171,9 @@ function ThreadMark({ kind, userSnoozed, moving }: { kind: SessionIndicatorKind;
     )
   }
   if (kind === "snoozed" && userSnoozed) return <AlarmMark />
-  // Parked on the clock — a worker's Snoozed park, or a queued wait on a TIMER. The row's dim, not the
-  // mark, is what separates the two.
-  if (kind === "snoozed" || kind === "timer") return <HourglassMark />
+  // Parked — the human's event-snooze, a worker's own declared wait, or a wait on a TIMER. The row's dim,
+  // not the mark, is what separates the human's park from the worker's.
+  if (kind === "snoozed" || kind === "parked" || kind === "timer") return <HourglassMark />
   if (kind === "done" || kind === "archived") return <DoneMark />
   // Awaiting a PR: the rail draws GitHub's octocat; the phone has no mark for it yet and stays at rest.
   return <StatusBox />

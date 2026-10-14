@@ -339,8 +339,7 @@ export const ThreadRow = memo(function ThreadRow({
 }) {
   const foreign = t.foreign === true
   // Snoozed rows are uniformly grayed as a whole; provisional titles retain their local dim treatment.
-  // A thread awaiting its OWN live sub-agent/Monitor is not Snoozed and stays fully active — unless its
-  // worker called that rest `watching` (2026-10-05), which parks it here like any other watcher.
+  // Only the human snoozes (shared isSnoozed): a worker's own park, `watching` included, stays undimmed.
   const snoozed = isSnoozed(t)
   // A DONE THREAD IS GRAYED WHEREVER IT ROWS — the Done band, and the pinned band just the same
   // (maintainer 2026-09-11: "a thread that's marked as done should always be grayed out, even if it's
@@ -1172,6 +1171,15 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
     const fenced = t.lastFence?.kind === "awaiting" && awaitingWaitClause(t.lastFence.hints) !== null
     return { node: hourglassMark, tip: popover(t, fenced ? "At rest" : "At rest — waiting on a timer", timerWake(t)) }
   }
+  // AT REST ON THE WORKER'S OWN WAIT, in Working (groups.sessionIndicatorKind). The mark is the wait's
+  // shape, as the Snoozed arm drew it before Snoozed became the human's band: the shell's dot for a shell
+  // it left running, the hourglass for anything else. The tooltip is the fence's own clause where there
+  // is one ("waiting on a reply from @x").
+  if (kind === "parked") {
+    const hk = t.lastFence?.kind === "awaiting" ? t.lastFence.hints.find((h) => h.kind === "shell" || h.kind === "agent" || h.kind === "timer")?.kind : undefined
+    const ownWork = hk === "shell" || hk === "agent" || (hk === undefined && (t.bgShells ?? []).some((s) => s.state === "running"))
+    return { node: ownWork ? restingShellDot : hourglassMark, tip: popover(t, "At rest", hk === "timer" ? timerWake(t) : null) }
+  }
   if (kind === "snoozed") {
     const hourglass = hourglassMark
     const github = githubMark
@@ -1228,12 +1236,6 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
       // A done the human watched from its card (board.doneParkedOnWatch) is that same click on a PR or
       // issue, and the board calls it `watching`: it reads as the watch it is, not as background work.
       if (eventSnoozed) return { node: waitNamesPr(t) ? github : restingShellDot, tip: t.waitStatus === "watching" && waitNamesPr(t) ? "Snoozed until its watch reports back" : eventSnoozed }
-      // A `watching` REST WITH NO FENCE TO READ (2026-10-05): a worker that rested behind a watch it
-      // registered, which the board reads as a watcher. The mark is the watch's own, as above.
-      if (t.waitStatus === "watching") {
-        const shell = (t.bgShells ?? []).some((s) => s.state === "running")
-        return { node: waitNamesPr(t) ? github : shell ? restingShellDot : hourglass, tip: "Snoozed until its watch reports back" }
-      }
       const timed = typeof t.revalidate === "string" ? formatAutoSnoozedUntil(t.revalidate) : null
       return { node: hourglass, tip: timed ?? "Auto-snoozed until a scheduled check" }
     }

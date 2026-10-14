@@ -8,7 +8,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { activeBandThread, awaitingNeedsInput, awaitingStatus, hasLiveOps, isSnoozed, NEEDS_INPUT_REQUIRED_AT, sectionOf, splitAwaitingFrontmatter, type AwaitingHint, type GithubWatchStatus, type ThreadView } from "@ntwine/shared"
+import { activeBandThread, agentParked, awaitingNeedsInput, awaitingStatus, hasLiveOps, isSnoozed, NEEDS_INPUT_REQUIRED_AT, sectionOf, splitAwaitingFrontmatter, type AwaitingHint, type GithubWatchStatus, type ThreadView } from "@ntwine/shared"
 import { createBoard, deriveAwaitingBackground, deriveNeedsYou, deriveWaitStatus, type RegisteredWatch } from "./board.ts"
 import { GITHUB_STATUS_SETTING, type GithubStatusBook } from "./awaiting.ts"
 import { Bus } from "./bus.ts"
@@ -214,9 +214,15 @@ test("the board carries the verdict, and the bands and the running count follow 
     const bandOf = (slug: string) => ({ waitStatus: view(slug).waitStatus, section: sectionOf(view(slug)), running: activeBandThread(view(slug)) })
     for (const slug of Object.keys(fences)) assert.equal(view(slug).runtime, "turn-idle", slug)
 
-    assert.deepEqual(bandOf("legacy-watcher"), { waitStatus: "watching", section: "snoozed", running: false })
+    // A `watching` rest is the WORKER's park: it stays in the Working band (2026-10-14; it was Snoozed
+    // before), and isSnoozed never claims it — Snoozed is the human's band.
+    assert.deepEqual(bandOf("legacy-watcher"), { waitStatus: "watching", section: "active", running: true })
+    assert.equal(agentParked(view("legacy-watcher")), true)
+    assert.equal(isSnoozed(view("legacy-watcher")), false)
     assert.deepEqual(bandOf("bench"), { waitStatus: "working", section: "active", running: true })
-    assert.deepEqual(bandOf("poller"), { waitStatus: "watching", section: "snoozed", running: false })
+    assert.equal(agentParked(view("bench")), false, "a working rest is motion, not a park")
+    assert.deepEqual(bandOf("poller"), { waitStatus: "watching", section: "active", running: true })
+    assert.equal(agentParked(view("poller")), true)
     assert.equal(hasLiveOps(view("poller")), false, "a watching parent is not motion; its child spins on its own row")
     assert.deepEqual(bandOf("ci"), { waitStatus: "working", section: "active", running: true })
     // The queued rest: in the cue, never counted as running, never banded.

@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { sectionOf, type ThreadView } from "@ntwine/shared"
+import { agentParked, sectionOf, type ThreadView } from "@ntwine/shared"
 import { boardTelemetry, createBoard } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
@@ -65,7 +65,8 @@ function fixture(): Fixture {
 }
 
 // A thread that rested on a registered PR: its last message is an ```awaiting fence naming the PR, and the
-// PR watcher is armed. That is the park that sits in the Snoozed band — once the human has SEEN the reply:
+// PR watcher is armed. That is the worker's own park, at rest in Working (Snoozed until 2026-10-14, when
+// that band became the human's) — once the human has SEEN the reply:
 // a park answering their prompt stays Ready until they have (board.replyUnseen). The fence answers
 // `needs_input: false`: the row is spawned after NEEDS_INPUT_REQUIRED_AT, where an unanswered fence queues.
 function seedParkedOnPr(f: Fixture, slug: string): void {
@@ -86,10 +87,11 @@ test("an unprimed row parked on a PR reads the band it had before the restart, n
     const before = f.tailer()
     before.start()
     const board1 = createBoard(f.project, f.storage, new Bus(), before, "boot-1")
-    const primedView = band(board1.refresh().threads.find((t) => t.id === "parked"))
+    const primedThread = board1.refresh().threads.find((t) => t.id === "parked")
+    const primedView = band(primedThread)
     await board1.stop()
     before.stop()
-    assert.equal(primedView?.section, "snoozed", "the fixture really is a Snoozed-band park")
+    assert.equal(primedThread && agentParked(primedThread), true, "the fixture really is a worker's park")
     assert.equal(primedView?.runtime, "turn-idle")
 
     // Boot 2: the board assembles before the tailer has reached the row.

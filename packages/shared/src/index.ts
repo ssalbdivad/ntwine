@@ -4876,20 +4876,36 @@ export function futureSnoozedUntil(
   return Number.isFinite(at) && at > nowMs ? t.snoozedUntil : undefined
 }
 
-// HELD: one semantic predicate owns both classification and presentation. Only a specific external
-// human/review gate or a valid FUTURE timestamp belongs in the dimmed Snoozed band. Legacy automated
-// waits (pr/ci/session), malformed/elapsed timers, and hintless fences stay OUT of it — rested (in the
-// queue) if their turn is over, Active if it isn't — so they cannot hide work an agent should own
-// through an in-band watcher. A canonical blocked+timer status remains a compatibility path only when
-// it carries the same explicit future ISO instant. A live child/Monitor wins unless the worker called the
-// rest `watching`, and archived rows go Done.
+// SNOOZED IS THE HUMAN'S BAND (2026-10-14). Only a park the human made folds a thread into it: a
+// wall-clock snooze, the resting card's event-snoozes ("until new activity", "until all sub-agents
+// return"), and a schedule's next run waiting to start. A worker's own park — `status: watching`, or any
+// honoured ```awaiting wait — stays in Working, at rest under its wait's mark (agentParked), because the
+// human may still consider that thread active (maintainer: "if I consider a thread to be active and an
+// agent happens to be waiting for something, I still don't want to see it collapsed"). Until then a
+// worker's park dimmed its row into Snoozed the same as the human's click did.
 export function isSnoozed(t: ThreadView, nowMs = Date.now()): boolean {
+  return parkOf(t, nowMs) === "human"
+}
+
+/** At rest on a wait its WORKER declared, which the server honoured — the park that sits in Working,
+ *  undimmed, since Snoozed became the human's band. The rail draws it with its wait's mark. */
+export function agentParked(t: ThreadView, nowMs = Date.now()): boolean {
+  return parkOf(t, nowMs) === "agent"
+}
+
+// WHO PARKED THIS ROW, if anyone. One semantic predicate owns both classification and presentation. Only
+// a valid FUTURE timestamp or a server-honoured declared wait is a park at all. Legacy automated waits
+// (pr/ci/session), malformed/elapsed timers, and hintless fences are not — rested (in the queue) if their
+// turn is over, Active if it isn't — so they cannot hide work an agent should own through an in-band
+// watcher. A live child/Monitor wins unless the worker called the rest `watching`, and archived rows go
+// Done.
+function parkOf(t: ThreadView, nowMs: number): "human" | "agent" | undefined {
   const userSnooze = futureSnoozedUntil(t, nowMs) !== undefined
-  if (t.state === "archived") return false
+  if (t.state === "archived") return undefined
   // A SCHEDULE'S NEXT RUN is parked until the scheduler starts it — including the seconds after its wake
   // time passes and before the tick that starts it (a post-boot grace, the start cap). Reading its clock
   // here would drop it into Active for exactly that window (ARCHITECTURE.md § Scheduled threads).
-  if (t.schedule?.pending === true && t.held !== undefined) return true
+  if (t.schedule?.pending === true && t.held !== undefined) return "human"
   // THE RESTING CARD'S EVENT-SNOOZE IS A PARK THE HUMAN MADE, and it parks into Snoozed exactly as the
   // wall-clock snooze does. It arrives as `bgSnoozed` (server truth: bg_snooze_rested_at equals the
   // current rest) on a thread resting behind a shell, a PR watch or a timer — the three shapes whose
@@ -4911,38 +4927,38 @@ export function isSnoozed(t: ThreadView, nowMs = Date.now()): boolean {
   // comes back here at its next rest. The server drops the flag the moment the snooze lets go.
   const subAgentsSnooze = t.subAgentsSnoozed === true && t.runtime === "turn-idle"
   const watching = watchingRest(t)
-  if (!subAgentsSnooze && !watching && (hasLiveSubAgents(t) || (hasLiveOps(t) && !eventSnooze))) return false
+  if (!subAgentsSnooze && !watching && (hasLiveSubAgents(t) || (hasLiveOps(t) && !eventSnooze))) return undefined
   // A user-owned snooze deliberately wins over a concrete ask, permission prompt, or crash. Those
   // states still exist in the transcript/runtime and re-enter Queue at the exact wake deadline; the
   // snooze merely parks their presentation until then. Mid-turn work keeps spinning in the Active band,
   // while a provider permission prompt is itself parked and may therefore move to Snoozed.
-  if (userSnooze) return t.runtime !== "running" && t.runtime !== "spawning"
+  if (userSnooze) return t.runtime !== "running" && t.runtime !== "spawning" ? "human" : undefined
   // A LIMIT KILL OUTRANKS EVERY PARK BELOW (2026-08-31). The fault postdates any ```awaiting fence the
-  // worker left at its LAST rest, so letting `declaredWait` below claim the row would park a killed
+  // worker left at its LAST rest, so letting the declared wait below claim the row would park a killed
   // thread on a stale story. The server already queues it (needsYou, next line), but the mark and the
   // band must not hinge on that flag arriving: a limit-killed thread is never Snoozed unless the
   // OPERATOR snoozed it (userSnooze above, which wins by design). PRESENCE, not `autoResume`: a fault
   // ntwine cannot promise to resume (an unknown phrasing, an aged-out pause) is MORE the human's
   // problem, not less.
-  if (t.limitPause && t.foreign !== true) return false
+  if (t.limitPause && t.foreign !== true) return undefined
   // Without an explicit user snooze, higher-priority attention states render ?, !, or a native
   // prompt—not a wait glyph—so a stale awaiting fence cannot demote them out of Queue.
-  if (t.needsYou || t.pendingAsk || t.runtime === "perm-prompt") return false
+  if (t.needsYou || t.pendingAsk || t.runtime === "perm-prompt") return undefined
   // A WITHHELD ENTRY IS NOT A PARK. The server holds a thread out of the queue for a few seconds after a
   // hold lets go, while its wake lands (queue-clock.ts), and it reads `!needsYou` meanwhile — but the hold
   // has ENDED, so the inference below (an awaiting fence plus `!needsYou` means the park stood) would be
   // false, and the row would drop into Snoozed for those seconds on the way to Ready or back to Active.
-  if (t.queueSettling) return false
-  if (!atRest(t)) return false
+  if (t.queueSettling) return undefined
+  if (!atRest(t)) return undefined
   // (A limit pause used to return true here — "parked on the clock with a wake already armed" — until
   // 2026-08-31. It is now the hard NON-snooze gate above, and the queue's problem: see deriveNeedsYou.)
   // The event-snooze needs no fence behind it: a shell-only rest cards without one and its snooze is the
   // same click. It expires by itself at the thread's next rest, which is the wake the human asked for.
-  if (eventSnooze || subAgentsSnooze) return true
-  // THE WORKER'S OWN PARK (2026-10-05): `status: watching`, honoured by the server. It is the same
-  // "parked until something wakes it" as the click above, said by the one party that knows the wait is
-  // on the world — and it needs no fence check, because a registered watch with no fence is banded too.
-  if (watching) return true
+  if (eventSnooze || subAgentsSnooze) return "human"
+  // THE WORKER'S OWN PARK (2026-10-05): `status: watching`, honoured by the server — "parked until
+  // something wakes it", said by the one party that knows the wait is on the world. It needs no fence
+  // check, because a registered watch with no fence is a park too.
+  if (watching) return "agent"
   // THE SERVER ALREADY DECIDED THIS, and the client must not re-derive it. A park is honoured only when
   // every item the fence names is still live — checked against telemetry and the registries, which the
   // browser cannot see (board.hasDeclaredBackgroundPark). What reaches here is that verdict: the server
@@ -4951,8 +4967,7 @@ export function isSnoozed(t: ThreadView, nowMs = Date.now()): boolean {
   //
   // Reading the HINTS instead is what the deleted grammar did, and it is exactly why a worker could park
   // itself on `human: Alice` or an instant already in the past: the client believed the assertion.
-  const declaredWait = t.lastFence?.kind === "awaiting"
-  return userSnooze || declaredWait
+  return t.lastFence?.kind === "awaiting" ? "agent" : undefined
 }
 
 // ACTIVELY RUNNING: a live session with work in flight — running/spawning, or turn-idle while a

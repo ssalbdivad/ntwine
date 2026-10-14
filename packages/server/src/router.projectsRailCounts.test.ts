@@ -54,17 +54,19 @@ test("counts the Active band as running — the rows the sidebar spins below the
         session(false, { runtime: "running" }), // mid-turn
         session(false, { runtime: "spawning" }), // starting
         session(false, { runtime: "turn-idle", subAgents: [{ state: "running" }] } as Partial<ThreadView>), // resting on its own sub-agent
+        // Parked behind an awaiting fence the server honoured: the worker's own park, which stays in the
+        // Working band since Snoozed became the human's (2026-10-14), so it counts with the band it sits in.
+        session(false, { runtime: "turn-idle", lastFence: { kind: "awaiting", body: "", hints: [] } }),
         // Not Active: queued (the badge's other half, even with a live child), snoozed by the operator,
-        // parked behind an awaiting fence the server honoured, archived, and a terminal the human owns.
+        // archived, and a terminal the human owns.
         session(true, { runtime: "turn-idle", subAgents: [{ state: "running" }] } as Partial<ThreadView>),
         session(false, { runtime: "turn-idle", snoozedUntil: future }),
-        session(false, { runtime: "turn-idle", lastFence: { kind: "awaiting", body: "", hints: [] } }),
         session(false, { runtime: "exited", state: "archived" }),
         session(false, { runtime: "running", foreign: true }),
       ]),
     },
   ])
-  assert.deepEqual(await router.projectsRailCounts.handler({ input: undefined }), { p: { queued: 1, running: 3, asks: 0 } })
+  assert.deepEqual(await router.projectsRailCounts.handler({ input: undefined }), { p: { queued: 1, running: 4, asks: 0 } })
 })
 
 test("without a tenant map (a test context, a one-project server) it answers for its own project alone", async () => {

@@ -74,9 +74,10 @@ test("every row the board files in Snoozed says Snoozed, not Rested", () => {
   // A done the human parked on "Watch #N": the server reads it as a `watching` rest over the event-snooze.
   const watchedDone = thread({ waitStatus: "watching", bgSnoozed: true, lastFence: { kind: "done" } as ThreadView["lastFence"] })
   assert.equal(mobileThreadState(watchedDone), "snoozed")
-  // A worker's own `status: watching` rest, and the resting card's event-snooze, park the same way.
-  assert.equal(mobileThreadState(thread({ waitStatus: "watching" })), "snoozed")
+  // The resting card's event-snooze parks the same way. A worker's own `status: watching` rest does not:
+  // Snoozed is the human's band (2026-10-14), so it sits in Working and says so.
   assert.equal(mobileThreadState(thread({ bgSnoozed: true })), "snoozed")
+  assert.equal(mobileThreadState(thread({ waitStatus: "watching" })), "working")
   // Negative control: the same done with no park is an ordinary rest.
   assert.equal(mobileThreadState(thread({ lastFence: { kind: "done" } as ThreadView["lastFence"] })), "rested")
   // A running turn still says Working, whatever its last rest was.

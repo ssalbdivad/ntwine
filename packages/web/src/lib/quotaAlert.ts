@@ -1,4 +1,4 @@
-import { activeBandThread, type AccountBackend, type AuthSnapshot, type QuotaSnapshot, type QuotaWindow, type ThreadView } from "@ntwine/shared"
+import { activeBandThread, agentParked, type AccountBackend, type AuthSnapshot, type QuotaSnapshot, type QuotaWindow, type ThreadView } from "@ntwine/shared"
 
 // THE LOW-QUOTA ALERT — the queue card that warns, BEFORE a usage limit pauses anything, that a
 // provider's subscription is nearly spent while threads on it are still working. The pause card
@@ -87,7 +87,7 @@ export function quotaAlerts(
       .map((w) => ({ window: w, remaining: Math.max(0, Math.round(100 - w.usedPercent)) }))
       .filter((w) => w.remaining <= QUOTA_ALERT_MAX_REMAINING)
     if (low.length === 0) continue
-    const running = threads.filter((t) => activeBandThread(t) && (t.backend ?? "claude") === backend).length
+    const running = threads.filter((t) => activeBandThread(t) && !agentParked(t) && (t.backend ?? "claude") === backend).length
     if (running === 0) continue
     const tightest = low.reduce((a, b) => (b.remaining < a.remaining ? b : a))
     alerts.push({ backend, window: tightest.window, remaining: tightest.remaining, running, key: quotaAlertKey(backend, tightest.window) })

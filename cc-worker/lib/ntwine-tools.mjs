@@ -1453,7 +1453,7 @@ async function activity() {
     "Name the ones you are ACTUALLY waiting on in your ```awaiting fence. The frontmatter is YAML — one " +
     "PLURAL key per kind, taking a list — plus a required `for:` duration and a required `status:` " +
     "answer: `working` (the work finishes by itself; the thread shows as running), `watching` (the wait " +
-    "is on something outside the thread; it is snoozed) or `needs_input` (the user can act on something " +
+    "is on something outside the thread; it rests out of the queue) or `needs_input` (the user can act on something " +
     "now; it goes in their queue, with what to look at BELOW a `---` line — there is no `reason:` key). " +
     "`working` and `watching` need no prose at all.\n\nEverything above, as a fence:\n\n" +
     "```awaiting\n" +
