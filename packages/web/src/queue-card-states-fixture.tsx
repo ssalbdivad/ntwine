@@ -210,6 +210,21 @@ function scenario(): Scenario {
         ],
         text: (id) => (id === "rotate-key" ? SHELL_FENCE : "Found the race; the fix is in, 50 green runs."),
       }
+    // A parent resting `needs_input` on a sub-agent still out, whose snooze menu offers the event snoozes
+    // above the clock — under the keyboard runtime, so `s` opens it as on the page.
+    case "subagents":
+      return {
+        threads: [
+          thread("rotate-key", "Rotate the signing key without downtime", {
+            subAgents: [{ id: "lane", label: "Audit the refresh-token rotation", state: "running", startedAt: new Date(Date.now() - 10 * 60_000).toISOString() }],
+            lastFence: { kind: "awaiting", body: "The audit lane is still running.", hints: [{ kind: "agent", value: "lane" }, { kind: "status", value: "needs_input" }] },
+            // `&snoozed=1`: already parked on it, so the menu leads with Wake now.
+            ...(params.get("snoozed") === "1" ? { subAgentsSnoozed: true } : {}),
+          }),
+          thread("flaky-ci", "Deflake the auth integration suite"),
+        ],
+        text: (id) => (id === "rotate-key" ? "Rotation is staged.\n\n```awaiting\nagents: [lane]\nstatus: needs_input\n---\nThe audit lane is still running.\n```" : "Found the race; the fix is in, 50 green runs."),
+      }
     case "questions":
       return {
         threads: [
@@ -318,7 +333,7 @@ const CountedCard = memo(function CountedCard({ id, ...props }: ComponentProps<t
   )
 })
 
-interface RpcLog { calls: { path: string; at: number }[]; completeCalledAt: number | null; completeResolvedAt: number | null }
+interface RpcLog { calls: { path: string; at: number; body?: string }[]; completeCalledAt: number | null; completeResolvedAt: number | null }
 const log: RpcLog = { calls: [], completeCalledAt: null, completeResolvedAt: null }
 ;(window as unknown as { __rpc: RpcLog }).__rpc = log
 ;(window as unknown as { __store: typeof store }).__store = store
@@ -333,7 +348,7 @@ const originalFetch = window.fetch
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : (input as Request).url ?? input.toString(), location.origin)
   if (!url.pathname.startsWith("/_ntwine/")) return originalFetch(input, init)
-  log.calls.push({ path: url.pathname, at: performance.now() })
+  log.calls.push({ path: url.pathname, at: performance.now(), ...(typeof init?.body === "string" ? { body: init.body } : {}) })
   const rpc = /\/rpc\/([^/]+)$/.exec(url.pathname)?.[1]
   // Not an RPC (an attachment's `/attach`): left to whatever a test installed under this stub.
   if (!rpc) return originalFetch(input, init)
@@ -491,7 +506,7 @@ createRoot(document.getElementById("root")!).render(
       <TooltipProvider>
         <div className="min-h-screen bg-bg px-4 py-6 text-sm text-fg">
           <div data-fixture-queue className="mx-auto w-[640px] max-w-full min-w-0" style={params.has("cardw") ? { width: `${Number(params.get("cardw"))}px` } : undefined}>
-            {CASE === "many" ? <LockedQueue /> : <Queue />}
+            {CASE === "many" || CASE === "subagents" ? <LockedQueue /> : <Queue />}
           </div>
         </div>
       </TooltipProvider>

@@ -25,7 +25,10 @@ import test, { after, before } from "node:test"
 //        the card out at once (upstream fe668a8d; the card drew the fence as bare prose until 2026-10-06).
 //   12   a rest on a declared agent terminal draws the resting card, whose event-snooze parks the thread
 //        through the card's project and takes the card out.
-//   13   each question at the rest that asked it (upstream e157817a, 22084580): one asked two rests ago
+//   12b  `s` then Enter on a card with a sub-agent out snoozes for the first clock preset, never "until all
+//        sub-agents return" (2026-10-14: that row came first and armed @precompile-design unasked), and on
+//        a thread parked on its sub-agents the same keys are Wake now.
+//   13  each question at the rest that asked it (upstream e157817a, 22084580): one asked two rests ago
 //        sits under the reply that asked it, over the newest rest, which is bare and so draws "Reply to
 //        continue" beside the older question; one the newest rest asked sits under it with no such card.
 //        The transcript that places them is read through the CARD's project.
@@ -46,7 +49,7 @@ const NEIGHBOUR = '[data-xq-card="fixture-card/flaky-ci"]'
 type PuppeteerModule = typeof import("puppeteer")
 type Browser = Awaited<ReturnType<PuppeteerModule["launch"]>>
 type Page = Awaited<ReturnType<Browser["newPage"]>>
-interface RpcLog { calls: { path: string; at: number }[]; completeCalledAt: number | null; completeResolvedAt: number | null }
+interface RpcLog { calls: { path: string; at: number; body?: string }[]; completeCalledAt: number | null; completeResolvedAt: number | null }
 
 let browser: Browser | undefined
 let page: Page | undefined
@@ -352,6 +355,27 @@ test("a rest on a declared agent terminal draws the resting card, and its snooze
   assert.deepEqual(snoozes, ["/_ntwine/fixture-card/rpc/snoozeAwaitingBackground"], "the park went to the card's project")
   await page!.waitForFunction((sel) => !document.querySelector(sel), { timeout: 2_000 }, FIRST)
   assert.equal(await leavingOf(NEIGHBOUR), "false")
+  assert.deepEqual(errors, [])
+})
+
+test("`s` then Enter snoozes for the first clock preset beside a sub-agent wait, and is Wake now once parked on it", { skip: !baseUrl, timeout: 60_000 }, async () => {
+  const pressSnoozeThenEnter = async () => {
+    await page!.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    await page!.keyboard.press("s")
+    await page!.waitForFunction(() => document.activeElement?.closest('[role="menu"]') !== null, { timeout: 2_000 })
+    const focused = await page!.evaluate(() => document.activeElement?.getAttribute("data-value") ?? null)
+    await page!.keyboard.press("Enter")
+    await page!.waitForFunction(() => (window as unknown as { __rpc: RpcLog }).__rpc.calls.some((c) => /nooze[A-Za-z]*$/.test(c.path)), { timeout: 5_000 })
+    const snoozes = (await rpcLog()).calls.filter((c) => /nooze[A-Za-z]*$/.test(c.path))
+    return { focused, snoozes: snoozes.map((c) => ({ rpc: c.path.split("/").pop(), clear: (JSON.parse(c.body ?? "{}") as { clear?: boolean }).clear ?? false })) }
+  }
+  await open("case=subagents")
+  await page!.waitForSelector(`${FIRST} [data-subagent-wait]`)
+  // CONTROL: the menu does offer the sub-agent snooze, first — the keys must pass over it.
+  assert.deepEqual(await pressSnoozeThenEnter(), { focused: "1h", snoozes: [{ rpc: "setThreadSnooze", clear: false }] })
+
+  await open("case=subagents&snoozed=1")
+  assert.deepEqual(await pressSnoozeThenEnter(), { focused: "wake-now", snoozes: [{ rpc: "snoozeUntilSubAgentsReturn", clear: true }] })
   assert.deepEqual(errors, [])
 })
 

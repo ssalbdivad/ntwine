@@ -17,6 +17,7 @@ import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { showToast, store } from "../store.ts"
 import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
 import { useCommandHandler, useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
+import { ACTIVITY_SNOOZE_TOAST, SUBAGENTS_SNOOZE_TOAST } from "../lib/subAgentWait.ts"
 import { Dialog } from "./ui/Dialog.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 import { TextareaCodeFences } from "./TextareaCodeFences.tsx"
@@ -94,7 +95,14 @@ export function SnoozeMenu({
   }), [open])
   // Two shapes: a plain park only re-surfaces the card, while an armed one resumes the agent with that
   // text — so naming the follow-up IS the detail.
-  const state = snoozedUntil ? (prompt ? `Bumps ${formatSnoozeWake(snoozedUntil)}` : `Snoozed until ${formatSnoozeWake(snoozedUntil)}`) : null
+  // THE TWO EVENT SNOOZES, when one is what parks the thread: no instant to name, so the state reads as its
+  // toast did, and Wake now clears it through the RPC that armed it (each takes `clear`, the toast's Undo).
+  // Until 2026-10-14 only a wall-clock snooze had a Wake now, so a thread parked on its sub-agents could
+  // be brought back only by Undo while the toast lasted, or by typing to it.
+  const eventSnooze = snoozedUntil ? null : thread.subAgentsSnoozed === true ? "subagents" : thread.bgSnoozed === true ? "activity" : null
+  const state = snoozedUntil
+    ? (prompt ? `Bumps ${formatSnoozeWake(snoozedUntil)}` : `Snoozed until ${formatSnoozeWake(snoozedUntil)}`)
+    : eventSnooze === "subagents" ? SUBAGENTS_SNOOZE_TOAST : eventSnooze === "activity" ? ACTIVITY_SNOOZE_TOAST : null
   const snoozeKeys = useShortcutLabel("thread.snooze")
   const label = state ? (prompt ? `${state}\n${prompt}` : state) : withShortcut("Snooze", snoozeKeys)
   // THE `s` SHORTCUT OPENS THIS MENU (lib/keyboardRuntime.ts): how long to put a thread off is a choice,
@@ -112,11 +120,16 @@ export function SnoozeMenu({
   useEffect(() => {
     if (!open || !openedByKey.current) return
     openedByKey.current = false
-    // One frame: Radix mounts the content on open; this puts focus on the first actionable row, so `s`
-    // then Enter acts without a pointer. Only one menu can be open when a plain key fires (the runtime
-    // ignores them while any menu is up), so the lookup cannot land in another card's menu.
+    // One frame: Radix mounts the content on open; this puts focus on Wake now when the thread is snoozed,
+    // else on the FIRST CLOCK PRESET — never on an event snooze above it. It focused the first row of any
+    // kind until 2026-10-14, and on a parent with a sub-agent out that row is "Until all sub-agents
+    // return": `s` then Enter armed a snooze with no deadline that hid @precompile-design for hours, on a
+    // thread whose human never meant to pick it (maintainer: "I never said snooze until all return").
+    // Only one menu can be open when a plain key fires (the runtime ignores them while any menu is up), so
+    // the lookup cannot land in another card's menu.
     const frame = requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('[role="menu"] [role="menuitem"]')?.focus()
+      const menu = document.querySelector<HTMLElement>('[role="menu"]')
+      ;(menu?.querySelector<HTMLElement>('[data-value="wake-now"]') ?? menu?.querySelector<HTMLElement>(`[data-value="${SNOOZE_PRESETS[0]!.value}"]`))?.focus()
     })
     return () => cancelAnimationFrame(frame)
   }, [open])
@@ -163,6 +176,19 @@ export function SnoozeMenu({
     }
   }
 
+  async function wakeEvent(): Promise<void> {
+    const ids = { slug: thread.id, sessionId: thread.sessionId ?? "", clear: true }
+    setBusy(true)
+    try {
+      await (eventSnooze === "subagents" ? api.snoozeUntilSubAgentsReturn(ids) : api.snoozeAwaitingBackground(ids))
+      showToast("Snooze cleared")
+    } catch (error) {
+      showToast((error instanceof Error ? error.message : "Wake failed").slice(0, 100))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // An existing snooze re-opens as itself so editing the follow-up never silently moves the deadline;
   // otherwise the dialog starts a day out.
   function openCustom() {
@@ -204,7 +230,7 @@ export function SnoozeMenu({
               disabled={busy}
               data-command="snooze"
               data-snooze-menu
-              data-snoozed={snoozedUntil ? "true" : "false"}
+              data-snoozed={state ? "true" : "false"}
               aria-label={state ?? "Snooze"}
               // The armed follow-up is the tooltip's second line; a screen reader hears it here, since the
               // name stays the short state that the menu's own first line repeats.
@@ -213,7 +239,7 @@ export function SnoozeMenu({
               onMouseDown={(event) => event.preventDefault()}
               onBlur={() => setTooltipQuiet(false)}
               onPointerLeave={() => setTooltipQuiet(false)}
-              className={`${snoozedUntil ? HEADER_ICON_CLASS.replace(/(^| )text-muted( |$)/, "$1text-attention-90$2") : HEADER_ICON_CLASS} ${open ? "bg-panel-2" : ""}`}
+              className={`${state ? HEADER_ICON_CLASS.replace(/(^| )text-muted( |$)/, "$1text-attention-90$2") : HEADER_ICON_CLASS} ${open ? "bg-panel-2" : ""}`}
             >
               {busy ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <AlarmClock size={14} strokeWidth={2} />}
             </button>
@@ -221,13 +247,13 @@ export function SnoozeMenu({
         </Tooltip>
         <MenuContent align="end">
           <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-muted-60">{state ?? "Snooze"}</div>
-          {snoozedUntil && (
+          {(snoozedUntil || eventSnooze) && (
             <>
-              <MenuItem onSelect={() => void apply(null)} icon={<AlarmClockOff size={12} />}>Wake now</MenuItem>
+              <MenuItem value="wake-now" onSelect={() => void (snoozedUntil ? apply(null) : wakeEvent())} icon={<AlarmClockOff size={12} />}>Wake now</MenuItem>
               <MenuSeparator />
             </>
           )}
-          {eventItems}
+          {!eventSnooze && eventItems}
           {rows.map((row) => (
             <MenuItem key={row.value} value={row.value} onSelect={() => void apply(snoozePresetInstant(row.value))} icon={<AlarmClock size={12} />}>
               <span data-snooze-preset={row.value} className="flex min-w-0 flex-1 items-center justify-between gap-6">
