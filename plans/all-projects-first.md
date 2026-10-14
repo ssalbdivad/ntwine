@@ -1,7 +1,11 @@
 # All-projects-first: a sidebar ordered by attention, not by project
 
-Status: proposal (2026-10-14). Nothing here is built. A clickable concept with the capacity test's heavy load
-(17 projects, ~70 threads) lives in the thread that wrote this, `.ntwine/threads/87256cc2-078f-471c-9177-7c18fe38d2fc/all-projects-first.html`.
+Status: built (2026-10-14), all four steps: `components/TierList.tsx` (every view's list), `lib/sidebarBudget.ts`
+(fit-to-height), `components/HistoryView.tsx` with `projectsDone`/`threadsSearch` (History and cross-project search),
+`components/ProjectDock.tsx` and `lib/lens.ts` (dock and lenses). Where it departs from this text: the bands keep
+their names (Ready, Working, not "Needs you"/"Waiting"), a worker's own park stays in Working (no Waiting tier;
+Snoozed is the human's snoozes), and History has no date or has-PR filter yet. The concept page lives in the thread
+that wrote this, `.ntwine/threads/87256cc2-078f-471c-9177-7c18fe38d2fc/all-projects-first.html`.
 
 ## The premise
 
