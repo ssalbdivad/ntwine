@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react"
 
-// A LENS — All projects narrowed to a SET of projects (plans/all-projects-first.md § Dock and lenses). One
-// project is its own page, `/project/<slug>`; two or more are a lens over `/all`, made by shift-clicking
-// squares in the dock (components/ProjectDock.tsx) and kept for this tab only: a drawer's address carries
-// no query, so a lens in the URL was dropped by every thread opened under it. A lens the human wants back
+// A LENS — All projects narrowed to a SET of projects (plans/all-projects-first.md § Dock and lenses), made
+// by shift-clicking squares in the dock. A lens of one is the first pick of a bigger one (a plain click is
+// that project's own page, `/project/<slug>`), so it holds too. It is kept for this tab only
+// (components/ProjectDock.tsx): a drawer's address carries no query, so a lens in the URL was dropped by every thread opened under it. A lens the human wants back
 // tomorrow is SAVED, by name, per browser.
 
 const LENS_KEY = "ntwine.lens"
@@ -50,10 +50,10 @@ const subscribe = (listener: () => void) => {
   }
 }
 
-/** Narrow All projects to these projects, or (null, or fewer than two) widen it back to every project. */
+/** Narrow All projects to these projects, or (null, or none) widen it back to every project. */
 export function setLens(ids: Iterable<string> | null): void {
   const next = ids ? [...new Set(ids)] : []
-  lens = next.length >= 2 ? new Set(next) : null
+  lens = next.length > 0 ? new Set(next) : null
   try {
     if (lens) sessionStorage.setItem(LENS_KEY, JSON.stringify([...lens]))
     else sessionStorage.removeItem(LENS_KEY)

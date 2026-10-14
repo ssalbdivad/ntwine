@@ -4,7 +4,7 @@
 //
 //   click            that project's own page (`/project/<slug>`); its square again, back to All projects
 //   shift/⌘-click    add it to, or take it out of, a LENS — All projects narrowed to the projects picked
-//                    (lib/lens.ts); a lens of two or more can be saved by name and comes back as a chip
+//                    (lib/lens.ts); a lens can be saved by name and comes back as a chip
 //   right-click      the project's menu (ProjectActions.tsx ProjectMenu): its folder, repo, icon, rename,
 //                    remove — what each project row's "…" carried before the list stopped having them
 //   drag, ⌥←/⌥→      the machine-wide order, which the dock and the prompt box's picker both read
@@ -56,7 +56,7 @@ export function ProjectDock({
       if (base.has(project.id)) base.delete(project.id)
       else base.add(project.id)
       setLens(base)
-      if (focused || base.size < 2) onAll(focused)
+      if (focused) onAll(focused)
       return
     }
     if (focused?.id === project.id) onAll(focused)
@@ -80,7 +80,7 @@ export function ProjectDock({
           {lens && !lensName && <SaveLens count={lens.size} onSave={(name) => saveLens(name, lens)} onClear={() => setLens(null)} />}
         </div>
       )}
-      <div data-xq-dock-squares className="flex min-w-0 flex-wrap items-center gap-x-[7px] gap-y-2 pt-1">
+      <div data-xq-dock-squares className="flex min-w-0 flex-wrap items-center gap-x-[10px] gap-y-2 pt-[8px]">
         {reorder.ordered.map((project) => {
           const ready = project.queued.filter((t) => !hidden(threadKey(project.id, t.id))).length
           const working = project.running.length
@@ -114,7 +114,7 @@ export function ProjectDock({
                 <ProjectSquare project={card} size={SQUARE} />
               </span>
               {ready > 0 && (
-                <span data-xq-dock-ready={ready} className="absolute -right-[6px] -top-[6px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-accent-fill px-[3px] text-[9px] font-semibold leading-none tabular-nums text-on-accent shadow-[0_0_0_1.5px_var(--color-bg)]">
+                <span data-xq-dock-ready={ready} className="absolute -right-[7px] -top-[6px] flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-accent-fill px-[3px] text-[9px] font-semibold leading-none tabular-nums text-on-accent shadow-[0_0_0_1.5px_var(--color-bg)]">
                   {ready}
                 </span>
               )}

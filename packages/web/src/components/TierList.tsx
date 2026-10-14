@@ -35,7 +35,7 @@ import { listOverlay, loudBands } from "../lib/listBands.ts"
 import { useListHold } from "../lib/listHold.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { useArchivingAt } from "../lib/optimisticArchive.ts"
-import { budgetAt, maxLevel, type Budget, type BudgetInput } from "../lib/sidebarBudget.ts"
+import { budgetAt, maxLevel, TAIL_MAX, type Budget, type BudgetInput } from "../lib/sidebarBudget.ts"
 import { prefs } from "../lib/prefs.ts"
 import { recentOf } from "../lib/recentThreads.ts"
 import { useSteeredAt } from "../lib/steering.ts"
@@ -310,8 +310,6 @@ export function TierList({
             band="done"
             label="Done today"
             count={done.length}
-            collapsed={!open("done")}
-            onToggle={() => setTierFold("done", !open("done"))}
             tail={
               <button type="button" data-xq-open-history onClick={() => setCenterTab("history")} className="relative -mx-1 rounded px-1 outline-none transition-colors hover:bg-hover-strong hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
                 History
@@ -319,6 +317,16 @@ export function TierList({
             }
           />
           {runsOf(done.slice(0, budget.tailShown), "done")}
+          {/* Squeezed to its header, the tail drops this line too: the count and History say the rest. */}
+          {budget.tailShown > 0 && done.length > budget.tailShown && (
+            <MoreRow
+              count={done.length - budget.tailShown}
+              label={`${done.length - budget.tailShown} more today`}
+              detail={[...new Set(done.slice(budget.tailShown).map((slot) => slot.item.project.name))].join(", ")}
+              onClick={() => setTierFold("done", true)}
+            />
+          )}
+          {open("done") && done.length > TAIL_MAX && <ShowFewer onClick={() => setTierFold("done", false)} />}
         </section>
       )}
       {scheduled.length > 0 && (
