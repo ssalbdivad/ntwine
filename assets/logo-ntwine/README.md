@@ -13,6 +13,7 @@ Three threads come in, plait through three crossings, and leave as three: n thre
 | `candidates.ts` | Every round's candidates and findings. |
 | `concepts.ts` | Renders `ntwine-concepts.html`. |
 | `n-concepts.ts` | Ten marks that spell a lowercase n with the plait's threads; renders `ntwine-n.html`. |
+| `capital-n-concepts.ts` | Ten that spell a capital N, beside n9; renders `ntwine-capital-n.html`. |
 | `render.ts` | Rasterizes SVG in puppeteer's headless shell. |
 | `final/` | `favicon.svg` (the app icon), `mark.svg` (teal, no tile), `mark-mono.svg` (line art, `currentColor`), `tile.png`, and the PNG set. |
 

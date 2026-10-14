@@ -18,7 +18,7 @@ const page = join(here, "ntwine-n.html")
 // SKELETONS. An n is drawn as one polyline, then arc-length parametrised; the normal is the tangent turned
 // a quarter left, which matches lib.ts's `line` and `arch` (heading up, the normal points right).
 
-type Path = Vec[]
+export type Path = Vec[]
 
 class Pen {
   pts: Path = []
@@ -55,7 +55,7 @@ class Pen {
   }
 }
 
-function centrelineOf(path: Path): Centreline & { length: number } {
+export function centrelineOf(path: Path): Centreline & { length: number } {
   const arc = [0]
   for (let k = 1; k < path.length; k++) arc.push(arc[k - 1] + Math.hypot(path[k][0] - path[k - 1][0], path[k][1] - path[k - 1][1]))
   const L = arc[arc.length - 1]
@@ -99,8 +99,8 @@ function nPath(o: N): Path {
 // braid REGIONS (60 degrees per crossing for three strands, 180 for two), its rate eased in and out over
 // `ramp`, so outside every region the threads lie parallel at an even spread.
 
-type Region = { at: number; crossings: number; span: number }
-type Threads = { strands: 2 | 3; A: number; regions: Region[]; ramp: number; fray?: number; frayLen?: number }
+export type Region = { at: number; crossings: number; span: number }
+export type Threads = { strands: 2 | 3; A: number; regions: Region[]; ramp: number; fray?: number; frayLen?: number }
 
 function threadOffsets(t: Threads, L: number) {
   const K = 4000
@@ -133,10 +133,11 @@ function threadOffsets(t: Threads, L: number) {
 // at most 392 units tall and 372 wide inside the 480-unit tile: an n is wider than the shipped column,
 // and filling the tile's width puts its shoulders into the rounded corners.
 
-type Candidate = { id: string; title: string; note: string; n: N; threads: Threads; pen: number; clear: number; rule?: Rule; paint?: Paint }
+/** A skeleton is either an n's proportions or any polyline. */
+export type Candidate = { id: string; title: string; note: string; n?: N; path?: Path; threads: Threads; pen: number; clear: number; rule?: Rule; paint?: Paint }
 
 function specOf(c: Candidate, k = 1, d: Vec = [0, 0]): Spec {
-  const raw = nPath(c.n)
+  const raw = c.path ?? nPath(c.n!)
   const cl = centrelineOf(raw.map(([x, y]) => [k * x + d[0], k * y + d[1]]))
   const L0 = cl.length / k
   const off = threadOffsets(c.threads, L0)
@@ -150,7 +151,7 @@ function specOf(c: Candidate, k = 1, d: Vec = [0, 0]): Spec {
   }
 }
 
-function fitted(c: Candidate) {
+export function fitted(c: Candidate) {
   const [x0, y0, x1, y1] = inkBox(build(specOf(c)), c.pen)
   const k = Math.min(392 / (y1 - y0), 372 / (x1 - x0))
   const d: Vec = [256 - (k * (x0 + x1)) / 2, 256 - (k * (y0 + y1)) / 2]
@@ -225,7 +226,7 @@ const pngUri = (png: Buffer) => `data:image/png;base64,${png.toString("base64")}
 
 type Render = (svg: string, size: number) => Promise<Buffer>
 
-async function row(render: Render, id: string, title: string, note: string, svg: string, meta: string) {
+async function row(render: Render, out: string, id: string, title: string, note: string, svg: string, meta: string) {
   writeFileSync(join(out, `${id}.svg`), svg)
   const p16 = await render(svg, 16)
   const p32 = await render(svg, 32)
@@ -248,26 +249,25 @@ async function row(render: Render, id: string, title: string, note: string, svg:
 </section>`
 }
 
-async function main() {
-  rmSync(out, { recursive: true, force: true })
-  mkdirSync(out, { recursive: true })
+export type Entry = { id: string; title: string; note: string; svg: string; meta: string }
+export type Sheet = { page: string; out: string; title: string; intro: string; heading: string; reference?: Entry[] }
+
+/** One self-contained page: the shipped mark (and any `reference` rows), a thumbnail grid, then a row per entry. */
+export async function writeSheet(sheet: Sheet, entries: Entry[]) {
+  rmSync(sheet.out, { recursive: true, force: true })
+  mkdirSync(sheet.out, { recursive: true })
   const sections: string[] = []
-  const thumbs: string[] = []
+  const thumbs = entries.map((e) => `<figure><img src="${svgUri(e.svg)}" width="160" height="160" alt=""><figcaption>${e.id} · ${e.title}</figcaption></figure>`)
   await withRenderer(async (render) => {
-    sections.push(`<h2>Today's mark, for reference</h2>\n${await row(render, "shipped", "The plait", "packages/web/public/favicon.svg", faviconSvg, "")}`)
-    sections.push(`<h2>Ten n's</h2>`)
-    for (const c of candidates) {
-      const { spec, built } = fitted(c)
-      const svg = wovenTileSvg(built, spec, c.paint ?? GOLD, `ntwine n concept ${c.id}: ${c.title}. Rebuild with assets/logo-ntwine/n-concepts.ts.`)
-      const meta = `${built.crossings.length} crossings · pen ${spec.width.toFixed(1)} · ${(Buffer.byteLength(svg) / 1024).toFixed(1)} KB`
-      sections.push(await row(render, c.id, c.title, c.note, svg, meta))
-      thumbs.push(`<figure><img src="${svgUri(svg)}" width="160" height="160" alt=""><figcaption>${c.id} · ${c.title}</figcaption></figure>`)
-    }
+    sections.push(`<h2>For reference</h2>\n${await row(render, sheet.out, "shipped", "Today's plait", "packages/web/public/favicon.svg", faviconSvg, "")}`)
+    for (const e of sheet.reference ?? []) sections.push(await row(render, sheet.out, e.id, e.title, e.note, e.svg, e.meta))
+    sections.push(`<h2>${sheet.heading}</h2>`)
+    for (const e of entries) sections.push(await row(render, sheet.out, e.id, e.title, e.note, e.svg, e.meta))
   })
   writeFileSync(
-    page,
+    sheet.page,
     `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>ntwine mark: n</title>
+<html lang="en"><head><meta charset="utf-8"><title>${sheet.title}</title>
 <style>
   body { margin: 0; padding: 32px; background: #15161a; color: #d8d8dc; font: 14px/1.45 system-ui, sans-serif; }
   h1 { font-size: 22px; margin: 0 0 6px; } h2 { font-size: 18px; margin: 40px 0 6px; color: #fff; } h3 { font-size: 15px; margin: 0 0 4px; color: #5eead4; }
@@ -281,18 +281,38 @@ async function main() {
   .tab { display: flex; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 8px; font-size: 12px; }
   .light { background: #f1f3f4; color: #222; } .dark { background: #35363a; color: #eee; }
 </style></head><body>
-<h1>ntwine mark: the plait as an n</h1>
-<p>The shipped mark's threads, laid along a lowercase n instead of a straight column. Each row: the 512 art at 256 and 128, then 32 and 16 rasterized and upscaled with nearest-neighbour, then the 16 and 32 at true size on light and dark tab strips. Rebuild with <code>nub assets/logo-ntwine/n-concepts.ts</code>.</p>
+<h1>${sheet.title}</h1>
+<p>${sheet.intro} Each row: the 512 art at 256 and 128, then 32 and 16 rasterized and upscaled with nearest-neighbour, then the 16 and 32 at true size on light and dark tab strips.</p>
 <div class="grid">${thumbs.join("")}</div>
 ${sections.join("\n")}
 </body></html>
 `,
   )
-  console.log(page)
+  console.log(sheet.page)
   if (process.argv.includes("--shoot")) {
-    await shootPage(`file://${page}`, join(out, "sheet.png"))
-    console.log(join(out, "sheet.png"))
+    await shootPage(`file://${sheet.page}`, join(sheet.out, "sheet.png"))
+    console.log(join(sheet.out, "sheet.png"))
   }
+}
+
+/** A candidate as a sheet entry: fitted to the tile and woven. */
+export function entryOf(c: Candidate, comment: string): Entry {
+  const { spec, built } = fitted(c)
+  const svg = wovenTileSvg(built, spec, c.paint ?? GOLD, `${comment} ${c.id}: ${c.title}.`)
+  return { id: c.id, title: c.title, note: c.note, svg, meta: `${built.crossings.length} crossings · pen ${spec.width.toFixed(1)} · ${(Buffer.byteLength(svg) / 1024).toFixed(1)} KB` }
+}
+
+async function main() {
+  await writeSheet(
+    {
+      page,
+      out,
+      title: "ntwine mark: the plait as an n",
+      heading: "Ten n's",
+      intro: "The shipped mark's threads, laid along a lowercase n instead of a straight column. Rebuild with <code>nub assets/logo-ntwine/n-concepts.ts</code>.",
+    },
+    candidates.map((c) => entryOf(c, "ntwine n concept. Rebuild with assets/logo-ntwine/n-concepts.ts;")),
+  )
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) await main()

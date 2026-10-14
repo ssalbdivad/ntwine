@@ -352,6 +352,11 @@ export function woven(b: Built, spec: Pick<Spec, "width" | "clear" | "centreline
 
 export function wovenTileSvg(b: Built, spec: Spec, paint: Paint = GOLD, comment = ""): string {
   const w = woven(b, spec, paint)
+  return wovenTile(w, comment)
+}
+
+/** The favicon's tile, border and glow around already-woven paths and their masks. */
+export function wovenTile(w: Woven, comment = ""): string {
   return `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
     ${TILE_DEFS}
