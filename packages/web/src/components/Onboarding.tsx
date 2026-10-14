@@ -29,8 +29,8 @@ interface TourStepSpec {
 
 const select = (selector: string) => () => document.querySelector(selector)
 
-/** Whether the page is All projects — a project's page draws its title over the prompt box (AllQueues.tsx). */
-const onAllProjects = () => document.querySelector("[data-xq-page-title]") === null
+/** Whether the page is All projects — on a project's page the dock marks its square as the current page. */
+const onAllProjects = () => document.querySelector('[data-xq-dock-square][aria-current="page"]') === null
 const textOf = (text: ViewText) => (typeof text === "string" ? text : text(onAllProjects()))
 
 // The steps, in order. Every target is on both a board and All projects, so the tour runs on either, and the

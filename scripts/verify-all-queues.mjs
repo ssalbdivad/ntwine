@@ -203,7 +203,7 @@ try {
   // useChooseView).
   const allFrom = async (slug) => {
     await page.goto(`${origin}/project/${slug}`, { waitUntil: "networkidle2" })
-    await page.waitForSelector("[data-xq-page-title]", { timeout: 30_000 })
+    await page.waitForSelector('[data-xq-dock-square][aria-current="page"]', { timeout: 30_000 })
     await clickSettled('[data-tour="dock-all"] [data-xq-lens="All"]')
     await page.waitForFunction((paths) => paths.includes(location.pathname) && location.search === "", { timeout: 15_000 }, ALL_PATHS)
     await page.evaluate(() => { document.documentElement.dataset.theme = "dark" })

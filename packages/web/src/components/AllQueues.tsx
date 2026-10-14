@@ -86,7 +86,6 @@ import { ThreadConnector } from "./ThreadConnector.tsx"
 import { DispatchForm, type DispatchDirs } from "./NewThreadModal.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 import { TierList } from "./TierList.tsx"
-import { BoardIdentity } from "./BoardIdentity.tsx"
 import { isAsk } from "../lib/phonePage.ts"
 import { setCrossProjectMentions } from "../lib/mentionAutolink.ts"
 import { readingLine } from "../lib/readingLine.ts"
@@ -434,15 +433,13 @@ export function AllQueuesPage() {
   // The queue as drawn, by key: All projects' Ready rows list in this order, so a row faces its card.
   const queueKeysId = queue.filter((slot) => !slot.ghost).map((slot) => slot.key).join("\n")
   const queueKeys = useMemo(() => (queueKeysId ? queueKeysId.split("\n") : []), [queueKeysId])
-  // THE LIST: the dock (every project, and the lens) over the tiers (TierList.tsx), whichever the view —
-  // a project's page is the same list with one project in it.
-  const dock = <ProjectDock projects={projects} hidden={leaving.hidden} home={home} onAll={(from) => chooseView.all(from)} onProject={(slug) => chooseView.project(slug)} />
-  const list = (
-    <>
-      {dock}
-      <TierList projects={shown} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} queueOrder={queueKeys} subAgentRows={focused} />
-    </>
-  )
+  // THE DOCK (every project, and the lens) heads the column: in the status row over the prompt box on the
+  // desktop page, where it is the page's title and its view chooser at once (2026-10-14), and over the list
+  // in an editor's sidebar, which has no status row. THE LIST is the tiers (TierList.tsx), whichever the
+  // view — a project's page is the same list with one project in it.
+  const dockProps = { projects, hidden: leaving.hidden, home, onAll: (from: QueuesProject | undefined) => chooseView.all(from), onProject: (slug: string) => chooseView.project(slug) }
+  const dock = <ProjectDock {...dockProps} />
+  const list = <TierList projects={shown} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} queueOrder={queueKeys} subAgentRows={focused} />
 
   // AN EDITOR'S SIDEBAR IS THE DESKTOP'S LEFT COLUMN (SidebarPage.tsx): the prompt box over the list, the
   // dock heading the list, a thread in its drawer. The cards have no room; a Ready row opens its
@@ -547,11 +544,10 @@ export function AllQueuesPage() {
                 Focused, it starts in the view's project; showing All projects, in the project chosen in the
                 box's own bottom strip, beside the model. */}
             <div className="mb-5 shrink-0 px-0.5" onKeyDown={onColumnKeyDown}>
-              {/* On a project's board: the door home before its title, the project's repo and menu after it. */}
+              {/* The dock is the row's title: All and every project's square, the page's view ringed. A project's
+                  repo and menu are its square's right-click (ProjectActions.tsx ProjectMenu). */}
               <StatusRow
-                title={focused && viewed ? <ProjectTitle project={viewed} /> : undefined}
-                crumb={focused}
-                identity={focused && viewed ? <BoardIdentity project={viewed} home={home} /> : undefined}
+                title={<ProjectDock {...dockProps} inline />}
               />
               {/* The first-run tour's "Start a thread" points here (components/Onboarding.tsx). */}
               <div data-tour="composer">
@@ -651,24 +647,6 @@ export function AllQueuesPage() {
       </main>
       {!stacked && <ThreadConnector activeKey={activeKey} />}
     </div>
-  )
-}
-
-/**
- * A PROJECT PAGE'S TITLE in the status row: its square and name, plain text. All projects has none — the
- * dock under the prompt box is the page's one place to choose a view (ProjectDock.tsx), and its ringed
- * square already says which. A dropdown here did the dock's job a second time until 2026-10-14.
- */
-function ProjectTitle({ project }: { project: QueuesProject }) {
-  return (
-    <span data-xq-page-title className="flex min-w-0 items-baseline gap-1.5 text-[13px] font-semibold text-fg">
-      {/* The square has no baseline of its own: it sits ON the name's and is lowered by half its height
-          less half a cap, which puts it on the name's cap band in any font. */}
-      <span className="flex shrink-0 self-baseline translate-y-[calc(8px_-_0.5cap)]">
-        <ProjectSquare project={project.card ?? fallbackCard(project)} size={16} />
-      </span>
-      <span data-xq-page-title-name className="min-w-0 truncate">{project.name}</span>
-    </span>
   )
 }
 

@@ -63,7 +63,7 @@ test("switching the page to another project re-points the live feed at that proj
     })
     // The page, focused on the LAST of them and bound to it, so every switch below moves the feed.
     await page.goto(`${baseUrl}/project/${slugs.at(-1)}`, { waitUntil: "networkidle2" })
-    await page.waitForSelector("[data-xq-page-title]", { timeout: 15_000 })
+    await page.waitForSelector('[data-xq-dock-square][aria-current="page"]', { timeout: 15_000 })
     // A document load would rebind the feed and hide the bug, so the page must be this one throughout.
     await page.evaluate(() => { (window as unknown as { __sameDocument: boolean }).__sameDocument = true })
 

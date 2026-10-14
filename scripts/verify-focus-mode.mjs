@@ -90,10 +90,10 @@ const waitAddress = (page, want, ms = 10_000) =>
 // runs, and a Working run the list had no room for is one rollup line (`data-xq-rollup`).
 const listed = (page) => page.$$eval("[data-xq-rail-project], [data-xq-rollup]", (groups) => [...new Set(groups.map((g) => g.getAttribute("data-xq-rail-project") ?? g.getAttribute("data-xq-rollup")))])
 const cardProjects = (page) => page.$$eval("[data-xq-card]", (cards) => [...new Set(cards.map((c) => c.getAttribute("data-xq-card")?.split("/")[0]))])
-// The view has painted: a project's page is titled with its name (All projects has no title) and the list
-// holds exactly its projects.
+// The view has painted: the dock rings the page's project (none on All projects) and the list holds exactly
+// its projects.
 const showing = async (page, project) => {
-  await page.waitForFunction((name) => (document.querySelector("[data-xq-page-title-name]")?.textContent?.trim() ?? "") === name, { timeout: 10_000 }, project ? project.slug : "")
+  await page.waitForFunction((name) => (document.querySelector('[data-xq-dock-square][aria-current="page"]')?.getAttribute("data-xq-dock-square") ?? "") === name, { timeout: 10_000 }, project ? project.slug : "")
   await page.waitForSelector("[data-xq-rail-project]")
   await sleep(500)
 }
