@@ -25,15 +25,13 @@
 /**
  * The client id of Ntwine's GitHub OAuth App — public by design: device flow has no secret.
  *
- * Still the placeholder until the maintainer registers the app (see the registrar README). While it is,
- * custom names are withdrawn altogether (CUSTOM_NAMES_OFFERED in cloud.ts, false since 2026-10-08), so
- * nobody is offered a claim that would end here; registering the app means setting this AND flipping
- * that. A claim that reaches this anyway (`NTWINE_CUSTOM_NAMES=1`) refuses up front with a clear message
- * rather than sending GitHub an id it does not know. `NTWINE_GITHUB_CLIENT_ID` overrides it, for tests
- * and for a self-hosted registrar.
+ * Registered 2026-10-13 under the maintainer's GitHub account, with device flow enabled and token
+ * expiry off (the registrar spends the token once and accepts only a `gho_` token). Set back to
+ * GITHUB_CLIENT_ID_PLACEHOLDER and a claim refuses up front rather than sending GitHub an id it does
+ * not know. `NTWINE_GITHUB_CLIENT_ID` overrides it, for tests and for a self-hosted registrar.
  */
 export const GITHUB_CLIENT_ID_PLACEHOLDER = "ntwine-oauth-app-client-id-not-set";
-export const NTWINE_GITHUB_CLIENT_ID: string = GITHUB_CLIENT_ID_PLACEHOLDER;
+export const NTWINE_GITHUB_CLIENT_ID: string = "Ov23liRHzvccVLjKUoWb";
 
 /** The configured client id, or null while it is still the placeholder. */
 export function githubClientId(env: NodeJS.ProcessEnv = process.env): string | null {

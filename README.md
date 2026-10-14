@@ -254,7 +254,7 @@ In the terminal running Ntwine, **R** sets up remote access and **L** shows a fr
 <details>
 <summary><b>Can I reach it from my phone, or from anywhere?</b></summary>
 
-> Yes. Press **R** in the terminal running Ntwine and pick a private ntwine.app name (unguessable, no account), a Cloudflare Tunnel, Tailscale, or a proxy of your own. Ntwine stays on `127.0.0.1` in every case, the first visit from each device needs a single-use sign-in link, and `npx ntwine --sessions` / `--sign-out` manage the devices. (Custom names are paused for now.) Every project added or removed, thread started, message sent and question answered is recorded in `logs/audit.jsonl` under Ntwine's data folder, with the device that did it. Remote access exposes every project on the server. See [Remote access](docs/remote-access.md); try it first with `npx ntwine --sandbox`.
+> Yes. Press **R** in the terminal running Ntwine and pick a private ntwine.app name (unguessable, no account), a custom one (needs a GitHub account), a Cloudflare Tunnel, Tailscale, or a proxy of your own. Ntwine stays on `127.0.0.1` in every case, the first visit from each device needs a single-use sign-in link, and `npx ntwine --sessions` / `--sign-out` manage the devices. Every project added or removed, thread started, message sent and question answered is recorded in `logs/audit.jsonl` under Ntwine's data folder, with the device that did it. Remote access exposes every project on the server. See [Remote access](docs/remote-access.md); try it first with `npx ntwine --sandbox`.
 
 </details>
 

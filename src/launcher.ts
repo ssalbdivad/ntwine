@@ -195,7 +195,7 @@ export const DEV_SANDBOX_HOME_ENV = "NTWINE_DEV_SANDBOX_HOME";
 const RETIRED_NETWORK_FLAGS = ["--host", "--allowed-host", "--public-origin", "--cloud"];
 
 function retiredFlagMessage(flag: string): string {
-  return `${flag} was retired — how a board is reached is set up from the running board now: press R in its terminal to pick a private ntwine.app name, a Cloudflare Tunnel, Tailscale or a proxy of your own. The choice is remembered, so a plain launch serves it.`;
+  return `${flag} was retired — how a board is reached is set up from the running board now: press R in its terminal to pick a private or custom ntwine.app name, a Cloudflare Tunnel, Tailscale or a proxy of your own. The choice is remembered, so a plain launch serves it.`;
 }
 
 export function parseCliArgs(argv: string[]): CliOptions {
@@ -486,7 +486,7 @@ Commands:
   top                    memory on this machine and Ntwine's share of it (--json, --watch)
 
 To reach the board from a phone or another machine, press R in the terminal running it: a short
-walkthrough sets up a private ntwine.app name (no account needed), a Cloudflare
+walkthrough sets up a private ntwine.app name (no account needed), a custom one, a Cloudflare
 Tunnel, Tailscale, or a proxy of your own, and
 remembers the choice, so a plain launch serves it from then on. The board stays on loopback and
 shows a single-use sign-in link as a QR; press L for a fresh one, or run --link from another shell.

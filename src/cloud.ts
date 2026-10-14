@@ -97,21 +97,17 @@ export const REGISTRAR_IS_LIVE = true;
 /**
  * Are CUSTOM names (`dana.ntwine.app`, bound to a GitHub account) offered?
  *
- * No, as of 2026-10-08, until Ntwine's GitHub OAuth app is registered: the client id in
- * github-device-flow.ts is still the placeholder, so a custom claim could only refuse with
- * "not-configured" after the person had already picked it. While this is false the R pane does not
- * list "Custom name", the prompt does not mention it, and a word answer refuses before any GitHub
- * sign-in or registrar call. Private names, and every bring-your-own setup, are unaffected.
+ * Yes, since 2026-10-13, when Ntwine's GitHub OAuth app was registered (its client id is in
+ * github-device-flow.ts). They were withdrawn from 2026-10-08 until then. Setting this to `false`
+ * withdraws them again: the R pane stops listing "Custom name", the prompt stops mentioning it, and a
+ * word answer refuses (CUSTOM_NAMES_PAUSED) before any GitHub sign-in or registrar call. Private names
+ * and every bring-your-own setup are unaffected either way, and a name already claimed keeps renewing,
+ * because a renewal is signed by the keypair and never touches GitHub (resolveRunToken).
  *
- * Flipping it to `true` (with a real client id) brings the whole path back — nothing behind it was
- * removed. A name already claimed keeps renewing either way: a renewal is signed by the keypair and
- * never touches GitHub (resolveRunToken).
- *
- * `NTWINE_CUSTOM_NAMES=1` turns the offer on for one process, which is how the tests and
- * scripts/verify-claim-e2e.mjs keep driving the path while it is withdrawn. Read through
+ * `NTWINE_CUSTOM_NAMES=1` turns the offer on for one process while it is withdrawn. Read through
  * customNamesOffered, never directly.
  */
-export const CUSTOM_NAMES_OFFERED = false;
+export const CUSTOM_NAMES_OFFERED = true;
 
 /** CUSTOM_NAMES_OFFERED, or the `NTWINE_CUSTOM_NAMES=1` override. */
 export function customNamesOffered(env: NodeJS.ProcessEnv = process.env): boolean {

@@ -271,8 +271,8 @@ try {
   // 7. A CUSTOM NAME THROUGH THE DEVICE FLOW, with the real verifier as the gate. The CLI side is the
   // launcher's own establishCloudConfig, signing in through the real runDeviceFlow; the registrar side
   // is the real githubVerifier, asking the fake GitHub what the token is and what scopes it holds.
-  // Custom names are withdrawn for now (CUSTOM_NAMES_OFFERED in src/cloud.ts), and establishCloudConfig
-  // refuses a word up front while they are; the override turns the kept path back on for this process.
+  // establishCloudConfig refuses a word up front while custom names are withdrawn (CUSTOM_NAMES_OFFERED
+  // in src/cloud.ts); the override keeps this harness driving the path even then.
   process.env.NTWINE_CUSTOM_NAMES = "1";
   github.listen(0, "127.0.0.1");
   await once(github, "listening");

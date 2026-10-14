@@ -17,9 +17,9 @@ This is the default. Ntwine mints an unguessable name (20 random characters, so 
 
 The name is the address, not the lock. The first visit from every device still needs a single-use [sign-in link](/docs/remote-access#ntwine-does-the-authenticating).
 
-## Custom names are paused
+## Custom names
 
-A name you choose, like `ada.ntwine.app`, is tied to a GitHub account. That sign-in isn't set up yet, so Ntwine doesn't offer custom names for now.
+Pick **Custom name** and type a word to claim `<name>.ntwine.app`. It costs a GitHub sign-in: Ntwine shows a code to enter at [github.com/login/device](https://github.com/login/device), on any device. The sign-in grants no permissions; the registrar reads your account id, discards the token, and binds the name to that account. One custom name per account, and accounts under 30 days old can't claim one.
 
 A name claimed before 2026-10-13 was on the old domain, which no longer serves. Press <kbd>R</kbd> to claim a new one.
 
@@ -27,7 +27,7 @@ A name claimed before 2026-10-13 was on the old domain, which no longer serves. 
 
 Your machine holds an Ed25519 key, `identity.key` in Ntwine's state directory (`~/.ntwine/` on an install that has one). That key alone proves ownership, so renewals need no sign-in. To move a name to another machine, copy the file, the same way you'd move an SSH key.
 
-Every launch renews the lease. A name nobody has run for **30 days** is released.
+Every launch renews the lease. A name nobody has run for **30 days** is released — a lapsed custom name can be claimed by someone else.
 
 ## What you're agreeing to
 
