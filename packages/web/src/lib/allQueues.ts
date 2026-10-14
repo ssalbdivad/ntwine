@@ -37,6 +37,10 @@ export interface QueuesProject {
    *  like the project's own board files them (groups.ts sectionThreads) — and are not in `doneCount`. */
   pinnedDone: ThreadView[]
   doneCount: number
+  /** Its most recently rested Done threads, newest first, capped by the server (router.ts
+   *  RECENT_DONE_THREADS) — the sidebar's Done-today tail (TierList.tsx). Pinned ones included; the
+   *  tail leaves them to the Pinned band. */
+  recentDone: ThreadView[]
   /** Its schedules' count, and whether one wants the human (paused by Ntwine, or a proposal to turn on) —
    *  the row's fourth quiet count. Absent when it has none. */
   schedules?: ProjectSchedules
@@ -135,6 +139,7 @@ export function queuesProjects(
       // The server counts archived rows itself; any that still arrive (an older server, the live board)
       // are Done too — all but the pinned ones, which are rows above.
       doneCount: (queue?.doneCount ?? 0) + threads.filter((t) => !isPinned(t) && sectionOf(t) === "inactive").length,
+      recentDone: queue?.recentDone ?? [],
       ...(queue?.schedules && queue.schedules.count > 0 ? { schedules: queue.schedules } : {}),
     }
   }

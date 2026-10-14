@@ -334,3 +334,21 @@ export function setBoardBandOpen(projectId: string, band: QuietBandKey, on?: boo
 export function useBoardOpenBands(): ReadonlySet<string> {
   return useSyncExternalStore(boardOpenBands.subscribe, boardOpenBands.read, () => NONE)
 }
+
+// ---- All projects' tiers -------------------------------------------------------------------------------
+//
+// THE TIER LIST'S FOLDS (TierList.tsx), per browser like every fold here. A key is present when the human
+// FLIPPED that tier from how it starts — Snoozed and Done start folded, the rest open — so a new tier's
+// default needs no migration. `run:<projectId>` is a Working rollup the human expanded (lib/sidebarBudget.ts):
+// an expanded run is never rolled up again until they fold it.
+const tierFolds = persistedSet("ntwine.tierFolds")
+
+/** Flip one tier fold, or set it; `on` means "flipped from its default". */
+export function setTierFold(key: string, on?: boolean): void {
+  tierFolds.set(key, on)
+}
+
+/** The flipped tier folds — live, and a stable Set between changes. */
+export function useTierFolds(): ReadonlySet<string> {
+  return useSyncExternalStore(tierFolds.subscribe, tierFolds.read, () => NONE)
+}

@@ -10,64 +10,46 @@ import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Browser } from "puppeteer"
 
-// CAPACITY PARITY — the gate on "the default shows at least as much as upstream's default".
+// SIDEBAR FIT — the gate on "the list never scrolls, and never loses a thread" (plans/all-projects-first.md).
 //
-// Opt-in, and unlike every other *.e2e.test.ts here it needs NOTHING running: it boots its own three
-// disposable Ntwine stacks (`scripts/adhoc-stack.mjs`, sandbox HOME, throwaway port), seeds each, renders
-// it in its own headless Chrome and tears all of it down, pass or fail. One command runs it end to end:
-//   NTWINE_CAPACITY_E2E=1 nub run test packages/web/src/capacityParity.e2e.test.ts
-// Set NTWINE_CAPACITY_E2E_SHOTS=/abs/dir to also keep a screenshot of every measurement. It is listed in
+// Opt-in, and unlike every other *.e2e.test.ts here it needs NOTHING running: it boots its own disposable
+// Ntwine stacks (`scripts/adhoc-stack.mjs`, sandbox HOME, throwaway port), seeds each, renders it in its own
+// headless Chrome and tears all of it down, pass or fail. One command runs it end to end:
+//   NTWINE_SIDEBAR_FIT_E2E=1 nub run test packages/web/src/sidebarFit.e2e.test.ts
+// Set NTWINE_SIDEBAR_FIT_E2E_SHOTS=/abs/dir to also keep a screenshot of every measurement. It is listed in
 // scripts/e2e-web.mjs's NEEDS_REAL_STACK (it drives the real app, not a fixture page), so neither
-// `nub run test` nor `nub run test:e2e` boots its stacks: three Vite-served servers and six page loads
-// took 2.5-3.5 minutes on 2026-10-06, which the unit suite should not pay on every run.
+// `nub run test` nor `nub run test:e2e` boots its stacks.
 //
-// WHY THE BAR EXISTS. Upstream's standup (S3) put the scale question as a real machine: 17 projects and
-// about 70 open threads. David's first answer (2026-10-06, plans/upstream-superset.md § Capacity parity)
-// was that there is no view setting and All projects stays home at `/` — so the DEFAULT had to carry that
-// load, and "carries it" is defined against the original design: the default must show at least as
-// much, without scrolling, as upstream's default does. That is a number, so it is pinned as one. Later
-// that day All projects moved to `/all` and `/` began going back to the browser's last view, so either
-// view can be the one a browser opens, and both keep the bar.
+// THE BAR. All projects lists every project's threads by what they need (components/TierList.tsx) and
+// budgets its own height (lib/sidebarBudget.ts): at the heavy load (17 projects, 70 open threads) its
+// scroll box must not overflow at 1280x720, 1440x900 or 1920x1080, and every open thread must still be
+// ACCOUNTED FOR — a row, a project's rollup line, a "N more" line that counts it, or the Snoozed header's
+// count. At David's load (4 projects, 10 threads) nothing is compressed: every pinned, ready and working
+// row is on screen. A project's own page (`/project/<slug>`, the same list for one project) holds the
+// same bar with all 70 in one project.
 //
-// WHERE 22 AND 28 COME FROM. Upstream's own board (upstream at 0a3b9139), seeded with every one
-// of the 70 open threads in ONE project and rendered by this same visibility rule, shows 22 thread rows
-// at 1440x900 and 28 at 1920x1080, its band headers and rules included. The baseline is a measurement
-// of that commit, not a design target; re-measure on a newer upstream before moving it.
+// It replaced CAPACITY PARITY (2026-10-06 to 2026-10-14), which held All projects to the 22 / 28 thread
+// rows upstream's board showed at 1440x900 / 1920x1080 (upstream 0a3b9139). The last per-project list
+// measured 19 / 21 rows there with this seed, scrolling for the rest; the bar moved from "as many rows as
+// upstream" to "nothing below a fold, nothing uncounted" when David chose the tier list.
 //
-// WHAT IS COUNTED. A row counts only when its WHOLE box lies inside the viewport and inside every
-// clipping (overflow != visible) ancestor — fully readable without scrolling, not peeking out under a
-// fold. Two views, three loads:
-//   - All projects at `/all`, the heavy load (17 projects, 70 open threads skewed across projects and across
-//     pinned / queue / running / snoozed, plus three done per project). LINES = thread rows
-//     `[data-sidebar-item]` + project header rows `[data-xq-project-row]`: a header is a line of the
-//     same height carrying that project's counts, which is information upstream's board, one project
-//     at a time, does not show at all. Must be >= 22 / >= 28.
-//   - All projects at `/all`, David's load (4 projects, 10 threads). Every loud row — pinned, queue,
-//     running — must be fully visible: at a light load nothing that wants the human may sit below a fold.
-//   - The project board at `/project/<slug>`, the capacity load (the same 70 in ONE project). ROWS =
-//     `[data-sidebar-item]` alone, the like-for-like with upstream's sidebar. Must be >= 22 / >= 28.
-// The test reads only that DOM contract (`data-sidebar-item`, `data-xq-project-row`, `data-xq-band`), so
-// the views can be restyled freely as long as they still fit the numbers.
+// WHAT IS READ. Only a DOM contract: the list's scroll box `[data-xq-rail]`, each tier's
+// `[data-xq-tier]` with its `data-xq-tier-count`, thread rows `[data-sidebar-item]`, rollups'
+// `data-xq-rollup-count` and "N more" lines' `data-xq-more-count`.
 //
 // SEEDING. Each thread is a `session` row in the stack's sqlite, a transcript JSONL the real tailer
 // reads, and — for every open thread — a broker liveness record naming a stand-in `sleep` daemon, the
 // recipe of scripts/seed-all-queues.mjs. No RPC creates a thread without a real agent, and a Running
 // thread is precisely one whose broker daemon is alive mid-turn, so the row is the fixture and the
 // server's real tailer → board → push → render path does the rest. The daemon is this test's to kill.
-//
-// Measured on David's fork when this landed (2026-10-06, 48ea0568, before All projects was compacted),
-// at 1440x900 / 1920x1080: the project board 22 / 29 rows (passes); All projects at the heavy load
-// 17 / 22 lines, i.e. 11 rows + 6 headers / 14 rows + 8 headers (FAILS — each project group then cost
-// ~60px beyond its rows: a header, a "N more" row and a rule); David's load 8 of 8 loud rows at both.
-const enabled = process.env.NTWINE_CAPACITY_E2E === "1"
-const shotsDir = process.env.NTWINE_CAPACITY_E2E_SHOTS
+const enabled = process.env.NTWINE_SIDEBAR_FIT_E2E === "1"
+const shotsDir = process.env.NTWINE_SIDEBAR_FIT_E2E_SHOTS
 
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url))
 
-// upstream 0a3b9139, measured as above.
-const BAR = { "1440x900": 22, "1920x1080": 28 } as const
-type Viewport = keyof typeof BAR
+type Viewport = "1280x720" | "1440x900" | "1920x1080"
 const VIEWPORTS: { key: Viewport; width: number; height: number }[] = [
+  { key: "1280x720", width: 1280, height: 720 },
   { key: "1440x900", width: 1440, height: 900 },
   { key: "1920x1080", width: 1920, height: 1080 },
 ]
@@ -186,7 +168,7 @@ async function freePort(): Promise<number> {
 }
 
 async function bootStack(seed: Load): Promise<Stack> {
-  const scratch = mkdtempSync(join(tmpdir(), `ntwine-capacity-${seed.name}-`))
+  const scratch = mkdtempSync(join(tmpdir(), `ntwine-sidebar-fit-${seed.name}-`))
   ownedDirs.add(scratch)
   // Plain git repos named for the project: the slug is the folder's name, so the views read like a
   // real machine's (and the first one is the launcher).
@@ -268,7 +250,7 @@ function seedStack(stack: Stack): ChildProcess {
       const brokerDir = join(stack.home, ".ntwine", "projects", project.id, "claude-broker")
       mkdirSync(brokerDir, { recursive: true })
       for (const t of project.threads) {
-        const h = createHash("sha256").update(`capacity/${project.slug}/${t.slug}`).digest("hex")
+        const h = createHash("sha256").update(`sidebar-fit/${project.slug}/${t.slug}`).digest("hex")
         const sessionId = `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-9${h.slice(17, 20)}-${h.slice(20, 32)}`
         // Rests staggered three minutes apart, so the order inside a band is stable and realistic.
         const rest = 5 + n++ * 3
@@ -322,18 +304,18 @@ async function waitForBoards(stack: Stack) {
 
 // ── Measuring ────────────────────────────────────────────────────────────────────────────────────────
 
+type Tier = { tier: string; count: number; rows: number; rollups: number; more: number }
 type Measurement = {
   viewport: Viewport
-  rowsVisible: number
-  headersVisible: number
-  rowsMounted: number
-  headersMounted: number
-  visibleByBand: Record<string, number>
+  /** How far the list's scroll box overflows, in px; 0 when it fits. */
+  overflow: number
+  tiers: Tier[]
+  /** Thread rows wholly on screen, by thread slug. */
   visibleIds: string[]
 }
 
 /** Every viewport. */
-async function measureAll(_stack: Stack, browser: Browser, url: string, label: string): Promise<Measurement[]> {
+async function measureAll(browser: Browser, url: string, label: string): Promise<Measurement[]> {
   const out: Measurement[] = []
   for (const viewport of VIEWPORTS) out.push(await measure(browser, url, viewport, label))
   return out
@@ -346,38 +328,36 @@ async function measure(browser: Browser, url: string, viewport: (typeof VIEWPORT
     await page.goto(url, { waitUntil: "networkidle2", timeout: 120_000 })
     await page.waitForSelector("[data-sidebar-item]", { timeout: 60_000 })
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
-    // The count, taken once it holds still: rows arrive over the live feed and a band can settle a
-    // frame or two after the first, so one sample could catch the list mid-assembly. Two seconds of
-    // identical readings is settled.
+    // Taken once it holds still: rows arrive over the live feed and the list re-budgets as they do, so one
+    // sample could catch it mid-assembly. Two seconds of identical readings is settled.
     const read = () => page.evaluate(() => {
-      // measure.ts's rule, verbatim: the whole box inside the viewport and inside every ancestor
-      // whose overflow clips.
+      // The whole box inside the viewport and inside every ancestor whose overflow clips.
       const visible = (el: Element) => {
         const r = el.getBoundingClientRect()
         if (r.height === 0) return false
-        let top = 0, bottom = innerHeight, left = 0, right = innerWidth
+        let top = 0, bottom = innerHeight
         for (let a = el.parentElement; a; a = a.parentElement) {
           const cs = getComputedStyle(a)
-          if (cs.overflowY !== "visible" || cs.overflowX !== "visible") {
+          if (cs.overflowY !== "visible") {
             const ar = a.getBoundingClientRect()
             top = Math.max(top, ar.top); bottom = Math.min(bottom, ar.bottom)
-            left = Math.max(left, ar.left); right = Math.min(right, ar.right)
           }
         }
-        return r.top >= top - 0.5 && r.bottom <= bottom + 0.5 && r.left >= left - 0.5 && r.right <= right + 0.5
+        return r.top >= top - 0.5 && r.bottom <= bottom + 0.5
       }
-      const rows = [...document.querySelectorAll<HTMLElement>("[data-sidebar-item]")]
-      const headers = [...document.querySelectorAll("[data-xq-project-row]")]
-      const shown = rows.filter(visible)
-      const visibleByBand: Record<string, number> = {}
-      for (const row of shown) { const band = row.dataset.xqBand ?? "unbanded"; visibleByBand[band] = (visibleByBand[band] ?? 0) + 1 }
+      const rail = document.querySelector<HTMLElement>("[data-xq-rail]")
+      const sum = (els: Iterable<Element>, attr: string) => [...els].reduce((n, el) => n + Number(el.getAttribute(attr) ?? 0), 0)
+      const tiers = [...document.querySelectorAll<HTMLElement>("[data-xq-tier]")].map((section) => ({
+        tier: section.dataset.xqTier ?? "",
+        count: Number(section.dataset.xqTierCount ?? 0),
+        rows: [...section.querySelectorAll("[data-sidebar-item]")].filter(visible).length,
+        rollups: sum([...section.querySelectorAll("[data-xq-rollup-count]")].filter(visible), "data-xq-rollup-count"),
+        more: sum([...section.querySelectorAll("[data-xq-more-count]")].filter(visible), "data-xq-more-count"),
+      }))
       return {
-        rowsVisible: shown.length,
-        headersVisible: headers.filter(visible).length,
-        rowsMounted: rows.length,
-        headersMounted: headers.length,
-        visibleByBand,
-        visibleIds: shown.map((row) => row.dataset.sidebarItem ?? ""),
+        overflow: rail ? Math.max(0, rail.scrollHeight - rail.clientHeight) : -1,
+        tiers,
+        visibleIds: [...document.querySelectorAll<HTMLElement>("[data-sidebar-item]")].filter(visible).map((row) => row.dataset.sidebarItem ?? ""),
       }
     })
     let last = ""
@@ -393,7 +373,7 @@ async function measure(browser: Browser, url: string, viewport: (typeof VIEWPORT
     }
     if (shotsDir) {
       mkdirSync(shotsDir, { recursive: true })
-      await page.screenshot({ path: join(shotsDir, `capacity-${label}-${viewport.key}.png`) })
+      await page.screenshot({ path: join(shotsDir, `sidebar-fit-${label}-${viewport.key}.png`) })
     }
     return { viewport: viewport.key, ...reading }
   } finally {
@@ -423,49 +403,48 @@ async function withLoad<T>(seed: Load, run: (stack: Stack, browser: Browser) => 
 }
 
 // One line per measurement, printed on a pass as well as a failure: the numbers ARE the evidence.
-function report(load: string, view: string, unit: string, measured: { viewport: Viewport; count: number; detail: string }[], bar: (v: Viewport) => number) {
-  const lines = measured.map(({ viewport, count, detail }) =>
-    `  ${load.padEnd(9)} ${view.padEnd(13)} ${viewport.padEnd(10)} ${String(count).padStart(3)} ${unit} (${detail})  bar ${bar(viewport)}  ${count >= bar(viewport) ? "ok" : "SHORT"}`)
-  console.log(`capacity parity:\n${lines.join("\n")}`)
+function report(load: string, view: string, measured: Measurement[]): string {
+  const lines = measured.map((m) => {
+    const tiers = m.tiers.map((t) => `${t.tier} ${t.count} (${t.rows} rows${t.rollups ? ` + ${t.rollups} rolled` : ""}${t.more ? ` + ${t.more} more` : ""})`).join(", ")
+    return `  ${load.padEnd(9)} ${view.padEnd(13)} ${m.viewport.padEnd(10)} overflow ${String(m.overflow).padStart(3)}px  ${m.visibleIds.length} rows on screen  ${tiers}`
+  })
+  console.log(`sidebar fit:\n${lines.join("\n")}`)
   return lines.join("\n")
 }
 
-test("All projects at the heavy load shows at least upstream's 22 / 28 lines without scrolling", { skip: !enabled, timeout: 900_000 }, async () => {
-  const measured = await withLoad(HEAVY, (stack, browser) => measureAll(stack, browser, `${stack.base}/all`, "all-projects-heavy"))
-  const rows = measured.map((m) => ({
-    viewport: m.viewport,
-    count: m.rowsVisible + m.headersVisible,
-    detail: `${m.rowsVisible} thread rows + ${m.headersVisible} project headers; ${m.rowsMounted} rows / ${m.headersMounted} headers mounted`,
-  }))
-  const table = report("heavy", "all-projects", "lines", rows, (v) => BAR[v])
-  for (const { viewport, count } of rows) {
-    assert.ok(count >= BAR[viewport], `All projects at the heavy load (17 projects, 70 open), shows ${count} lines at ${viewport} without scrolling; upstream's board shows ${BAR[viewport]} (0a3b9139). Capacity parity needs the default to show at least as much.\n${table}`)
+const LOUD_TIERS = new Set(["pinned", "ready", "working"])
+
+/** The bar: nothing overflows, the tiers count every open thread, and each loud tier lists or counts all of its. */
+function assertFits(measured: Measurement[], open: number, table: string, where: string) {
+  for (const m of measured) {
+    assert.equal(m.overflow, 0, `${where} scrolls by ${m.overflow}px at ${m.viewport}\n${table}`)
+    const counted = m.tiers.filter((t) => t.tier !== "done").reduce((n, t) => n + t.count, 0)
+    assert.equal(counted, open, `${where} at ${m.viewport} counts ${counted} open threads of ${open} in its tiers\n${table}`)
+    for (const t of m.tiers.filter((t) => LOUD_TIERS.has(t.tier))) {
+      assert.equal(t.rows + t.rollups + t.more, t.count, `${where} at ${m.viewport}: ${t.tier} holds ${t.count} but lists or counts ${t.rows + t.rollups + t.more} on screen\n${table}`)
+    }
   }
+}
+
+test("All projects at the heavy load fits without scrolling and accounts for every open thread", { skip: !enabled, timeout: 900_000 }, async () => {
+  const measured = await withLoad(HEAVY, (stack, browser) => measureAll(browser, `${stack.base}/all`, "all-projects-heavy"))
+  const table = report("heavy", "all-projects", measured)
+  assertFits(measured, 70, table, "All projects at the heavy load (17 projects, 70 open)")
 })
 
-test("All projects at David's load shows every pinned, queue and running row without scrolling", { skip: !enabled, timeout: 900_000 }, async () => {
+test("All projects at David's load shows every pinned, ready and working row, uncompressed", { skip: !enabled, timeout: 900_000 }, async () => {
   const loud = DAVID.projects.flatMap((p) => p.threads.filter((t) => LOUD.has(t.band)).map((t) => t.slug))
-  const measured = await withLoad(DAVID, (stack, browser) => measureAll(stack, browser, `${stack.base}/all`, "all-projects-david"))
-  const rows = measured.map((m) => {
+  const measured = await withLoad(DAVID, (stack, browser) => measureAll(browser, `${stack.base}/all`, "all-projects-david"))
+  const table = report("david", "all-projects", measured)
+  for (const m of measured) {
     const shown = new Set(m.visibleIds)
     const missing = loud.filter((slug) => !shown.has(slug))
-    return { viewport: m.viewport, count: loud.length - missing.length, missing, detail: `of ${loud.length} loud; ${m.rowsVisible} rows + ${m.headersVisible} headers visible${missing.length ? `; below the fold: ${missing.join(", ")}` : ""}` }
-  })
-  const table = report("david", "all-projects", "loud rows", rows, () => loud.length)
-  for (const { viewport, missing } of rows) {
-    assert.deepEqual(missing, [], `All projects at David's load (4 projects, 10 threads), hides loud rows below the fold at ${viewport}: ${missing.join(", ")}\n${table}`)
+    assert.deepEqual(missing, [], `All projects at David's load (4 projects, 10 threads) hides loud rows at ${m.viewport}: ${missing.join(", ")}\n${table}`)
   }
 })
 
-test("the project board at the capacity load shows at least upstream's 22 / 28 rows without scrolling", { skip: !enabled, timeout: 900_000 }, async () => {
-  const measured = await withLoad(CAPACITY, (stack, browser) => measureAll(stack, browser, `${stack.base}/project/${stack.projects[0]!.slug}`, "project-board-capacity"))
-  const rows = measured.map((m) => ({
-    viewport: m.viewport,
-    count: m.rowsVisible,
-    detail: `${Object.entries(m.visibleByBand).map(([band, n]) => `${n} ${band}`).join(", ")}; ${m.rowsMounted} rows mounted`,
-  }))
-  const table = report("capacity", "project-board", "rows", rows, (v) => BAR[v])
-  for (const { viewport, count } of rows) {
-    assert.ok(count >= BAR[viewport], `The project board with 70 open threads in one project, shows ${count} thread rows at ${viewport} without scrolling; upstream's board shows ${BAR[viewport]} (0a3b9139).\n${table}`)
-  }
+test("a project's own page at the capacity load fits without scrolling and accounts for every open thread", { skip: !enabled, timeout: 900_000 }, async () => {
+  const measured = await withLoad(CAPACITY, (stack, browser) => measureAll(browser, `${stack.base}/project/${stack.projects[0]!.slug}`, "project-capacity"))
+  const table = report("capacity", "project", measured)
+  assertFits(measured, 70, table, "A project's page with 70 open threads")
 })

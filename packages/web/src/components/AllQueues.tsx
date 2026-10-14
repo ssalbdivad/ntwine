@@ -83,6 +83,7 @@ import { DispatchForm, type DispatchDirs } from "./NewThreadModal.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 import { ProjectSwitcher, type SwitcherProject } from "./ProjectSwitcher.tsx"
 import { AddProjectRow, ProjectList } from "./ProjectList.tsx"
+import { TierList } from "./TierList.tsx"
 import { BoardIdentity } from "./ProjectBoard.tsx"
 import { isAsk } from "../lib/phonePage.ts"
 import { setCrossProjectMentions } from "../lib/mentionAutolink.ts"
@@ -412,9 +413,16 @@ export function AllQueuesPage() {
   // open: the card steps aside because the drawer is the same thread, but the list is where the reader
   // finds their place, and a row that vanished when clicked left them nothing to find. Focused, it is the
   // one project, and adding another is the switcher's (its last item) rather than a row of this list.
+  // The queue as drawn, by key: All projects' Ready rows list in this order, so a row faces its card.
+  const queueKeysId = queue.filter((slot) => !slot.ghost).map((slot) => slot.key).join("\n")
+  const queueKeys = useMemo(() => (queueKeysId ? queueKeysId.split("\n") : []), [queueKeysId])
   const list = (
     <>
-      <ProjectList projects={shown} home={home} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} />
+      {focused ? (
+        <ProjectList projects={shown} home={home} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} />
+      ) : (
+        <TierList projects={shown} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} queueOrder={queueKeys} />
+      )}
       {!focused && <AddProjectRow />}
     </>
   )
@@ -460,14 +468,23 @@ export function AllQueuesPage() {
         }
         list={(reading) => (
           <>
-            <ProjectList
-              projects={shown}
-              home={home}
-              activeKey={reading}
-              hidden={leaving.hidden}
-              onQueuedRow={noCard}
-              switcher={<Switcher projects={projects} hidden={hidden} current={viewed} row />}
-            />
+            {focused ? (
+              <ProjectList
+                projects={shown}
+                home={home}
+                activeKey={reading}
+                hidden={leaving.hidden}
+                onQueuedRow={noCard}
+                switcher={<Switcher projects={projects} hidden={hidden} current={viewed} row />}
+              />
+            ) : (
+              <>
+                <div data-xq-switcher-row className="flex min-w-0 py-0.5 pl-5 pr-1.5">
+                  <Switcher projects={projects} hidden={hidden} current={viewed} row />
+                </div>
+                <TierList projects={shown} activeKey={reading} hidden={leaving.hidden} onQueuedRow={noCard} queueOrder={queueKeys} />
+              </>
+            )}
             {!focused && <AddProjectRow />}
           </>
         )}
