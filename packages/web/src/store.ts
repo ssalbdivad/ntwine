@@ -82,11 +82,6 @@ export const store = proxy({
   // box (lib/editorBridge.ts composeInto) opens it to SHOW the chip, focused only when the human writes
   // next: "Add to Ntwine prompt" from an editor's sidebar leaves the caret in the editor.
   phoneNewThread: null as { focus: boolean } | null,
-  // The GitHub picker modal (Issues/PRs tabs → multi-select → batch dispatch). Its trigger appears
-  // only when gh is authed AND the project is a GitHub repo; see GithubTrigger + openGithubPicker.
-  // The modal reads the durable new-thread profile live and carries its own selector for it, so
-  // nothing about the dispatch tuple is captured here.
-  showGithubPicker: false,
   // The SIDE-DRAWER STACK — arbitrary depth. `thread` layers are full thread views (the Open-thread
   // sheet); `doc` layers are the ntwine-document markdown; `file` layers are the built-in reader for a
   // FILE on disk — a `.md` rendered, anything else as source — opened from any link to one (see
@@ -184,16 +179,6 @@ export const store = proxy({
 
 export function openNewThread(): void {
   store.showNewThread = true
-}
-
-// Open the GitHub picker modal (batch-dispatch from issues/PRs). The trigger that calls this is
-// itself gated on gh being authed + in a GitHub repo, so the modal only opens when the RPCs can serve.
-export function openGithubPicker(): void {
-  store.showGithubPicker = true
-}
-
-export function closeGithubPicker(): void {
-  store.showGithubPicker = false
 }
 
 let toastSeq = 0
@@ -661,7 +646,6 @@ export function resetProjectState() {
   store.socketTranscriptFallbacks = {}
   store.showSettings = false
   store.showNewThread = false
-  store.showGithubPicker = false
   store.lightbox = null
 }
 

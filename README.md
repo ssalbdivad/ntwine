@@ -96,7 +96,7 @@ These are Colin's design principles from Frizz, and Ntwine keeps all of them. I 
 - ❓ **Answerable questions.** An agent hands back numbered options with its own recommendation, so the common answer is one keystroke.
 - 😴 **Snooze.** Park a card for an hour, until tomorrow morning, or until a date you pick, optionally with a follow-up prompt it wakes up working on.
 - 🎯 **Goals.** A standing prompt Ntwine re-sends at every rest, on a clock, or both: "keep going until CI is green" without re-asking.
-- 🐙 **GitHub.** Turn issues and pull requests into threads from the composer. Workers read issues, diffs and CI, and never write unless you ask.
+- 🐙 **GitHub.** Workers read issues, diffs and CI through your `gh`, and never write unless you ask.
 - 👀 **Watchers.** A worker waiting on CI, a review or a reporter's reply watches, and picks the work back up when something lands. A watch outlives the agent's session.
 - 📱 **Remote access.** Press R in Ntwine's terminal to reach it from your phone: a private ntwine.app name, a Cloudflare Tunnel, Tailscale, or a proxy of your own.
 - 🔒 **Local only.** No cloud, no account, no telemetry. The server binds `127.0.0.1`, and its state lives in your user directory, never in your checkout.
@@ -157,11 +157,7 @@ Each project's **board**, at `/project/<name>`, lists its threads under the five
 
 <h2 align="center">GitHub, snooze, goals</h2>
 
-Browse the repo's issues and pull requests from the composer, select any number, and each becomes its own thread. Workers read issues, diffs and CI on their own, but never comment, label, close or merge unless you ask.
-
-<p align="center">
-  <img src="assets/github.png" alt="The GitHub picker listing a repo's open issues with comment, reaction and linked-PR counts, three of them checked, and a Start 3 investigations button." width="100%">
-</p>
+On **GitHub**, workers read issues, diffs and CI on their own, through the `gh` you're signed in to, but never comment, label, close or merge unless you ask.
 
 **Snooze** parks a card for an hour, until tomorrow morning, or until a date you pick. Attach a follow-up prompt and the thread wakes up already working on it.
 

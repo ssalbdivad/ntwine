@@ -7,8 +7,8 @@ let settings: Record<string, unknown> = {
 }
 
 // Every settingsSet ATTEMPT the drawer makes, in order, with the millisecond it arrived. The autosave
-// e2e test reads this to prove a picker writes on the click while a keystroke writes ONCE, after the
-// debounce — and, with ?retryableFailures=N, that a replayable refusal is replayed rather than lost.
+// e2e test reads this to prove a control writes on the click — and, with ?retryableFailures=N, that a
+// replayable refusal is replayed rather than lost.
 const writes: { at: number; body: Record<string, unknown>; ok: boolean }[] = []
 Object.assign(window, { __settingsWrites: writes })
 
@@ -45,11 +45,6 @@ window.fetch = async (input, init) => {
   }
   if (url.pathname === "/_ntwine/rpc/codexModels") return rpcResult([])
   if (url.pathname === "/_ntwine/rpc/acpAgents") return rpcResult([])
-  if (url.pathname === "/_ntwine/rpc/githubPromptDefaults") {
-    return rpcResult({
-      prompt: "Triage this GitHub issue/PR and make recommendations. Classify it, be dubious, and say what you actually checked.",
-    })
-  }
   return nativeFetch(input, init)
 }
 

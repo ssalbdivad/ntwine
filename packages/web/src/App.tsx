@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import { useQuery } from "@tanstack/react-query"
-import { closeGithubPicker, store, seedBoard, pushDrawer, resolveRoutedThread, topDrawer, topThreadSlug, showToast } from "./store.ts"
+import { store, seedBoard, pushDrawer, resolveRoutedThread, topDrawer, topThreadSlug, showToast } from "./store.ts"
 import { embedded, hostTerminalHint } from "./lib/embed.ts"
 import { addEditorContextByKey } from "./lib/editorContext.ts"
 import { detectPlatform } from "./lib/keybindings.ts"
@@ -19,8 +19,7 @@ import { useCrossProjectNotifications } from "./lib/crossProjectNotify.ts"
 import { DrawerStack } from "./components/DrawerStack.tsx"
 import { PendingThreadSheet } from "./components/PendingThreadSheet.tsx"
 import { NewThreadDialog } from "./components/NewThreadModal.tsx"
-import { GithubPickerModal } from "./components/GithubPickerModal.tsx"
-import { useGithubStatus } from "./components/GithubTrigger.tsx"
+import { useGithubStatus } from "./hooks/useGithubStatus.ts"
 import { SettingsDrawer } from "./components/SettingsDrawer.tsx"
 import { RunningTimeLimitHost } from "./components/RunningTimeLimitDialog.tsx"
 import { CommandPalette } from "./components/CommandPalette.tsx"
@@ -56,7 +55,7 @@ function reportClientZoneOnce() {
 function maybeShowSignInHint() {
   if (signInHintShown) return
   signInHintShown = true
-  showToast("Sign in to the GitHub CLI (`gh auth login`) to dispatch from issues/PRs.", {
+  showToast("Sign in to the GitHub CLI (`gh auth login`) so threads can read and watch issues and PRs.", {
     duration: 6000,
     ...(embedded() ? { detail: hostTerminalHint(detectPlatform() === "mac") } : {}),
   })
@@ -181,7 +180,7 @@ export function App() {
 
   // While ANY overlay is open (thread sheet, doc drawer, settings, new-thread modal, palette), the
   // PAGE must not scroll — only the overlay's own pane does.
-  const overlayOpen = snap.drawers.length > 0 || snap.showSettings || snap.showNewThread || snap.showGithubPicker || snap.showPalette || snap.showShortcuts || snap.showRunningTimeLimit
+  const overlayOpen = snap.drawers.length > 0 || snap.showSettings || snap.showNewThread || snap.showPalette || snap.showShortcuts || snap.showRunningTimeLimit
   useEffect(() => {
     // Scroll lock via the body-fixed dance, NOT overflow:hidden on the root — hiding root overflow
     // dropped the scrollbar (and with it the layout width) every time a drawer opened. With the
@@ -226,9 +225,8 @@ export function App() {
   // …and for every project the page is NOT bound to, whose events never reach this socket.
   useCrossProjectNotifications(settings.data?.notifications ?? false)
 
-  // GitHub availability drives two things: the picker TRIGGER (in the sidebar / brand-new view, gated
-  // in GithubTrigger off this same cached query) and — when the repo IS a GitHub repo but gh is NOT
-  // signed in — ONE subtle, self-fading hint on app open nudging the user to `gh auth login`. The hint
+  // When the repo IS a GitHub repo but gh is NOT signed in, ONE subtle, self-fading hint on app open
+  // nudges the user to `gh auth login`. The hint
   // fires at most once per page load (a module flag survives re-renders / StrictMode double-invoke),
   // stays a beat longer than a normal toast so it's readable, and never nags again.
   const github = useGithubStatus()
@@ -322,7 +320,6 @@ export function App() {
       <PendingThreadSheet />
       {snap.showSettings && <SettingsDrawer offerUpdate />}
       {snap.showNewThread && <NewThreadDialog onClose={() => { store.showNewThread = false }} />}
-      {snap.showGithubPicker && <GithubPickerModal onClose={closeGithubPicker} />}
       <CommandPalette />
       <RunningTimeLimitHost />
     </div>

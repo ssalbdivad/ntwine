@@ -344,7 +344,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 const OVERLAY_SELECTOR = ':is([role="dialog"], [role="alertdialog"])[aria-modal="true"]:not([data-drawer-layer]), [role="menu"], [role="listbox"]'
 
 function overlayOpen(): boolean {
-  if (store.showPalette || store.showNewThread || store.showGithubPicker || store.showSettings || store.showShortcuts) return true
+  if (store.showPalette || store.showNewThread || store.showSettings || store.showShortcuts) return true
   if (typeof document === "undefined") return false
   if (document.querySelector(OVERLAY_SELECTOR) !== null) return true
   return document.body.style.pointerEvents === "none" && document.querySelector('[data-drawer-layer][aria-modal="true"]') === null

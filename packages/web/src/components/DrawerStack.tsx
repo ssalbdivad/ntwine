@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { useSnapshot } from "valtio"
-import { closeFilePanel, closeGithubPicker, store, threadBySlug } from "../store.ts"
+import { closeFilePanel, store, threadBySlug } from "../store.ts"
 import { useBoard } from "../hooks.ts"
 import { displayTitle } from "../groups.ts"
 import { closeDrawerAnimated, closeSettingsAnimated } from "../lib/overlays.ts"
@@ -64,7 +64,6 @@ export function DrawerStack({ onEscapeAtRest }: { onEscapeAtRest?: () => void } 
       // nothing registered) so Esc slides them out instead of unmounting instantly.
       if (store.showPalette) store.showPalette = false
       else if (store.showNewThread) store.showNewThread = false
-      else if (store.showGithubPicker) closeGithubPicker()
       else if (store.showSettings) { if (!closeSettingsAnimated()) store.showSettings = false }
       // The drawer STACK unwinds topmost-first, one layer per Esc.
       else if (store.drawers.length > 0) {

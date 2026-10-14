@@ -8,7 +8,7 @@ const base = {
   localFileOpener: "system",
   notifications: false,
   effort: "high",
-  githubPrompt: "be terse",
+  model: "opus",
 } as unknown as Settings
 
 const with_ = (over: Record<string, unknown>) => ({ ...base, ...over }) as unknown as Settings
@@ -20,8 +20,8 @@ test("an open draft adopts a machine setting another surface wrote", () => {
   const after = with_({ localFileOpener: "vscode" })
   assert.equal(adoptPublishedSettings(base, base, after).localFileOpener, "vscode")
   // Whatever else the draft holds is kept: an unsaved edit elsewhere in it stays.
-  const edited = with_({ githubPrompt: "typing…" })
-  assert.deepEqual(adoptPublishedSettings(edited, base, after), with_({ githubPrompt: "typing…", localFileOpener: "vscode" }))
+  const edited = with_({ model: "sonnet" })
+  assert.deepEqual(adoptPublishedSettings(edited, base, after), with_({ model: "sonnet", localFileOpener: "vscode" }))
   // Every machine key, not only the one the offer writes: the project rail's notifications toggle too.
   assert.deepEqual(adoptPublishedSettings(base, base, with_({ notifications: true, localFileOpener: "cursor" })), with_({ notifications: true, localFileOpener: "cursor" }))
 })
@@ -33,7 +33,7 @@ test("a value the human chose in the draft is theirs, and nothing changed adopts
   // The cache moved nothing: the very same draft object comes back, so a state update is a no-op.
   assert.equal(adoptPublishedSettings(mine, base, { ...base }), mine)
   // A project's own key moves in the cache when the PAGE's project does; it is never poured in.
-  const otherProject = with_({ effort: "low", githubPrompt: "another project's" })
+  const otherProject = with_({ effort: "low", model: "another project's" })
   assert.equal(adoptPublishedSettings(base, base, otherProject), base)
 })
 

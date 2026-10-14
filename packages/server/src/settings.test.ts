@@ -171,13 +171,13 @@ test("a pre-store settings.json is read until the next save promotes it into the
   }
 })
 
-// The GitHub picker's issue and PR prompts merged into ONE `githubPrompt` on 2026-08-15. The backfill
-// is the schema itself: Settings is a non-strict z.object, so a blob still carrying the two old keys
-// has them STRIPPED on read, and the reader falls through to the new shipped default. That is the
-// maintainer's intended migration — drop every stored override rather than guess how to fuse two
-// customized templates into one. This test is what keeps it true if Settings ever turns strict/
-// passthrough, which would either throw on an old blob or leak a dead key back out.
-test("an old blob's githubIssuePrompt/githubPrPrompt are dropped, not carried into githubPrompt", () => {
+// A removed setting's stored value is ignored, not migrated. The GitHub picker's triage prompt was
+// `githubIssuePrompt`/`githubPrPrompt` until 2026-08-15, then one `githubPrompt` until the picker itself
+// went on 2026-10-14. The backfill is the schema itself: Settings is a non-strict z.object, so a blob
+// still carrying any of those keys has them STRIPPED on read. This test is what keeps it true if
+// Settings ever turns strict/passthrough, which would either throw on an old blob or leak a dead key
+// back out.
+test("an old blob's GitHub picker prompts are dropped on read and on the next save", () => {
   const box = sandbox()
   try {
     const alpha = box.open("alpha")
@@ -185,10 +185,11 @@ test("an old blob's githubIssuePrompt/githubPrPrompt are dropped, not carried in
       ...defaultSettings(),
       githubIssuePrompt: "my hand-tuned issue template",
       githubPrPrompt: "my hand-tuned PR template",
+      githubPrompt: "my hand-tuned triage template",
     })
 
     const seen = getSettings(alpha, box.home) as Record<string, unknown>
-    assert.equal(seen.githubPrompt, undefined, "unset ⇒ the server uses the shipped default")
+    assert.equal(seen.githubPrompt, undefined, "the removed key does not survive the read")
     assert.equal(seen.githubIssuePrompt, undefined, "the old key does not survive the read")
     assert.equal(seen.githubPrPrompt, undefined)
     // …and the next save writes the stripped shape back, so the dead keys leave the DB for good.
@@ -196,6 +197,7 @@ test("an old blob's githubIssuePrompt/githubPrPrompt are dropped, not carried in
     const stored = alpha.getSetting("settings") as Record<string, unknown>
     assert.equal("githubIssuePrompt" in stored, false)
     assert.equal("githubPrPrompt" in stored, false)
+    assert.equal("githubPrompt" in stored, false)
   } finally {
     box.done()
   }

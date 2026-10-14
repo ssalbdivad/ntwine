@@ -92,8 +92,8 @@ test("the approved light palette keeps questions neutral and actions subtly outl
   assert.equal(declarations(css.split(':root, :root[data-theme="dark"] {')[1]!.split("}")[0]!)["--shadow-ink"], "#000000")
   const style = readFileSync(new URL("../styles.css", import.meta.url), "utf8")
   assert.match(style, /@utility button-outline\s*\{\s*@apply inset-ring inset-ring-button-border/)
-  const picker = readFileSync(new URL("../components/GithubPickerModal.tsx", import.meta.url), "utf8")
-  assert.match(picker, /const label = githubLabelColors\(color\)/)
+  const card = readFileSync(new URL("../components/GithubRefCardBody.tsx", import.meta.url), "utf8")
+  assert.match(card, /const label = githubLabelColors\(color\)/)
 })
 
 // REGRESSION (2026-10-03). The hover edge is a box-shadow coloured color-mix(currentColor …), which

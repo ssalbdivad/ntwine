@@ -42,17 +42,17 @@
  *  read `deadLeft`/`deadRight` off each mark). */
 
 
-/** THE RAIL, right to left: send, the rail action (the dispatch composer's GitHub picker), the paperclip, and the
- *  lead (the thread composer's Goal). Each is a 28px square; any of the middle marks may be absent, and
- *  the marks to its left close up.
+/** THE RAIL, right to left: send, the paperclip, the lead (the thread composer's Goal), and the
+ *  permission shield. Each is a 28px square; send and the paperclip are always there, and an absent mark
+ *  to their left simply leaves the rail shorter.
  *
  *  What is measured is the BOX GAP between each pair of neighbours — the gap that puts their INK
  *  ~14.5px apart, given the dead space each glyph wears. The Send button is filled, so its ink is its
  *  box; the bare 15px icons carry 7–9px of empty box per side. Hover outlines do not take part in the
  *  resting rhythm. A pair missing from the table falls back to the paperclip→send gap; add the
  *  measurement rather than relying on it. */
-export type RailMark = "perm" | "lead" | "paperclip" | "action" | "send"
-const RAIL_ORDER: readonly RailMark[] = ["perm", "lead", "paperclip", "action", "send"]
+export type RailMark = "perm" | "lead" | "paperclip" | "send"
+const RAIL_ORDER: readonly RailMark[] = ["perm", "lead", "paperclip", "send"]
 const RAIL_BOX = 28
 const RAIL_SEND_RIGHT = 8
 // Clearance the prose keeps from the leftmost mark.
@@ -60,9 +60,6 @@ const RAIL_PROSE_CLEARANCE = 8
 
 const RAIL_BOX_GAP: Partial<Record<`${RailMark}>${RailMark}`, number>> = {
   "paperclip>send": 8,
-  "action>send": 7,
-  // The paperclip paints 1px less dead space on its right than the action does, so it sits flush.
-  "paperclip>action": 0,
   // GoalMark at 15px paints 7px of dead box on its right against the paperclip's 8.25px on its left, so
   // the two hover squares overlap by a pixel of empty padding: 14.25px of ink between them, against
   // 14.75px from the paperclip to send. Measured on a real queue card with scripts/ink-gaps.mjs at dsf 4,
@@ -86,11 +83,11 @@ export const SEND_SPLIT_WIDTH = SEND_SPLIT_LABEL_WIDTH + SEND_SPLIT_SEAM_WIDTH +
  *  `sendWidth` is the Send control's own width when it is not the 28px square. A fractional one is
  *  rounded UP for the marks beside it: the button is filled and may end on a half pixel, but a bare
  *  15px icon placed on one draws soft on a 1x screen. */
-export function composerRail(present: { perm?: boolean; lead?: boolean; action?: boolean; sendWidth?: number }): {
+export function composerRail(present: { perm?: boolean; lead?: boolean; sendWidth?: number }): {
   right: Partial<Record<RailMark, number>>
   reserve: number
 } {
-  const shown: Record<RailMark, boolean> = { send: true, paperclip: true, perm: !!present.perm, lead: !!present.lead, action: !!present.action }
+  const shown: Record<RailMark, boolean> = { send: true, paperclip: true, perm: !!present.perm, lead: !!present.lead }
   const marks = RAIL_ORDER.filter((m) => shown[m])
   const right: Partial<Record<RailMark, number>> = {}
   let edge = 0

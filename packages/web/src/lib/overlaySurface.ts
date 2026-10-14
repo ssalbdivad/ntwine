@@ -43,7 +43,7 @@ export const OPAQUE_PORTAL_SURFACE_Z = "z-[110]"
 export const OPAQUE_PORTAL_SURFACE_CLASS = `${OPAQUE_PORTAL_SURFACE_Z} ${OPAQUE_SURFACE_BASE}`
 
 // The stacking level a selector must take when it is opened from INSIDE the shared z-[200] surface
-// (the GitHub picker's Overlay). Its portal still mounts at document.body, so the default z-[110]
+// (a Dialog). Its portal still mounts at document.body, so the default z-[110]
 // would paint the menu BENEATH that overlay's frosted backdrop — the classic "hidden underneath"
 // bug. This is the raise-the-specific-overlay fix, not a re-elevation of the z-[110] tier itself:
 // it borrows the anchored-overlay level, which is defined to clear z-[200].

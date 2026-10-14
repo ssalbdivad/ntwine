@@ -933,7 +933,7 @@ function useDepartedQueue(live: ProjectQueue | undefined, readAt: number | undef
 
 /**
  * The new-thread prompt box, bound to the focused project — the page project. It is the same
- * DispatchForm the new-thread modal draws, drafts, GitHub picker and agent settings included.
+ * DispatchForm the new-thread modal draws, drafts and agent settings included.
  *
  * Only once the box knows WHICH DIRECTORY is the focus's: its drafts are keyed by it, and without one the
  * form would file what was typed under a shared "unresolved" bucket (lib/drafts.ts), from which it jumped

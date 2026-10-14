@@ -1,6 +1,6 @@
 # GitHub-first batch dispatch — implementation plan
 
-Status: PLANNING. This is a file-level build spec for a new ntwine feature. No code is written yet.
+Status: REMOVED (2026-10-14). The picker and batch dispatch this plan built were removed after a usage audit found them unused; auth detection (`githubStatus`), the conditional `gh` skill and the PR/issue watchers remain. Kept as design history.
 
 ## Goal
 

@@ -139,7 +139,6 @@ export type AuditAction =
   | "projectRemove"
   | "dispatch"
   | "adoptThread"
-  | "githubDispatch"
   | "followUp"
   | "subAgentSteer"
   | "messageThread"

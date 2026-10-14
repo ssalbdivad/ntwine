@@ -62,7 +62,8 @@ same thing:
 So centering the boxes leaves every glyph low or high **by a different amount**, and one shared nudge
 cannot fix a cluster. Measure each glyph and correct each glyph.
 
-Worked result from the GitHub picker's count badges (11.5px text, 12px icons):
+Worked result from the GitHub picker's count badges (11.5px text, 12px icons; the picker was removed
+on 2026-10-14, and the readings still stand as a worked example):
 
 | glyph | ink height | offset from the digit's ink centre | correction |
 | --- | --- | --- | --- |

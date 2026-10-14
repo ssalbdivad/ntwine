@@ -112,9 +112,6 @@ import type {
   TranscriptPage,
   TranscriptEarlierInput,
   GithubStatus,
-  GithubListResult,
-  GithubBatchInput,
-  GithubBatchResult,
   GithubRefPreviewResult,
   ClaudeModel,
   CodexModel,
@@ -530,9 +527,6 @@ export interface Api {
   settingsReset(input: Record<never, never>): Promise<Settings>
   dispatchPreferencesGet(): Promise<DispatchPreferences>
   dispatchPreferenceSet(input: SetDispatchPreferenceInput): Promise<DispatchPreferences>
-  // The shipped GitHub batch-dispatch prompt template — the Settings UI prefills its editor from this
-  // and resets to it (an empty githubPrompt setting = the server default). One template, issues and PRs.
-  githubPromptDefaults(): Promise<{ prompt: string }>
   // The project's NTWINE.md, edited from the agent settings panel. A write carries the revision it was
   // based on; `ok: false` hands back the file as it now is (a worker edited it, or it is not writable).
   projectInstructionsGet(): Promise<{ content: string; revision: string; editable: boolean }>
@@ -542,12 +536,9 @@ export interface Api {
     content: string
     revision: string
   }>
-  // GitHub-first batch dispatch. Detection (installed/inRepo/nameWithOwner) is cached server-side;
-  // `authed` is re-checked live per call. githubList reads the repo's issues/PRs; githubDispatchBatch
-  // hydrates each selected item fresh + spins up one thread per item (sequential, reuses dispatch).
+  // gh availability. Detection (installed/inRepo/nameWithOwner) is cached server-side; `authed` is
+  // re-checked live per call.
   githubStatus(): Promise<GithubStatus>
-  githubList(input: { kind: "issues" | "prs"; sort: "recent" | "reactions"; page?: number; perPage?: number }): Promise<GithubListResult>
-  githubDispatchBatch(input: GithubBatchInput): Promise<GithubBatchResult>
   // Hovercards for the `#123` / commit-hash anchors the autolinker mints in prose. ONE call carries
   // every reference on the page so a hover reads out of the client's store instead of the network;
   // `refresh` revalidates the few the reader is actually pointing at. See lib/githubHovercards.ts.
@@ -711,11 +702,8 @@ export const PROCEDURES = {
   settingsReset: "mutation",
   dispatchPreferencesGet: "query",
   dispatchPreferenceSet: "mutation",
-  githubPromptDefaults: "query",
   projectInstructionsGet: "query",
   projectInstructionsSet: "mutation",
   githubStatus: "query",
-  githubList: "query",
-  githubDispatchBatch: "mutation",
   githubRefPreview: "query",
 } as const satisfies Record<keyof Api, ProcType>
