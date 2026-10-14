@@ -13,14 +13,12 @@
 //     unified page, with the prompt box's picker carried over to the project just left;
 //   · a thread drawer closes back to the tab's view, not to a guess;
 //   · an unknown board says so;
-//   · the board names its bands (upstream's: Pinned, Queue and Running, which never fold), and Snoozed, Done
-//     and External fold, collapsed to start, each on its own;
+//   · the board's list (TierList.tsx, the same list as All projects over one project) names its tiers in
+//     order — Pinned, Ready and Working never fold, Done today lists its rows under a plain header, and
+//     Snoozed (and Schedules, when there are any) fold, collapsed to start, each on its own — and the
+//     project's cord strings each run's touching rows;
+//   · the board's ⋯ menu offers every project back, and a dock square's right-click menu focuses one;
 //   · at a phone's width nothing overflows sideways, in either view.
-//
-// OUT OF DATE since 2026-10-14: the board's own list (ProjectBoard.tsx) and the project rows went, and both
-// views draw TierList.tsx. The steps on the board's bands, the cord through their names, and the project
-// row's ⋯ menu read selectors that list no longer emits (`[data-xq-board-band]`, `[data-xq-board-rule]`,
-// `[data-xq-project-row]`, band headers inside `[data-xq-rail-project]`), and fail until rewritten.
 //
 // Usage:
 //   nub scripts/adhoc-stack.mjs --port=47711 --project=/tmp/x/acme-api --also-project=/tmp/x/marketing-site \
@@ -88,7 +86,9 @@ async function open(context, url, { width = 1440, height = 1000 } = {}) {
 const address = (page) => page.evaluate(() => location.pathname + location.search)
 const waitAddress = (page, want, ms = 10_000) =>
   page.waitForFunction((want) => location.pathname + location.search === want, { timeout: ms }, want).catch(async () => { throw new Error(`the address never became ${want}; it is ${await address(page)}`) })
-const listed = (page) => page.$$eval("[data-xq-rail-project]", (groups) => groups.map((g) => g.getAttribute("data-xq-rail-project")))
+// The projects the list draws: each tier's runs name their project (TierList.tsx), so one project is several
+// runs, and a Working run the list had no room for is one rollup line (`data-xq-rollup`).
+const listed = (page) => page.$$eval("[data-xq-rail-project], [data-xq-rollup]", (groups) => [...new Set(groups.map((g) => g.getAttribute("data-xq-rail-project") ?? g.getAttribute("data-xq-rollup")))])
 const cardProjects = (page) => page.$$eval("[data-xq-card]", (cards) => [...new Set(cards.map((c) => c.getAttribute("data-xq-card")?.split("/")[0]))])
 const switcherSays = (page) => page.$eval("[data-xq-switcher-label]", (el) => el.textContent?.trim() ?? "").catch(() => "")
 // The view has painted: the switcher names it and the list holds exactly its projects.
@@ -149,89 +149,87 @@ try {
     check("the page is bound to the focused project", boards.at(-1) === `/_ntwine/${A.slug}/rpc/board`, boards.join(", "))
   })
 
-  // ── the board's bands ──────────────────────────────────────────────────────────────────────────────
-  // Upstream's named bands since 2026-10-06 (ProjectBoard.tsx): a header over each, `data-band-header`; the
-  // three in flight are plain names, the quiet ones folds. Until then focus mode drew the loud bands unnamed.
-  await step("the board names Pinned, Queue and Running, which never fold, and their rows stand in order", async () => {
-    const group = `[data-xq-rail-project="${A.id}"]`
-    const loud = await page.$$eval(`${group} > [data-band-header]`, (els) => els.map((el) => ({ band: el.getAttribute("data-band-header"), fold: el.tagName === "BUTTON" || el.hasAttribute("aria-expanded"), text: el.textContent?.trim() })))
-    check("Pinned, Queue and Running are named, in that order", loud.map((h) => h.band).join() === "pinned,ready,working" && /^Pinned/.test(loud[0]?.text ?? "") && /^Queue/.test(loud[1]?.text ?? "") && /^Running/.test(loud[2]?.text ?? ""), JSON.stringify(loud))
+  // ── the board's tiers ──────────────────────────────────────────────────────────────────────────────
+  // One list for every view since 2026-10-14 (TierList.tsx): a section per tier, `[data-xq-tier]`, each under a
+  // SectionHeader (`data-band-header`). The three in flight are plain names; the quiet ones are folds.
+  const TIERS = ["pinned", "ready", "working", "snoozed", "done", "schedules"]
+  await step("the board names Pinned, Ready and Working, which never fold, and their rows are its own", async () => {
+    const tiers = await page.$$eval("[data-xq-tiers] > [data-xq-tier]", (els) => els.map((el) => ({ tier: el.getAttribute("data-xq-tier"), count: Number(el.getAttribute("data-xq-tier-count")) })))
+    const order = tiers.map((t) => TIERS.indexOf(t.tier))
+    check("the tiers stand in their order", order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), tiers.map((t) => t.tier).join(", "))
+    const loud = await page.$$eval("[data-xq-tier] [data-band-header]", (els) => els.map((el) => ({ band: el.getAttribute("data-band-header"), fold: el.tagName === "BUTTON" || el.hasAttribute("aria-expanded"), text: el.textContent?.trim() })).filter((h) => ["pinned", "ready", "working"].includes(h.band)))
+    check("Pinned, Ready and Working are named, in that order", loud.map((h) => h.band).join() === "pinned,ready,working" && /^Pinned/.test(loud[0]?.text ?? "") && /^Ready/.test(loud[1]?.text ?? "") && /^Working/.test(loud[2]?.text ?? ""), JSON.stringify(loud))
     check("…and none of them folds", loud.every((h) => !h.fold))
-    const rows = await page.$$eval(`${group} > [data-xq-band]`, (els) => [...new Set(els.map((el) => el.getAttribute("data-xq-band")))])
-    check("…and their rows stand in order", rows.join() === "pinned,ready,working", rows.join(", "))
-    const marked = await page.$$eval(`${group} > [data-xq-band="pinned"]`, (els) => els.every((el) => el.querySelector("[data-rail-pin-mark]")))
+    const strays = await page.$$eval('[data-xq-tier] [data-xq-thread-row]', (rows, id) => rows.filter((row) => row.closest("[data-xq-rail-project]")?.getAttribute("data-xq-rail-project") !== id).length, A.id)
+    check("…and every row is the board's project's", strays === 0, `${strays} rows of another project`)
+    const marked = await page.$$eval('[data-xq-tier="pinned"] [data-xq-band="pinned"]', (els) => els.length > 0 && els.every((el) => el.querySelector("[data-rail-pin-mark]")))
     check("…and every pinned row wears its pin", marked)
-    const empty = await page.$$eval(`${group} > [data-band-header]`, (headers) => headers.filter((header) => !header.nextElementSibling?.matches("[data-xq-thread-row]")).map((h) => h.getAttribute("data-band-header")))
-    check("…and no name stands over an empty band", empty.length === 0, empty.join(", "))
+    check("…and no tier is drawn empty", tiers.every((t) => t.count > 0), JSON.stringify(tiers))
   })
-  await step("Snoozed, Done and External fold, collapsed to start, each on its own", async () => {
-    const group = `[data-xq-rail-project="${A.id}"]`
-    const opened = () => page.$$eval(`${group} [data-xq-board-band-open]`, (els) => els.map((el) => el.getAttribute("data-xq-board-band")))
-    const quiet = await page.$$eval(`${group} [data-xq-board-band]`, (els) => els.map((el) => el.getAttribute("data-xq-board-band")))
-    if (!quiet.includes("done") || !quiet.includes("snoozed")) throw new Error(`the seed needs Snoozed and Done here; bands: ${quiet.join(", ")}`)
-    check("every quiet band starts collapsed", (await opened()).length === 0, (await opened()).join(", "))
-    const header = (band) => `${group} [data-xq-board-band="${band}"] > [data-band-header]`
-    await clickSettled(page, header("done"))
-    await page.waitForSelector(`${group} [data-xq-board-band="done"] [data-sidebar-item]`, { timeout: 8000 })
-    check("Done opens alone", (await opened()).join() === "done", (await opened()).join(", "))
+  await step("Snoozed folds, collapsed to start, and Done today lists its rows", async () => {
+    const header = (tier) => `[data-xq-tier="${tier}"] [data-band-header]`
+    const opened = () => page.$$eval('[data-xq-tier] [data-band-header][aria-expanded="true"]', (els) => els.map((el) => el.getAttribute("data-band-header")))
+    const rows = (tier) => page.$$eval(`[data-xq-tier="${tier}"] [data-sidebar-item]`, (els) => els.length)
+    const tiers = await page.$$eval("[data-xq-tier]", (els) => els.map((el) => el.getAttribute("data-xq-tier")))
+    if (!tiers.includes("done") || !tiers.includes("snoozed")) throw new Error(`the seed needs Snoozed and Done today here; tiers: ${tiers.join(", ")}`)
+    const done = await page.$eval(header("done"), (el) => ({ fold: el.tagName === "BUTTON" || el.hasAttribute("aria-expanded"), text: el.textContent?.trim() }))
+    check("Done today is a plain header over its rows, with History beside it", !done.fold && /^Done today/.test(done.text ?? "") && (await rows("done")) > 0 && (await page.$('[data-xq-tier="done"] [data-xq-open-history]')) !== null, `${JSON.stringify(done)}; ${await rows("done")} rows`)
+    check("every fold starts collapsed", (await opened()).length === 0, (await opened()).join(", "))
+    const before = await rows("snoozed")
     await clickSettled(page, header("snoozed"))
-    await page.waitForSelector(`${group} [data-xq-board-band="snoozed"] [data-sidebar-item]`, { timeout: 8000 })
-    check("Snoozed opens beside it, above it in the board's order", (await opened()).join() === "snoozed,done", (await opened()).join(", "))
+    await page.waitForFunction((n) => document.querySelectorAll('[data-xq-tier="snoozed"] [data-sidebar-item]').length > n, { timeout: 8000 }, before)
+    check("Snoozed opens alone, and lists its rows", (await opened()).join() === "snoozed", `${(await opened()).join(", ")}; ${before} → ${await rows("snoozed")} rows`)
+    if (tiers.includes("schedules")) {
+      await clickSettled(page, header("schedules"))
+      await sleep(300)
+      check("Schedules opens beside it", (await opened()).join() === "snoozed,schedules", (await opened()).join(", "))
+      await clickSettled(page, header("schedules"))
+      await sleep(300)
+    }
     await page.screenshot({ path: join(shots, "focus-mode-quiet-open.png") })
-    await clickSettled(page, header("done"))
-    await sleep(300)
-    check("a band's header closes it, and only it", (await opened()).join() === "snoozed", (await opened()).join(", "))
     await clickSettled(page, header("snoozed"))
     await sleep(300)
-    check("…and the other's closes it", (await opened()).length === 0, (await opened()).join(", "))
+    check("…and its header closes it again", (await opened()).length === 0 && (await rows("snoozed")) === before, `${(await opened()).join(", ")}; ${await rows("snoozed")} rows`)
   })
 
-  // ── the cord strings the names ─────────────────────────────────────────────────────────────────────
-  await step("the project's cord runs through its rows, parted only where a rule parts the bands", async () => {
-    // ThreadConnector's own rule (readRail): the square, each band name and each row are strung while they
-    // TOUCH and each holds an icon. A name that broke the run, or held no glyph, would cut the cord there.
-    // The board's one rule in flight, between Queue and Running (ProjectBoard.tsx BandRule), parts the
-    // cord with the bands: Queue is the human's, Running the agents'.
-    const run = await page.$eval(`[data-xq-rail-project="${A.id}"]`, (group) => {
-      // A board draws no project row (the status row names the project — ProjectBoard.tsx), so the cord
-      // starts at the first band's header glyph; the quiet bands sit off it, in a container of their own.
-      const links = [...group.querySelectorAll(":scope > [data-xq-project-row], :scope > [data-xq-band-label], :scope > [data-xq-thread-row]")]
-        .filter((el) => !el.matches("[data-xq-project-row]") || el.querySelector("[data-xq-indicator]"))
-      let bottom = NaN
-      let strung = 0
-      let ruled = 0
-      for (const el of links) {
-        const r = el.getBoundingClientRect()
-        if (!el.querySelector("[data-xq-indicator]")) break
-        if (strung > 0 && Math.abs(r.top - bottom) > 1) {
-          if (!el.previousElementSibling?.matches("[data-xq-board-rule]")) break
-          ruled++
+  // ── the cord strings each run ──────────────────────────────────────────────────────────────────────
+  await step("the project's cord runs through each run's touching rows", async () => {
+    // ThreadConnector's own rule (readRail): within a run (`[data-xq-rail-project]`), rows are strung while
+    // they TOUCH and each holds an icon; whatever sits between two — a thread's sub-agent rows — cuts it.
+    // So every touching stretch of two or more rows is one strand, from its first icon to its last.
+    const span = await page.evaluate(() => {
+      const spans = []
+      for (const run of document.querySelectorAll("[data-xq-rail] [data-xq-rail-project]")) {
+        let bottom = NaN
+        let centres = []
+        const flush = () => { if (centres.length > 1) spans.push([centres[0], centres.at(-1)]); centres = [] }
+        for (const row of run.querySelectorAll(":scope > [data-xq-thread-row]")) {
+          const slot = row.querySelector("[data-xq-indicator]")
+          const r = row.getBoundingClientRect()
+          if (!slot || Math.abs(r.top - bottom) > 1) flush()
+          bottom = r.bottom
+          if (!slot) continue
+          const icon = (slot.firstElementChild ?? slot).getBoundingClientRect()
+          centres.push(icon.top + icon.height / 2)
         }
-        bottom = r.bottom
-        strung++
+        flush()
       }
-      return { strung, ruled, links: links.length, names: group.querySelectorAll(":scope > [data-xq-band-label]").length }
+      const ys = [...document.querySelectorAll("[data-thread-cords] path")].flatMap((p) => [...(p.getAttribute("d") ?? "").matchAll(/(-?[\d.]+)[ ,](-?[\d.]+)/g)].map((m) => Number(m[2])))
+      const near = (y) => ys.some((v) => Math.abs(v - y) < 2)
+      return { spans: spans.length, missed: spans.filter(([a, b]) => !near(a) || !near(b)).map(([a, b]) => `${Math.round(a)}–${Math.round(b)}`) }
     })
-    check("the cord strings every band name and every row, parted only at the Queue | Running rule", run.links > 1 && run.strung === run.links && run.ruled <= 1, `${run.strung} of ${run.links} strung, ${run.names} names, ${run.ruled} rule`)
-    // And the connector drew it: its strands reach from the square to the last row.
-    const span = await page.evaluate((id) => {
-      const d = document.querySelector("[data-thread-cords] path")?.getAttribute("d") ?? ""
-      const ys = [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => Number(m[2]))
-      const group = document.querySelector(`[data-xq-rail-project="${id}"]`)
-      const icons = [...group.querySelectorAll(":scope > * [data-xq-indicator]")].filter((slot) => !slot.closest("[data-xq-drill], [data-xq-board-quiet]")).map((slot) => slot.getBoundingClientRect())
-      return { top: Math.min(...ys), bottom: Math.max(...ys), first: icons[0].top + icons[0].height / 2, last: icons.at(-1).top + icons.at(-1).height / 2 }
-    }, A.id)
-    check("…and the connector draws it from the square to the last row", Math.abs(span.top - span.first) < 2 && Math.abs(span.bottom - span.last) < 2, JSON.stringify(span))
+    if (span.spans === 0) throw new Error("no run of two touching rows to string (reseed)")
+    check("the connector draws a strand from the first icon to the last of every touching stretch", span.missed.length === 0, `${span.spans} stretches; missed ${span.missed.join(", ") || "none"}`)
   })
 
   // ── drawers go home to the tab's view ──────────────────────────────────────────────────────────────
   await step("a thread drawer closes back to the focused view", async () => {
-    const row = `[data-xq-rail-project="${A.id}"] > [data-xq-band="working"] button`
-    if (!(await page.$(row))) throw new Error("no Running row to open (reseed, or respin the seeded workers)")
+    const row = `[data-xq-tier="working"] [data-xq-rail-project="${A.id}"] > [data-xq-band="working"] button`
+    if (!(await page.$(row))) throw new Error("no Working row to open (reseed, or respin the seeded workers)")
     await clickSettled(page, row)
     await page.waitForFunction(() => /^\/project\/[^/]+\/thread\/[^/]+$/.test(location.pathname), { timeout: 8000 })
     await page.waitForSelector("[data-drawer-layer]", { timeout: 8000 })
-    check("a Running row opens its drawer on the board", true, await address(page))
+    check("a Working row opens its drawer on the board", true, await address(page))
     // At once, not once it has settled: a focused project's row opens its drawer STORE-first, and a close
     // that landed before the route had committed the drawer's address was re-opened by that address
     // (lib/router.ts `stale`) — 6 of 6 tries stuck on a loaded machine before the fix. Escape leaves a
@@ -266,7 +264,11 @@ try {
     await waitAddress(page, "/all")
     await showing(page, null)
     const groups = await listed(page)
-    check("All projects lists every project", projects.every((p) => groups.includes(p.id)), `${groups.length} groups for ${projects.length} projects`)
+    // The list is threads, not projects: a project with nothing open has no row, and its square in the dock
+    // is where it is found (ProjectDock.tsx).
+    check("All projects lists more than one project's threads", groups.length > 1, `${groups.length} projects listed`)
+    const docked = await page.$$eval("[data-xq-dock-square][data-xq-dock-in-view]", (els) => els.map((el) => el.getAttribute("data-xq-dock-square")))
+    check("…and the dock holds every project, all in view", projects.every((p) => docked.includes(p.slug)), docked.join(", "))
     const cards = await cardProjects(page)
     check("…and every project's cards", cards.length > 1, `${cards.length} projects' cards`)
     const picked = await page.$eval("[data-xq-picker-name]", (el) => el.textContent?.trim()).catch(() => null)
@@ -282,15 +284,15 @@ try {
     await showing(page, B)
     check("a card's chip focuses the page on its project", (await listed(page)).join() === B.id)
   })
-  await step("the board's ⋯ menu offers every project back, and a project row's focuses one", async () => {
-    // A board has no project row: its ⋯ sits beside the repo in the status row (BoardIdentity.tsx).
+  await step("the board's ⋯ menu offers every project back, and a dock square's focuses one", async () => {
+    // On a board the ⋯ sits beside the repo in the status row (BoardIdentity.tsx); in All projects the same
+    // menu is a right-click on the project's square in the dock (ProjectDock.tsx).
     await page.hover("[data-xq-board-identity]")
     await clickSettled(page, `[data-xq-board-identity] button[aria-label^="More actions for"]`)
     await clickSettled(page, '[role="menuitem"]', { text: "Show all projects" })
     await waitAddress(page, "/all")
     await showing(page, null)
-    await page.hover(`[data-xq-project-row="${A.id}"]`)
-    await clickSettled(page, `[data-xq-project-row="${A.id}"] button[aria-label^="More actions for"]`)
+    await page.click(`[data-xq-dock-square="${A.slug}"]`, { button: "right" })
     await clickSettled(page, '[role="menuitem"]', { text: "Focus on this project" })
     await waitAddress(page, `/project/${A.slug}`)
     await showing(page, A)
