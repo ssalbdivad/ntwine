@@ -735,7 +735,6 @@ const FAN_ARMED = "2026-09-29T10:01:00.000Z" // the human snoozes it off the car
 const FAN_A_BACK = "2026-09-29T10:03:00.000Z" // the first child returns; the parent wakes
 const FAN_REREST = "2026-09-29T10:03:20.000Z" // …and rests again, two still out
 const FAN_ALL_BACK = "2026-09-29T10:09:00.000Z"
-const FAN_D_START = "2026-09-29T10:10:00.000Z"
 const hintless = { kind: "awaiting" as const, body: "Waiting on the three audits.", hints: [] }
 const agent = (id: string, state: "running" | "stale" = "running", startedAt = FAN_T0) => ({ label: `audit ${id}`, startedAt, state, id })
 const retired = (id: string, finishedAt: string | undefined, over: Record<string, unknown> = {}) =>
@@ -761,19 +760,19 @@ test("deriveNeedsYou: 'until all sub-agents return' holds across intermediate re
   assert.equal(deriveNeedsYou(row(armed), tele({ ...twoBack, subAgents: [agent("c", "stale")] }), "turn-idle"), true, "a stale child does not hold it")
 })
 
-test("deriveNeedsYou: 'until all sub-agents return' lets go on a gap, a human turn, and everything that outranks it", () => {
+test("deriveNeedsYou: 'until all sub-agents return' waits only on the children out at the click, and lets go on a human turn and everything that outranks it", () => {
   const armed = row({ rested_at: FAN_REREST, subagents_snoozed_at: FAN_ARMED })
   const batch = [retired("a", FAN_A_BACK), retired("b", "2026-09-29T10:05:00.000Z"), retired("c", FAN_ALL_BACK)]
-  // A SECOND BATCH IS NEW WORK. The first came back in full at FAN_ALL_BACK, the worker dispatched `d` a
-  // minute later: something is running now, but there was an instant with nothing out since the arming.
-  const secondBatch = tele({ subAgents: [agent("d", "running", FAN_D_START)], retiredSubAgents: batch, lastFence: hintless })
-  assert.equal(deriveNeedsYou(armed, secondBatch, "turn-idle"), true, "a gap since the arming releases it, whatever runs now")
-  // CONTROL for the gap reading: `d` dispatched while `c` was still out is the same wait, and holds.
+  // A CHILD SENT AFTER THE CLICK IS NEW WORK, whether or not the batch had come back first: `d` here was
+  // dispatched while `c` was still out. An orchestrator that always keeps one lane running held its
+  // thread in Snoozed for hours this way until 2026-10-14.
   const overlapping = tele({ subAgents: [agent("d", "running", "2026-09-29T10:08:00.000Z")], retiredSubAgents: batch, lastFence: hintless })
-  assert.equal(deriveNeedsYou(armed, overlapping, "turn-idle"), false, "a child sent before the last one returned continues the wait")
-  // A retired child with no dispatch instant cannot vouch for the stretch it would have bridged.
-  const blind = tele({ subAgents: [agent("d", "running", "2026-09-29T10:08:00.000Z")], retiredSubAgents: [retired("a", FAN_A_BACK), retired("c", FAN_ALL_BACK, { startedAt: undefined })], lastFence: hintless })
-  assert.equal(deriveNeedsYou(armed, blind, "turn-idle"), true, "an unplaceable interval bridges nothing")
+  assert.equal(deriveNeedsYou(armed, overlapping, "turn-idle"), true, "a child dispatched after the click does not continue the wait")
+  // CONTROL: the same `d`, already out when the human clicked, is part of the batch and holds.
+  const outAtClick = tele({ subAgents: [agent("d", "running", FAN_T0)], retiredSubAgents: batch, lastFence: hintless })
+  assert.equal(deriveNeedsYou(armed, outAtClick, "turn-idle"), false, "a child out at the click holds it")
+  // A running child with no dispatch instant cannot show it was out at the click.
+  assert.equal(deriveNeedsYou(armed, tele({ subAgents: [agent("d", "running", "")], retiredSubAgents: batch, lastFence: hintless }), "turn-idle"), true, "an unplaceable child holds nothing")
 
   const out = tele({ subAgents: [agent("b"), agent("c")], retiredSubAgents: [retired("a", FAN_A_BACK)], lastFence: hintless })
   assert.equal(deriveNeedsYou(armed, out, "turn-idle"), false, "control: held")

@@ -1182,16 +1182,16 @@ export function returnedSubAgentsView(tele: SessionTelemetry | undefined): Threa
 
 /** Does "snooze until all sub-agents return" still hold this thread?
  *
- *  Armed at an instant (`subagents_snoozed_at`), it holds for as long as SOME direct sub-agent has been
- *  running at every instant since — across any number of intermediate returns, each of which still wakes
- *  the parent (a sibling returning is not the batch returning). It lets go:
+ *  Armed at an instant (`subagents_snoozed_at`), it holds for as long as some direct sub-agent that was
+ *  ALREADY OUT at that instant is still running — across any number of intermediate returns, each of
+ *  which still wakes the parent (a sibling returning is not the batch returning). It lets go:
  *
- *  - when no direct sub-agent is running now — the whole batch is back, which is the wake the human asked
- *    for;
- *  - when there was a GAP since the arming, an instant with nothing running, even if a new child is running
- *    now. The batch the human snoozed on came back in full, and a second batch the worker dispatched after
- *    reading it is new work the human has not seen. Measured off the retired ring's dispatch→return
- *    intervals, so no write has to catch the gap as it happens and a restart cannot lose it;
+ *  - when every child that was out at the click is back. A child dispatched AFTER the click never holds
+ *    it, overlapping or not: it is new work the human has not seen. Until 2026-10-14 a child sent before
+ *    the last one returned continued the wait, so an orchestrator that always kept one lane running held
+ *    @precompile-design in Snoozed for hours on a batch that had long since come back (maintainer: "if I
+ *    consider a thread to be active and an agent happens to be waiting for something, I still don't want
+ *    to see it collapsed");
  *  - when the HUMAN has spoken to the thread since (lastHumanAt counts typed turns only, never a child's
  *    report or a wake). Whatever they said supersedes a snooze set before it.
  *
@@ -1201,26 +1201,11 @@ export function returnedSubAgentsView(tele: SessionTelemetry | undefined): Threa
 export function subAgentsSnoozeHolds(row: Pick<SessionRow, "subagents_snoozed_at">, tele: SessionTelemetry | undefined): boolean {
   const armedMs = Date.parse(row.subagents_snoozed_at ?? "")
   if (!Number.isFinite(armedMs)) return false
-  const running = (tele?.subAgents ?? []).filter((a) => isDirectSubAgent(a) && a.state === "running")
-  if (running.length === 0) return false
   const humanMs = Date.parse(tele?.lastHumanAt ?? "")
   if (Number.isFinite(humanMs) && humanMs > armedMs) return false
-  // Cover [armedMs, now] with the intervals children were out. A running child's interval is open-ended,
-  // so reaching one means covered to now; running out of intervals before that is the gap. A retired
-  // child missing either instant cannot vouch for any stretch, so it bridges nothing — the safe side,
-  // since a gap only ever releases the thread into the queue.
-  const spans = [
-    ...running.map((a) => ({ from: Date.parse(a.startedAt), to: Infinity })),
-    ...(tele?.retiredSubAgents ?? []).map((r) => ({ from: Date.parse(r.startedAt ?? ""), to: Date.parse(r.finishedAt ?? "") })),
-  ]
-    .filter((s) => Number.isFinite(s.from) && !Number.isNaN(s.to) && s.to >= s.from)
-    .sort((a, b) => a.from - b.from)
-  let coveredTo = armedMs
-  for (const span of spans) {
-    if (span.from > coveredTo) break
-    coveredTo = Math.max(coveredTo, span.to)
-  }
-  return coveredTo === Infinity
+  // A child with no parseable dispatch instant cannot show it was out at the click, so it holds nothing —
+  // the safe side, since letting go only ever returns the thread to view.
+  return (tele?.subAgents ?? []).some((a) => isDirectSubAgent(a) && a.state === "running" && Date.parse(a.startedAt) <= armedMs)
 }
 
 // A declared wait excuses an idle thread from the queue only for a specific external-human gate or a
