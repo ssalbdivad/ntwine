@@ -85,7 +85,7 @@ test("agent prose links a project mention to its board, and notifies on a change
 
 test("a prompt opening with `#slug ` is addressed to that project; anywhere else, or unfinished, it is not", () => {
   assert.deepEqual(leadingProjectRoute("#arktype fix the parser", PROJECTS), { slug: "arktype", rest: "fix the parser" })
-  assert.deepEqual(leadingProjectRoute("  #ArkType\nfix it", PROJECTS), { slug: "arktype", rest: "\nfix it" })
+  assert.deepEqual(leadingProjectRoute("  #ArkType\nfix it", PROJECTS), { slug: "arktype", rest: "fix it" })
   assert.deepEqual(leadingProjectRoute("#ntwine-web ", PROJECTS), { slug: "ntwine-web", rest: "" })
   assert.equal(leadingProjectRoute("#arktype", PROJECTS), undefined, "no space yet: still being typed")
   assert.equal(leadingProjectRoute("#ark fix", PROJECTS), undefined, "a prefix is not a project")
