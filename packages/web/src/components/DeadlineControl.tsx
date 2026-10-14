@@ -227,22 +227,30 @@ export function DispatchTimeLimit({ draftKey: key }: { draftKey: string }) {
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" align="start">
-        <TimeLimitPanel
-          // The field below says when the typed limit ends; the heading only names the control.
-          heading="Time limit"
-          presetsLabel="Time limit presets"
-          presets={DISPATCH_LIMIT_PRESETS.map((value) => ({
-            label: value,
-            title: deadlineEndsLabel(parseOk(value, nowMs), nowMs),
-            pick: () => choose(value),
-            current: text === value,
-          }))}
-          initialText={text}
-          onSubmitText={choose}
-          clear={text ? { label: "No time limit", run: () => { clearRaw(); setOpen(false) } } : undefined}
-        />
+        <DispatchLimitPanel text={text} nowMs={nowMs} choose={choose} clear={text ? () => { clearRaw(); setOpen(false) } : undefined} />
       </PopoverContent>
     </Popover>
+  )
+}
+
+/** The open panel's contents, apart so the presets' end times — a locale date format each — are worked out
+ *  only while it is open, not on every render of the prompt box. */
+function DispatchLimitPanel({ text, nowMs, choose, clear }: { text: string; nowMs: number; choose: (value: string) => void; clear: (() => void) | undefined }) {
+  return (
+    <TimeLimitPanel
+      // The field below says when the typed limit ends; the heading only names the control.
+      heading="Time limit"
+      presetsLabel="Time limit presets"
+      presets={DISPATCH_LIMIT_PRESETS.map((value) => ({
+        label: value,
+        title: deadlineEndsLabel(parseOk(value, nowMs), nowMs),
+        pick: () => choose(value),
+        current: text === value,
+      }))}
+      initialText={text}
+      onSubmitText={choose}
+      clear={clear ? { label: "No time limit", run: clear } : undefined}
+    />
   )
 }
 

@@ -114,15 +114,26 @@ export function formatSnoozeWake(until: string, nowMs = Date.now()): string {
   const calendarDays = Math.round((startTarget - startToday) / DAY)
   // Leave both locale and time zone to the browser. A snooze is a local-calendar promise, so a
   // server-formatted UTC timestamp would be misleading as soon as the operator travels.
-  const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date)
+  const time = wakeFormat("time").format(date)
   if (calendarDays === 0) return `Today at ${time}`
   if (calendarDays === 1) return `Tomorrow at ${time}`
-  if (calendarDays > 1 && calendarDays < 7) {
-    return `${new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(date)} at ${time}`
-  }
-  const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }
-  if (date.getFullYear() !== now.getFullYear()) options.year = "numeric"
-  return `${new Intl.DateTimeFormat(undefined, options).format(date)} at ${time}`
+  if (calendarDays > 1 && calendarDays < 7) return `${wakeFormat("weekday").format(date)} at ${time}`
+  return `${wakeFormat(date.getFullYear() !== now.getFullYear() ? "dateYear" : "date").format(date)} at ${time}`
+}
+
+// Built once each: constructing an Intl.DateTimeFormat costs far more than formatting with one, and the
+// wake phrase is read on renders that list several (the time limit's presets, every snoozed row).
+const WAKE_FORMATS = {
+  time: { hour: "numeric", minute: "2-digit" },
+  weekday: { weekday: "long" },
+  date: { month: "short", day: "numeric" },
+  dateYear: { month: "short", day: "numeric", year: "numeric" },
+} satisfies Record<string, Intl.DateTimeFormatOptions>
+const wakeFormats = new Map<keyof typeof WAKE_FORMATS, Intl.DateTimeFormat>()
+function wakeFormat(kind: keyof typeof WAKE_FORMATS): Intl.DateTimeFormat {
+  let format = wakeFormats.get(kind)
+  if (!format) wakeFormats.set(kind, (format = new Intl.DateTimeFormat(undefined, WAKE_FORMATS[kind])))
+  return format
 }
 
 /** The lowercased wake phrase ("today at 11:09 PM") that folds into a full held-status sentence. Null

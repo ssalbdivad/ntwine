@@ -68,18 +68,20 @@ const MENU_ITEM = "block cursor-default rounded px-2 py-1.5 text-[12.5px] text-f
  * as the fallback for a platform with no native dialog, so the item never becomes a dead end. A project
  * whose directory is gone gets neither icon item: there is nowhere to pick from. Failures are toasts —
  * the trigger is a row's ellipsis, and a paragraph beside it has nowhere to go.
+ *
+ * HELD FROM OUTSIDE, IT IS BUILT ON ITS FIRST OPENING. The dock draws one per project and opens it only on a
+ * right-click, and ten closed menus — each a Radix tree and three mutations — were most of what the dock
+ * cost to render: 60-130ms of every page render in a dev build with ten projects, re-paid on each switch of
+ * the prompt box's project (2026-10-14, a `#slug` Tab). Once built it stays, so a rename or delete dialog, or
+ * an icon pick still on the wire, outlives the menu closing.
  */
-export function ProjectMenu({
-  project,
-  home,
-  githubRepo,
-  focused = false,
-  onFocus,
-  onOpenChange,
-  open,
-  align = "end",
-  children,
-}: {
+export function ProjectMenu(props: ProjectMenuProps) {
+  const [built, setBuilt] = useState(props.open !== false)
+  if (props.open && !built) setBuilt(true)
+  return built ? <ProjectMenuBody {...props} /> : <>{props.children}</>
+}
+
+type ProjectMenuProps = {
   project: ProjectCard
   home: string | undefined
   /** `owner/repo` when the project's origin is github.com — its board's `githubRepo`, host-strict. */
@@ -92,7 +94,19 @@ export function ProjectMenu({
   open?: boolean
   align?: "start" | "end"
   children: ReactNode
-}) {
+}
+
+function ProjectMenuBody({
+  project,
+  home,
+  githubRepo,
+  focused = false,
+  onFocus,
+  onOpenChange,
+  open,
+  align = "end",
+  children,
+}: ProjectMenuProps) {
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const input = useRef<HTMLInputElement>(null)

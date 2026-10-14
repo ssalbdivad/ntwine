@@ -89,21 +89,7 @@ export function ProjectSwitcher({
   // nothing closes it — the tour's own overlay takes the clicks and keys that would.
   const [open, setOpen] = useState(false)
   const held = useTourHoldsSwitcher() && !row
-  const every = [...projects, ...(home ? [home] : [])]
-  const total = (key: "ready" | "running" | "asks") => every.reduce((sum, project) => sum + project[key], 0)
   const name = current ? current.name : "All projects"
-  const item = (project: SwitcherProject, hint?: ReactNode) => {
-    const selected = current?.id === project.id
-    return (
-      <MenuItem key={project.id} value={project.slug} onSelect={() => onProject(project)} icon={<ProjectSquare project={project.card} size={14} />}>
-        <span className={`min-w-0 flex-1 truncate ${selected ? "text-fg" : ""}`}>{project.name}</span>
-        {hint && <span className="min-w-0 shrink truncate font-mono text-[10.5px] text-muted-55">{hint}</span>}
-        {project.note && <span className="shrink-0 text-[10.5px] text-muted-55">{project.note}</span>}
-        <SwitcherCounts asks={project.asks} running={project.running} ready={project.ready} />
-        <span className="flex w-3 shrink-0 justify-center">{selected && <Check size={12} aria-label="Current" className="text-fg" />}</span>
-      </MenuItem>
-    )
-  }
   return (
     <Menu open={held || open} onOpenChange={(next) => { if (!held) setOpen(next) }}>
       <MenuTrigger asChild>
@@ -143,37 +129,77 @@ export function ProjectSwitcher({
         </button>
       </MenuTrigger>
       <MenuContent align="start">
-        <div className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-medium text-muted-55">Show</div>
-        {/* Every item outside the scrolling list is inset by the gutter that list reserves (styles.css
-            `scrollbar-gutter: stable`), so the badges and check marks stand in one column. */}
-        <div data-tour="switcher-all" className="pr-[var(--sbw)]">
-          <MenuItem onSelect={onAll} icon={<Layers size={14} aria-hidden />} value="all-projects">
-            <span className={`min-w-0 flex-1 truncate ${current ? "" : "text-fg"}`}>All projects</span>
-            <SwitcherCounts asks={total("asks")} running={total("running")} ready={total("ready")} />
-            <span className="flex w-3 shrink-0 justify-center">{!current && <Check size={12} aria-label="Current" className="text-fg" />}</span>
-          </MenuItem>
-        </div>
-        <MenuSeparator />
-        <div data-tour="switcher-projects" className="max-h-[min(50vh,360px)] overflow-y-auto">{projects.map((project) => item(project))}</div>
-        {home && (
-          <>
-            {projects.length > 0 && <MenuSeparator />}
-            {/* Outside the scrolling list, so it never scrolls away. */}
-            <div className="pr-[var(--sbw)]">{item(home, homeHint)}</div>
-          </>
-        )}
-        {onAdd && (
-          <>
-            <MenuSeparator />
-            <div data-tour="switcher-add" className="pr-[var(--sbw)]">
-              <MenuItem onSelect={onAdd} icon={<Plus size={14} aria-hidden />} value="add-project">
-                <span className="min-w-0 flex-1 truncate">Add a project</span>
-              </MenuItem>
-            </div>
-          </>
-        )}
+        {/* Its rows are built only while it is open: a closed menu's items are JSX nobody draws, and the
+            switcher re-renders with the page on every switch of the prompt box's project. */}
+        <SwitcherMenu projects={projects} home={home} current={current} onAll={onAll} onProject={onProject} onAdd={onAdd} homeHint={homeHint} />
       </MenuContent>
     </Menu>
+  )
+}
+
+function SwitcherMenu({
+  projects,
+  home,
+  current,
+  onAll,
+  onProject,
+  onAdd,
+  homeHint,
+}: {
+  projects: SwitcherProject[]
+  home: SwitcherProject | undefined
+  current: SwitcherProject | undefined
+  onAll: () => void
+  onProject: (project: SwitcherProject) => void
+  onAdd?: () => void
+  homeHint?: ReactNode
+}) {
+  const every = [...projects, ...(home ? [home] : [])]
+  const total = (key: "ready" | "running" | "asks") => every.reduce((sum, project) => sum + project[key], 0)
+  const item = (project: SwitcherProject, hint?: ReactNode) => {
+    const selected = current?.id === project.id
+    return (
+      <MenuItem key={project.id} value={project.slug} onSelect={() => onProject(project)} icon={<ProjectSquare project={project.card} size={14} />}>
+        <span className={`min-w-0 flex-1 truncate ${selected ? "text-fg" : ""}`}>{project.name}</span>
+        {hint && <span className="min-w-0 shrink truncate font-mono text-[10.5px] text-muted-55">{hint}</span>}
+        {project.note && <span className="shrink-0 text-[10.5px] text-muted-55">{project.note}</span>}
+        <SwitcherCounts asks={project.asks} running={project.running} ready={project.ready} />
+        <span className="flex w-3 shrink-0 justify-center">{selected && <Check size={12} aria-label="Current" className="text-fg" />}</span>
+      </MenuItem>
+    )
+  }
+  return (
+    <>
+      <div className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-medium text-muted-55">Show</div>
+      {/* Every item outside the scrolling list is inset by the gutter that list reserves (styles.css
+          `scrollbar-gutter: stable`), so the badges and check marks stand in one column. */}
+      <div data-tour="switcher-all" className="pr-[var(--sbw)]">
+        <MenuItem onSelect={onAll} icon={<Layers size={14} aria-hidden />} value="all-projects">
+          <span className={`min-w-0 flex-1 truncate ${current ? "" : "text-fg"}`}>All projects</span>
+          <SwitcherCounts asks={total("asks")} running={total("running")} ready={total("ready")} />
+          <span className="flex w-3 shrink-0 justify-center">{!current && <Check size={12} aria-label="Current" className="text-fg" />}</span>
+        </MenuItem>
+      </div>
+      <MenuSeparator />
+      <div data-tour="switcher-projects" className="max-h-[min(50vh,360px)] overflow-y-auto">{projects.map((project) => item(project))}</div>
+      {home && (
+        <>
+          {projects.length > 0 && <MenuSeparator />}
+          {/* Outside the scrolling list, so it never scrolls away. */}
+          <div className="pr-[var(--sbw)]">{item(home, homeHint)}</div>
+        </>
+      )}
+      {onAdd && (
+        <>
+          <MenuSeparator />
+          <div data-tour="switcher-add" className="pr-[var(--sbw)]">
+            <MenuItem onSelect={onAdd} icon={<Plus size={14} aria-hidden />} value="add-project">
+              <span className="min-w-0 flex-1 truncate">Add a project</span>
+            </MenuItem>
+          </div>
+        </>
+      )}
+    </>
   )
 }
 
