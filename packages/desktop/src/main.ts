@@ -34,11 +34,15 @@ import { locateServer } from "./server.ts"
  * that open in the operator's real browser, the Edit menu macOS needs before copy and paste work at all,
  * back and forward, a context menu, and a window that remembers where it was.
  *
- * `NTWINE_DESKTOP_URL=http://127.0.0.1:<port>` skips the search and shows that origin — a second dev
- * board, or a disposable stack.
+ * `NTWINE_DESKTOP_URL=http://127.0.0.1:<port>` (or `--ntwine-url=`, which is how scripts/dev.ts hands it
+ * to a Windows Electron started from WSL, where no Linux variable reaches) skips the search and shows
+ * that origin — a second dev board, a disposable stack, or a board across the WSL boundary, which this
+ * process could not search for: the owner records live in the Linux home.
  */
 
 const APP_ID = "dev.ntwine.desktop"
+const argValue = (name: string) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3)
+const pinnedUrl = process.env.NTWINE_DESKTOP_URL ?? argValue("ntwine-url")
 const here = dirname(fileURLToPath(import.meta.url))
 const isMac = process.platform === "darwin"
 
@@ -155,8 +159,8 @@ function ownPages(): BrowserWindow[] {
  * opened beside `nub run dev`, often before the board is up, and a dev board that died comes back.
  */
 async function resolveServer(): Promise<string> {
-  if (process.env.NTWINE_DESKTOP_URL) {
-    const url = new URL(process.env.NTWINE_DESKTOP_URL)
+  if (pinnedUrl) {
+    const url = new URL(pinnedUrl)
     for (;;) {
       if (await fetch(new URL("/_ntwine/health", url), { signal: AbortSignal.timeout(1_500) }).then((r) => r.ok, () => false)) return url.origin
       showWaiting()
@@ -174,7 +178,7 @@ async function resolveServer(): Promise<string> {
 /** Every window on one of this app's own pages shows the waiting one — each poll, so a window that
  * started connecting since (a second failed load, a new window) gets it too. */
 function showWaiting(): void {
-  const waiting = waitingPage(process.env.NTWINE_DESKTOP_URL)
+  const waiting = waitingPage(pinnedUrl)
   for (const win of ownPages()) {
     if (win.webContents.getURL() !== waiting) void win.loadURL(waiting).catch(() => {})
   }
@@ -368,6 +372,9 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   void app.whenReady().then(() => {
+    // scripts/dev.ts stops a Windows Electron by this pid: signalling its WSL interop proxy does not.
+    const pidFile = argValue("ntwine-pid-file")
+    if (pidFile) writeFileSync(pidFile, String(process.pid))
     Menu.setApplicationMenu(buildMenu())
     createMainWindow()
   })

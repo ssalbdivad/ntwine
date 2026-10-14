@@ -12,6 +12,9 @@
 // reads the server owner record through the launcher's module (src/server-owner.ts). The preload is
 // CommonJS because a sandboxed preload cannot be an ES module.
 //
+// On WSL it runs the WINDOWS build of Electron, natively, rather than the Linux one through WSLg
+// (scripts/windows.ts); `--wslg` runs the Linux one there instead.
+//
 // Pass `--url=http://127.0.0.1:<port>` to show a particular board (NTWINE_DESKTOP_URL); without it the
 // window joins whichever board of ours answers (server.ts). Extra arguments go to Electron.
 import { spawn, type ChildProcess } from "node:child_process"
@@ -20,6 +23,8 @@ import { createRequire } from "node:module"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { context, type BuildOptions, type Plugin } from "esbuild"
+import { locateServer } from "../src/server.ts"
+import { isWsl, prepareWindowsElectron } from "./windows.ts"
 
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const dist = join(pkg, "dist")
@@ -28,13 +33,21 @@ const dist = join(pkg, "dist")
 const electronBinary = createRequire(import.meta.url)("electron") as string
 
 const urlFlag = process.argv.find((arg) => arg.startsWith("--url="))
+const pinnedUrl = urlFlag?.slice("--url=".length)
+const onWindows = isWsl() && !process.argv.includes("--wslg")
 // `nub run desktop -- …` passes its own `--` through, and Electron would read everything after it as
 // app arguments rather than Chromium switches.
-const electronArgs = process.argv.slice(2).filter((arg) => arg !== urlFlag && arg !== "--")
-const env: NodeJS.ProcessEnv = { ...process.env, ...(urlFlag ? { NTWINE_DESKTOP_URL: urlFlag.slice("--url=".length) } : {}) }
+const electronArgs = process.argv.slice(2).filter((arg) => arg !== urlFlag && arg !== "--" && arg !== "--wslg")
+const env: NodeJS.ProcessEnv = { ...process.env, ...(pinnedUrl ? { NTWINE_DESKTOP_URL: pinnedUrl } : {}) }
 // Set by `electron` when run from a terminal that is itself inside an Electron app (VS Code's); with it,
 // the binary runs as plain Node and no window ever opens.
 delete env.ELECTRON_RUN_AS_NODE
+
+const windows = onWindows ? await prepareWindowsElectron() : undefined
+// A Windows Electron cannot search for the board (the owner records are in the Linux home), so it is
+// found here, once, and pinned. Nothing up yet means the default port: the window waits for it.
+const windowsUrl = windows ? pinnedUrl ?? await locateServer() ?? "http://127.0.0.1:9393" : undefined
+if (windowsUrl) console.log(`[desktop] Windows Electron onto ${windowsUrl}`)
 
 rmSync(dist, { recursive: true, force: true })
 mkdirSync(dist, { recursive: true })
@@ -46,7 +59,9 @@ let quitting = false
 let pendingRestart: NodeJS.Timeout | undefined
 
 function launch(): void {
-  const child = spawn(electronBinary, [pkg, ...electronArgs], { env, stdio: "inherit" })
+  const child = windows
+    ? windows.start(dist, [`--ntwine-url=${windowsUrl}`, ...electronArgs])
+    : spawn(electronBinary, [pkg, ...electronArgs], { env, stdio: "inherit" })
   electron = child
   child.on("exit", (code, signal) => {
     if (electron !== child) return
@@ -65,7 +80,12 @@ function restart(): void {
   if (!previous) return launch()
   electron = undefined
   previous.once("exit", launch)
-  previous.kill("SIGTERM")
+  void stop(previous)
+}
+
+async function stop(child: ChildProcess): Promise<void> {
+  if (windows) await windows.stop(child)
+  else child.kill("SIGTERM")
 }
 
 /** Both bundles report through this; the first build launches, every later one restarts once. */
@@ -112,7 +132,7 @@ await Promise.all([main.watch(), preload.watch()])
 async function shutdown(): Promise<void> {
   quitting = true
   clearTimeout(pendingRestart)
-  electron?.kill("SIGTERM")
+  if (electron) await stop(electron)
   await Promise.all([main.dispose(), preload.dispose()])
   process.exit(0)
 }
