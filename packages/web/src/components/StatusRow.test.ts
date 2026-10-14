@@ -91,7 +91,7 @@ test("on a board the row leads with the door home, then a divider, then the titl
   const identity = html.indexOf("data-identity")
   const settings = html.indexOf('aria-label="Settings"')
   assert.ok(home >= 0 && home < divider && divider < title && title < identity && identity < settings, JSON.stringify({ home, divider, title, identity, settings }))
-  assert.match(html, /<a data-status-home="true" title="All projects" aria-label="All projects" class="-mx-1\.5 inline-flex[^"]*-ml-px" href="\/all"/, "the door home goes to All projects, at /all (2026-10-06)")
+  assert.match(html, /<a data-status-home="true" title="All projects" aria-label="All projects" class="-mx-1\.5 inline-flex[^"]*-ml-px" href="\/"/, "the door home goes to All projects, at / (2026-10-14)")
 })
 
 test("ONE divider, between the buttons and the readouts", () => {

@@ -78,7 +78,7 @@ export function StatusRow({ title, identity, crumb = false, settings = true, sho
   title?: ReactNode
   /** Beside the title, in its slack: a board's repo and menu (BoardIdentity.tsx). */
   identity?: ReactNode
-  /** Lead with the door home to All projects, `/all` — a project's board, one level in. */
+  /** Lead with the door home to All projects, `/` — a project's board, one level in. */
   crumb?: boolean
   settings?: boolean
   shortcuts?: boolean
