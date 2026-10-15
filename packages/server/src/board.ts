@@ -2511,6 +2511,7 @@ export function heldThreadView(view: ThreadView, row: SessionRow): ThreadView {
     ...view,
     held: row.held_by ?? undefined,
     heldPrompt: row.lazy_prompt ?? "",
+    ...(isTodoRow(row) && row.todo_steps ? { todoSteps: row.todo_steps } : {}),
     runtime: "turn-idle",
     ...(parkedUntil ? { snoozedUntil: parkedUntil } : {}),
     needsYou: isTodoRow(row) && !view.archived && view.snoozedUntil === undefined,

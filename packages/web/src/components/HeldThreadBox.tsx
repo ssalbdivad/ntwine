@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState, type ReactElement } from "react"
 import { useMutation } from "@tanstack/react-query"
+import { Footprints } from "lucide-react"
 import type { ThreadView } from "@ntwine/shared"
 import { showToast } from "../store.ts"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { Composer } from "./Composer.tsx"
+import { LinkedHtml } from "./LinkedHtml.tsx"
+import { QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
+import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 
 // A HELD THREAD's prompt box (ThreadView.held): a thread written down with no agent behind it. Its text IS
 // the box's text — there is no separate note view to keep in step with a draft — so the queue card and the
@@ -20,6 +24,17 @@ import { Composer } from "./Composer.tsx"
 // server has, which is how a board push of our own save is told apart from an edit made somewhere else (the
 // other surface, another tab).
 const SAVE_DELAY_MS = 500
+
+/** A TO-DO's first steps (ThreadView.todoSteps): what a model wrote from the task to help start it — a
+ *  draft, a page, where to look. Drawn over the box on the queue card and in the drawer. */
+export function TodoSteps({ steps }: { steps: string }): ReactElement {
+  const html = useMarkdownHtml(steps)
+  return (
+    <TranscriptCard icon={Footprints} label="First steps" data-todo-steps="">
+      <LinkedHtml className={`md-body ${QUEUE_WRAP}`} html={html} />
+    </TranscriptCard>
+  )
+}
 
 type HeldComposerProps = { thread: ThreadView; surface: "queueComposer" | "chatComposer"; className?: string; id?: string }
 

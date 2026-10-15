@@ -38,6 +38,7 @@ import type { HeldStartProfile } from "./held-start.ts"
 import { createPeriodicStatus } from "./periodic-status.ts"
 import { createLiveStatus } from "./live-status.ts"
 import { createThreadNamer, openThreadsElsewhere, type ThreadNamer } from "./thread-names.ts"
+import { createTodoStepsWriter, type TodoStepsWriter } from "./todo-steps.ts"
 import { createClaudeOneShot, type ClaudeOneShot } from "./backend/claude-oneshot.ts"
 import { createEffortChooser } from "./effort-chooser.ts"
 import { readTranscriptYielding } from "./transcript.ts"
@@ -187,6 +188,9 @@ export interface AppContext {
   // project-wide uniqueness check every title writer runs. Optional so a hand-built test context need
   // not supply one; the router then checks uniqueness against storage alone.
   threadNamer?: ThreadNamer
+  // A to-do's first steps (todo-steps.ts), written in the background when one is added. Optional like the
+  // namer: a hand-built test context adds to-dos without steps.
+  todoSteps?: TodoStepsWriter
   // Per-session agent-backend resolver behind the spawn/resume/transcript seam (Codex-support epic).
   // Maps a row's `backend` column (claude|codex) to its AgentBackend; DEFAULTS to claude for any unset/
   // unknown kind, so every existing session and all current behavior are unchanged until a dispatch
@@ -1016,6 +1020,15 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     onNamed: () => board.refresh(),
     log: (message) => ntwineLog.warn("server", `thread namer: ${message}`),
   })
+  // A TO-DO'S FIRST STEPS (todo-steps.ts): one completion per `/todo`, in the background. Its own completer,
+  // so a to-do never queues behind a fleet's name mints. Off with NTWINE_TODO_STEPS=0 or NTWINE_THREAD_NAMER=0.
+  const todoStepsModel = model(createClaudeOneShot({ claudeBin: opts.claudeBin, cwd: workDirOf(project), concurrency: 2 }), namerOff || process.env.NTWINE_TODO_STEPS === "0")
+  const todoSteps = createTodoStepsWriter({
+    get complete() { return todoStepsModel() },
+    project: project.name,
+    record: (slug, sessionId, steps) => { if (storage.setTodoSteps(slug, sessionId, steps)) board.refresh() },
+    log: (message) => ntwineLog.warn("server", `to-do steps: ${message}`),
+  })
   // At every rest the conversation moved, write the thread's live STATUS from the recent conversation —
   // never its name (periodic-status.ts).
   const periodicStatus = createPeriodicStatus({
@@ -1420,6 +1433,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     tailer,
     dispatcher,
     threadNamer,
+    todoSteps,
     scheduler,
     probePr: probePrReadable,
     probeIssue: probeIssueReadable,

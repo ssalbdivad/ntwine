@@ -4614,6 +4614,10 @@ export const ThreadView = z.object({
   // prompt, which the human may edit for that run alone, and for any other held thread the text it starts on.
   // Present exactly when `held` is.
   heldPrompt: z.string().optional(),
+  // A TO-DO's first steps (server todo-steps.ts): short Markdown a model wrote from the task when it was
+  // added — a draft message, a page to open, where to look first. Absent until it lands, on a to-do that
+  // needed none, and on every other thread.
+  todoSteps: z.string().optional(),
   // The SCHEDULE this thread is a run of (ARCHITECTURE.md § Scheduled threads) — what draws the repeat glyph and
   // its tooltip. `pending` marks the schedule's next run: a held row that sits in Snoozed with its wake
   // time until the scheduler starts it, even once that time has passed (isSnoozed). Absent on every other

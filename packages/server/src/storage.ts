@@ -302,6 +302,10 @@ export interface SessionRow {
   // so no holder can strand one. Starting it dispatches on
   // this same slug and session id (dispatch.ts `onto`), and that dispatch's upsert writes NULL here.
   held_by?: string | null
+  // A TO-DO's FIRST STEPS (todo-steps.ts): short Markdown a model wrote from the task when it was added —
+  // what to do first, a draft, a link. NULL until it lands, and on every other row. Never cleared: once
+  // the to-do starts, nothing reads it.
+  todo_steps?: string | null
   // The SCHEDULE this thread is a run of (ARCHITECTURE.md § Scheduled threads): set on the held row a schedule
   // materializes as its next run, and kept when that row starts — the dispatch upsert never writes it —
   // so every run carries its schedule for life. A row held by `schedules` is a schedule's pending next run:
@@ -1127,6 +1131,8 @@ export interface Storage extends ScheduleStore {
   /** Rewrite a held thread's opening prompt (SessionRow.lazy_prompt). False when the row is not (or no
    *  longer) held — it started, and the prompt was its first message. */
   setHeldPrompt(slug: string, sessionId: string, prompt: string): boolean
+  /** Record a to-do's first steps (SessionRow.todo_steps). False when the row is no longer that held row. */
+  setTodoSteps(slug: string, sessionId: string, steps: string): boolean
   /** Set (or move) this thread's deadline — a new GENERATION: `deadline_set_at` restamped, the stage
    *  ledger cleared, so the check-ins start over against the new budget. */
   setDeadline(slug: string, input: { deadlineAt: string; setAt: string; setBy: "human" | "worker" }): boolean
@@ -1745,6 +1751,8 @@ export function ensureStorageSchema(db: Database): void {
     "worker_surface TEXT",
     // 2026-10-14: when the human set the current snooze (SessionRow.snooze_set_at).
     "snooze_set_at TEXT",
+    // 2026-10-15: a to-do's first steps (SessionRow.todo_steps, todo-steps.ts).
+    "todo_steps TEXT",
   ]) {
     try {
       db.exec(`ALTER TABLE session ADD COLUMN ${column}`)
@@ -2786,6 +2794,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
   )
   const forkAnchorStmt = scope.prepare("UPDATE session SET fork_anchor = ? WHERE project_id = @project_id AND slug = ? AND session_id = ?")
   const heldPromptStmt = scope.prepare("UPDATE session SET lazy_prompt = ? WHERE project_id = @project_id AND slug = ? AND session_id = ? AND held_by IS NOT NULL")
+  const todoStepsStmt = scope.prepare("UPDATE session SET todo_steps = ? WHERE project_id = @project_id AND slug = ? AND session_id = ? AND held_by IS NOT NULL")
   const acpAgentStmt = scope.prepare("UPDATE session SET acp_agent = ? WHERE project_id = @project_id AND slug = ?")
   const workerSurfaceStmt = scope.prepare("UPDATE session SET worker_surface = ? WHERE project_id = @project_id AND slug = ?")
   // Stamps profile_set_at alongside model/effort: the OPERATOR's set-time. Both backends' setThreadProfile
@@ -3256,6 +3265,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     setClaudeRuntime: (slug, runtime) => void claudeRuntimeStmt.run(runtime, slug),
     setForkAnchor: (slug, sessionId, anchor) => forkAnchorStmt.run(anchor, slug, sessionId).changes === 1,
     setHeldPrompt: (slug, sessionId, prompt) => heldPromptStmt.run(prompt, slug, sessionId).changes === 1,
+    setTodoSteps: (slug, sessionId, steps) => todoStepsStmt.run(steps, slug, sessionId).changes === 1,
     setDeadline: (slug, input) => setDeadlineStmt.run(input.deadlineAt, input.setAt, input.setBy, slug).changes === 1,
     clearDeadline: (slug) => clearDeadlineStmt.run(slug).changes === 1,
     markDeadlineStage: (slug, setAt, stage) => markDeadlineStageStmt.run(stage, slug, setAt).changes === 1,

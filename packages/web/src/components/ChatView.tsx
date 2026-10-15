@@ -17,6 +17,7 @@ import { splitComposerValue, splitProseAttachments } from "../lib/imagePaths.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
 import { basename } from "../lib/paths.ts"
 import { useThreadApiBase } from "../api/threadApi.tsx"
+import { TodoSteps } from "./HeldThreadBox.tsx"
 import { DiffBlock, PathLink } from "./DiffBlock.tsx"
 import { LinkedHtml } from "./LinkedHtml.tsx"
 import { CodeBody } from "./CodeBody.tsx"
@@ -524,7 +525,10 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
       {/* data-transcript-column marks a stack of messages whose rhythm comes from withMessageSpacers.
           Every such column is gap-less by construction; the marker is what the spacing e2e measures. */}
       <div data-transcript-column className="flex min-h-full flex-col px-6 py-5">
-        {count === 0 ? (
+        {count === 0 && thread?.held !== undefined && thread.todoSteps ? (
+          // A to-do's first steps: what to do before (or instead of) starting an agent on it.
+          <TodoSteps steps={thread.todoSteps} />
+        ) : count === 0 ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted">
             {q.isPending ? (
               // The transcript hasn't loaded YET — `count` is 0 only because `q.data` is still

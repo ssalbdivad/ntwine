@@ -3551,7 +3551,12 @@ export function createRouter(ctx: AppContext) {
     createTodo: mutation({
       input: CreateHeldThreadInput,
       output: z.object({ slug: ThreadSlug, sessionId: z.string() }),
-      handler: async ({ input }) => ctx.dispatcher.createHeldThread(input, { holder: TODO_HOLDER }),
+      handler: async ({ input }) => {
+        const made = ctx.dispatcher.createHeldThread(input, { holder: TODO_HOLDER })
+        // Its first steps follow in the background (todo-steps.ts); the to-do is in Ready without them.
+        void ctx.todoSteps?.write({ slug: made.slug, sessionId: made.sessionId, task: input.prompt })
+        return made
+      },
     }),
 
     updateHeldPrompt: mutation({

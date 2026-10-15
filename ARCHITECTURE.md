@@ -125,12 +125,13 @@ projects or a project's page —
 - **A thread can run an OLDER edition of its own model family.** ntwine dispatches on the family alias (`opus`) and the pinned runtime resolves it, so a pin bump that moves the alias (Claude Code 2.1.280 took `opus` from Opus 5 to Opus 5.5) reaches only daemons forked after it — a live daemon keeps the `claude` binary it was forked with, and the row says `opus` either way. The board reads the edition a worker RUNS off its transcript's model id (`runningModelLabel`, "Opus 5") and compares it with the pin's catalogue (`claude-models.ts`, `modelUpgrade`: "Opus 5.5", `staged` when no live daemon holds the old one). The composer's model picker names the running edition and offers a one-click upgrade (`upgradeThreadModel`), which retires the idle daemon so the next turn forks from the current pin; and the first input delivered to an idle thread after a compaction newer than both its daemon and this server takes a fresh process on its own. Both refuse on the hibernation predicate minus its two memory gates — a turn, sub-agent, shell, approval or undelivered send holds them off (`claude-model-upgrade.ts`).
 - **A teardown ntwine CHOSE is never reported as a crash.** `attach` reports a death whenever a resume has to cold-start, because that is normally the only way ntwine learns a daemon died unobserved — but a permission-mode change, a model upgrade, a usage-limit resume and hibernation all end in exactly that cold start. `killBroker(stateDir, sessionId, reason)` leaves a one-shot `<key>.retired` mark beside the broker record, stamped with the dying daemon's `generation`; the next cold fork consumes it and suppresses the report only when the exit record's generation matches. Genuine crash detection is untouched — an unmarked teardown still reports, which is what the negative control in `claude-agent-broker-bridge.test.ts` pins.
 - **One daemon per session, and a follow-up succeeds only for a message the daemon took.** Cold resume is SINGLE-FLIGHT per session in the bridge (`attachOnce`): every caller that needs a daemon while an attach is running awaits that attach. Without it, a hibernated thread whose operator answered its questions took two inputs in one instant (the waker's answers and the operator's send), and each forked a daemon on the same socket path (2026-09-30, `we-ve-got-to-start-working`). The input frame is ACKNOWLEDGED (`input-ack-v1`): `followUp` resolves on the daemon's `input-result`, or — for a daemon forked by an older build — once the frame is written to a connected socket, and throws otherwise, so the router never records `delivered` for a frame buffered into a socket that never came back. A daemon closes its listener only while the socket path still leads to it (closing a unix-socket server unlinks its PATH, whoever owns that file now), and an unattached daemon whose socket file is gone self-collects (`self-collected-socket-lost`). `scripts/verify-broker-resume-race.mjs` reproduces all three against a real daemon.
-- **ntwine's own model calls.** Four jobs ask a model without an agent: naming a thread (and "Rename
+- **ntwine's own model calls.** Five jobs ask a model without an agent: naming a thread (and "Rename
   with Claude"), the one-line status of what a thread is doing, choosing an effort when the operator
-  picks Auto, and reading a schedule out of a prompt ("every Monday at 9am"). Each is a `claude-oneshot`
+  picks Auto, reading a schedule out of a prompt ("every Monday at 9am"), and writing a to-do's first
+  steps (`todo-steps.ts`, 2026-10-15). Each is a `claude-oneshot`
   call on the operator's own Claude sign-in, and each has a mechanical fallback that runs whenever its
-  completer is absent. `NTWINE_THREAD_NAMER=0`, `NTWINE_LIVE_STATUS=0` and `NTWINE_AUTO_EFFORT=0` turn a
-  call off. (A Settings switch over all four, Background summaries, existed 2026-10-06 to 2026-10-07.)
+  completer is absent. `NTWINE_THREAD_NAMER=0`, `NTWINE_LIVE_STATUS=0`, `NTWINE_AUTO_EFFORT=0` and
+  `NTWINE_TODO_STEPS=0` turn a call off. (A Settings switch over all four, Background summaries, existed 2026-10-06 to 2026-10-07.)
 - **No worktree opinions, one cleanup.** ntwine creates no worktree or branch, mandates no folder for
   one, and removes none when a thread is marked done; where an agent makes a worktree is the project's
   call, in its `NTWINE.md`. What ntwine does know is which checkout a thread works in (the tailer's
@@ -287,6 +288,10 @@ Each of these departs from "ntwine only checks" on purpose.
   `ThreadView.statusLine`. Why: a stable name before the worker has oriented, and a current line beside
   the worker's own sign-off. A row shows it on hover unless Settings → Always show status lines is on
   (§ Board nomenclature). Off: `NTWINE_THREAD_NAMER=0` and `NTWINE_LIVE_STATUS=0`.
+- **A to-do's first steps** (`todo-steps.ts`). When `/todo` adds one, a single background completion
+  reads the task and writes how to start it: a draft message, the official page to open, where to look in
+  the code. It has no tools, so it never browses or reads the repo. Why: a to-do is written down mid-flow,
+  and the first step is the one that stalls it. Off: `NTWINE_TODO_STEPS=0` (or `NTWINE_THREAD_NAMER=0`).
 - **Per-question answer delivery** (scheduler `evalQuestionAnswers`). Each card is sent the moment the
   human completes it and delivered mid-turn like a steer; every undelivered answer a pass finds for one
   thread goes as one message (`mergeAnswerMessages`). Why: the worker starts on the first answer while
