@@ -38,7 +38,7 @@ import type { SessionRow } from "./storage.ts"
 import type { HeldStartProfile } from "./held-start.ts"
 import { createPeriodicStatus } from "./periodic-status.ts"
 import { createLiveStatus } from "./live-status.ts"
-import { createThreadNamer, openThreadsElsewhere, type ThreadNamer } from "./thread-names.ts"
+import { createThreadNamer, nameEveryThread, openThreadsElsewhere, type ThreadNamer } from "./thread-names.ts"
 import { createTodoStepsWriter, type TodoStepsWriter } from "./todo-steps.ts"
 import { createClaudeOneShot, type ClaudeOneShot } from "./backend/claude-oneshot.ts"
 import { createEffortChooser } from "./effort-chooser.ts"
@@ -1018,7 +1018,8 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     storage,
     elsewhere: () => openThreadsElsewhere(opts.activeTenants?.() ?? [], project.id),
     get complete() { return namerModel() },
-    onNamed: () => board.refresh(),
+    // `board` is assigned below; a name landing before it exists has no board to refresh yet.
+    onNamed: () => board?.refresh(),
     log: (message) => ntwineLog.warn("server", `thread namer: ${message}`),
   })
   // A TO-DO'S FIRST STEPS (todo-steps.ts): one completion per `/todo`, in the background. Its own completer,
@@ -1170,6 +1171,10 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   // ask for it first. The board re-derives the moment it lands. Same gate as the quota warm-up: a
   // disposable test stack never spawns the runtime on its own.
   contextUnsubscribers.push(onClaudeModelsResolved(() => board.refresh()))
+  // EVERY THREAD HAS A NAME (thread-names.ts nameEveryThread, MINT_WINDOW_MS): every row written from now
+  // on is named, and so is an open row an older build left unnamed. After the board, because a name
+  // landing refreshes it.
+  contextUnsubscribers.push(nameEveryThread(storage, threadNamer))
   if (process.env.NTWINE_WAKERS_OFF !== "1") {
     void readClaudeModels({ claudeBin: opts.claudeBin, cwd: workDirOf(project), log: (message) => ntwineLog.warn("server", message) })
   }

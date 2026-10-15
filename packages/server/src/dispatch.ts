@@ -1122,7 +1122,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       }
       // Title: a caller's title, else the heuristic chop, which is only ever the SLUG and a placeholder.
       // A thread with no caller title is minted its real NAME — one or two words, unique in the project —
-      // once its row exists (`mintName`, thread-names.ts), through a short Claude completion off the
+      // once its row exists (thread-names.ts ensureNamed, for every row write), through a short Claude completion off the
       // dispatch path; the card shows a placeholder in the seconds before it lands, never Claude's own ai-title. (A headless `claude -p`
       // titling pass was tried and REMOVED — print mode is going away for Max subscription auth. The mint
       // is an SDK stream-json session, the mode every broker worker runs in.)
@@ -1137,9 +1137,6 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // A held thread keeps the name it was given when it was created, minted or typed; it is not named again.
       const title = onto?.title?.trim() || (callerTitle && deps.threadNamer ? deps.threadNamer.distinct(callerTitle, nameSource, input.slug) : callerTitle) ||
         fallbackTitle(nameSource)
-      const mintName = (slug: string, sessionId: string) => {
-        if (!callerTitle && !onto) void deps.threadNamer?.mint(slug, sessionId, nameSource)
-      }
       const base = input.slug ?? slugify(title)
       const slug = onto ? onto.slug : resolveSlug(ntwineDir, base, (s) => deps.storage.getSession(s) !== undefined)
       // The title flags a held thread already has: a name the human typed stays locked against the worker's rename.
@@ -1152,6 +1149,9 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
       // provider/ntwine signal may still replace it through the title_auto CAS.
       const registryTitle = title
       const sessionId = onto ? onto.session_id : randomUUID()
+      // What its name is minted FROM, should it need one: the row keeps only the title chop. The mint itself
+      // runs for the row's write, as every thread's does (thread-names.ts ensureNamed, wired in context.ts).
+      deps.threadNamer?.expect(slug, sessionId, nameSource)
       const permissionMode = workerDispatchPermission(kind, settings)
       // Resolve the profile ONCE for this session. It feeds both the CLI argv and the persisted row,
       // so the thread UI describes what this dispatch actually launched with rather than whatever the
@@ -1240,7 +1240,6 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           // The codex SESSION id (not the thread id) matches the rollout filename the tailer scans for.
           deps.storage.setAgentSession(slug, spawned.binding.codexSessionId)
           deps.storage.setCodexRuntime(slug, "app-server")
-          mintName(slug, sessionId)
           // The contract this thread was just started with teaches `ntwinectl`, and a codex thread keeps
           // the contract it was started with — so it is never handed the MCP tools (workerTaughtMcp).
           deps.storage.setWorkerSurface(slug, "cli")
@@ -1298,7 +1297,6 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           deps.storage.setBackend(slug, "acp")
           deps.storage.setAgentSession(slug, spawned.acpSessionId)
           deps.storage.setAcpAgent(slug, agentId)
-          mintName(slug, sessionId)
           deps.storage.setWorkerSurface(slug, "cli")
           void deps.board.rebuild().catch(() => {})
           return { slug, sessionId }
@@ -1379,7 +1377,6 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           if (deadline) deps.storage.setDeadline(slug, deadline)
           deps.storage.setBackend(slug, "claude")
           deps.storage.setClaudeRuntime(slug, "broker")
-          mintName(slug, sessionId)
           deps.storage.setWorkerSurface(slug, "cli")
           void deps.board.rebuild().catch(() => {})
           return { slug, sessionId }
@@ -1442,7 +1439,6 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         ...(scheduled ? { snoozed_until: scheduled.snoozedUntil, schedule_id: scheduled.scheduleId } : {}),
       })
       deps.storage.setBackend(slug, kind)
-      if (!typed) void deps.threadNamer?.mint(slug, sessionId, input.prompt)
       void deps.board.rebuild().catch(() => {})
       return { slug, sessionId }
     },

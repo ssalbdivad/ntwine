@@ -10,7 +10,7 @@ import { cwdSlug, type Project } from "./project.ts"
 import type { BoardManager } from "./board.ts"
 import type { ClaudeAgentBrokerBridge } from "./backend/claude-agent-broker-bridge.ts"
 import type { CodexAppServerBridge } from "./backend/codex-app-server.ts"
-import { createThreadNamer, foldThreadName, type ThreadNamer } from "./thread-names.ts"
+import { createThreadNamer, foldThreadName, nameEveryThread, type ThreadNamer } from "./thread-names.ts"
 
 // THE DISPATCH-TIME NAME (thread-names.ts), through the real dispatcher: a thread with no caller title
 // is minted a 1-2 word name once its row exists, the model is told which names are taken, Codex's own
@@ -52,16 +52,8 @@ function harness(answers: string[]) {
       return next
     },
   })
-  const mints: Promise<void>[] = []
-  const threadNamer: ThreadNamer = {
-    ...inner,
-    available: inner.available,
-    mint: (...args) => {
-      const run = inner.mint(...args)
-      mints.push(run)
-      return run
-    },
-  }
+  const threadNamer: ThreadNamer = inner
+  nameEveryThread(storage, threadNamer)
   const dispatcher = createDispatcher({
     project,
     storage,
@@ -71,7 +63,8 @@ function harness(answers: string[]) {
     codexAppServer,
     threadNamer,
   })
-  const settle = () => Promise.all(mints)
+  // Every mint the dispatches set off, which run for the rows' writes (ensureNamed), not at dispatch's call.
+  const settle = () => Promise.all(storage.allSessions().map((row) => inner.named(row.slug)))
   return { storage, dispatcher, prompts, developerInstructions, settle }
 }
 

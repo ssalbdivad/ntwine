@@ -27,7 +27,7 @@ import type { ThreadNamer } from "./thread-names.ts"
 // So this asserts the invariant TRANSPORT BY TRANSPORT rather than through whichever one happens to
 // be the default — a fourth transport has to answer the same question before it can ship.
 
-function harness(threadNamer?: Pick<ThreadNamer, "distinct" | "mint">) {
+function harness(threadNamer?: Pick<ThreadNamer, "distinct" | "expect">) {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-title-lock-"))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const project: Project = { dir, id: "title-lock", name: "t", label: "o/t", stateDir: dir, cwdSlug: cwdSlug(dir) }
@@ -111,7 +111,7 @@ test("a dispatch NAMED from another text takes its fallback title, slug and mint
   const minted: string[] = []
   const { storage, dispatcher } = harness({
     distinct: (name: string) => name,
-    mint: async (_slug: string, _sessionId: string, source: string) => void minted.push(source),
+    expect: (_slug: string, _sessionId: string, source: string) => void minted.push(source),
   })
   const nameSource = "investigate perf\n\nBrief: the N+1 in loadUsers"
   const { slug } = await dispatcher.dispatch(

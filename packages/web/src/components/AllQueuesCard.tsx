@@ -41,11 +41,12 @@ import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 import { parseAccountAlias } from "../lib/signIn.ts"
 import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/transcriptMetaLabels.ts"
 import { isPlainLeftClick } from "../lib/plainClick.ts"
+import { splitComposerValue } from "../lib/imagePaths.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { drawnHeight, observeCardSlot, whenCardRendered } from "../lib/cardVisibility.ts"
 import { IN_PLACE_OPEN_STATE, openThread, pushTerminalDrawer, showToast, store } from "../store.ts"
 import { crossProjectHref, innerPath, projectSlug } from "../lib/base-path.ts"
-import { GithubWatchRows, LimitPauseNotice, QueueDismissContext, TerminalNetCard } from "./ChatView.tsx"
+import { BlockFile, BlockImage, GithubWatchRows, LimitPauseNotice, QueueDismissContext, TerminalNetCard } from "./ChatView.tsx"
 import { isLimitPaused } from "../lib/limitPause.ts"
 import { registeredDoneBody, showsRegisteredDoneCard } from "../lib/registeredDone.ts"
 import { ThreadStatusLine } from "./ThreadStatusLine.tsx"
@@ -794,7 +795,7 @@ function CardArticle({
           />
           {/* A HELD THREAD's box is what it will start with, and sending it starts the agent (HeldThreadBox.tsx). */}
           {thread.held !== undefined
-            ? <HeldThreadComposer thread={thread} surface="queueComposer" className="min-w-0" />
+            ? <HeldThreadComposer thread={thread} surface="queueComposer" className="min-w-0" onSent={onSent} onLanded={onLanded} onFailed={onReturn} />
             : <ReplyBox project={project} thread={thread} onSent={onSent} onLanded={onLanded} onFailed={onReturn} fileDrop={composerFileDrop} />}
         </div>
       </ThreadProjectScope>
@@ -994,8 +995,11 @@ function CardTerminalNet({ thread }: { thread: ThreadView }) {
   return <TerminalNetCard thread={thread} />
 }
 
-/** The human's last message, as the transcript draws it — their own bubble — clipped to a few lines. */
-function AskedBubble({ text }: { text: string }) {
+/** The human's last message, as the transcript draws it — their own bubble — clipped to a few lines, and
+ *  its attachments under it as the drawer's chips (ChatView UserBubble): the composer sends each one as a
+ *  trailing path line, which the bubble printed as a clipped run of path text. */
+function AskedBubble({ text: sent }: { text: string }) {
+  const { prose: text, attachments } = useMemo(() => splitComposerValue(sent), [sent])
   const [open, setOpen] = useState(false)
   const [clamps, setClamps] = useState(false)
   const words = useRef<HTMLSpanElement>(null)
@@ -1018,7 +1022,9 @@ function AskedBubble({ text }: { text: string }) {
     <div className="flex max-w-[85%] flex-col items-end gap-0.5 self-end">
       {/* A div with role=button, NOT a <button>: browsers refuse to start a text selection inside a
           <button>, so the human could not copy a word of their own message. The click is ignored while
-          a selection is live, because a drag across the words ends in a click on this same node. */}
+          a selection is live, because a drag across the words ends in a click on this same node.
+          An attachment-only message has no words, so no bubble: the chips stand alone, as in the drawer. */}
+      {text.trim() !== "" && (
       <div
         {...(clamps || open ? {
           role: "button",
@@ -1041,6 +1047,17 @@ function AskedBubble({ text }: { text: string }) {
             edge, so the fourth line showed half its height in the bubble's bottom padding. */}
         <span ref={words} className={open ? "" : "line-clamp-3"}>{text}</span>
       </div>
+      )}
+      {attachments.length > 0 && (
+        <div className="mt-1 flex flex-col items-end gap-1.5">
+          {attachments.filter((a) => a.kind === "image").map((a, i) => <BlockImage key={`i${i}-${a.path}`} path={a.path} hideCaption />)}
+          {attachments.some((a) => a.kind === "file") && (
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {attachments.filter((a) => a.kind === "file").map((a, i) => <BlockFile key={`f${i}-${a.path}`} path={a.path} />)}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -13,6 +13,7 @@ import type { ThreadView } from "@ntwine/shared"
 import Database from "./sqlite.ts"
 import { createStorage, isHeldRow, isScheduleHeldRow, type SessionRow } from "./storage.ts"
 import { heldThreadView } from "./board.ts"
+import { rowThreadName } from "./thread-names.ts"
 
 const row = (slug: string, patch: Partial<SessionRow> = {}): SessionRow => ({
   slug, session_id: `sid-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: "2026-10-01T00:00:00.000Z",
@@ -109,6 +110,30 @@ test("setHeldPrompt rewrites only a held row's prompt", () => {
     assert.equal(storage.setHeldPrompt("held", "another-session", "third"), false, "guarded on the session id")
     assert.equal(storage.setHeldPrompt("live", "sid-live", "nope"), false, "a started thread has no held prompt")
     assert.equal(storage.getSession("live")?.lazy_prompt, null)
+  } finally { storage.close(); rmSync(dir, { recursive: true, force: true }) }
+})
+
+// Starting a held thread is dispatch `onto` its row: the same slug, session and title written back with
+// `held_by` cleared. A to-do's name was minted when it was written down, and the start used to demote it
+// to a prompt chop (title_agent reset), so the started thread lost its handle and read as Claude's live
+// session title. A re-dispatch over the slug (a new session) is a new thread and starts unnamed.
+test("a held thread keeps its minted name when it starts, and a re-dispatch over its slug does not", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-held-name-"))
+  const storage = createStorage(join(dir, "ui.db"), "p")
+  try {
+    const held = row("plan-next-steps", { title: "Plan next steps", title_auto: 1, title_locked: 0, lazy_prompt: "Plan next steps for my job search", held_by: "todo" })
+    storage.upsertSession(held)
+    assert.equal(storage.setMintedTitle("plan-next-steps", "sid-plan-next-steps", "Job search"), true)
+    const named = storage.getSession("plan-next-steps")!
+    assert.equal(rowThreadName(named), "Job search")
+
+    storage.upsertSession({ ...named, exited: 0, lazy_prompt: null, held_by: null })
+    const started = storage.getSession("plan-next-steps")!
+    assert.equal(isHeldRow(started), false)
+    assert.equal(rowThreadName(started), "Job search")
+
+    storage.upsertSession({ ...started, session_id: "sid-fresh", title: "Plan next steps" })
+    assert.equal(rowThreadName(storage.getSession("plan-next-steps")!), undefined)
   } finally { storage.close(); rmSync(dir, { recursive: true, force: true }) }
 })
 

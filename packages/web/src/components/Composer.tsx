@@ -15,6 +15,8 @@ import type { SendMode } from "../lib/sendMode.ts"
 import { SendSplitButton } from "./SendSplitButton.tsx"
 import { prefs } from "../lib/prefs.ts"
 import { apiBase } from "../lib/base-path.ts"
+import { projectApiBase } from "../api/rpc.ts"
+import { useThreadProjectId } from "../api/threadApi.tsx"
 import { detectPlatform, effortStepOf } from "../lib/keybindings.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
 import { DROPPED_URI_TYPES, droppedUris, fileQueryAt, insertFileReference, insertReferencesAt, isVscodeDrag, type FileMentionSource } from "../lib/editorReach.ts"
@@ -415,10 +417,10 @@ export function Composer({
   // The caller is holding the send — checking the words for a schedule, or creating one — while the text stays
   // live (unlike `busy`): the button spins.
   sendPending?: boolean
-  // WHICH PROJECT AN ATTACHMENT IS UPLOADED TO, when it is not the page's. Omitted, `apiBase()` — the
-  // page project, which in a drawer is the thread's own. The cross-project page's queue
-  // card shows a thread of ANY project while the page is focused on one, so it passes the thread's
-  // project explicitly (AllQueuesCard ReplyBox).
+  // WHICH PROJECT AN ATTACHMENT IS UPLOADED TO, when it is not the box's. Omitted, the project of the
+  // ThreadProjectScope the box sits in (a queue card's, on a page showing every project), else
+  // `apiBase()` — the page project, which in a drawer is the thread's own. A box that read only the page
+  // filed a to-do's spreadsheet under whichever project All projects was bound to (2026-10-15).
   attachBase?: string
   // See ComposerSendControl. Desktop layouts only; the phone bar keeps its own primary button.
   send?: ComposerSendControl
@@ -446,6 +448,9 @@ export function Composer({
   // surface's `fileDrop`).
   const [referenceDrag, setReferenceDrag] = useState(false)
   const [uploading, setUploading] = useState(false)
+  // The scoped project's API, when the box is in one (see `attachBase`).
+  const scopedProjectId = useThreadProjectId()
+  const scopedAttachBase = scopedProjectId ? projectApiBase(scopedProjectId) : undefined
 
   // Attachment paths live INSIDE the draft `value` (trailing lines) so submit, draft persistence, and
   // the worker/transcript pipeline stay untouched — but the box PRESENTS them as chips, not raw path
@@ -517,7 +522,7 @@ export function Composer({
     const paths: string[] = []
     try {
       for (const { file, name } of allowed) {
-        const path = await uploadAttachment(file, name, attachBase ?? apiBase())
+        const path = await uploadAttachment(file, name, attachBase ?? scopedAttachBase ?? apiBase())
         // A null means /attach rejected it (decode/write failure — the type allowlist already ran
         // client-side above). Don't leave the user guessing why nothing appeared.
         if (path) paths.push(path)
