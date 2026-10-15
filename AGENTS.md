@@ -17,6 +17,9 @@ points.
 - A question is a row with a lifecycle, and it moves with the conversation (2026-10-14). Once the human types past it, it
   stays answerable where it was asked but no longer holds the thread: it blocks no `done`, needs no later `questions:`,
   queues nothing, and is never re-asked or redrawn at the bottom.
+- Every thread has a name that can be referenced, from the moment it starts, whichever path started it (2026-10-15,
+  maintainer-confirmed: "should avoid that scenario at all costs"). Naming is guaranteed at one chokepoint, with a
+  deterministic fallback when the model's name never arrives. A started thread with no name is a bug.
 - Every queue item can be answered or archived. Nothing enters the queue just to be dismissed, and a running thread never
   enters it.
 - The worker contract states rules, not rationale. A new rule earns its tokens only if a worker measurably gets it wrong
@@ -36,8 +39,8 @@ points.
 - One server serves every project. Nothing ntwine runs on its own uses a pty or tmux; the one pty is a terminal a
   human or an agent asked for, and it runs in its own detached host.
 - ntwine brings no model of its own: the few calls it makes itself (names, status lines, Auto effort,
-  schedule reading, a to-do's first steps) run on the operator's Claude sign-in, each with a `NTWINE_*=0`
-  off-switch. (First steps joined 2026-10-15, maintainer-confirmed.)
+  schedule reading, a to-do's starters) run on the operator's Claude sign-in, each with a `NTWINE_*=0`
+  off-switch. (To-do starters joined 2026-10-15, maintainer-confirmed.)
 
 **Working here (David)**
 - Copy says what the human can do, never how ntwine works. It is sentence case, and durations use one grammar.
