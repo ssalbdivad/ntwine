@@ -36,7 +36,8 @@ points.
 - One server serves every project. Nothing ntwine runs on its own uses a pty or tmux; the one pty is a terminal a
   human or an agent asked for, and it runs in its own detached host.
 - ntwine brings no model of its own: the few calls it makes itself (names, status lines, Auto effort,
-  schedule reading) run on the operator's Claude sign-in, each with a `NTWINE_*=0` off-switch.
+  schedule reading, a to-do's first steps) run on the operator's Claude sign-in, each with a `NTWINE_*=0`
+  off-switch. (First steps joined 2026-10-15, maintainer-confirmed.)
 
 **Working here (David)**
 - Copy says what the human can do, never how ntwine works. It is sentence case, and durations use one grammar.
