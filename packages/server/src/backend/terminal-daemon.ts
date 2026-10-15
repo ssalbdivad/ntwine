@@ -278,4 +278,8 @@ async function main(): Promise<void> {
   for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, () => { void session.stop() })
 }
 
-void main().catch(() => process.exit(5))
+main().catch((error: unknown) => {
+  // Nobody reads this in production (no stdio); it is what a load check of the emitted file sees.
+  console.error(error)
+  process.exit(5)
+})
