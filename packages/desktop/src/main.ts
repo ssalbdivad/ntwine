@@ -13,7 +13,7 @@ import {
   type Rectangle,
   type WebContents,
 } from "electron"
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, watch, writeFileSync } from "node:fs"
 import { basename, dirname, join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
@@ -71,11 +71,16 @@ if (process.platform === "win32") app.setAppUserModelId(APP_ID)
  * draws a combined taskbar button (the default) from that ID's registration, never from the window's own
  * icon, and with none it falls back to the exe: Electron's atom, named "Electron", while WM_GETICON on
  * the window still answers the n. The Start Menu only, never the desktop.
+ *
+ * The same shortcut names and badges every notification: a toast's header is the name and icon of the
+ * Start Menu shortcut carrying the sender's ID (a registry AppUserModelId entry alone draws no toast at
+ * all; measured 2026-10-15). So the shortcut is named exactly "ntwine", and look4's desktop app does the
+ * same thing the same way.
  */
 function registerAppId(): void {
   const icon = join(here, "icon.ico")
   if (!existsSync(icon)) return
-  const link = join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs", "ntwine (dev).lnk")
+  const link = join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs", "ntwine.lnk")
   const options = {
     target: process.execPath,
     args: `"${app.getAppPath()}"`,
@@ -86,17 +91,29 @@ function registerAppId(): void {
   }
   if (!shell.writeShortcutLink(link, existsSync(link) ? "replace" : "create", options))
     console.error(`[desktop] could not write ${link}; the taskbar will show Electron's icon`)
-  // Any other Start Menu shortcut claiming APP_ID competes with this one, and Windows may pick it: pinning
-  // a window that carried no relaunch details (before windowAppDetails) wrote `Electron.lnk`, the bare
-  // exe with no icon, and the taskbar showed the atom again.
+  // Any other Start Menu shortcut claiming APP_ID competes with this one, and Windows picks it: pinning a
+  // window that carried no relaunch details (before windowAppDetails) wrote `Electron.lnk`, the bare exe
+  // with no icon, and the taskbar showed the atom again; on look4 the same stray, written mid-session,
+  // headed every toast "Electron" until it was deleted. So the folder is swept at launch AND watched: a
+  // competitor written while the window is open is gone before the next notification. The renamed
+  // "ntwine (dev).lnk" is swept the same way, since it claims APP_ID too.
   const programs = dirname(link)
-  for (const name of readdirSync(programs)) {
-    if (!name.endsWith(".lnk") || name === basename(link)) continue
-    const other = join(programs, name)
-    let claimsOurs = false
-    try { claimsOurs = shell.readShortcutLink(other).appUserModelId === APP_ID } catch {}
-    if (claimsOurs) rmSync(other, { force: true })
+  const sweep = () => {
+    for (const name of readdirSync(programs)) {
+      if (!name.endsWith(".lnk") || name === basename(link)) continue
+      const other = join(programs, name)
+      let claimsOurs = false
+      try { claimsOurs = shell.readShortcutLink(other).appUserModelId === APP_ID } catch {}
+      if (claimsOurs) rmSync(other, { force: true })
+    }
   }
+  sweep()
+  try {
+    watch(programs, (_event, name) => {
+      if (!name?.endsWith(".lnk") || name === basename(link)) return
+      try { sweep() } catch {}
+    }).unref()
+  } catch {}
 }
 
 /**
