@@ -5066,7 +5066,13 @@ export function createRouter(ctx: AppContext) {
           // residual "Rested without a sign-off" card in the hole (maintainer 2026-08-27: "I get a little
           // card that, for like 5+ seconds, just says that the thread rested without a sign-off before it
           // shows up my answer"). The durable path is unchanged: this only skips the wait.
+          //
+          // AN ANSWER REOPENS AN ARCHIVED THREAD, as a typed message does. A worker may sign off `done`
+          // past a question the human typed past (2026-10-14), so the card can still be answered after
+          // the thread is archived — and delivery skips an archived thread, so the answer would sit.
           if (answered.length > 0) {
+            const row = ctx.storage.getSession(input.slug)
+            if (row) reopenArchivedThreadForFollowUp(ctx, row)
             ctx.board.refresh()
             ctx.scheduler.kick()
           }

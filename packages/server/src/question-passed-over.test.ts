@@ -43,7 +43,7 @@ function harness() {
     start: () => {}, stop: () => {}, tick: () => {},
   } satisfies Tailer
   const board = createBoard(project, storage, new Bus(), tailer, "passed-over", { claudeBrokerDaemonAlive: () => true, now: () => NOW })
-  const ctx = { project, storage, board, tailer, getSettings: () => ({ permissionMode: "auto" }) as unknown as Settings } as unknown as AppContext
+  const ctx = { project, storage, board, tailer, scheduler: { kick: () => {} }, getSettings: () => ({ permissionMode: "auto" }) as unknown as Settings } as unknown as AppContext
   storage.upsertSession(row())
   storage.setBackend("t", "claude")
   storage.setClaudeRuntime("t", "broker")
@@ -92,5 +92,19 @@ test("done goes through a question the human typed past, and the done card is no
     const view = h.view()
     assert.equal(view.lastFence?.kind, "done")
     assert.equal(view.questions[0]?.passedOver, true, "and the card is still there to answer")
+  } finally { h.close() }
+})
+
+test("answering a question typed past on an archived thread reopens it, so the answer is delivered", async () => {
+  const h = harness()
+  try {
+    h.typed(AFTER_ASK)
+    h.storage.setState("t", "archived")
+    assert.equal(h.storage.getSession("t")?.state, "archived")
+    const answered = await h.router.answerQuestions.handler({ input: { slug: "t", answers: [
+      { questionId: "qst_passed00001", question: "SQLite or a JSON file?", chosen: ["SQLite"] },
+    ] } })
+    assert.deepEqual(answered.answered, ["qst_passed00001"])
+    assert.equal(h.storage.getSession("t")?.state, "open")
   } finally { h.close() }
 })
