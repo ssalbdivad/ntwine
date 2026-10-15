@@ -163,9 +163,17 @@ export function createPtySession(term: IPty, options: PtySessionOptions): PtySes
   let promptTimer: NodeJS.Timeout | undefined
   let settle!: () => void
   const exited = new Promise<void>((resolve) => { settle = resolve })
-  // An interactive shell's own foreground-process name, read at spawn.
+  // An interactive shell's own foreground-process name, read at its FIRST OUTPUT. Not at spawn: until the
+  // forked child has exec'd the shell, the pty's foreground process is still that child — named for the
+  // server's own binary — and a name read then never matches again, so the shell read as busy for its
+  // whole life (seen under a loaded full test run, 2026-10-15). A shell writes its prompt only once it is
+  // running, so its first output is the earliest moment the name is the shell's.
   let shellProcess: string | undefined
-  if (options.interactive) { try { shellProcess = term.process } catch { /* unreadable: never idle */ } }
+  const readShellProcess = (): boolean => {
+    if (!options.interactive || shellProcess !== undefined) return false
+    try { shellProcess = term.process } catch { /* unreadable: never idle */ }
+    return shellProcess !== undefined
+  }
 
   const changed = (): void => { for (const l of changeListeners) { try { l() } catch { /* ignore */ } } }
 
@@ -227,6 +235,11 @@ export function createPtySession(term: IPty, options: PtySessionOptions): PtySes
   }
 
   term.onData((chunk) => {
+    // The first reading is a change of its own: a client in another process should not wait a poll.
+    if (readShellProcess()) {
+      const idle = shellIdle()
+      if (idle !== lastIdle) { lastIdle = idle; changed() }
+    }
     ring.append(chunk)
     watchForPrompt(chunk)
     for (const listener of dataListeners) { try { listener(chunk) } catch { /* one bad viewer must not stall the others */ } }
