@@ -1,5 +1,5 @@
 import { THREAD_HANDLE_MAX_CHARS, addressSegments, threadHandle, threadMentions } from "@ntwine/shared"
-import { sessionTitleLocked, type SessionRow, type Storage } from "./storage.ts"
+import { sessionTitleLocked, type SessionRow, type Storage, type ThreadTerminalRow } from "./storage.ts"
 import type { ClaudeOneShot, ClaudeOneShotRequest } from "./backend/claude-oneshot.ts"
 
 // A THREAD'S NAME AND ITS STATUS ARE TWO DIFFERENT THINGS (David 2026-09-29).
@@ -77,6 +77,9 @@ export interface NamedThread {
   at: number
   /** Set only on a thread of ANOTHER open project (`openThreadsElsewhere`): that project's name. */
   project?: string
+  /** A TERMINAL thread (thread-terminals.ts, `projectTerminalNames`): named by its `@handle`, with no session
+   *  row behind its slug. */
+  terminal?: true
 }
 
 /** The row's persisted NAME — a human's, a caller's dispatch title, or a machine name that landed (the
@@ -106,17 +109,33 @@ export function projectThreadNames(rows: readonly SessionRow[]): NamedThread[] {
   return out
 }
 
-/** The OPEN threads of every project this server has open other than `selfId`, each marked with its
- *  project — the rest of the set a name must be unique within (see the header). Read from each project's
- *  storage, not its namer, so no namer ever recurses into another. */
+/** A project's TERMINAL threads as NamedThreads, each named by its `@handle` (2026-10-15: "Terminal threads
+ *  still have to have names that are addressable like any other thread"). A terminal is a thread like any
+ *  other, so its handle is in the set a name must be unique within and a handle resolves against — but it
+ *  is listed apart from `projectThreadNames`, because every caller of a namer's `threads()` reads a session
+ *  row behind the slug. Open is not Done (`state`); a row with no handle yet holds nothing. */
+export function projectTerminalNames(rows: readonly Pick<ThreadTerminalRow, "slug" | "handle" | "state" | "created_at" | "started_at" | "exited_at">[]): NamedThread[] {
+  return rows.map((row) => ({
+    slug: row.slug,
+    name: row.handle ?? "",
+    open: row.state !== "archived",
+    at: row.exited_at ?? row.started_at ?? row.created_at,
+    terminal: true as const,
+  }))
+}
+
+/** The OPEN threads of every project this server has open other than `selfId` — its terminals too — each
+ *  marked with its project: the rest of the set a name must be unique within (see the header). Read from
+ *  each project's storage, not its namer, so no namer ever recurses into another. */
 export function openThreadsElsewhere(
-  tenants: ReadonlyArray<{ project: { id: string; name: string }; ctx?: { storage: Pick<Storage, "allSessions"> } }>,
+  tenants: ReadonlyArray<{ project: { id: string; name: string }; ctx?: { storage: Pick<Storage, "allSessions"> & Partial<Pick<Storage, "listThreadTerminals">> } }>,
   selfId: string,
 ): NamedThread[] {
   const out: NamedThread[] = []
   for (const { project, ctx } of tenants) {
     if (!ctx || project.id === selfId) continue
-    for (const t of projectThreadNames(ctx.storage.allSessions())) if (t.open) out.push({ ...t, project: project.name })
+    const terminals = projectTerminalNames(ctx.storage.listThreadTerminals?.() ?? [])
+    for (const t of [...projectThreadNames(ctx.storage.allSessions()), ...terminals]) if (t.open) out.push({ ...t, project: project.name })
   }
   return out
 }
@@ -359,7 +378,8 @@ function nameFromSource(source: string): string {
 }
 
 export interface ThreadNamerDeps {
-  storage: Pick<Storage, "allSessions" | "setMintedTitle">
+  /** `listThreadTerminals` is optional so a hand-built test storage needs none: then no terminal holds a name. */
+  storage: Pick<Storage, "allSessions" | "setMintedTitle"> & Partial<Pick<Storage, "listThreadTerminals">>
   /** The open threads of every OTHER project this server has open (`openThreadsElsewhere`) — names are
    *  unique across all of them (see the header). Absent ⇒ this project alone. */
   elsewhere?: () => readonly NamedThread[]
@@ -418,7 +438,12 @@ export interface ThreadNamer {
 
 export function createThreadNamer(deps: ThreadNamerDeps): ThreadNamer {
   const threads = () => projectThreadNames(deps.storage.allSessions())
-  const elsewhere = () => deps.elsewhere?.() ?? []
+  // This project's open terminals hold their handles like any other open thread's name, so they ride with
+  // the other projects' names: never a `threads()` entry, whose callers read a session row by slug.
+  const elsewhere = () => [
+    ...projectTerminalNames(deps.storage.listThreadTerminals?.() ?? []).filter((t) => t.open),
+    ...deps.elsewhere?.() ?? [],
+  ]
   const holder = (name: string, exceptSlug?: string) => nameHolder(name, threads(), exceptSlug, elsewhere())
   const promptNames = (exceptSlug?: string) => namesForPrompt(threads(), exceptSlug, elsewhere())
   const distinct = (name: string, source: string, exceptSlug?: string) => {

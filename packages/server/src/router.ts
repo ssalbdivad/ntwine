@@ -213,7 +213,7 @@ import { grantMcpToProject, mcpGrantOf, mcpRequestQuestion, threadMcpGrants } fr
 import { requestableMcpServers, userScopeStdioServers } from "./backend/project-mcp-servers.ts"
 import { resolveClaudeExecutableAbsolute } from "./backend/claude-broker-host.ts"
 import { sessionTitleLocked } from "./storage.ts"
-import { createThreadNamer, openThreadsElsewhere, rowThreadName, threadNameProblem, type NamedThread, type ThreadNamer } from "./thread-names.ts"
+import { createThreadNamer, openThreadsElsewhere, projectTerminalNames, rowThreadName, threadNameProblem, type NamedThread, type ThreadNamer } from "./thread-names.ts"
 import { handleOf, isReplyWaitFor, knownHandles, replyWaitOf, replyWaitPrompt, resolveSubAgent, resolveThreadHandle, subAgentAddresses, THREAD_MESSAGE_HOURLY_CAP, threadMessageBody } from "./thread-mentions.ts"
 import { enqueueDeadlineNoticeWake, enqueueThreadMessageWake } from "./scheduler.ts"
 import { deadlineNoticeMessage, deadlineSection, deadlineViewOf, rowDeadline } from "./deadline.ts"
@@ -1384,13 +1384,15 @@ export function createRouter(ctx: AppContext) {
   // handle this project's threads do not answer is looked for in every OTHER project this server has open
   // — never by opening one. This project always wins: names are unique only within a project, so a handle
   // both carry means the one here. Across the others, an open thread beats a finished one and then the
-  // most recent does, the rule resolveThreadHandle applies inside one project.
+  // most recent does, the rule resolveThreadHandle applies inside one project. A TERMINAL thread is one of
+  // them (`hit.terminal`): listed after the project's sessions, so an open thread of the same name wins, as it
+  // does here (readThread); that project's own router reads it.
   const resolveElsewhere = (handle: string) => {
     let best: { tenant: AppContext; hit: NamedThread } | undefined
     for (const { project, ctx: tenant } of ctx.activeTenants?.() ?? []) {
       if (!tenant || project.id === ctx.project.id) continue
       const namer = tenant.threadNamer ?? createThreadNamer({ storage: tenant.storage })
-      const hit = resolveThreadHandle(handle, namer.threads())
+      const hit = resolveThreadHandle(handle, [...namer.threads(), ...projectTerminalNames(tenant.storage.listThreadTerminals?.() ?? [])])
       if (hit && (!best || (hit.open !== best.hit.open ? hit.open : hit.at > best.hit.at))) best = { tenant, hit }
     }
     return best
@@ -1490,11 +1492,13 @@ export function createRouter(ctx: AppContext) {
    * START A TERMINAL THREAD (plans/terminal-threads.md) — the one path every surface goes through: the prompt
    * box's top-level `$ cmd`, a thread's `t` / Open terminal / `$ cmd` line, and (next) an agent's
    * `ntwinectl terminal start`, which passes `parent` and `startedBy` as the calling thread's slug and its
-   * working folder (`threadWorkingDir`). The handle avoids every thread name in this project, so `@nub-run-dev`
-   * names one thing. `cwd` is already checked (terminalFolder) by the caller.
+   * working folder (`threadWorkingDir`). The handle avoids every open thread's name in EVERY open project, as
+   * a thread's name does (thread-names.ts header), so `@nub-run-dev` names one thing wherever it is typed — a
+   * second project's dev server is `@nub-run-dev-2`. `cwd` is already checked (terminalFolder) by the caller.
    */
   function startTerminalThread(input: { parent?: string; startedBy: string; command?: string; cwd: string }): Promise<{ id: string; handle: string }> {
-    const taken = threadNamer().threads().filter((t) => t.open).map((t) => handleOf(t))
+    const elsewhere = openThreadsElsewhere(ctx.activeTenants?.() ?? [], ctx.project.id)
+    const taken = [...threadNamer().threads().filter((t) => t.open), ...elsewhere].map((t) => handleOf(t))
     return ctx.terminalRunner.start({ ...input, takenHandles: taken })
   }
 
@@ -5961,6 +5965,12 @@ export function createRouter(ctx: AppContext) {
           // A handle no thread here carries may name one in another open project; `home` is the
           // RECIPIENT's project from here on, and `ctx` stays the sender's.
           const elsewhere = local && ctx.storage.getSession(local.slug) ? undefined : resolveElsewhere(threadPart)
+          // Another project's TERMINAL: only the thread that drives it types into it, and that is one of its own
+          // project's threads (a controller is a slug there).
+          if (elsewhere?.hit.terminal) {
+            const handle = handleOf(elsewhere.hit)
+            return { sent: false, handle, project: elsewhere.tenant.project.name, refusal: `@${handle} is a terminal in ${elsewhere.tenant.project.name}, and only the thread there that drives it can type into it. \`ntwinectl read-thread @${handle}\` still reads it.` }
+          }
           const hit = elsewhere?.hit ?? local
           const home = elsewhere?.tenant ?? ctx
           const project = elsewhere ? home.project.name : undefined

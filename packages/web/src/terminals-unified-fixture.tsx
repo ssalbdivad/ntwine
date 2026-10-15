@@ -133,7 +133,7 @@ createRoot(document.getElementById("root")!).render(
         {mode === "header" && (
           <div data-fixture-header className="fixed inset-x-0 top-0 bg-panel">
             <HumanTerminalHeader
-              terminal={{ id: "t-read", command: 'read -p "name? " x; echo "got $x"; sleep 600', cwd: "/tmp/tu-r3-v-repo/.ntwine/worktrees/probe", checkout: { dir: "/tmp/tu-r3-v-repo/.ntwine/worktrees/probe", kind: "worktree" }, state: "running", awaitingInput: true, awaitingSince: ago(4), runId: 1, startedAt: ago(4) }}
+              terminal={{ id: "t-read", handle: "read-p-name", command: 'read -p "name? " x; echo "got $x"; sleep 600', cwd: "/tmp/tu-r3-v-repo/.ntwine/worktrees/probe", checkout: { dir: "/tmp/tu-r3-v-repo/.ntwine/worktrees/probe", kind: "worktree" }, state: "running", awaitingInput: true, awaitingSince: ago(4), runId: 1, startedAt: ago(4) }}
               homeDir="/home/u"
               pending={null}
               onAct={() => {}}

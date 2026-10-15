@@ -225,12 +225,14 @@ function ThreadRow({ row, band, last, withProject, onLongPress }: { row: PhoneRo
                 bare 15.5px span, and 12.03 / 12.10 on the 16.5px header). A browser metric, not a geometry
                 error, so no constant is fitted over it. */}
             <span className="flex min-w-0 flex-1 items-baseline text-[15.5px] font-medium leading-[21px] tracking-[-0.005em] text-fg">
-              {/* A terminal reads as its desktop row does (TerminalThreadRow.tsx): a dim `$` and the command in
-                  mono, at the desktop's mono-to-sans ratio, inline so it keeps the title's baseline. */}
+              {/* A terminal reads as its desktop row does (TerminalThreadRow.tsx): a dim mono `$`, at the desktop's
+                  mono-to-sans ratio, inline so it keeps the title's baseline, then its name (its `@handle`). */}
               {t.kind === "terminal" && t.terminal ? (
-                <span data-mobile-terminal-title className="min-w-0 truncate">
-                  <span aria-hidden className="font-mono-keep text-[15px] leading-none text-muted-55">$ </span>
-                  <span className="font-mono-keep text-[15px] font-normal leading-none">{t.terminal.command}</span>
+                <span data-mobile-terminal-title className="min-w-0 truncate" title={`$ ${t.terminal.command}`}>
+                  <span aria-hidden className="font-mono-keep text-[15px] leading-none text-muted-55">{t.terminal.handle ? "$" : "$ "}</span>
+                  {t.terminal.handle
+                    ? <span>{` ${t.terminal.handle}`}</span>
+                    : <span className="font-mono-keep text-[15px] font-normal leading-none">{t.terminal.command}</span>}
                 </span>
               ) : (
                 <span className="min-w-0 truncate">{displayTitle(t)}</span>

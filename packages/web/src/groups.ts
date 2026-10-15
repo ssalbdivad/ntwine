@@ -34,7 +34,7 @@ import { canRetry } from "./lib/status.ts"
 // Shared listing logic: the queue definition (needsAction), the sidebar's status-keyed sections
 // (sectionThreads), and the interaction-recency ordering both surfaces use.
 
-type TitleFields = Pick<ThreadView, "title" | "aiTitle" | "id" | "titleAuto" | "titleLocked" | "titleNamed" | "spawnedAt" | "backend" | "runtime" | "foreign" | "held"> & Partial<Pick<ThreadView, "kind">>
+type TitleFields = Pick<ThreadView, "title" | "aiTitle" | "id" | "titleAuto" | "titleLocked" | "titleNamed" | "spawnedAt" | "backend" | "runtime" | "foreign" | "held"> & Partial<Pick<ThreadView, "kind" | "terminal">>
 
 // The title to SHOW for a thread: its HANDLE. A real name ("Shell budgets") renders as the kebab-case
 // handle it makes (`shell-budgets`, @ntwine/shared thread-handle.ts), so what the operator reads on the
@@ -112,8 +112,11 @@ export function subAgentTitle(
 // Where the shown title comes from, and whether it is a real NAME (which displays as its handle) or a
 // stand-in for one (a placeholder, an id, an external row's resolved title), which displays verbatim.
 function titleSource(t: TitleFields): { text: string; name: boolean } {
-  // A TERMINAL THREAD is called by the line it runs, as a terminal tab is.
-  if (t.kind === "terminal") return { text: t.title, name: false }
+  // A TERMINAL THREAD is named by its `@handle` (`$ nub run dev` → `nub-run-dev`, server thread-terminals.ts),
+  // like any other thread (maintainer 2026-10-15: "Terminal threads still have to have names that are
+  // addressable like any other thread"), so it is offered to the `@` typeahead and links in prose. Only a row
+  // from before handles existed falls back to the line it runs, which is not a name.
+  if (t.kind === "terminal") return t.terminal?.handle ? { text: t.terminal.handle, name: true } : { text: t.title, name: false }
   // An EXTERNAL row is already named. The server resolves it in foreignThreadView — the harness's own
   // name, else a chop of the opening human turn, else a short id — which is the order both agents'
   // resume pickers use, and it stores the result in `title`. Every rule below is about a row ntwine

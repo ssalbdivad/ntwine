@@ -70,7 +70,8 @@ The handle comes from the command: `$ nub run dev` → `@nub-run-dev`, with a su
 
 **Density.** A long-lived dev server sits in Working permanently. That is honest, and Working never folds;
 `lib/sidebarBudget.ts` already shortens a band to its first rows and a count. A terminal row is one line: the terminal
-mark, the command in mono, the folder hint only off the project root, and its age. A parented terminal also shows in
+mark, its name (its `@handle`; the command was shown there until 2026-10-15, when the maintainer read that as
+"no name"), the folder hint only off the project root, and its age. A parented terminal also shows in
 its parent's strip, as now, as a link to its row rather than as the only place it lives.
 
 ## Agents start, read and stop them the same way
