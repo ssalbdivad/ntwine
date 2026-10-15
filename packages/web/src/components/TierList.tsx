@@ -11,10 +11,10 @@
 // threads) the headings alone cost a third of the column.
 //
 // THE LIST NEVER SCROLLS. It measures itself and gives things up in a fixed order until it fits
-// (lib/sidebarBudget.ts): the Done tail first, then Waiting down to its first rows, then Working rolls its biggest projects into a line each,
+// (lib/sidebarBudget.ts): the Done tail first, every row of it even when opened, then Waiting down to its first rows, then Working rolls its biggest projects into a line each,
 // then Ready and Working list their first rows and count the rest (Ready's are all in the queue beside it
 // anyway), and last Pinned does the same.
-// What the human opened by hand is never taken back. While the pointer is over the list nothing is
+// What the human opened by hand is never taken back, except Done: a finished row never outlasts a live one. While the pointer is over the list nothing is
 // re-budgeted (lib/listHold.ts), so a row never moves out from under it.
 //
 // What is NOT here, and where it went: External sessions and every Done thread past today are the center
@@ -335,10 +335,11 @@ export function TierList({
               count={done.length - budget.tailShown}
               label={`${done.length - budget.tailShown} more today`}
               detail={[...new Set(done.slice(budget.tailShown).map((slot) => slot.item.project.name))].join(", ")}
-              onClick={() => setTierFold("done", true)}
+              // Opened and still squeezed, the rest of today is in History.
+              onClick={() => (open("done") ? setCenterTab("history") : setTierFold("done", true))}
             />
           )}
-          {open("done") && done.length > TAIL_MAX && <ShowFewer onClick={() => setTierFold("done", false)} />}
+          {open("done") && budget.tailShown > TAIL_MAX && <ShowFewer onClick={() => setTierFold("done", false)} />}
         </section>
       )}
       {scheduled.length > 0 && (

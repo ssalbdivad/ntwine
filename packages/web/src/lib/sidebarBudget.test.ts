@@ -36,9 +36,16 @@ test("the tail goes first, then the biggest runs, then Ready and Working a line 
   assert.deepEqual(at(50), at(maxLevel(input())), "past the last level nothing more is taken")
 })
 
+test("Done opened lists every row, and still gives every one before anything else does", () => {
+  const open = { tailOpen: true, tail: 12 }
+  assert.deepEqual(at(0, open), { tail: 12, rolled: [], ready: 6, working: 11, pinned: 3 })
+  assert.deepEqual(at(7, open), { tail: 5, rolled: [], ready: 6, working: 11, pinned: 3 }, "past five rows, not stopping at five")
+  assert.deepEqual(at(12, open), { tail: 0, rolled: [], ready: 6, working: 11, pinned: 3 })
+  assert.deepEqual(at(13, open), { tail: 0, rolled: ["b"], ready: 6, working: 8, pinned: 3 }, "only then does Working roll")
+  assert.deepEqual(at(16, open), { tail: 0, rolled: ["b", "d", "a"], ready: 5, working: 4, pinned: 3 }, "and Ready shorten")
+})
+
 test("what the human opened is never compressed", () => {
-  // Done opened: every row, and its steps are gone from the order.
-  assert.deepEqual(at(1, { tailOpen: true, tail: 12 }), { tail: 12, rolled: ["b"], ready: 6, working: 8, pinned: 3 })
   // An expanded run is passed over.
   assert.deepEqual(at(4, { expanded: new Set(["b"]) }), { tail: 0, rolled: ["d"], ready: 6, working: 8, pinned: 3 })
   // Working opened: rolled but never shortened, so Ready gives every step down to its floor.
