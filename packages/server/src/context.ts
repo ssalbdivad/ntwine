@@ -56,6 +56,7 @@ import { createAcpBackend } from "./backend/acp-transcript.ts"
 import { createAcpBridge, type AcpBridge } from "./backend/acp-bridge.ts"
 import { readClaudePreflightAuth, readCodexAuthState, readCodexBinaryState } from "./backend/auth-status.ts"
 import { createTerminalRunner, type TerminalRunner } from "./thread-terminals.ts"
+import { createTerminalHost } from "./backend/terminal-host.ts"
 import type { EditorBridge } from "./editor-bridge.ts"
 import { ntwineCliEnv, withNtwineCliOnPath, type AgentBackend } from "./backend/types.ts"
 import { sanitizeProviderChildEnvironment } from "./backend/claude-agent-sdk.ts"
@@ -1110,9 +1111,17 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   // Thread terminals. Created before the board because the board attaches them to their threads' rows;
   // every run state change is an overlay refresh. A refresh after the board has stopped (a run exiting
   // during shutdown) is a no-op, not an error. Constructing it loads nothing native: node-pty is
-  // imported on a terminal's first start, so a host without it still serves this project.
+  // imported on a terminal's first start (in its daemon), so a host without it still serves this project.
+  // Constructing it DOES adopt every terminal daemon still running from the last server.
+  //
+  // Each run's pty lives in a detached daemon (backend/terminal-daemon.ts) so it survives a restart —
+  // everywhere but Windows, where a pty inside a DETACHED_PROCESS (conpty with no console of its own)
+  // is unverified, so the pty stays a server child there as it always was.
+  const terminalLog = (m: string): void => ntwineLog.warn("terminal", m)
   const terminalRunner = createTerminalRunner({
     storage,
+    ...(process.platform === "win32" ? {} : { host: createTerminalHost({ stateDir: project.stateDir }) }),
+    log: terminalLog,
     onChange: () => {
       try {
         board?.refresh()

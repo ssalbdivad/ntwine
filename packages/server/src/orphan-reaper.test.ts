@@ -5,6 +5,7 @@ import {
   firstTokenBasename,
   isSessionRoot,
   isTmuxServer,
+  isTerminalDaemon,
   decideOrphans,
   selfAndAncestors,
   subtreeKillOrder,
@@ -61,6 +62,24 @@ test("decideOrphans: reap aux whose slug has no live root; keep everything prote
   const { reap, liveSlugs } = decideOrphans(rows, { minAgeMs: ORPHAN_GUARD, protectedPids: new Set() })
   assert.deepEqual([...reap].sort((a, b) => a - b), [200, 201])
   assert.deepEqual([...liveSlugs].sort(), ["alpha", "gamma"])
+})
+
+test("a thread terminal's daemon and its pty are never reaped, even under a dead thread's tag", () => {
+  const daemon = "/usr/bin/node /x/packages/server/src/backend/terminal-daemon.ts"
+  assert.ok(isTerminalDaemon(daemon))
+  assert.ok(isTerminalDaemon("node /artifact/runtime/src/terminal-daemon.js"))
+  assert.ok(!isTerminalDaemon("node my-terminal-daemon.tsx"))
+  const rows: ProcRow[] = [
+    row({ pid: 200, command: daemon, slug: "beta" }), // tagged by a stray env, dead slug → still kept
+    row({ pid: 210, ppid: 200, command: "/bin/sh -l -c npm run dev", slug: "beta" }),
+    row({ pid: 300, command: "node mcp", slug: "beta" }), // genuine aux of the dead thread → reaped
+    row({ pid: 310, ppid: 300, command: daemon, slug: "beta" }), // a daemon nested under a target is spared
+  ]
+  const { reap } = decideOrphans(rows, { minAgeMs: ORPHAN_GUARD, protectedPids: new Set() })
+  assert.deepEqual(reap, [300])
+  const killed: number[] = []
+  reapSubtrees(reap, rows, new Set(), new Set(), (pid) => killed.push(pid))
+  assert.deepEqual(killed, [300])
 })
 
 test("decideOrphans: age guard spares just-spawned aux", () => {

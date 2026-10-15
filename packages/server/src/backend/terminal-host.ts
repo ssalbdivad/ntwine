@@ -78,7 +78,6 @@ export interface TerminalHostOptions {
   inputQuietMs?: number
   stopGraceMs?: number
   reachabilityCheckMs?: number
-  log?: (message: string) => void
 }
 
 /** What a runner needs from the host. One per project (state dir). */

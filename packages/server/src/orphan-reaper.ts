@@ -75,6 +75,20 @@ export function isTmuxServer(command: string): boolean {
   return firstTokenBasename(command) === "tmux"
 }
 
+/**
+ * A thread terminal's detached daemon (backend/terminal-daemon.ts): it and everything under it — the
+ * human's shell, the dev server they started in it — belong to a TERMINAL, never to an agent, and are
+ * never this reaper's to end. Neither carries NTWINE_THREAD (terminal-host.ts strips it from the
+ * daemon, commandEnvironment from the pty), so the reaper cannot attribute them today; this guard keeps
+ * a stray tag (a daemon forked by a server that itself ran under a worker's environment) from ever
+ * making a running dev server look like a dead thread's leftovers. A daemon whose terminal the board
+ * forgot is ended by the terminal runner's own audit (thread-terminals.ts), which knows the rows.
+ * Matched on argv: a spoof can only make the reaper SPARE a process, never kill one.
+ */
+export function isTerminalDaemon(command: string): boolean {
+  return /(?:^|[\s/])terminal-daemon\.(?:ts|js)(?:\s|$)/.test(command)
+}
+
 // ---- Pure decisions -------------------------------------------------------------------------------
 
 export interface ReapDecision {
@@ -88,6 +102,7 @@ function reapable(row: ProcRow, live: Set<string>, protectedPids: ReadonlySet<nu
   if (live.has(row.slug)) return false // owner still alive
   if (isSessionRoot(row.command)) return false // never a session process
   if (isTmuxServer(row.command)) return false // never shared tmux infra
+  if (isTerminalDaemon(row.command)) return false // never a thread terminal
   if (protectedPids.has(row.pid)) return false // never self / ancestors
   return true
 }
@@ -100,13 +115,31 @@ export function decideOrphans(
   const live = new Set<string>()
   for (const r of rows) if (r.slug && isSessionRoot(r.command)) live.add(r.slug)
 
+  // Everything under a terminal daemon is the terminal's (isTerminalDaemon), at any depth.
+  const terminal = terminalTrees(rows)
   const reap: number[] = []
   for (const r of rows) {
+    if (terminal.has(r.pid)) continue
     if (!reapable(r, live, opts.protectedPids)) continue
     if (r.ageMs < opts.minAgeMs) continue // just-spawned; give the owner time to appear
     reap.push(r.pid)
   }
   return { reap, liveSlugs: [...live] }
+}
+
+/** Every terminal daemon and every process beneath one. */
+function terminalTrees(rows: readonly ProcRow[]): Set<number> {
+  const childrenOf = new Map<number, number[]>()
+  for (const r of rows) childrenOf.set(r.ppid, [...(childrenOf.get(r.ppid) ?? []), r.pid])
+  const out = new Set<number>()
+  const stack = rows.filter((r) => isTerminalDaemon(r.command)).map((r) => r.pid)
+  while (stack.length) {
+    const pid = stack.pop()!
+    if (out.has(pid)) continue
+    out.add(pid)
+    stack.push(...(childrenOf.get(pid) ?? []))
+  }
+  return out
 }
 
 /** self + every ancestor, so the reaper can never kill the server process it runs inside. */
@@ -361,6 +394,7 @@ export function reapSubtrees(
     protectedPids.has(row.pid) ||
     isSessionRoot(row.command) ||
     isTmuxServer(row.command) ||
+    isTerminalDaemon(row.command) ||
     (row.slug !== null && live.has(row.slug))
   const order = subtreeKillOrder(seed, rows, keep)
   for (const pid of order) kill(pid)
