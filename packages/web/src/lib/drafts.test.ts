@@ -48,7 +48,7 @@ test("drafts hydrate, clear, evict older values, and remain project/session isol
   assert.ok(Object.keys(parsed.entries).length <= 80)
 })
 
-// TWO STORES OVER ONE STORAGE ARE TWO TABS. The queue card in one and the thread's /full page in the
+// TWO STORES OVER ONE STORAGE ARE TWO TABS. The queue card in one and the thread's drawer in the
 // other are the same prompt box, and before drafts were shared the second tab opened on an empty one.
 test("a draft typed in one tab is in a tab opened after it, and reaches one already open", () => {
   const storage = new MemoryStorage()

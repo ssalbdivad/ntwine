@@ -194,7 +194,7 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
   const queueDismiss = useContext(QueueDismissContext)
   const sendScope = useContext(SendScopeContext)
 
-  // Picks and text share the draft store, so queue, drawer, fullscreen (in this tab or another) and
+  // Picks and text share the draft store, so queue, drawer (in this tab or another) and
   // project remounts all see the same staged answer. Secrets stay strictly in memory outside this
   // subscription.
   const textKeys = useMemo(

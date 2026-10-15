@@ -10,7 +10,7 @@ const baseUrl = process.env.NTWINE_TOOLTIP_SWITCH_E2E_URL
 // show up. It didn't switch over"). They were in the lifecycle footer then and the thread header's
 // action strip later (2026-08-26); Restart worker has been in the drawer's ⋯ menu since 2026-09-29, and
 // Reload plugins is gone. The gesture and the bug are properties of any adjacent pair, not of those
-// two, so this drives the strip's Collapse and Open fullscreen icons.
+// two, so this drives the strip's snooze clock and Mark as done, the two lifecycle verbs at its right end.
 //
 // The cause was NOT the thing it looks like. In the footer the two marks wore negative ink trims
 // that overlapped their 24px hover squares by 3px, which was the obvious suspect and the wrong one —
@@ -60,7 +60,7 @@ test("the tooltip names whichever icon verb the pointer is on, including the nei
         const box = el.getBoundingClientRect()
         return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
       }
-      return { expand: centre("[data-expand-thread]"), collapse: centre('[aria-label="Collapse"]') }
+      return { snooze: centre('[data-thread-lifecycle] button[aria-label^="Snoozed until"]'), done: centre('[data-thread-lifecycle] [aria-label="Mark as done"]') }
     })
 
     // Whichever verb the pointer is over, and what the one open tooltip says — asserted together, so
@@ -82,19 +82,26 @@ test("the tooltip names whichever icon verb the pointer is on, including the nei
     await moveTo({ x: 20, y: 20 })
     assert.equal((await pointing()).open, 0, "nothing is open before the pointer reaches the strip")
 
-    await moveTo(centres.collapse)
-    assert.deepEqual(await pointing(), { label: "Collapse", open: 1 })
+    // The fixture's snooze is a week out, so its label carries a date: only its lead is asserted.
+    const snoozeLabel = async () => {
+      const { label, open } = await pointing()
+      return { label: label?.startsWith("Snoozed until ") ? "Snoozed until …" : label, open }
+    }
+
+    await moveTo(centres.snooze)
+    assert.deepEqual(await snoozeLabel(), { label: "Snoozed until …", open: 1 })
 
     // The reported gesture: onto the neighbour without leaving the strip.
-    await moveTo(centres.expand)
-    assert.deepEqual(await pointing(), { label: "Open fullscreen", open: 1 })
+    await moveTo(centres.done)
+    assert.deepEqual(await pointing(), { label: "Mark as done (D)", open: 1 })
 
     // And back the other way, so the fix is not direction-dependent.
-    await moveTo(centres.collapse)
-    assert.deepEqual(await pointing(), { label: "Collapse", open: 1 })
+    await moveTo(centres.snooze)
+    assert.deepEqual(await snoozeLabel(), { label: "Snoozed until …", open: 1 })
 
-    // Leaving the strip closes it rather than leaving a label stranded over the row.
-    await moveTo({ x: 20, y: 20 })
+    // Leaving the strip closes it rather than leaving a label stranded over the row. Straight up, out of
+    // the header: a diagonal to the corner crosses Collapse on its first step.
+    await moveTo({ x: centres.snooze.x, y: 20 })
     assert.equal((await pointing()).open, 0, "the tooltip closes when the pointer leaves the strip")
 
     assert.deepEqual(errors, [])

@@ -11,8 +11,7 @@ import { TooltipProvider } from "./Tooltip.tsx"
 const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 
 // The rail row's PIN verb and mark. Order and fill ARE the contract (maintainer 2026-09-03): a row that
-// can be pinned offers an OUTLINE pin LEFTMOST in the hover strip (it stood left of the fullscreen door
-// until the door left the rows, 2026-09-28); a PINNED row wears the solid mark in its right-edge column
+// can be pinned offers an OUTLINE pin LEFTMOST in the hover strip; a PINNED row wears the solid mark in its right-edge column
 // and offers the solid slashed unpin RIGHTMOST in the hover strip — after Retry too — so it appears where
 // the mark was. And the strip draws no box of its own: its backing is the
 // rail's base colour under the row's hover wash, never the old `bg-panel` pill.

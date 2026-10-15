@@ -19,11 +19,6 @@ import { useSupervisorStatus } from "../api/supervisorStatus.ts"
 // (a supervisor mid-restart, unreachable, or serving the SPA HTML fallback) is not evidence of a
 // production build, and the poll now simply asks again instead of the verb staying hidden for the life
 // of the page.
-//
-// Still deliberately NOT read off the valtio store that App's control-plane effect fills: the standalone
-// `/full` thread page renders INSTEAD of <App />, so that effect never runs there, and the verb would be
-// missing on exactly one surface for no reason a reader could see. Observing the query is what keeps it
-// working on both.
 
 /**
  * Starts false and flips true once the supervisor answers. A dev-only control therefore appears a

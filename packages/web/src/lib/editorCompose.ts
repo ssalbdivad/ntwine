@@ -48,7 +48,7 @@ export type ComposeMove = { kind: "stay" } | { kind: "focus"; slug: string } | {
 
 export interface ComposeTargetInput {
   item: Pick<EditorComposeInput, "projectId">
-  /** The topmost open thread drawer (or the /full page's thread), with its current session. */
+  /** The topmost open thread drawer, with its current session. */
   thread?: { slug: string; sessionId?: string }
   /** The page project's live board — what its drafts are keyed by. */
   board?: { projectDir: string; projectSlug?: string }

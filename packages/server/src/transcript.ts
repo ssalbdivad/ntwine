@@ -73,7 +73,7 @@ export const LATEST_WINDOW_ASK_REACH_BYTES = 512 * 1024
 // The latest window's BYTE ceiling, applied after the count rule and the ask reach. MAX_MESSAGES bounds
 // how many turns the window holds, not how much they weigh, and a thread whose assistant turns each
 // carry a dozen 16 KB shell outputs weighs 4.4 MB at 302 messages — past the /ws logical frame cap
-// (app-socket.ts APP_SOCKET_MAX_LOGICAL_FRAME_BYTES, 4 MB), so every push was refused and the /full
+// (app-socket.ts APP_SOCKET_MAX_LOGICAL_FRAME_BYTES, 4 MB), so every push was refused and the thread's
 // page froze until a reload (maintainer 2026-09-16, a codex thread on `anti`). Three quarters of the
 // cap leaves room for the frame's envelope, the pinned background cards and the earlier-instruction
 // prefix (latestTranscriptWindow). The window is cut at a message boundary from the tail, always keeps
@@ -2628,7 +2628,7 @@ function logDirOf(project: Project): string {
 // EVERY reader resolves through here, and that is the whole point. There are two producers of a rendered
 // transcript — this file's whole-file reader (readTranscript → readThreadTranscript, which the /ws push
 // and the drawer use) and the PAGED one below (sourceForThread → readLatestThreadTranscriptPage, which
-// the `threadTranscript` RPC serves to the queue card and the standalone /full page). The paged one built
+// the `threadTranscript` RPC serves to the queue card). The paged one built
 // `join(logDirOf(project), …)` by hand, so the rename recovery reached one producer and not the other:
 // measured on this machine, 386 of 430 ntwine threads returned messages through readThreadTranscript and
 // an EMPTY page through the RPC, which is exactly the "No message yet." / "No conversation yet." the

@@ -21,7 +21,7 @@ import { subscribeTranscript, unsubscribeTranscript } from "./socket.ts"
 //    beyond-budget slug: one paged HTTP pull per activity edge. The paged read is bounded whatever the
 //    thread's size, so it cannot be what overflowed; it does not draw on the socket's read budget; and an
 //    edge refetch is one request per real change — not a loop. (Until 2026-09-16 both fallbacks were left
-//    entirely manual, and a /full page on a refused thread sat frozen — optimistic bubbles "queued"
+//    entirely manual, and a thread page on a refused thread sat frozen — optimistic bubbles "queued"
 //    forever, a rest card for a thread mid-turn — until a hard reload; the banner that offered the manual
 //    retry sits at the top of the transcript, scrolled out of sight on exactly the page that needs it.)
 //    Re-SUBSCRIBING is api/socket.ts's business: it retries a read-budget refusal after the server's own

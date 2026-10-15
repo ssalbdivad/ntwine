@@ -54,7 +54,7 @@ export function useSocketTranscripts(): boolean {
   return useSnapshot(store).socketTranscripts
 }
 
-// A READER'S LIVE HOLD on the local file it shows (the /full split viewer, the Markdown drawer). For
+// A READER'S LIVE HOLD on the local file it shows (the Markdown drawer, the file reader). For
 // as long as the surface is mounted the server watches the file and pushes `file-changed`, which
 // invalidates the reader's query (api/socket.ts) — so a file a worker is editing re-renders as it is
 // saved instead of sitting at whatever it read on open (maintainer 2026-09-03: "it needs to be live").

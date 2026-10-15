@@ -97,10 +97,10 @@ export function RecurringPromptControl({ thread }: { thread: ThreadView }) {
   const trigger = useRef<HTMLButtonElement>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(hoverTimer.current), [])
-  // THE PANEL STAYS ON ITS OWN THREAD'S SURFACE — the queue card, the drawer, the /full column — AND
+  // THE PANEL STAYS ON ITS OWN THREAD'S SURFACE — the queue card, the drawer — AND
   // SPANS ITS PROMPT BOX. The glyph sits near the right end of the box, so an end-aligned panel grows
   // LEFTWARD, and at its full 46rem it ran past every surface it opened on: ~60px over the sidebar from a
-  // queue card, ~100px over the board behind a drawer, ~100px into the margin beside /full. The surface is
+  // queue card, ~100px over the board behind a drawer. The surface is
   // the collision boundary, its side padding is the prompt box's inset within it, and the panel's width
   // caps at what is left (`--radix-popper-available-width`, below) — so wherever the box is narrower than
   // 46rem the panel lands exactly on the box's two edges, as one unit with it. Measured when the panel

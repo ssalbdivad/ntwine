@@ -257,7 +257,7 @@ test("a thread's tab frames the thread's own address in embed mode, with its pro
   assert.equal(odd.hash, "")
 })
 
-test("the thread a page address shows: a drawer or a fullscreen page, nothing for any other page", () => {
+test("the thread a page address shows: a drawer, or a retired /full address, nothing for any other page", () => {
   assert.deepEqual(threadOfHref("http://127.0.0.1:9393/project/acme-api/thread/fix-login"), { project: "acme-api", thread: "fix-login" })
   assert.deepEqual(threadOfHref("http://127.0.0.1:9393/project/acme-api/thread/fix-login/full"), { project: "acme-api", thread: "fix-login" })
   assert.deepEqual(threadOfHref("http://127.0.0.1:9393/all/acme-api/thread/fix-login"), { project: "acme-api", thread: "fix-login" })

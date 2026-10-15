@@ -6,13 +6,13 @@ import { apiBase } from "../lib/base-path.ts"
 // WHICH PROJECT A SHARED THREAD CONTROL ACTS ON.
 //
 // The lifecycle verbs — Snooze, Mark as done — are one component each, drawn on the queue card, the
-// thread drawer and the fullscreen page. Each called `rpc`, which addresses whatever project the ADDRESS
-// names; in a drawer or on /full that is the thread's own project by construction (a drawer's address is
+// thread drawer. Each called `rpc`, which addresses whatever project the ADDRESS names; in a drawer
+// that is the thread's own project by construction (a drawer's address is
 // `/all/<its slug>/thread/<t>`). The cross-project page's queue draws threads of EVERY project while the
 // page is focused on one, where `rpc` means the FOCUSED project — so the same button on a card there
 // would snooze the focus's `fix-auth` instead of the one on the card.
 //
-// A control reads its client from here. Absent a provider it is `rpc`, so the drawer and /full behave
+// A control reads its client from here. Absent a provider it is `rpc`, so the drawer behaves
 // exactly as before without knowing this exists; the cross-project page wraps each card in a provider
 // naming the card's project.
 

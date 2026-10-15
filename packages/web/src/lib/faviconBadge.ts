@@ -1,12 +1,12 @@
 import { embedded } from "./embed.ts"
-// THE TAB'S OWN REST MARK: a dot on the favicon of a /full tab whose thread is in the queue (maintainer
-// 2026-09-19: "a little indicator should pop up in the favicon when a full-screen view tab is at
-// rest"), and a COUNT on the page's tab — how many cards its queue holds, in one project's view or
+// THE TAB'S OWN REST MARK: a COUNT on the page's tab — how many cards its queue holds, in one project's view or
 // All projects alike (David 2026-09-30: "more detailed favicon changes e.g. for the number of
 // waiting threads instead of just a binary"). The count is what the retired project sidebar's badges
 // said per project; with one tab per project, the tab strip is that sidebar. Several tabs are usually
 // open at once and a tab strip shows a favicon and a few characters of title, so the favicon is the
-// only place a background tab can say "this many are waiting on you" without being opened.
+// only place a background tab can say "this many are waiting on you" without being opened. The bare
+// dot (`true`) marked a thread's fullscreen tab at rest (maintainer 2026-09-19) until that page went on
+// 2026-10-15; nothing sets it now.
 //
 // DRAWN, NOT SHIPPED. The badged icon is the real favicon rasterized onto a canvas with the dot
 // composited over it, so there is no second copy of the art to regenerate when the logo changes (the

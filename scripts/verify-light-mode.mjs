@@ -123,10 +123,11 @@ try {
         await page.setViewport({ width: 1440, height: 1000, deviceScaleFactor: 1 })
       }
       await closeSettings()
-      await page.goto(`${stack.url}/thread/theme-rich/full`, { waitUntil: "networkidle2" })
-      await page.waitForSelector('[data-mermaid-state="ready"]', { timeout: 45_000 })
-      assert.equal(await page.$$eval('[data-mermaid-state="ready"]', nodes => nodes.length), 2)
-      await page.waitForSelector('iframe[title="theme counter"]', { timeout: 20_000 })
+      // The thread's drawer, scoped: the page behind it carries the thread's queue card too.
+      await page.goto(`${stack.url}/thread/theme-rich`, { waitUntil: "networkidle2" })
+      await page.waitForSelector('[data-drawer-layer] [data-mermaid-state="ready"]', { timeout: 45_000 })
+      assert.equal(await page.$$eval('[data-drawer-layer] [data-mermaid-state="ready"]', nodes => nodes.length), 2)
+      await page.waitForSelector('[data-drawer-layer] iframe[title="theme counter"]', { timeout: 20_000 })
       await screen(`${baseline ? "baseline-" : ""}${palette}-${font}-thread`)
       if (!baseline) result[`${palette}-${font}-thread-contrast`] = await measureTextContrast(page)
       await page.$eval('[data-drawer-transcript-scroll]', el => el.scrollTop = 0)

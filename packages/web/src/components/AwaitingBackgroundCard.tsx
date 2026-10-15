@@ -3,18 +3,16 @@
 // not waiting on the human: it is waiting on results it kicked off. Server-derived
 // (board.deriveAwaitingBackground); this module only renders it.
 //
-// It renders on the DRAWER and the FULL-SCREEN page, because the rest is a fact about the thread. On the
-// QUEUE it renders too — but only for the shape that queues, and the event-Snooze is passed in as
+// It renders in the DRAWER, because the rest is a fact about the thread. On the QUEUE it renders too — but only for the shape that queues, and the event-Snooze is passed in as
 // `actions` there (parking a card is a queue verb, and the queue is where a card you don't want to look
-// at costs you something). The drawer and standalone page pass none, since you opened the thread
-// deliberately and have nothing to dismiss (maintainer 2026-07-25: "in the drawer or in the full screen
-// view, it should not").
+// at costs you something). The drawer passes none, since you opened the thread deliberately and have
+// nothing to dismiss (maintainer 2026-07-25: "in the drawer or in the full screen view, it should not").
 //
 // WHICH SHAPE QUEUES has flipped twice, and the current split is the point of this card's two voices:
 //   • rest on a live SUB-AGENT — excused from the queue (board.deriveNeedsYou, 2026-07-30). The child
 //     returns and re-invokes the parent within seconds, so the thread is mid-flight in substance and
-//     there is nothing for the human to do. The drawer and the full-screen page are then the ONLY places
-//     this state is stated in words, which raises the stakes on the card rather than lowering them.
+//     there is nothing for the human to do. The drawer is then the ONLY place this state is stated in
+//     words, which raises the stakes on the card rather than lowering them.
 //   • rest on a background SHELL alone — QUEUED (maintainer 2026-08-04: "if a thread has rested and the
 //     only thing remaining is background shells, we should put it into the queue"). A shell is detached;
 //     the thread has finished its turn in every sense that matters to the operator, so it is a handoff.
@@ -743,7 +741,7 @@ function GithubIssueWatchRow({ watch }: { watch: ThreadWatchView }) {
 // naming itself, rather than vanishing.
 /** HOW A ROW OPENS WHAT IT NAMES — a shell's output, your terminal, a sub-agent's transcript. Each is a
  *  drawer pushed over the PAGE's stack, addressed by the parent thread's slug and read through the page's
- *  client, which is right wherever the thread IS the page's: the drawer, /full, the rail. A queue card of
+ *  client, which is right wherever the thread IS the page's: the drawer. A queue card of
  *  another project is not (on All projects the page's client names some other project, and the same slug
  *  there is another thread), so the card provides an opener that opens its thread in place first and pushes
  *  the row's drawer over it only when its project is the one in focus — the card's own terminal rows take

@@ -110,7 +110,7 @@ const ALL_PARAM = "all"
  * Where an address that names its view in the QUERY lands now, or undefined for one that does not.
  *
  *   /?project=<slug>, /?focus=<slug>   → /project/<slug>
- *   /all/<s>/thread/<t>?project=…      → /project/<s>/thread/<t>   (and its /full)
+ *   /all/<s>/thread/<t>?project=…      → /project/<s>/thread/<t>   (and its retired /full)
  *   /?all                              → /
  *
  * A drawer's old address named its thread in the path and the tab's board in the query; the thread is what

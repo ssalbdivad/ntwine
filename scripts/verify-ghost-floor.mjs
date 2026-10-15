@@ -85,8 +85,7 @@ const BUBBLES = `[...document.querySelectorAll('[class*="bg-user-bubble"]')].map
   // [data-xq-card]; the old [data-thread-drawer] no longer exists, so every bubble — the cards' "asked"
   // bubbles included — had fallen through to "chat".
   surface: el.closest("[data-queue-card], [data-xq-card]") ? "queue-card"
-    : el.closest("[data-drawer-layer]") ? "drawer"
-    : el.closest("[data-standalone-thread]") ? "standalone" : "chat",
+    : el.closest("[data-drawer-layer]") ? "drawer" : "chat",
 }))`
 
 const browser = await launchHeadless()

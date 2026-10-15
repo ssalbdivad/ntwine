@@ -12,7 +12,8 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 //   /project/<slug>                that project's board
 //   /project/<slug>/thread/<t>     the board with that thread open (its card, or its drawer)
 //
-// and either thread address plus `/full` is that thread's fullscreen page. That works because ntwine's own
+// (either thread address plus `/full` was that thread's fullscreen page until 2026-10-15; an old link
+// drops the suffix, lib/retiredFullPage.ts). That works because ntwine's own
 // routes live under `/_ntwine/`, so the top-level namespace is the SPA's.
 //
 // `/project/<slug>` was retired on 2026-09-28, when one page replaced the project view and focus mode moved
@@ -20,8 +21,8 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 // the fork is the base, with upstream's `/project/<slug>` scheme, plans/upstream-superset.md §2), and the query
 // now only redirects to it (routes.tsx).
 //
-// AN EMPTY BASE IS A SUPPORTED STATE, not a bug: an unprefixed `/thread/<slug>/full` is the launching
-// project's fullscreen page, and a page with no project at all (the welcome) has nothing to prefix.
+// AN EMPTY BASE IS A SUPPORTED STATE, not a bug: a page with no project at all (the welcome) has nothing
+// to prefix.
 //
 // The page is always BOUND to one project — the page project: the board's project, All projects'
 // prompt-box pick, or the one whose drawer is open — and every helper below answers for it (the same API
@@ -93,7 +94,7 @@ export const PROJECT_PREFIX = "/project"
 
 /**
  * A project board's address, EXACTLY: `/project/<slug>`, its thread `…/thread/<t>` and that thread's
- * `…/full`, and its retired status list `…/status/<s>` (gone 2026-10-14; old links still land in the app),
+ * retired `…/full`, and its retired status list `…/status/<s>` (gone 2026-10-14; old links still land in the app),
  * each with an optional trailing slash. Nothing else under
  * `/project/` is a page: `/project` is a real directory on plenty of machines, and the markdown sanitizer
  * asks this (through projectSlug) whether a link is in-app — `/project/acme/src/main.rs` is somebody's file.
@@ -148,7 +149,7 @@ export function projectSlug(pathname?: string): string | undefined {
 
 /**
  * Is this the one page (`/all` or `/` with a focus, `/all/<slug>…`, or a project's board `/project/<slug>…`)
- * — rather than a page with no project in it: the welcome, or the launching project's unprefixed /full?
+ * — rather than a page with no project in it: the welcome?
  */
 export function isCrossProjectPath(pathname?: string): boolean {
   const path = here(pathname)
@@ -169,7 +170,7 @@ export function crossProjectHref(slug: string, pathname?: string): string {
   return isProjectBoardPath(pathname) ? `${PROJECT_PREFIX}/${slug}` : `${CROSS_PROJECT_PREFIX}/${slug}`
 }
 
-/** `/project/nub` or `/all/nub`, or `""` when this page names no project (the launching project's unprefixed /full). */
+/** `/project/nub` or `/all/nub`, or `""` when this page names no project (the welcome). */
 export function basePath(pathname?: string): string {
   const path = here(pathname)
   const board = boardSlug(path)

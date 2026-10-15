@@ -5,8 +5,7 @@ import test from "node:test"
 // regression came from Radix's portal/focus/outside-pointer side effects, which SSR cannot observe.
 // TWO slugs: _SLUG is a QUEUED (needs-you) thread — it has a card in the main column; _DRAWER_SLUG is a
 // NON-queued session thread, deep-linked to raise the modal thread drawer. They must differ, because a
-// queued thread deliberately has no drawer at all: its `/thread/<slug>` route scrolls to the card, and
-// the card's arrow is now a new-tab LINK to the standalone page rather than a drawer trigger.
+// queued thread deliberately has no drawer at all: its `/thread/<slug>` route scrolls to the card.
 const baseUrl = process.env.NTWINE_MENU_E2E_URL
 const threadSlug = process.env.NTWINE_MENU_E2E_SLUG
 const drawerSlug = process.env.NTWINE_MENU_E2E_DRAWER_SLUG

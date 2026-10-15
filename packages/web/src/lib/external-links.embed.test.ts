@@ -15,11 +15,11 @@ test("an in-app page a link would open in a new tab opens here instead", () => {
   assert.deepEqual(embedLinkAction("http://127.0.0.1:4917/project/docs#x", plain, HERE), { kind: "navigate", path: "/project/docs#x" })
 })
 
-test("a thread's /full page goes to the browser, as f does; a thread's drawer is the thread-link handler's", () => {
-  assert.deepEqual(embedLinkAction("/all/acme/thread/cursor-bug/full", plain, HERE), { kind: "external", url: "http://127.0.0.1:4917/all/acme/thread/cursor-bug/full" })
-  assert.deepEqual(embedLinkAction("/thread/cursor-bug/full", plain, HERE), { kind: "external", url: "http://127.0.0.1:4917/thread/cursor-bug/full" })
+// A retired `/full` address is left alone too: the frame loads it, and main.tsx drops the suffix.
+test("a thread's address is not this handler's, nor its retired /full", () => {
   assert.equal(embedLinkAction("/thread/cursor-bug", plain, HERE), null)
   assert.equal(embedLinkAction("/all/acme/thread/cursor-bug", plain, HERE), null)
+  assert.equal(embedLinkAction("/all/acme/thread/cursor-bug/full", plain, HERE), null)
 })
 
 test("a modified or middle click on any in-app anchor opens its address in the browser", () => {

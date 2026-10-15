@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef, type MouseEvent as ReactMouseEvent, type Ref } from "react"
+import { useContext, useMemo, useRef, type MouseEvent as ReactMouseEvent } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ExternalLink } from "lucide-react"
 import { projectRpc, rpc } from "../api/rpc.ts"
@@ -39,8 +39,8 @@ export const FOOTER_STYLE = { paddingBottom: "max(0.75rem, env(safe-area-inset-b
 // belongs in the editor, and this is the only affordance left that gets it there. It honours the
 // `localFileOpener` setting, exactly as a click on the link used to — except for a picture (`image`),
 // which goes to the OS's own viewer, as an image click always did: an editor is no place to look at a
-// screenshot. Exported because the /full page's split FileViewerPanel and the picture viewer are the
-// same escape in different frames and must not fork this. `onOpen` runs first — the picture viewer
+// screenshot. Exported because the picture viewer is the same escape in a different frame and must not
+// fork this. `onOpen` runs first — the picture viewer
 // closes itself there, since the answer can be a toast and a toast sits below every modal layer.
 // `project` opens through that project rather than the page's, for a file cited on its card.
 //
@@ -91,17 +91,14 @@ export function Frontmatter({ source }: { source: string }) {
   )
 }
 
-// A file's text, verbatim and highlighted — the reader's view of anything that is not Markdown, and the
-// /full viewer's Source view of everything. Highlighted through the same hljs pipeline as every
-// transcript code body (lib/codeBody), the grammar picked from the filename and memoised across mounts
-// (highlightedSource). The invariant codeBody.test pins — highlighted markup carries the SAME TEXT — is
-// what keeps the /full viewer's ⌘I char-offset walk exact over the added spans, which is why `ref`
-// reaches the <pre>. `hljs` on the element is what the palette hangs off (styles.css).
-export function SourceView({ path, raw, ref }: { path: string; raw: string; ref?: Ref<HTMLPreElement> }) {
+// A file's text, verbatim and highlighted — the reader's view of anything that is not Markdown.
+// Highlighted through the same hljs pipeline as every transcript code body (lib/codeBody), the grammar
+// picked from the filename and memoised across mounts (highlightedSource). `hljs` on the element is what
+// the palette hangs off (styles.css).
+export function SourceView({ path, raw }: { path: string; raw: string }) {
   const html = useInnerHtml(useMemo(() => highlightedSource(path, raw), [path, raw]))
   return (
     <pre
-      ref={ref}
       className="hljs whitespace-pre-wrap break-words bg-transparent font-mono-keep text-[12px] leading-5 text-fg/90"
       style={{ tabSize: 2 }}
       dangerouslySetInnerHTML={html}
@@ -141,7 +138,7 @@ function FileReader({ id, path, title, depth, widthDepth }: ReaderProps) {
   // so the reader is the end of the line there, and a button that leads off it is a dead end.
   const phone = useIsMobile()
   const project = scope?.projectId
-  // The same read (and key) as the /full split viewer, and LIVE the same way: the server watches the
+  // The shared read (lib/localFileQuery.ts), and LIVE: the server watches the
   // file while this drawer is open and the socket invalidates the query on each save; the poll covers
   // a socket that is not up (useLiveLocalFile) — and another project's file, which the page's socket
   // may not be allowed to watch.

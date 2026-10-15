@@ -75,7 +75,7 @@ export function threadPath(project: string, thread: string): string {
 
 /**
  * The thread a page address shows — `/project/<project>/thread/<slug>` on a board or `/all/<project>/thread/<slug>`
- * on All projects, with or without `/full` — or undefined for any other page (the queue, Settings). What a
+ * on All projects, with or without a retired `/full` — or undefined for any other page (the queue, Settings). What a
  * route's `href` says a frame shows.
  */
 export function threadOfHref(href: string | undefined): { project: string; thread: string } | undefined {

@@ -13,16 +13,14 @@ import { PhoneScheduleSheet } from "./PhoneScheduleSheet.tsx"
 
 // THE PHONE THREAD HEADER (mockup v2 §2). The desktop drawer's header is two rows — title and "Last
 // active", then an icon strip and a bordered × — and at 390pt it spent 91.5px on controls a phone either
-// cannot use (open fullscreen) or reaches more easily from a list. This is one 56px row: ← back, the
+// cannot use or reaches more easily from a list. This is one 56px row: ← back, the
 // title, a subtitle that says where the thread stands, and ⋯ for everything else.
 //
 // ← IS THE PLATFORM'S BACK. When the app pushed the thread's history entry (it was opened from the
 // board, or anywhere else in this session) it pops that entry — `history.back()` — and the router's
 // popstate unwinds the drawer exactly as the browser's own Back or Android's edge swipe would. So ←
 // returns to whatever was under the thread, like Back does, and that is not always the board: a thread
-// reached by a link inside another thread returns to that thread first, and one reached through the
-// fullscreen page's collapse (a desktop door, so only a window narrowed past the breakpoint) returns
-// into the fullscreen page. A reload keeps this true, because main.tsx steps off any history entry a
+// reached by a link inside another thread returns to that thread first. A reload keeps this true, because main.tsx steps off any history entry a
 // sheet left behind (lib/backDismiss `stepOffStaleLayerEntries`). Reusing
 // the desktop ×'s close here instead REPLACED the thread's entry with the board, which left two board
 // entries in a row, so the next Back did nothing visible. Only a thread that arrived by a cold link (the

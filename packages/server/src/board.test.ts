@@ -819,8 +819,8 @@ test("deriveAwaitingBackground: true only when own-work rest is the SOLE reason 
   assert.equal(deriveAwaitingBackground(row({ rested_at: T0, snoozed_until: LATER }), child, "turn-idle", false, Date.parse(T0)), false)
 })
 
-// The queue's event-Snooze must NOT blank the drawer / full-screen page. `awaitingBackground` states a
-// FACT about the thread and drives all three surfaces; only the QUEUE honours the snooze, and it does so
+// The queue's event-Snooze must NOT blank the drawer. `awaitingBackground` states a FACT about the
+// thread and drives both surfaces; only the QUEUE honours the snooze, and it does so
 // through needsYou (groups.ts `queued`). Inheriting it here meant one queue click left the drawer showing
 // nothing at rest — the "reads as if the agent died" state this card exists to prevent.
 // A TIMER PARK CARDS LIKE A PR PARK (maintainer 2026-08-24: the resting card "enumerates all of the

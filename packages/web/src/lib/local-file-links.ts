@@ -68,8 +68,7 @@ function imageFailureHandler(): (event: Event) => void {
 
 // Act on a vetted local path, in ntwine whenever ntwine can show it (lib/localViewer.ts): a picture opens
 // in the picture viewer, stepping through the pictures rendered beside the one clicked; a `.md` file in
-// the reader, rendered; any other text file in the reader as source (the split panel beside the thread
-// on /full, a drawer everywhere else). Only a format the page cannot draw — a PDF, a spreadsheet, an
+// the reader, rendered; any other text file in the reader as source, in a drawer. Only a format the page cannot draw — a PDF, a spreadsheet, an
 // archive — goes to the server, which realpath-gates it and hands it to the opener the
 // `localFileOpener` setting names; every in-app viewer carries that same opener as its "Open". The
 // decision lives HERE, in the one place every local-path activation passes through, rather than in
@@ -132,10 +131,9 @@ export function openInHostEditor(path: string, position?: FilePosition): void {
   postToHost({ type: "ntwine:open-file", path, ...(position ? { line: position.line, ...(position.column ? { column: position.column } : {}), ...(position.endLine ? { endLine: position.endLine } : {}) } : {}) })
 }
 
-// The surfaces a picture's gallery stays inside: a queue card, a drawer, the /full page's reader slot,
-// the /full transcript. ←/→ stepping from one thread's screenshot into the next card's would show a
+// The surfaces a picture's gallery stays inside: a queue card, a drawer. ←/→ stepping from one thread's screenshot into the next card's would show a
 // picture from a conversation the reader is not in.
-const GALLERY_SCOPE = "[data-queue-card], [data-xq-card], [data-drawer-layer], [data-file-viewer-slot], main[data-standalone-thread]"
+const GALLERY_SCOPE = "[data-queue-card], [data-xq-card], [data-drawer-layer]"
 
 // The pictures rendered in the same surface as `from`, in reading (document) order, each path once.
 // Only what is on the page: a virtualized transcript keeps just the rows near the viewport mounted, and

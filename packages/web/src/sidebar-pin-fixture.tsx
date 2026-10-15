@@ -10,7 +10,7 @@ import "./styles.css"
 const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 
 // The rail row's PIN controls, on the REAL ThreadRow: the solid mark a pinned row wears in its
-// right-edge column, and the hover strip's verb — an OUTLINE pin left of the fullscreen door on a row
+// right-edge column, and the hover strip's verb — an OUTLINE pin LEFTMOST on a row
 // that can be pinned, the solid slashed unpin RIGHTMOST on a row that already is (after Retry too), and
 // no box behind the strip (maintainer 2026-09-03). The long titles are deliberate: the strip overlays
 // the title's first line, so a row whose title fills that line is where a letter bleeding through a

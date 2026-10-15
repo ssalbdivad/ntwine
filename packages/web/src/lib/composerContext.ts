@@ -1,5 +1,5 @@
-// SELECTED CONTEXT for a thread's composer — the ⌘I flow. A selection made in the /full file viewer
-// becomes a staged item (file, quoted text, best-effort line range, optional comment) ANCHORED BY A
+// SELECTED CONTEXT for a thread's composer — the ⌘I flow. A selection sent from an editor
+// (lib/editorCompose.ts) becomes a staged item (file, quoted text, best-effort line range, optional comment) ANCHORED BY A
 // MENTION TOKEN — `@guide.md:3`, the chip's own label behind an `@` — spliced into the draft prose at
 // the caret, and on send the items serialize as definitions under the prose, keyed by that same
 // token. The token IS the chip: a <textarea> cannot host a pill, so the reference is text the human

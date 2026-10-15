@@ -242,7 +242,7 @@ function useContentWidth(el: HTMLElement | null): number {
  * The ```lightbox fences inside one block of rendered Markdown, drawn as galleries — for every surface
  * that renders a worker's Markdown as ONE string of sanitized HTML rather than through the transcript's
  * splitter: the done and awaiting cards, a question's options, the `.md` reader (LinkedHtml,
- * MarkdownDrawer, FileViewerPanel). The finding and swapping is lib/fenceIslands.ts, shared with the
+ * MarkdownDrawer). The finding and swapping is lib/fenceIslands.ts, shared with the
  * ```mermaid fence (useMermaidIslands); this names the fence and portals a LightboxGallery into each host.
  *
  * Returns the portals; render them anywhere in the host component.
@@ -259,7 +259,7 @@ export function useLightboxIslands(ref: RefObject<HTMLElement | null>, html: str
 export function LightboxHost() {
   const { lightbox } = useSnapshot(store)
   if (!lightbox) return null
-  // Its own provider for the header buttons' tooltips: the /full page hosts this outside every other.
+  // Its own provider for the header buttons' tooltips, so it needs none from wherever it is mounted.
   return (
     <TooltipProvider>
       <LightboxViewer images={lightbox.images} index={lightbox.index} />

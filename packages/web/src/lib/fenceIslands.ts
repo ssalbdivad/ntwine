@@ -33,7 +33,7 @@ let nextIsland = 0
  *
  * When the markup DOES change, a fence whose body did not keeps its host, and so its mounted component:
  * the old host is moved into the new markup rather than a new one made. A reader re-renders its whole
- * document on every save of the file (MarkdownDrawer and FileViewerPanel are live), and a diagram that
+ * document on every save of the file (MarkdownDrawer is live), and a diagram that
  * remounted each time would fall back to its placeholder and re-render, and a gallery would re-request
  * its pictures, for an edit three paragraphs away.
  */

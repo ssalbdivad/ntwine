@@ -389,35 +389,6 @@ try {
     check("a reply on a tenant's card goes to ITS thread", (await wrote("marketing-site", "followUp")) && !(await wrote("acme-api", "followUp")), present ? `card back with ${alert ? `error "${alert.slice(0, 80)}"` : "no error"}, draft ${draft ? "restored" : "empty"}` : "card left the queue")
   })
 
-  // /full is reached from the thread's DRAWER here (a card carries the same ⤢ since 2026-09-29, and
-  // goes back to the page): its way out leads back to that drawer, and closing the drawer back to the
-  // page.
-  await step("fullscreen's way out leads back to the drawer it came from, and the drawer's to the page", async () => {
-    const scope = card("acme-api", "upgrade-postgres-driver")
-    await clickOnScreen(`${scope} h3 a`)
-    const drawer = "/all/acme-api/thread/upgrade-postgres-driver"
-    await page.waitForFunction((drawer) => location.pathname === drawer, { timeout: 8000 }, drawer)
-    // The drawer header's ⤢ (ExpandThreadLink). /full was the first item of its ⋯ menu until 749bdb40
-    // (2026-09-29) gave the door back to the icon beside it, which `f` presses as well.
-    await clickSettled(`[data-drawer-layer] [data-expand-thread="upgrade-postgres-driver"]`)
-    await page.waitForFunction((drawer) => location.pathname === `${drawer}/full`, { timeout: 8000 }, drawer)
-    await page.waitForSelector("[data-standalone-return]", { timeout: 8000 })
-    await sleep(600)
-    await page.click("[data-standalone-return]")
-    await page.waitForFunction(() => !location.pathname.endsWith("/full"), { timeout: 8000 })
-    const back = await page.evaluate(() => location.pathname)
-    await page.waitForSelector("[data-drawer-layer]", { timeout: 8000 })
-    await sleep(600)
-    await closeDrawer()
-    // The way back from /full is a view transition, and the close is written to the address only once it
-    // has finished (lib/router.ts `routerTransitioning`) — seconds at a load average of 30+. Before that
-    // fix an Escape inside the transition was undone outright: the drawer re-opened and this wait timed
-    // out, 2 of 3 loaded runs (~37, 2026-09-29), taking the next step down with it.
-    await page.waitForFunction((paths) => paths.includes(location.pathname), { timeout: 20_000 }, ALL_PATHS)
-    await page.waitForSelector("[data-xq-card]")
-    check("fullscreen's way out leads back to the drawer it came from, and the drawer's to the page", back === drawer, `/full's way out → ${back}`)
-  })
-
   // ---- The page as a MODE: nothing here leaves it -------------------------------------------------------
   await step("a tenant's thread opens in place, in its drawer", async () => {
     await page.waitForSelector("[data-xq-card]")

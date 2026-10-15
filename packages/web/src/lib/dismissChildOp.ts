@@ -17,7 +17,7 @@ import { showToast } from "../store.ts"
 // vocabulary, importable by an SSR test with no store or transport behind it.)
 //
 // `api` is the thread's OWN project's client. It defaults to `rpc`, the project the address bar names,
-// which is right for the drawer and the /full page; a row in Everything's project list names a thread of
+// which is right for the drawer; a row in Everything's project list names a thread of
 // any project on a page that names at most one, so it passes its scope's client (api/threadApi.tsx) —
 // else the × on another project's `fix-auth` child would stop the focused project's.
 //

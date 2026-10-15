@@ -6,9 +6,8 @@ import { embedded, postToHost } from "./embed.ts"
 // the row VS Code already draws above the frame is the header, so the page tells it the view's name and
 // the reading beside it, and the row's buttons come back as `ntwine:command` (lib/embedCommand.ts).
 //
-// The page's own surfaces decide the reading (AllQueues.tsx SidebarPage, StandaloneThreadPage.tsx); this
-// module is what they share — the pure choice of what the row says, and a poster that says it only when
-// it changed, since the page re-renders on every poll.
+// The page decides the reading (SidebarPage.tsx); this module is the pure choice of what the row says,
+// and a poster that says it only when it changed, since the page re-renders on every poll.
 
 export type EmbedRoute = Omit<EmbedRouteMessage, "type">
 

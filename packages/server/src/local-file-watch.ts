@@ -1,8 +1,8 @@
 import { statSync, watch, type FSWatcher } from "node:fs"
 import { basename, dirname } from "node:path"
 
-// ONE LIVE WATCH PER OPEN FILE, for the readers that render a file on disk — the /full page's split
-// viewer and the Markdown drawer. Each read ONCE and rendered what it got, so a file a worker was
+// ONE LIVE WATCH PER OPEN FILE, for the readers that render a file on disk — the Markdown drawer and
+// the file reader. Each read ONCE and rendered what it got, so a file a worker was
 // editing sat stale on screen until the reader closed and reopened it (maintainer 2026-09-03: "seems
 // like we load the file once … and don't monitor it for changes … it needs to be live"). A watch here
 // tells the socket layer "read it again"; the bytes still travel through the reader's own gated RPC.

@@ -72,7 +72,7 @@ test("a bound page, a board and the launching project's own page route as they a
   }
   assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/project/nub/thread/fix"), "/_ntwine/nub")
   assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/all/nub/thread/fix"), "/_ntwine/nub")
-  // The unprefixed /full IS the launching project's page, so `/_ntwine` there is meant.
+  // An unprefixed address is the launching project's.
   assert.equal(routeCall("threadTranscript", { slug: "fix" }, "/thread/fix/full"), "/_ntwine")
 })
 

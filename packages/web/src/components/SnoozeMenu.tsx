@@ -70,8 +70,8 @@ export function SnoozeMenu({
   const where = projectName ?? boardName
   const [open, setOpen] = useState(false)
   // Closing the menu hands focus back to the clock, and the tooltip opens on focus — where it then takes
-  // the next Escape for itself, so on /full one Escape closed the menu and the second only closed a
-  // tooltip nobody asked for, instead of leaving fullscreen. It stays quiet until focus or the pointer
+  // the next Escape for itself, so one Escape closed the menu and the second only closed a tooltip
+  // nobody asked for, instead of reaching the surface behind it. It stays quiet until focus or the pointer
   // leaves the clock; focus itself still returns, which is the menu's keyboard contract.
   const [tooltipQuiet, setTooltipQuiet] = useState(false)
   const [busy, setBusy] = useState(false)

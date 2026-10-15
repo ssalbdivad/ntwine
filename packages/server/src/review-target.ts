@@ -7,7 +7,7 @@ import { liftRepoWorktree } from "./thread-cwd.ts"
 // extension.
 //
 // ntwine records nothing about a thread's base: it stays out of the worktree decision (thread-cwd.ts), and
-// a thread's start is a transcript, not a commit. What it DOES know is where the thread wrote — the rail's
+// a thread's start is a transcript, not a commit. What it DOES know is where the thread wrote — its
 // edited files, read off the whole transcript and filtered to what git carries (edited-files.ts,
 // repo-files.ts) — and where its agent is working now. Those name the checkouts; git names the base:
 //
@@ -28,7 +28,7 @@ export interface ReviewTargetInput {
   /** The project folder (`workDirOf`). */
   projectDir: string
   title: string
-  /** The rail's edited files — absolute, the most recent first, already filtered to what git carries. */
+  /** The thread's edited files — absolute, the most recent first, already filtered to what git carries. */
   edited: readonly { path: string }[]
   /** Where the thread's agent is working now (router threadWorkingDir). */
   working?: Pick<ThreadWorkingDir, "dir" | "kind">

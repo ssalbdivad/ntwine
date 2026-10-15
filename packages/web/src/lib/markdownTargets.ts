@@ -65,14 +65,13 @@ function fileTarget(path: string, position: FilePosition | undefined): LocalMark
 // are treated as filesystem paths; ordinary relative links (`docs/foo`), fragments, mailto, and
 // http(s) never reach this classifier.
 //
-// The answer does not depend on the page: `/`, a drawer's `/all/<slug>/thread/<t>` and a fullscreen
-// `/thread/<t>/full` all classify a link the same way, because every shape below is matched on the
-// link alone. (It stripped the page's own `/project/<slug>` prefix first until 2026-09-28, when the
+// The answer does not depend on the page: `/` and a drawer's `/all/<slug>/thread/<t>` classify a link
+// the same way, because every shape below is matched on the link alone. (It stripped the page's own `/project/<slug>` prefix first until 2026-09-28, when the
 // project page went.)
 function isNtwineRoute(href: string): boolean {
   if (href === "/" || href.startsWith("/?") || href.startsWith("/#")) return true
   const bare = href.replace(/[?#].*$/u, "")
-  // A link that names its project — a drawer, `/all/nub/thread/x`, or its `/full` — is in-app whichever
+  // A link that names its project — a drawer, `/all/nub/thread/x`, or its retired `/full` — is in-app whichever
   // page it is read on.
   if (projectSlug(bare)) return true
   // So is an address ntwine itself minted before 2026-09-28 (`/project/nub/thread/x`): it lands on the

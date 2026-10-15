@@ -140,10 +140,10 @@ test("normal web, relative app, anchor, and mail links remain links", () => {
   ]) assert.equal(localMarkdownTarget(href), null, href)
 })
 
-// ONE PAGE (2026-09-28). A worker's handoff is read on `/`, in a drawer at `/all/<slug>/thread/<t>`, and
-// on a fullscreen `/thread/<t>/full`, and a link in it must classify the same on all three: the shapes
-// are matched on the link alone. The page is stubbed per reading, `/` with a focus as the route sets it.
-test("an in-app link classifies the same on /, in a drawer and on /full", () => {
+// ONE PAGE (2026-09-28). A worker's handoff is read on `/` and in a drawer at `/all/<slug>/thread/<t>`
+// (and an old `/thread/<t>/full` address still loads before it redirects), and a link in it must classify
+// the same on each: the shapes are matched on the link alone. The page is stubbed per reading, `/` with a focus as the route sets it.
+test("an in-app link classifies the same on /, in a drawer and on a retired /full", () => {
   const globals = globalThis as { location?: unknown }
   const previous = globals.location
   const links = ["/", "/thread/a", "/thread/a/full", "/all/nub/thread/a", "/all/zod/thread/a/full", "/all/zod"]

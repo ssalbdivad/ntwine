@@ -8,8 +8,7 @@ import { githubRefUrl } from "./githubRef.ts"
  *  so a worker woken by CI with two answers still owed re-fences on nothing new — and the rest drew an
  *  hourglass card restating the ask directly above the question cards that ARE the ask. The cards are
  *  the actionable thing and the handoff; what else the fence names is live work, which the ops summary
- *  above the queue card's prompt box, the drawer's ops strip and the /full rail already list with the
- *  same rows. So the card goes, and the fence's prose stays as plain handoff text (ChatView Message),
+ *  above the queue card's prompt box and the drawer's ops strip already list with the same rows. So the card goes, and the fence's prose stays as plain handoff text (ChatView Message),
  *  because it is the worker's own words.
  *
  *  NOT WHEN IT ALSO HANDS OVER `steps:` — the Done verb lives on that card and nowhere else. */

@@ -1589,15 +1589,6 @@ try {
     notes.openExternal = { openers: stack!.openers(), outcome, dialog, log: line }
     expect("c6", "a web link goes to VS Code's openExternal — no window from the frame (VS Code's own 'open the external website?' prompt comes first)", reached, notes.openExternal)
 
-    // The drawer's ↗ (Open in browser): the page asks the host to open the thread's own page. ntwine's
-    // address is loopback, which VS Code's link protection trusts, so this one goes all the way to the
-    // system opener — the stub `xdg-open`, which only writes down what it was asked.
-    const fullUrl = `/thread/${seeded!.thread.slug}/full`
-    const expand = (await (await frame()).evaluateHandle((slug) => document.querySelector(`[role=dialog] a[data-expand-thread="${slug}"]`), seeded!.thread.slug)).asElement() as ElementHandle | null
-    await clickHandle(expand, "the drawer's Open in browser")
-    const toOpener = await until(() => stack!.openers().split("\n").some((line) => line.startsWith("xdg-open ") && line.includes(fullUrl)), 10_000)
-    expect("c6", "the drawer's Open in browser goes through VS Code's openExternal to the system opener (a stub xdg-open)", toOpener, stack!.openers())
-
     // A Markdown link: ntwine's own reader.
     await clickInPage(`[data-local-path="${files.readme}"]`, "the README link")
     const reader = await until(async () => (await inPage((path) => !!document.querySelector(`button[aria-label="Open"][title^="Open ${path}"]`), files.readme)), 8_000)
@@ -2988,7 +2979,7 @@ try {
   })
 
   expect("all", "no page errors in the framed page", pageErrors.length === 0, pageErrors.slice(0, 10))
-  expect("all", "no opener spawned but the web link's and Open in browser's xdg-open", stack.openers().split("\n").filter(Boolean).every((line) => /^xdg-open (https:\/\/example\.com\/spec|http:\/\/127\.0\.0\.1:\d+\/\S*\/thread\/[^/\s]+\/full)$/u.test(line)), stack.openers())
+  expect("all", "no opener spawned but the web link's xdg-open", stack.openers().split("\n").filter(Boolean).every((line) => /^xdg-open https:\/\/example\.com\/spec$/u.test(line)), stack.openers())
   exitCode = results.every((result) => result.ok) ? 0 : 1
 } catch (error) {
   log((error as Error).stack ?? String(error))

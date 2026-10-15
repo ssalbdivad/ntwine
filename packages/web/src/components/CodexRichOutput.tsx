@@ -251,7 +251,7 @@ const mermaidSource = (body: string) => body.replace(/\n$/, "")
  * The ```mermaid fences inside one block of rendered Markdown, drawn as the transcript draws them — for
  * every surface that injects a whole Markdown body as one string of HTML, where the transcript's splitter
  * (lib/imagePaths.ts splitProseAttachments) never runs: the done, awaiting and question cards (LinkedHtml),
- * the `.md` readers (MarkdownDrawer, FileViewerPanel, ThreadDrawer) and the transcript's two Markdown
+ * the `.md` readers (MarkdownDrawer, ThreadDrawer) and the transcript's two Markdown
  * asides (SessionMessageLine, NtwineWake). The finding and swapping is lib/fenceIslands.ts, shared with the
  * ```lightbox fence; the diagram is MermaidDiagram itself, so a source mermaid cannot parse reads here as
  * it does in the transcript — "Diagram unavailable", the parser's reason, and the source as code.

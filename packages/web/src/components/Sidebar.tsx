@@ -530,8 +530,7 @@ export const ThreadRow = memo(function ThreadRow({
           the cue's rest time sits, which yields to them on hover (maintainer 2026-08-28: the expand icon
           "should replace where the current time rest duration currently is"). A row ntwine owns gets the
           pin; a stalled/held row gets Retry after it, because recovery is the verb the row is pointing
-          at. The fullscreen door stood between them until 2026-09-28, when /full became an option in
-          the drawer's own menu (ThreadMenu.tsx) rather than a door on every row.
+          at. A fullscreen door stood between them until 2026-09-28.
 
           NO BOX around the strip (maintainer 2026-09-03: "drop the background color around the icon
           buttons"). It still needs an OPAQUE backing — it overlays the title's first line, and a long

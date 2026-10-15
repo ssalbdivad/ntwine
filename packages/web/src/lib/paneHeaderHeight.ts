@@ -1,6 +1,6 @@
 // THE ONE HEIGHT EVERY PANE HEADER IS. The side-sheet bar (ui/SheetHeader), the thread header
-// (ChatView, via threadHeaderLayout) and the "Thread unavailable" fallback all read this token, so a
-// thread column and the file viewer beside it on /full close on the same bottom rule.
+// (ChatView, via threadHeaderLayout) and the "Thread unavailable" fallback all read this token, so every
+// pane closes on the same bottom rule.
 //
 // It is a FIXED height, never a minimum: the thread header carried `min-h-12 py-1.5` and measured
 // 52.75px beside the viewer's 48 (2026-09-03, maintainer: "headers should have consistent height"),

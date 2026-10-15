@@ -3,15 +3,13 @@ import { renderCodeBody } from "./codeBody.ts"
 import { isLocalMarkdownFile } from "./markdownTargets.ts"
 import { resolveFileLanguage } from "./syntaxHighlight.ts"
 
-// The ONE read of a local file the /full split viewer renders, shared by the panel that shows it and
-// by the rail row that PREWARMS it on hover (maintainer 2026-09-01: "consider rendering optimizations
-// like eager rendering when the user hovers over a given changed file"). Both must use the identical
-// key and fetcher or the prefetch warms a cache entry the panel never looks in.
+// The ONE read of a local file a reader renders, shared by the file reader drawer (FileReaderDrawer) and
+// the picture viewer (ImageViewer): one key and one fetcher, so the socket's invalidation reaches both.
 //
 // Markdown reads through the reader gate (`.md` only, canonical path included); anything else reads
 // through the text gate, which since 2026-09-03 is rooted identically — home-and-below plus the temp
 // trees — so a worker's worktree file opens as readily as one in the project dir. Either way the result
-// carries the CANONICAL path (symlinks resolved), which is what the panel labels, links relative to,
+// carries the CANONICAL path (symlinks resolved), which is what the reader labels, links relative to,
 // and stamps on context items.
 // The key alone — what the socket's `file-changed` frame invalidates (api/socket.ts), keyed by the
 // path the reader subscribed with, which is the path it queried with.

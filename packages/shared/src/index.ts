@@ -7820,7 +7820,7 @@ export type TermClientMsg = { t: "input"; d: string } | { t: "resize"; cols: num
 // subscription state, the shape excludes path separators/control text before it can reach transcript
 // lookup code. Foreign session ids are UUID-shaped and remain valid under this grammar.
 export const SocketTranscriptSlug = ThreadSlug
-// A local file a reader has open — the /full split viewer's or the Markdown drawer's document. The
+// A local file a reader has open — the Markdown drawer's or the file reader's document. The
 // bound matches the read RPCs' own; the server gates the path exactly as it gates the read, so a
 // file the reader could not read is a file it cannot watch either.
 export const SocketFilePath = z.string().min(1).max(4096)

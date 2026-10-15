@@ -16,7 +16,7 @@ import { createRpcClient } from "../../../../scripts/lib/rpc-client.mjs"
 const baseUrl = process.env.NTWINE_QUESTION_NAVIGATION_E2E_URL
 const home = process.env.NTWINE_QUESTION_NAVIGATION_E2E_HOME
 
-test("registered picks survive fullscreen, project switches and reload, then clear only after a successful send", {
+test("registered picks survive project switches and reload, then clear only after a successful send", {
   skip: !baseUrl || !home, timeout: 120_000,
 }, async () => {
   const api = createRpcClient(baseUrl!)
@@ -77,13 +77,6 @@ test("registered picks survive fullscreen, project switches and reload, then cle
       assert.deepEqual(await page.$$eval(`${single} [data-question-option]`, (rows) => rows.map((el) => el.classList.contains("border-selection-border"))), [false, true])
       assert.equal(await page.$$eval(texts, (els) => (els[1] as HTMLTextAreaElement).value), "also typecheck")
     }
-    await check()
-    // The real fullscreen door unmounts the board and creates a fresh answering provider.
-    await page.$eval(`[data-expand-thread='${slug}']`, (el) => (el as HTMLAnchorElement).click())
-    await page.waitForSelector("main[data-standalone-thread]")
-    await check()
-    await page.keyboard.press("Escape")
-    await page.waitForFunction(() => !location.pathname.endsWith("/full"))
     await check()
     // Client-side project switches remount App. The same thread slug in B must not inherit A's picks.
     const switchProject = async (project: string) => {

@@ -17,11 +17,11 @@ import "./styles.css"
 //
 // DEFAULT = THE SHELL-ONLY REST, because since 2026-08-04 that is the only shape the server actually puts
 // in the queue: a rest on a live SUB-AGENT is excused from it (board.deriveNeedsYou), so the sub-agent
-// wording below is reachable only in the drawer / full-screen page. `?agents=1` renders it anyway — it is
+// wording below is reachable only in the drawer. `?agents=1` renders it anyway — it is
 // the same component and the same card, and the two voices are worth eyeballing side by side.
 //
 // On a real stack `nub scripts/seed-resting-thread.mjs --home=… --socket=…` against an adhoc stack seeds
-// a thread at rest with live children; /thread/<slug> and /thread/<slug>/full then show the same card.
+// a thread at rest with live children; its drawer, /thread/<slug>, then shows the same card.
 
 const SLUG = "awaiting-bg-demo"
 const params = new URLSearchParams(location.search)

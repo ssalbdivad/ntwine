@@ -17,7 +17,7 @@ import { actionDef, bindingLookup, detectPlatform, effectiveBindings, formatChor
 //     exactly that, so the rail's marker and the key never disagree. (The project board's sidebar
 //     registered one too, until 2026-09-28 — hence a stack of cursors rather than a single slot.)
 //   · A THREAD COMMAND (done, snooze, reply, open) PRESSES THE REAL CONTROL on the surface you
-//     are looking at — the top drawer, the /full page, or the card being read. Each control opts in
+//     are looking at — the top drawer or the card being read. Each control opts in
 //     with `data-command`, and the key clicks it, so every gate that control already obeys (the
 //     completion confirm, the optimistic fade, a disabled state, a foreign session) applies to the key
 //     for free. A key that took its own route to the RPC would be a second implementation of

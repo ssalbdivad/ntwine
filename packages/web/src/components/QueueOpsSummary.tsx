@@ -39,8 +39,8 @@ import { Popover, PopoverAnchor, PopoverContent } from "./ui/Popover.tsx"
 // activity summary in the queue cards as well as in the drawer view"). Until then the drawer kept the
 // ⤷ column under its prompt box, so one thread read as counts on its card and as a column of rows in
 // its drawer. Both hand in the shells they read off the transcript (`transcriptShells`), which the board
-// does not report for a Codex thread. The phone and /full
-// beside its rail draw neither: the ⋯ sheet and the rail already list every row (ChatView).
+// does not report for a Codex thread. The phone draws neither: its ⋯ sheet already lists every row
+// (ChatView).
 //
 // THE MARK IS THE ROWS' OWN LIVENESS DOT, in the row's hue (yellow agent, blue shell, violet watch), and
 // it pulses only while at least one row of that kind is running. Otherwise it is the rows' own settled
@@ -228,7 +228,7 @@ function OpsCount({ group, line, open, onOpen, onCloseSoon, onOpenChange, childr
         }}
         onEscapeKeyDown={(event) => {
           // Replaces the wrapper's handler, so it keeps that handler's one job: this Escape is the
-          // panel's, not the window's (App, or /full's exit).
+          // panel's, not the window's (App).
           event.stopPropagation()
           if (panel.current?.contains(document.activeElement)) button.current?.focus()
         }}

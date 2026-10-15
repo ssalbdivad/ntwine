@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { apiBase, basePath, crossProjectHref, innerPath, isCrossProjectPath, isProjectBoardPath, isRetiredAppPath, outerPath, prefixedAppRoute, projectSlug, setHomeFocus } from "./base-path.ts"
 
-// The launching project's fullscreen page is still served unprefixed, so an empty base is a supported state.
+// An unprefixed page (the welcome, an old pre-singleton link) has no base, a supported state.
 test("an unprefixed page has no base and addresses the unprefixed API", () => {
   for (const path of ["/", "/thread/fix-auth", "/thread/fix-auth/full", "/status/active", "/thread/a%2Fb"]) {
     assert.equal(basePath(path), "", path)
@@ -21,7 +21,7 @@ test("a drawer's project lives under /all, and its API stays flat", () => {
 })
 
 // A PROJECT'S BOARD IS `/project/<slug>` (upstream's scheme, restored 2026-10-06): its board, a thread on it,
-// that thread's /full and its status list all name the project, address its API and feed, and keep the
+// that thread's retired /full and its status list all name the project, address its API and feed, and keep the
 // board as the page's root.
 test("/project/<slug> is that project's board", () => {
   for (const path of ["/project/nub", "/project/nub/", "/project/nub/thread/fix-auth", "/project/nub/thread/x/full", "/project/nub/status/active"]) {
@@ -77,7 +77,7 @@ test("inner and outer paths round-trip", () => {
   // Closing the last drawer goes home: the page's root is `/all` whichever project the drawer named.
   assert.equal(outerPath("/", "/all/nub/thread/other"), "/")
   assert.equal(outerPath("/", "/all"), "/")
-  // Unprefixed, outer is a no-op — which is what keeps the launching project's /full working.
+  // Unprefixed, outer is a no-op.
   assert.equal(outerPath("/thread/fix-auth/full", "/thread/other/full"), "/thread/fix-auth/full")
   // `/` is its own root: a phone's projects list, which must not become All projects under it.
   assert.equal(outerPath("/", "/"), "/")

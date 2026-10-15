@@ -3,7 +3,7 @@
 // tailer, real board projection of the `state` column, real push, real browser.
 //
 // The pair exists because the controls' behavior on a DONE thread is the whole question. Before
-// 2026-07-29 an archived thread rendered NO lifecycle strip, which left its /full view with nothing
+// 2026-07-29 an archived thread rendered NO lifecycle strip, which left its thread view with nothing
 // anywhere that said the thread was finished. It now keeps them and reads "Done" where the verbs
 // were — at the end of the header's action strip since 2026-10-05, when the footer that held them went. Both threads carry the same ```done fence in their transcript, so the same run also proves the
 // in-transcript fence card drops its redundant Mark-as-done button once the thread is actually archived.

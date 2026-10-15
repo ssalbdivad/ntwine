@@ -413,7 +413,7 @@ export function Composer({
   // live (unlike `busy`): the button spins.
   sendPending?: boolean
   // WHICH PROJECT AN ATTACHMENT IS UPLOADED TO, when it is not the page's. Omitted, `apiBase()` — the
-  // page project, which in a drawer or on /full is the thread's own. The cross-project page's queue
+  // page project, which in a drawer is the thread's own. The cross-project page's queue
   // card shows a thread of ANY project while the page is focused on one, so it passes the thread's
   // project explicitly (AllQueuesCard ReplyBox).
   attachBase?: string
@@ -828,7 +828,7 @@ export function Composer({
   // the same-value bailout, so every keystroke's effect enqueued a DefaultLane update that a fast
   // burst of keystrokes starved; the root then ended every sync commit with that lane still pending,
   // React's nested-update counter climbed one per keystroke, and a 50-keystroke burst (a multi-line
-  // draft on /full, 2026-08-28) threw "Maximum update depth exceeded" twice per run.
+  // draft, 2026-08-28) threw "Maximum update depth exceeded" twice per run.
   const [suggestSelFor, setSuggestSelFor] = useState<{ prose: string; index: number }>({ prose: "", index: 0 })
   const suggestSel = suggestSelFor.prose === prose ? suggestSelFor.index : 0
   const setSuggestSel = (next: number | ((current: number) => number)) =>

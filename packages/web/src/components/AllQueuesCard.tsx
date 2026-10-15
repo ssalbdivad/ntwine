@@ -494,7 +494,7 @@ function CardArticle({
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[15px] font-semibold leading-snug" title={displayTitle(thread)}>
             {/* The card's title is its drawer door, and `o` presses it (lib/keyboardRuntime.ts). Only a
-                queue card carries `open`: in a drawer or on /full the thread is already open. */}
+                queue card carries `open`: in a drawer the thread is already open. */}
             <a href={placeHref} onClick={openHere} data-command="open" className="rounded-sm outline-none hover:underline hover:underline-offset-2 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
               {displayTitle(thread)}
             </a>
@@ -1055,7 +1055,8 @@ function Prose({ md }: { md: string }) {
  *  upstream's 13px the glyph is ~6.5px of ink centred in the 28px square where its neighbours paint 12px:
  *  on the strip's uniform `gap-0.5` it drew 20.5px of ink to the spinoff and to the fullscreen door,
  *  against 17.5px terminal→spinoff and 18.25px fullscreen→⋯ (scripts/ink-gaps.mjs, dsf 4, sans,
- *  2026-10-06). Two pixels in from each side brings both to ~18.5px; the hover square keeps its size. */
+ *  2026-10-06). Two pixels in from each side brings both to ~18.5px; the hover square keeps its size.
+ *  The fullscreen door went 2026-10-15, so collapse's right-hand neighbour is the ⋯ now, unmeasured. */
 function CollapseCardButton({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const label = collapsed ? "Expand" : "Collapse"
   const Icon = collapsed ? ChevronsUpDown : ChevronsDownUp

@@ -88,9 +88,8 @@ try {
   }, "waiting for recovery")
   const requests = []
   page.on("request", req => requests.push({ url: req.url(), type: req.resourceType() }))
-  // A deep link the recovery document must answer — a thread's /full under the one page's drawer prefix
-  // (`/project/<slug>/…` until 2026-09-28, an address the page no longer has).
-  const response = await page.goto(`${origin}/all/project/thread/example/full`, { waitUntil: "networkidle2" })
+  // A deep link the recovery document must answer — a thread's drawer address on the one page.
+  const response = await page.goto(`${origin}/all/project/thread/example`, { waitUntil: "networkidle2" })
   assert.equal(response.status(), 503)
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light")
   const recovery = await page.evaluate(() => ({ color: getComputedStyle(document.documentElement).backgroundColor, chrome: document.querySelector('meta[name="theme-color"]').content }))

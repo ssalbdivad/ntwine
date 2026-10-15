@@ -32,7 +32,7 @@ import { ownedByThisPage } from "../lib/projectOwnership.ts"
 // CODEX IS DELIBERATELY LEFT OUT. Its axis is a sandbox rather than a permission mode, its restrictive
 // end is the one that caused the 2026-07-23 removal, and the ask was Claude-specific.
 //
-// ANY PROJECT, NOT ONLY THE PAGE'S. A drawer or /full passes just the slug and the thread comes from the
+// ANY PROJECT, NOT ONLY THE PAGE'S. A drawer passes just the slug and the thread comes from the
 // store's board. The cross-project page's card (AllQueuesCard) passes its own `scopedThread` — read from
 // the machine-wide poll, since the store holds only the FOCUSED project's board — and sits inside a
 // ThreadProjectScope, so every write goes to the card's own project through `useThreadApi`. The option

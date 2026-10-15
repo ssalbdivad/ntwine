@@ -17,8 +17,7 @@
 // project, in rail order, until then, and a project listed above the one being read put its whole lane
 // on top of the card the operator was reading the moment its first thread came to rest.
 //
-// NOTHING HERE LEAVES THE PAGE. There is no project page to leave for (routes.tsx), and fullscreen is a
-// choice in a drawer's own menu (ThreadMenu.tsx), not a door on a card. The page is BOUND to one project
+// NOTHING HERE LEAVES THE PAGE. There is no project page to leave for (routes.tsx). The page is BOUND to one project
 // — the page project: the prompt box at the top of the column dispatches into it, and a thread of it opens
 // in the page's drawer stack, in place. Focused, that is the view's project; showing All projects, it is
 // the box's own choice (the PICK, chosen in its bottom strip). Opening a thread of ANOTHER project moves
@@ -401,7 +400,7 @@ export function AllQueuesPage() {
   // All projects, the default view, is the bare "ntwine", counting every project's. A count, not a dot, so a background tab says how
   // much is waiting rather than only that something is. Set here, not in
   // <App/>, because only this page knows its view — and an effect in App would run AFTER this child's on
-  // mount and overwrite it. Cleared back to the bare mark when the page goes (the welcome page, `/full`).
+  // mount and overwrite it. Cleared back to the bare mark when the page goes (the welcome page).
   const tabName = focused ? viewed?.name : undefined
   useEffect(() => {
     document.title = tabName ? `${tabName} — ntwine` : "ntwine"

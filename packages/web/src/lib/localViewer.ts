@@ -18,8 +18,7 @@ import { basename } from "./paths.ts"
 //
 // "text" is the DEFAULT, not an allowlist, on purpose. The reader already refuses binary with a plain
 // "not a text file" (a NUL in the first 8 KiB, server-side), and a list of text extensions is exactly
-// what sent a Makefile, a `.env.example` or a `.vue` file out to an editor while `.ts` stayed in: the
-// /full page's split viewer has always taken every non-image file for that reason. What is listed is
+// what sent a Makefile, a `.env.example` or a `.vue` file out to an editor while `.ts` stayed in. What is listed is
 // the other side — formats whose bytes are not text and which a desktop app renders properly: the
 // office, data and archive tiers of the attachment allowlist, PDF, media, fonts and compiled objects.
 // PDF sits there although a browser can draw one, because the desktop shell enables no PDF plugin.

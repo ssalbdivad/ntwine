@@ -7,7 +7,7 @@ import { crc32, deflateSync } from "node:zlib"
 // the viewer's paging and dismissal, its zoom under a mouse and under fingers, the gallery on the cards
 // that render prose as one string of HTML, a loose picture opening the picture viewer — and the three things
 // only a browser settles: that an Escape the viewer handled never reaches the page (where it would unwind
-// a drawer or leave the fullscreen page), that focus comes back to the picture that opened it, and that
+// a drawer), that focus comes back to the picture that opened it, and that
 // a phone's Back closes the viewer rather than leaving the page. Skipped unless a Vite URL serving the
 // fixtures is provided: start `vite` in packages/web and set NTWINE_LIGHTBOX_E2E_URL to its origin (or run
 // `nub run test:e2e`, which does both).

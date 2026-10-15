@@ -137,80 +137,80 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
   await page.keyboard.press('Escape')
   check(`${name} model-grid headers and nested context controls`)
 
-  // ThreadTitle is shared by the drawer's header and /full's. Keep both editing paths and their semantic
-  // focus treatment covered when either header changes during palette migrations. Until 2026-09-28 the
-  // first was the board's queue card at desktop width; the page's queue card (AllQueuesCard) has a plain
-  // title link, so the drawer is the editable header off /full now, at both widths.
+  // ThreadTitle in the drawer's header, the one editable title (the page's queue card, AllQueuesCard, has a
+  // plain title link). Keep its editing path and semantic focus treatment covered during palette
+  // migrations, at both widths.
   for (const width of [1440, 390]) {
     await page.setViewport({ width, height: 1000, deviceScaleFactor: 1 })
-    for (const surface of ['drawer', 'full']) {
-      await page.goto(surface === 'drawer' ? `${url}/thread/theme-question` : `${url}/thread/theme-question/full`, { waitUntil: 'networkidle2' })
-      const root = '[data-thread-header]'
-      const title = `${root} button[title="Edit title"]`
-      const editor = `${root} input[aria-label="Thread title"]`
-      await page.waitForSelector(title, { visible: true })
-      const original = await page.$eval(title, el => el.textContent)
+    const surface = 'drawer'
+    await page.goto(`${url}/thread/theme-question`, { waitUntil: 'networkidle2' })
+    const root = '[data-thread-header]'
+    const title = `${root} button[title="Edit title"]`
+    const editor = `${root} input[aria-label="Thread title"]`
+    await page.waitForSelector(title, { visible: true })
+    const original = await page.$eval(title, el => el.textContent)
+    await page.click(title)
+    await page.waitForFunction(selector => document.querySelector(selector) === document.activeElement, {}, editor)
+    assert.equal(await page.$eval(editor, el => el.value), original)
+    await page.keyboard.type('A cancelled theme edit')
+    await page.keyboard.press('Escape')
+    await page.waitForSelector(editor, { hidden: true })
+    assert.equal(await page.$eval(title, el => el.textContent), original)
+    for (const value of ['A verified theme edit', original]) {
       await page.click(title)
       await page.waitForFunction(selector => document.querySelector(selector) === document.activeElement, {}, editor)
-      assert.equal(await page.$eval(editor, el => el.value), original)
-      await page.keyboard.type('A cancelled theme edit')
-      await page.keyboard.press('Escape')
-      await page.waitForSelector(editor, { hidden: true })
-      assert.equal(await page.$eval(title, el => el.textContent), original)
-      for (const value of ['A verified theme edit', original]) {
-        await page.click(title)
-        await page.waitForFunction(selector => document.querySelector(selector) === document.activeElement, {}, editor)
-        await page.keyboard.type(value)
-        await page.keyboard.press('Enter')
-        await page.waitForFunction(({ selector, value }) => {
-          const el = document.querySelector(selector)
-          return el?.textContent === value && !el.disabled
-        }, {}, { selector: title, value })
-      }
-      await page.keyboard.press('Tab')
-      await page.focus(title)
-      assert.equal(await page.$eval(title, el => el.matches(':focus-visible') && el.classList.contains('focus-visible:ring-focus-ink-60')), true)
-      await contrast(`title-${surface}-${width}`)
-      result[`${name}-title-${surface}-${width}-ink`] = await measureThreadTitleInk(page, title)
-      await page.setViewport({ width, height: 1000, deviceScaleFactor: 8 })
-      const row = await (await page.$(title)).evaluateHandle(el => el.parentElement)
-      await row.screenshot({ path: join(out, `${name}-title-${surface}-${width}.png`) })
-      await row.dispose()
-      await page.setViewport({ width, height: 1000, deviceScaleFactor: 1 })
+      await page.keyboard.type(value)
+      await page.keyboard.press('Enter')
+      await page.waitForFunction(({ selector, value }) => {
+        const el = document.querySelector(selector)
+        return el?.textContent === value && !el.disabled
+      }, {}, { selector: title, value })
     }
+    await page.keyboard.press('Tab')
+    await page.focus(title)
+    assert.equal(await page.$eval(title, el => el.matches(':focus-visible') && el.classList.contains('focus-visible:ring-focus-ink-60')), true)
+    await contrast(`title-${surface}-${width}`)
+    result[`${name}-title-${surface}-${width}-ink`] = await measureThreadTitleInk(page, title)
+    await page.setViewport({ width, height: 1000, deviceScaleFactor: 8 })
+    const row = await (await page.$(title)).evaluateHandle(el => el.parentElement)
+    await row.screenshot({ path: join(out, `${name}-title-${surface}-${width}.png`) })
+    await row.dispose()
+    await page.setViewport({ width, height: 1000, deviceScaleFactor: 1 })
   }
-  check(`${name} drawer and fullscreen title focus, rename and cancel at desktop and phone widths`)
+  check(`${name} drawer title focus, rename and cancel at desktop and phone widths`)
   await page.setViewport({ width: 1440, height: 1000, deviceScaleFactor: 1 })
 
-  await page.goto(`${url}/thread/theme-question/full`, { waitUntil: "networkidle2" })
+  await page.goto(`${url}/thread/theme-question`, { waitUntil: "networkidle2" })
+  // In the drawer: the page behind it also carries this thread's queue card, with the same question.
+  const drawer = '[data-drawer-layer]'
   // A STAGED answer, typed and not sent — no longer a picked option. Since 2c41b46f (2026-09-29) a
   // single-choice pick that completes the ask is its own send, so a pick here would answer the fixture's
   // one question and leave the next palette's pass nothing to measure. Typed text is still staged until
   // Enter; it is cleared again below. A staged answer arms the prompt box's Send, which is what sends it:
   // the cards draw no "Send answers" of their own beside a prompt box (upstream 59089c92, 2026-10-11).
-  const answer = 'textarea[data-surface="questionAnswer"]'
-  await page.waitForSelector("[data-question-option] > button")
+  const answer = `${drawer} textarea[data-surface="questionAnswer"]`
+  await page.waitForSelector(`${drawer} [data-question-option] > button`)
   await page.click(answer)
   await page.keyboard.type("Both, renderer first")
-  await page.waitForFunction(() => {
-    const send = document.querySelector("[data-send-split] [data-send]")
+  await page.waitForFunction(drawer => {
+    const send = document.querySelector(`${drawer} [data-send-split] [data-send]`)
     return send && !send.disabled && !document.querySelector("[data-send-answers]")
-  })
+  }, {}, drawer)
   await contrast("selected-question")
-  const outlineContract = await page.evaluate(() => {
-    const question = getComputedStyle(document.querySelector('.bg-question'))
-    const send = getComputedStyle(document.querySelector('[data-send-split] [data-send]'))
+  const outlineContract = await page.evaluate(drawer => {
+    const question = getComputedStyle(document.querySelector(`${drawer} .bg-question`))
+    const send = getComputedStyle(document.querySelector(`${drawer} [data-send-split] [data-send]`))
     return { question: [question.backgroundColor, question.borderTopColor, question.borderTopWidth], send: [send.backgroundColor, send.color] }
-  })
+  }, drawer)
   if (palette === 'light') assert.deepEqual(outlineContract.question, ['rgb(255, 255, 255)', 'rgb(220, 220, 220)', '1px'])
   assert.notEqual(outlineContract.send[0], outlineContract.send[1], 'The armed Send keeps its word legible on its fill')
   result[`${name}-question-outlines`] = outlineContract
   await shot("selected-question")
-  await page.evaluate(() => {
-    const text = document.querySelector('[data-question-option] p') ?? document.querySelector('[data-question-option] span')
+  await page.evaluate(drawer => {
+    const text = document.querySelector(`${drawer} [data-question-option] p`) ?? document.querySelector(`${drawer} [data-question-option] span`)
     const range = document.createRange(); range.selectNodeContents(text)
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range)
-  })
+  }, drawer)
   assert.ok(await page.evaluate(() => getSelection().toString().length > 0))
   await shot("text-selection")
   await page.evaluate(() => getSelection().removeAllRanges())
@@ -377,17 +377,17 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
   await page.click('[aria-label="More actions for theme-project"]')
   await page.evaluate(() => [...document.querySelectorAll('[role="menuitem"]')].find(el => el.textContent.includes('Delete')).click())
   await inspectDestructive('delete-project')
-  await page.goto(`${url}/thread/theme-rich/full`, { waitUntil: 'networkidle2' })
+  await page.goto(`${url}/thread/theme-rich`, { waitUntil: 'networkidle2' })
   // The alias trims whitespace; skip skill discovery against the transcript-only fixture.
-  await page.type('textarea', ' /logout')
+  await page.type('[data-drawer-layer] textarea', ' /logout')
   await page.keyboard.down('Meta')
   await page.keyboard.press('Enter')
   await page.keyboard.up('Meta')
   await inspectDestructive('sign-out')
   check(`${name} destructive confirmation labels in normal and pointer-hover states, without submitting either action`)
 
-  await page.goto(`${url}/thread/theme-rich/full`, { waitUntil: "networkidle2" })
-  await page.evaluate(() => [...document.querySelectorAll('button[aria-expanded="false"]')].find(el => el.textContent.includes("Ran 3 tool calls"))?.click())
+  await page.goto(`${url}/thread/theme-rich`, { waitUntil: "networkidle2" })
+  await page.evaluate(() => [...document.querySelectorAll('[data-drawer-layer] button[aria-expanded="false"]')].find(el => el.textContent.includes("Ran 3 tool calls"))?.click())
   await page.waitForSelector(".ntwine-diff")
   await page.$eval('[data-drawer-transcript-scroll]', el => { el.scrollTop = 0 })
   await page.evaluate(() => {
@@ -492,7 +492,7 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
     await contrast(`phone-${slug}`)
     await shot(`phone-${slug}`)
   }
-  await page.goto(`${url}/thread/theme-question/full`, { waitUntil: 'networkidle2' })
+  await page.goto(`${url}/thread/theme-question`, { waitUntil: 'networkidle2' })
   await page.waitForSelector('[data-question-option]')
   await contrast('phone-question')
   await shot('phone-question')

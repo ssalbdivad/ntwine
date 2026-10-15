@@ -6,7 +6,7 @@ import { showToast } from "../store.ts"
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/Popover.tsx"
 
 // HOW FULL THE SESSION'S CONTEXT IS — "◔ 74% context", in a thread header's second line after "Last
-// active" (queue card, drawer, full-screen), rendered once here so the three cannot drift. It sat as a
+// active" (queue card, drawer), rendered once here so the two cannot drift. It sat as a
 // bare donut in the lifecycle footer until 2026-10-05, when the footer went and the context reading
 // moved to the header with the other whole-thread facts (maintainer: "we say last active two minutes
 // ago, context at 74% or something" — see ThreadLifecycle.tsx for the top/bottom split).

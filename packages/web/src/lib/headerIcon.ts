@@ -8,7 +8,7 @@ export const HEADER_ICON_SQUARE = "flex h-7 w-7 shrink-0 items-center justify-ce
  *
  *  The strip is rendered identically by the queue card's header and the thread header (see
  *  HeaderActions), and it carries verbs from several modules — the navigation icons HeaderActions
- *  owns, the fullscreen door, the lifecycle verbs, and Restart worker, which moved up out of the
+ *  owns, the lifecycle verbs, and Restart worker, which moved up out of the
  *  lifecycle footer on 2026-08-26 (maintainer: "the restart worker button should be at the top… it
  *  shouldn't be along the bottom"). It arrived wearing the FOOTER's chrome — a 24px square at
  *  `text-fg/55` with a hand-measured ink trim for that strip's 12px ink rhythm — and none of it

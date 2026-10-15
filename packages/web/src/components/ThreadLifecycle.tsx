@@ -14,7 +14,7 @@ import { Dialog } from "./ui/Dialog.tsx"
 
 // THE WHOLE-THREAD LIFECYCLE VERBS, at the far right of a thread header's action strip: an alarm clock
 // that snoozes and a check that marks the thread done. Both headers render it — the queue card's and the
-// thread view's (the drawer and /full) — so the two surfaces cannot drift.
+// drawer's — so the two surfaces cannot drift.
 //
 // They lived in a footer strip under the prompt box until 2026-10-05, beside the context reading and
 // the goal. The maintainer gave the thread's two edges one job each: the HEADER manages the thread as a
@@ -52,7 +52,7 @@ export function ThreadLifecycleActions({
   onArchived?: () => void
   // Undo an OPTIMISTIC dismissal (see StateButton): the queue passes this so a card that faded on click
   // can be un-hidden the instant the server declines to complete (needs confirmation, or errors). Absent
-  // ⇒ the button stays non-optimistic (the drawer and /full, where there is no queue card to reinstate).
+  // ⇒ the button stays non-optimistic (the drawer, where there is no queue card to reinstate).
   onDismissCancel?: () => void
   // The server recorded Done (StateButton `onCompleted`).
   onCompleted?: () => void

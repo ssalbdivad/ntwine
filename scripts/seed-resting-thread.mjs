@@ -1,8 +1,8 @@
 // Seed a disposable adhoc stack with SIMULATED workers that are AT REST while their own dispatched
 // work is still live — the exact state board.deriveAwaitingBackground selects — so the resting card can
-// be judged on all three surfaces in the REAL app: real tailer, real board derivation, real push, real
+// be judged on both surfaces in the REAL app: real tailer, real board derivation, real push, real
 // browser. A fixture page proves the component; only this proves the SERVER actually sets
-// `awaitingBackground` and that the drawer / full-screen page read it.
+// `awaitingBackground` and that the drawer reads it.
 //
 // Two threads, because the card's sentence has to be true in more than one shape:
 //   resting-both   — a live sub-agent AND a live background shell (the "and" case)

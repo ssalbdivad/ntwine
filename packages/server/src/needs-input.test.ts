@@ -78,7 +78,7 @@ test("the contract is by dispatch instant, and an unknown instant is legacy", ()
 test("false on a park ntwine can honour keeps the thread out of the queue — and the card still states the wait", () => {
   const t = tele({ subAgents: [LIVE_AGENT], ...agentPark("false") })
   assert.equal(needsYou(row(), t), false)
-  // The FACT survives the excusal: the drawer and the full-screen page still say what it waits on.
+  // The FACT survives the excusal: the drawer still says what it waits on.
   assert.equal(deriveAwaitingBackground(row(), t, "turn-idle", false, NOW), true)
 })
 

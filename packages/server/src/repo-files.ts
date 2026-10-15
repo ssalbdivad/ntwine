@@ -3,11 +3,11 @@ import { existsSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { liftRepoWorktree } from "./thread-cwd.ts"
 
-// WHICH OF A THREAD'S WRITTEN FILES BELONG ON THE RAIL: the ones git would carry, and nothing else.
+// WHICH OF A THREAD'S WRITTEN FILES COUNT: the ones git would carry, and nothing else.
 //
-// The rail lists what a worker wrote (edited-files.ts). Restricting it to files git is not ignoring is
-// the maintainer's product call (2026-09-04): "it's fine to only track changes that are tracked in git
-// here". The rail becomes an account of work on the REPOSITORY, and a thread's scratch — `.ntwine/`
+// edited-files.ts lists what a worker wrote. Restricting it to files git is not ignoring is the
+// maintainer's product call (2026-09-04, for the fullscreen page's rail): "it's fine to only track
+// changes that are tracked in git here". The list becomes an account of work on the REPOSITORY, and a thread's scratch — `.ntwine/`
 // notes, plans, research docs — drops out of it along with build output and `node_modules`.
 //
 // It is deliberately a FILTER and never a SOURCE. Attribution stays with the transcript, which is the
@@ -45,8 +45,8 @@ import { liftRepoWorktree } from "./thread-cwd.ts"
 // Enough for a whole effort's writes; a thread naming more than this is pathological and the tail is not
 // worth a second git process.
 const MAX_PROBE = 512
-// The rail is recomputed on every transcript read, and reads are polled. One `check-ignore` is ~20-50ms,
-// which is not free at poll rates, and a `.gitignore` changes far more slowly than a board polls.
+// The list was recomputed on every transcript read while the fullscreen rail drew it, and reads are
+// polled. One `check-ignore` is ~20-50ms, and a `.gitignore` changes far more slowly than a board polls.
 const CACHE_TTL_MS = 15_000
 
 type CacheEntry = { at: number; ignored: Set<string> }
@@ -144,7 +144,7 @@ export function repoCarriedFiles(projectDir: string, paths: readonly string[]): 
   return paths.filter((p) => !dropped.has(p))
 }
 
-/** `repoCarriedFiles` over the rail's own rows, preserving their order and their diffstats. */
+/** `repoCarriedFiles` over a thread's edited files, preserving their order and their diffstats. */
 export function repoCarriedEditedFiles<T extends { path: string }>(projectDir: string, files: readonly T[]): T[] {
   if (files.length === 0) return []
   const kept = new Set(repoCarriedFiles(projectDir, files.map((f) => f.path)))
@@ -163,7 +163,7 @@ function probeIgnored(root: string, rels: readonly string[]): Set<string> {
   // `check-ignore -z --stdin` prints the paths it IS ignoring, NUL-separated, as they were given.
   // INDEX-AWARE, i.e. WITHOUT `--no-index`: a file force-added under an ignored directory (`git add -f
   // secret/kept.txt`) is one the repository genuinely carries, and the default mode says so while
-  // `--no-index` calls it ignored and would drop it from the rail. Verified against `git ls-files` as
+  // `--no-index` calls it ignored and would drop it from the list. Verified against `git ls-files` as
   // ground truth, 2026-09-04.
   try {
     const out = execFileSync("git", ["check-ignore", "-z", "--stdin"], {

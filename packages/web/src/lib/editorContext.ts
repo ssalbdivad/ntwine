@@ -140,7 +140,7 @@ export function contextBarReading(active: EditorContextState["active"]): Context
  * VS Code extension]"). In the editor WITH a selection it adds the selection as a chip at the prompt box's
  * caret; with NOTHING selected it moves to the prompt box; pressed in the sidebar it goes back to the
  * editor (lib/embedHost.ts forwards it; packages/vscode embed.ts CHORDS runs it). The extension binds it
- * beside the app's own ⌘I (FileViewerPanel's staging chord) and, while Claude Code's extension does not
+ * beside the app's own ⌘I (App.tsx app.details) and, while Claude Code's extension does not
  * hold it, Claude Code's ⌥K. One chord is named, the one most people know; the `?` sheet lists them all
  * (lib/embedKeys.ts EDITOR_CHORDS). Spelled by the app's keycap formatter so it reads like every other
  * shortcut.

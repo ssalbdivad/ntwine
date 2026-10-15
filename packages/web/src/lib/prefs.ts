@@ -16,11 +16,6 @@ export interface Prefs {
   // preset (SnoozeMenu.tsx), because a remembered default made one click mean different spans on
   // different days. A custom date is deliberately one-off and never overwrites this reusable preset.
   snoozePreset: SnoozePreset
-  // The fullscreen rail's "Edited files" group folded to its heading (maintainer 2026-09-03: "make
-  // Edited Files collapsible"). Open by default — the list is the rail's one non-wait group and the
-  // reason the page has a rail at all — and remembered here rather than in the store because a
-  // 22-file list a human folded once should stay folded on the next thread and the next reload.
-  railFilesCollapsed: boolean
   // The operator's keyboard-shortcut CHANGES from the defaults (lib/keybindings.ts), not the whole
   // map: an action still on its default has no entry, so a default that changes in a later release
   // reaches everyone who never touched it. Per browser on purpose — a keyboard belongs to a machine.
@@ -54,7 +49,6 @@ export function parseStoredPrefs(raw: string | null): Prefs {
   const fallback: Prefs & RedefaultMarkers = {
     compactDiffs: true,
     snoozePreset: DEFAULT_SNOOZE_PRESET,
-    railFilesCollapsed: false,
     keybindings: {},
     alwaysShowStatusLines: false,
     showRecentThreads: false,
@@ -74,6 +68,9 @@ export function parseStoredPrefs(raw: string | null): Prefs {
     // "Queue order" (oldest or newest first) was a per-browser pref until 2026-10-14; the queue is always
     // oldest first now (groups.ts orderQueue). Dropped the same way.
     delete (stored as Record<string, unknown>).queueOrder
+    // The fold of the fullscreen page's "Edited files" rail went with that page on 2026-10-15. Dropped
+    // the same way.
+    delete (stored as Record<string, unknown>).railFilesCollapsed
     // ONE-TIME migration (2026-07-09): the maintainer settled diffs as collapsed-by-default for
     // card-family consistency. A stored `compactDiffs: false` predating that decision was the OLD
     // default, not a choice — re-default it once. The marker makes a subsequent deliberate
@@ -93,7 +90,6 @@ export function parseStoredPrefs(raw: string | null): Prefs {
       ...fallback,
       ...stored,
       snoozePreset: isSnoozePreset(stored.snoozePreset) ? stored.snoozePreset : fallback.snoozePreset,
-      railFilesCollapsed: typeof stored.railFilesCollapsed === "boolean" ? stored.railFilesCollapsed : fallback.railFilesCollapsed,
       keybindings: sanitizeOverrides(stored.keybindings),
       alwaysShowStatusLines: stored.alwaysShowStatusLines === true,
       showRecentThreads: stored.showRecentThreads === true,

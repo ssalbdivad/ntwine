@@ -31,8 +31,8 @@ import { RegisteredAnsweringContext, type RegisteredAnswering } from "./componen
 // with a real clip, in byte ranges as the real route does. A path naming `missing` is answered 404, the
 // way the real route answers a file that is gone.
 //
-// A window listener counts the keys that reach the PAGE. The real page unwinds its drawers — and leaves
-// the fullscreen page — on an Escape that gets that far (DrawerStack), so the viewer must keep its own.
+// A window listener counts the keys that reach the PAGE. The real page unwinds its drawers on an Escape
+// that gets that far (DrawerStack), so the viewer must keep its own.
 declare global {
   interface Window { __pageKeys?: string[]; __chips?: number[]; __sheetPicks?: number[] }
 }

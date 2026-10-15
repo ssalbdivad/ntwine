@@ -136,15 +136,15 @@ export async function checkThemePreferences({ browser, url, check }) {
     await resolved(peer, "dark")
     check("Storage removal and clear restore System in the other tab")
     await set("light")
-    // The page, the page focused on the OTHER project, a deep link and the stack's own url, which lands
+    // The page, the page focused on the OTHER project, a thread's drawer and the stack's own url, which lands
     // on the page again. Until 2026-09-28 the second of these was that project's board,
     // `/project/second-project`, and the first the all-projects grid; both are the one page now, in its
     // own view (`/?project=`, lib/pageView.ts).
-    for (const route of [new URL("/", url).href, new URL("/?project=second-project", url).href, `${url}/thread/theme-rich/full`, url]) {
+    for (const route of [new URL("/", url).href, new URL("/?project=second-project", url).href, `${url}/thread/theme-rich`, url]) {
       await page.goto(route, { waitUntil: "networkidle2" })
       await resolved(page, "light")
     }
-    check("Light survives the page, another project's focus, deep link and reload navigation")
+    check("Light survives the page, another project's focus, a thread's drawer and reload navigation")
 
     await page.evaluate(() => { Object.defineProperty(Storage.prototype, "setItem", { configurable: true, value() { throw new DOMException("Full", "QuotaExceededError") } }) })
     await set("dark")
@@ -155,17 +155,19 @@ export async function checkThemePreferences({ browser, url, check }) {
   } finally { await page.close(); await peer.close() }
 }
 
+// The thread is open in its drawer; the page behind it carries its queue card too, so every reading
+// here is scoped to the drawer ([data-drawer-layer]).
 export async function checkRichRendererState({ page, url, check }) {
-  await page.goto(`${url}/thread/theme-rich/full`, { waitUntil: "networkidle2" })
-  await page.waitForSelector('[data-mermaid-state="ready"]')
-  const iframe = await page.waitForSelector('iframe[title="theme counter"]')
+  await page.goto(`${url}/thread/theme-rich`, { waitUntil: "networkidle2" })
+  await page.waitForSelector('[data-drawer-layer] [data-mermaid-state="ready"]')
+  const iframe = await page.waitForSelector('[data-drawer-layer] iframe[title="theme counter"]')
   const frame = await iframe.contentFrame()
   await frame.waitForSelector("#value")
   await frame.click("#increment")
   const before = await frame.evaluate(() => ({ identity: window.mountIdentity, value: document.querySelector("#value").value, color: getComputedStyle(document.querySelector("#series span")).backgroundColor }))
   const beforeSrc = await iframe.evaluate(el => el.src)
   await page.evaluate(async () => {
-    window.richNode = document.querySelector('[data-mermaid-state="ready"]').parentElement
+    window.richNode = document.querySelector('[data-drawer-layer] [data-mermaid-state="ready"]').parentElement
     const theme = await import("/src/lib/theme.ts")
     for (const preference of ["light", "dark", "light", "dark", "light"]) {
       theme.setThemePreference(preference)
@@ -173,24 +175,24 @@ export async function checkRichRendererState({ page, url, check }) {
     }
   })
   await frame.waitForFunction(() => getComputedStyle(document.documentElement).colorScheme === "light")
-  await page.waitForFunction(() => document.querySelectorAll('[data-mermaid-state="ready"]').length === 2 && !document.querySelector('[data-mermaid-state="loading"]'))
+  await page.waitForFunction(() => document.querySelectorAll('[data-drawer-layer] [data-mermaid-state="ready"]').length === 2 && !document.querySelector('[data-drawer-layer] [data-mermaid-state="loading"]'))
   const after = await frame.evaluate(() => ({ identity: window.mountIdentity, value: document.querySelector("#value").value, color: getComputedStyle(document.querySelector("#series span")).backgroundColor }))
   assert.equal(before.identity, after.identity)
   assert.equal(after.value, "43")
   assert.equal(await iframe.evaluate(el => el.src), beforeSrc)
   assert.equal(await iframe.evaluate(el => el.getAttribute("sandbox")), "allow-scripts")
-  assert.equal(await page.evaluate(() => document.querySelector('[data-mermaid-state="ready"]').parentElement === window.richNode), true)
+  assert.equal(await page.evaluate(() => document.querySelector('[data-drawer-layer] [data-mermaid-state="ready"]').parentElement === window.richNode), true)
   assert.notEqual(after.color, before.color, "Chart colors respond to the selected palette")
   assert.ok(await frame.evaluate(() => window.themeEvents >= 2), "Cooperative renderers receive theme-change notifications")
   await page.waitForFunction(() => !document.querySelector('[id^="dntwine-mermaid-"]'))
   check("Rapid theme changes preserve iframe controls and transcript nodes", { before, after })
   const initialHeight = await iframe.evaluate(el => el.getBoundingClientRect().height)
   await frame.evaluate(() => { const el = document.createElement("div"); el.style.height = "500px"; document.body.append(el) })
-  await page.waitForFunction(initialHeight => document.querySelector('iframe[title="theme counter"]').getBoundingClientRect().height > initialHeight, {}, initialHeight)
+  await page.waitForFunction(initialHeight => document.querySelector('[data-drawer-layer] iframe[title="theme counter"]').getBoundingClientRect().height > initialHeight, {}, initialHeight)
   check("Iframe natural height still updates after theme application")
-  await page.goto(`${url}/thread/theme-invalid/full`, { waitUntil: "networkidle2" })
-  await page.waitForSelector('[data-mermaid-state="error"]')
-  await page.waitForSelector('[data-mermaid-state="ready"]')
+  await page.goto(`${url}/thread/theme-invalid`, { waitUntil: "networkidle2" })
+  await page.waitForSelector('[data-drawer-layer] [data-mermaid-state="error"]')
+  await page.waitForSelector('[data-drawer-layer] [data-mermaid-state="ready"]')
   await page.evaluate(async () => {
     const theme = await import("/src/lib/theme.ts")
     theme.setThemePreference("dark")
@@ -198,7 +200,7 @@ export async function checkRichRendererState({ page, url, check }) {
     const { router } = await import("/src/routes.tsx")
     await router.navigate(location.pathname.replace("theme-invalid", "theme-rich"))
   })
-  await page.waitForSelector('iframe[title="theme counter"]')
+  await page.waitForSelector('[data-drawer-layer] iframe[title="theme counter"]')
   await page.waitForFunction(() => !document.querySelector('[id^="dntwine-mermaid-"]'))
   check("Malformed diagrams do not block later jobs or leak scratch nodes on unmount")
 }
@@ -212,7 +214,7 @@ export async function checkIframeFirstPaint({ browser, url, check }) {
         localStorage.setItem("ntwine-theme", "light")
         window.iframePaints = []
         const sample = () => {
-          const frame = document.querySelector('iframe[title="theme counter"]')
+          const frame = document.querySelector('[data-drawer-layer] iframe[title="theme counter"]')
           if (frame) window.iframePaints.push({ at: performance.now(), visibility: getComputedStyle(frame).visibility })
           requestAnimationFrame(sample)
         }
@@ -228,8 +230,8 @@ export async function checkIframeFirstPaint({ browser, url, check }) {
           } else await req.continue()
         })
       }
-      await page.goto(`${url}/thread/theme-rich/full`, { waitUntil: "networkidle2" })
-      const iframe = await page.waitForSelector('iframe[title="theme counter"]')
+      await page.goto(`${url}/thread/theme-rich`, { waitUntil: "networkidle2" })
+      const iframe = await page.waitForSelector('[data-drawer-layer] iframe[title="theme counter"]')
       if (suppressAck) {
         assert.equal(await iframe.evaluate(el => getComputedStyle(el).visibility), "hidden")
         await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some(el => el.textContent.includes("Visualization unavailable")), { timeout: 8000 })
@@ -239,7 +241,7 @@ export async function checkIframeFirstPaint({ browser, url, check }) {
         assert.ok(paints.at(-1).at - paints[0].at >= 4500, "The acknowledgement deadline is 5s, not an early fallback")
         check("No-ack negative control stays hidden and reaches the unavailable state after 5s")
       } else {
-        await page.waitForFunction(() => getComputedStyle(document.querySelector('iframe[title="theme counter"]')).visibility === "visible")
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-drawer-layer] iframe[title="theme counter"]')).visibility === "visible")
         const frame = await iframe.contentFrame()
         assert.equal(await frame.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light")
         const paints = await page.evaluate(() => window.iframePaints)

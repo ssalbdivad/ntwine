@@ -363,7 +363,7 @@ gent. See **CLI launcher** below.
 
 ntwine used to run ONE SERVER PER PROJECT, each on its own port, so every URL was unambiguous and unprefixed. It is now a SINGLETON: one server on one origin serves EVERY project on the machine, and the project is named by a URL PREFIX. Two rules follow, and most of the bugs in this area come from missing one of them.
 
-**ntwine's own routes are under `/_ntwine`, so the top level is free.** Anything outside `/_ntwine` is the SPA's: `/`, `/all/<slug>/…`, `/project/<slug>…` and the launching project's unprefixed `/thread/<t>/full`. `APP_ROUTE_SEGMENTS` (`thread`) is a different set — the unprefixed in-app links an AGENT writes (`[x](/thread/<t>)`), which the markdown sanitizer re-points at the page's project (`prefixedAppRoute`) rather than letting them address whichever project launched the server.
+**ntwine's own routes are under `/_ntwine`, so the top level is free.** Anything outside `/_ntwine` is the SPA's: `/`, `/all/<slug>/…` and `/project/<slug>…`. `APP_ROUTE_SEGMENTS` (`thread`) is a different set — the unprefixed in-app links an AGENT writes (`[x](/thread/<t>)`), which the markdown sanitizer re-points at the page's project (`prefixedAppRoute`) rather than letting them address whichever project launched the server.
 
 **A project in an address lives under a segment — `/project/<slug>` for its board, `/all/<slug>` for a drawer on All projects — not at `/<slug>`.** One segment buys back the whole root namespace, so a future page can never be shadowed by a directory somebody happens to have. `/project/<slug>` was a project's own page until 2026-09-28, gone while focus mode lived in the query, and the board's address again since 2026-10-06 (David: the fork is the base with upstream's URL scheme, `plans/upstream-superset.md` §2). Only its exact shapes are pages (`base-path.ts PROJECT_BOARD`): `/project/acme/src/main.rs` is somebody's file.
 
@@ -375,11 +375,10 @@ ntwine used to run ONE SERVER PER PROJECT, each on its own port, so every URL wa
 | --- | --- |
 | `/project/<slug>` | the page (`components/AllQueues.tsx`) focused on `<slug>` — the project's BOARD. A slug no project has says so in a toast and lands on `/` |
 | `/project/<slug>/thread/<t>` | the board with `<t>` open in place: a COLD link (a bookmark, a pasted address) to a queued thread lands on its card on a desktop and the address returns to `/project/<slug>` (`lib/queueLandingHold.ts` holds it there); anything else opens its drawer |
-| `/project/<slug>/thread/<t>/full` | the thread's fullscreen page, outside the layout |
 | `/` | NO VIEW OF ITS OWN (`routes.tsx LastViewRedirect`): it replaces itself with the view this browser showed last — `/all` or `/project/<slug>`, remembered in localStorage (`ntwine.lastView`, `lib/crossProject.ts lastViewHref`; navigation memory, not a setting, and never written by an editor's frame) — and a browser that never chose, or whose remembered board is gone, gets All projects. A launch from a known project lands here too, with that project stamped as All projects' prompt-box pick. It answers a launcher's `?add=` and the server's `?unknown=` on the way through. With no project at all it is the welcome page (add a project, or start in Home). |
 | `/all` | the page showing All projects, bound to the prompt box's pick (the operator's last pick in this browser, else the most recently opened open project — `lib/crossProject.ts`; never the Home workspace, which is picked only when chosen); where an `everything` launch (from $HOME) lands, and what an editor's sidebar frames when no folder maps to a project. It was the bare `/` from 2026-09-30 to 2026-10-06 |
 | `/all/<slug>/thread/<t>` | All projects with `<t>`'s drawer open IN PLACE; the page is bound to `<slug>` while the drawer is open |
-| `/all/<slug>/thread/<t>/full`, `/thread/<t>/full` | the thread's fullscreen page, outside the layout; the unprefixed one is the launching project's |
+| `…/thread/<t>/full` | the thread's fullscreen page until 2026-10-15 (maintainer: "the fullscreen view sucks"): an old link drops the `/full` and lands on that thread's address above (`lib/retiredFullPage.ts`, read by `main.tsx` on a cold load and `routes.tsx` in the app); an unprefixed one becomes a bare `/thread/<t>`, which lands on `/` |
 | `/?project=<slug>`, `/?focus=<slug>`, `/?all`, `/?embed=vscode` | the view's addresses from 2026-09-29 to 2026-10-06 — redirected to `/project/<slug>` and `/all` (an older editor sidebar's bare `/?embed=…` asked for All projects), the rest of the query riding along (`lib/pageView.ts legacyViewRedirect`); a drawer's old `/all/<s>/thread/<t>?project=…` lands on `/project/<s>/thread/<t>` |
 | `/projects`, `/queues`, `/all/<slug>` | All projects' old names, and a drawer's address cut short: redirected to `/all`, keeping the query |
 | anything else — `/status/…`, a bare `/thread/<t>` | redirects to `/`, keeping its query (`?add`, `?unknown`). These are deliberately NOT translated (David 2026-09-28: "backward compat not important at this point") |
@@ -401,8 +400,8 @@ This page absorbed the project grid (`/projects`) on 2026-09-24: adding a projec
 | helper | answers |
 | --- | --- |
 | `projectSlug(path)` | the project this page is bound to — the `<slug>` of `/project/<slug>…` or `/all/<slug>…` in the address, or at `/all` (and a phone's `/`) the focus `setHomeFocus` was handed — or `undefined` where there is none |
-| `isCrossProjectPath(path)` | whether this is the page (`/all` or `/` with a focus, `/all/<slug>…` or a board's `/project/<slug>…`), rather than the welcome or the unprefixed `/full` |
-| `isProjectBoardPath(path)` | whether this is a project's board — only its exact shapes (`PROJECT_BOARD`): `/project/<slug>`, `…/thread/<t>[/full]`, `…/status/<s>` |
+| `isCrossProjectPath(path)` | whether this is the page (`/all` or `/` with a focus, `/all/<slug>…` or a board's `/project/<slug>…`), rather than the welcome |
+| `isProjectBoardPath(path)` | whether this is a project's board — only its exact shapes (`PROJECT_BOARD`): `/project/<slug>`, `…/thread/<t>` (and its retired `/full`), `…/status/<s>` |
 | `basePath(path)` | `/project/<slug>` on a board, `/all/<slug>` on All projects (`/all` answers `/all/<focus>`), or `""` |
 | `innerPath(path)` | the path with the prefix removed — what the ROUTER reasons about |
 | `outerPath(inner)` | an inner path put back in ADDRESS-BAR terms; the inner `/` is the board on a board, `/all` on All projects whichever project a drawer had bound, and `/` at a phone's `/` |
@@ -412,7 +411,7 @@ This page absorbed the project grid (`/projects`) on 2026-09-24: adding a projec
 
 The VIEW's addresses are `lib/pageView.ts`'s: `viewHref` / `projectViewHref` (`/all`, `/project/<slug>`), `viewAt` (what a page at an address shows), `homeHref` (the page under the drawers, with none open — the board or `/all`, never `/`), and `legacyViewRedirect` (where a query-era address lands). Where a bare `/` goes is `lib/crossProject.ts lastViewHref`.
 
-**AN EMPTY BASE IS A SUPPORTED STATE**, and a narrow one now: the launching project's unprefixed `/thread/<t>/full`, and a page with no project at all (the welcome). Until 2026-09-28 the launching project was also served unprefixed at `/thread/<slug>` and `/status/<name>`, so every pre-singleton bookmark still resolved; those now land on `/` like any other unknown address. An unprefixed link is still not a shape to MINT: built without the prefix, it silently addresses whichever project started the server, which is how the drawer's ↗ button came to open a stranger's board (2026-08-07). Build outward-facing URLs with `outerPath`/`crossProjectHref`; parse with `innerPath`.
+**AN EMPTY BASE IS A SUPPORTED STATE**, and a narrow one now: a page with no project at all (the welcome). Until 2026-09-28 the launching project was also served unprefixed at `/thread/<slug>` and `/status/<name>`, so every pre-singleton bookmark still resolved; those now land on `/` like any other unknown address. An unprefixed link is still not a shape to MINT: built without the prefix, it silently addresses whichever project started the server, which is how the drawer's ↗ button came to open a stranger's board (2026-08-07). Build outward-facing URLs with `outerPath`/`crossProjectHref`; parse with `innerPath`.
 
 ## The Home workspace (a board for work that belongs to no project)
 
@@ -678,9 +677,8 @@ plugin directory. The published package does this for you.
   ntwine DOC composite for a never-spawned thread — `store.openThread`) — a Ready row whose card the
   queue is showing scrolls to that card instead. The keyboard is a set of REBINDABLE shortcuts
   (`lib/keybindings.ts` defines them, `lib/keyboardRuntime.ts` runs them, the `?` sheet lists and
-  rebinds them): `j`/`k` step through the queue's cards; `r` reply, `d` done, `s` snooze and `f`
-  fullscreen press the real control on whatever is in front of you — the top drawer, the /full page,
-  or the card being read; `t` opens a terminal on that thread; `c` starts a thread and `n` adds a project. A plain key is inert
+  rebinds them): `j`/`k` step through the queue's cards; `r` reply, `d` done and `s` snooze
+  press the real control on whatever is in front of you — the top drawer or the card being read; `t` opens a terminal on that thread; `c` starts a thread and `n` adds a project. A plain key is inert
   while you type in a field and under any overlay (a thread drawer is not one, at any width); ⌘K
   (palette) and ⌘I (details) work anywhere, and Esc unwinds overlays then drawers. A machine with
   NO usable project gets the welcome page at `/` instead of the column (the zero-thread board, which

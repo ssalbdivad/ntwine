@@ -4,8 +4,9 @@ import path from "node:path"
 import { shellWriteTargets, type EditedFile, type TranscriptMessage } from "@ntwine/shared"
 import { expandHome } from "./path-probe.ts"
 
-// THE FILES A THREAD'S WORKER HAS WRITTEN, derived from its projected transcript — the fullscreen
-// page's rail lists them (maintainer 2026-08-28: "the edited files, if that's even possible"). Two
+// THE FILES A THREAD'S WORKER HAS WRITTEN, derived from its projected transcript — what "Review changes"
+// reads (review-target.ts) and what a thread's summary lists. Written for the fullscreen page's rail
+// (maintainer 2026-08-28: "the edited files, if that's even possible"), gone since 2026-10-15. Two
 // readings feed it:
 //
 //  1. TOOL CALLS. Every Edit/Write/MultiEdit call carries a structured `edit.file`, and a codex
@@ -30,12 +31,12 @@ import { expandHome } from "./path-probe.ts"
 // one was issued (the emitting message's own stamp).
 //
 // A FILE THAT NO LONGER EXISTS IS NOT A ROW, whichever reading named it. A Bash `rm`/`mv` is not
-// parsed; the rail asks the filesystem at read time instead, which also catches a file deleted by
+// parsed; the list asks the filesystem at read time instead, which also catches a file deleted by
 // another thread, by the maintainer, or by anything else. Until 2026-09-25 an Edit/Write row was kept
 // after its file was deleted, as part of "the account of what the effort did" — and two memory files a
 // worker wrote under `~/.claude` and then deleted stayed on the rail for good, each row opening a file
 // that was not there (maintainer: "These two files keep showing up in the sidebar … despite the fact
-// that they've been deleted"). The rail is a way into the files; one that is gone has no way in.
+// that they've been deleted"). The list is a way into the files; one that is gone has no way in.
 
 const FILE_WRITING_TOOL_NAMES = new Set(["edit", "multiedit", "write", "apply patch"])
 
@@ -60,8 +61,8 @@ function normalizedToolName(name: string): string {
 
 // A `${…}` left in a path is a codex exec-wrapper placeholder the projection could not fill — a loop
 // variable, an expression — not a directory the worker wrote (transcript.ts, fillTemplatePlaceholders).
-// It stays on the card, which shows what the script said; it stays OFF the rail, whose rows open the
-// file they name. The web digest (toolActivity.ts editedFileCount) applies the same test.
+// It stays on the card, which shows what the script said; it stays OFF this list, which names files a
+// reader can open. The web digest (toolActivity.ts editedFileCount) applies the same test.
 const UNRESOLVED_PLACEHOLDER = /\$\{/
 
 export function editedFilePath(tool: ToolLike): string | null {

@@ -145,8 +145,7 @@ try {
     await new Promise((r) => setTimeout(r, 100))
   }
   // `url` is the launcher's DRAWER PREFIX on the one page — `/all/<slug>` — so `${url}/thread/<t>` is
-  // that thread's drawer over Everything and `${url}/thread/<t>/full` its fullscreen page, which is how
-  // every caller uses it. A bare `url` is not a page of its own: it redirects to `/`, Everything, which
+  // that thread's drawer over Everything, which is how every caller uses it. A bare `url` is not a page of its own: it redirects to `/`, Everything, which
   // is the right landing for a caller that only wants "the app".
   //
   // Until 2026-09-28 this announced the project's BOARD, `/project/<slug>`, because `/` was then the

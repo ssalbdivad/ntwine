@@ -19,17 +19,11 @@ test("a stored 1d from before the tomorrow default is re-defaulted once, then st
   assert.equal(parseStoredPrefs(JSON.stringify({ snoozePreset: "1d", diffsRedefaulted: true, snoozeRedefaulted: true })).snoozePreset, "1d")
 })
 
-test("the retired queue order is dropped from a stored blob, and everything else kept", () => {
-  const parsed = parseStoredPrefs(JSON.stringify({ queueOrder: "lifo", railFilesCollapsed: true, diffsRedefaulted: true }))
+test("the retired queue order and edited-files fold are dropped from a stored blob, and everything else kept", () => {
+  const parsed = parseStoredPrefs(JSON.stringify({ queueOrder: "lifo", railFilesCollapsed: true, alwaysShowStatusLines: true, diffsRedefaulted: true }))
   assert.equal("queueOrder" in parsed, false)
-  assert.equal(parsed.railFilesCollapsed, true)
-})
-
-test("the rail's edited-files fold is open by default and only a boolean folds it", () => {
-  assert.equal(parseStoredPrefs(null).railFilesCollapsed, false)
-  assert.equal(parseStoredPrefs("not-json").railFilesCollapsed, false)
-  assert.equal(parseStoredPrefs(JSON.stringify({ railFilesCollapsed: true, diffsRedefaulted: true })).railFilesCollapsed, true)
-  assert.equal(parseStoredPrefs(JSON.stringify({ railFilesCollapsed: "yes", diffsRedefaulted: true })).railFilesCollapsed, false)
+  assert.equal("railFilesCollapsed" in parsed, false)
+  assert.equal(parsed.alwaysShowStatusLines, true)
 })
 
 test("status lines are a hover by default; only a stored true writes them after the name", () => {
@@ -50,16 +44,16 @@ test("keyboard-shortcut overrides persist, and a bad entry falls back to its def
 })
 
 test("the retired per-browser code-files choice is dropped from a stored blob", () => {
-  const parsed = parseStoredPrefs(JSON.stringify({ codeFiles: "editor", codeFilesRedefaulted: true, railFilesCollapsed: true, diffsRedefaulted: true }))
+  const parsed = parseStoredPrefs(JSON.stringify({ codeFiles: "editor", codeFilesRedefaulted: true, alwaysShowStatusLines: true, diffsRedefaulted: true }))
   assert.equal("codeFiles" in parsed, false)
   assert.equal("codeFilesRedefaulted" in parsed, false)
-  assert.equal(parsed.railFilesCollapsed, true, "everything else kept")
+  assert.equal(parsed.alwaysShowStatusLines, true, "everything else kept")
 })
 
 test("the context bar's eye is no longer a pref: a stored value is dropped and everything else kept", () => {
   // It is the extension's ntwine.shareEditorState now (lib/editorContext.ts setShareEditor).
   assert.equal("sendEditorContext" in parseStoredPrefs(null), false)
-  const older = parseStoredPrefs(JSON.stringify({ sendEditorContext: false, railFilesCollapsed: true, diffsRedefaulted: true }))
+  const older = parseStoredPrefs(JSON.stringify({ sendEditorContext: false, alwaysShowStatusLines: true, diffsRedefaulted: true }))
   assert.equal("sendEditorContext" in older, false)
-  assert.equal(older.railFilesCollapsed, true)
+  assert.equal(older.alwaysShowStatusLines, true)
 })

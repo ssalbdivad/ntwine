@@ -1475,8 +1475,8 @@ export function createRouter(ctx: AppContext) {
     return withKind(threadWorkingDirFromTranscript(slug))
   }
 
-  // WHAT "REVIEW CHANGES" SHOWS (review-target.ts): the checkouts the thread wrote in, from the rail's own
-  // edited files — the whole transcript, filtered to what git carries — and where its agent works now.
+  // WHAT "REVIEW CHANGES" SHOWS (review-target.ts): the checkouts the thread wrote in, from its edited
+  // files (edited-files.ts) — the whole transcript, filtered to what git carries — and where its agent works now.
   // The title is the page's, which shows the thread by name; without one, the registry's.
   function reviewTarget(slug: string, title: string | undefined): EditorReviewTarget {
     const row = ctx.storage.getSession(slug)
@@ -5338,9 +5338,9 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => readLocalMarkdown(settleWorktreePath(input.path), openRoots),
     }),
 
-    // A file's SOURCE, for the fullscreen page's file viewer. The SAME openable roots as the Markdown
+    // A file's SOURCE, for the file reader (FileReaderDrawer). The SAME openable roots as the Markdown
     // reader — see readLocalTextFile for why the project-directory-only gate this replaced refused 41%
-    // of the rail's own rows (a worker's checkout is very often a worktree outside the project dir).
+    // of the files a worker wrote (a worker's checkout is very often a worktree outside the project dir).
     localFile: query({
       input: z.object({ path: z.string().max(4096) }).strict(),
       output: z.object({ path: z.string(), text: z.string(), truncated: z.boolean() }),
@@ -6456,7 +6456,7 @@ export function createRouter(ctx: AppContext) {
     /**
      * Find which project owns a thread slug.
      *
-     * EVERY URL FROM THE PER-PROJECT ERA IS UNPREFIXED. `localhost:4917/thread/fix-auth/full` used
+     * EVERY URL FROM THE PER-PROJECT ERA IS UNPREFIXED. `localhost:4917/thread/fix-auth` used
      * to be unambiguous because the PORT named the project; one server for the machine makes that
      * same path resolve against whichever project happened to launch it, so a bookmark that worked
      * yesterday reports "not found" today. It is not lost — it is one directory over, and this is how

@@ -130,7 +130,7 @@ function Fixture() {
   return (
     <div className="relative h-screen bg-bg text-fg text-sm">
       <div className="mx-auto flex h-screen w-[760px] max-w-full flex-col border-x border-border">
-        {/* `virtualized`, as BOTH production callers mount it (StandaloneThreadPage, the drawer).
+        {/* `virtualized`, as production mounts it (the drawer, ThreadSheet).
             Without it this fixture rendered ChatView's eager fallback — a branch whose own comment
             says no production surface reaches it. */}
         <ThreadView slug={SLUG} virtualized />

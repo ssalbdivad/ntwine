@@ -129,7 +129,7 @@ test("a usage-limit kill wears the YELLOW hourglass even when the fence carries 
   // The limit is what stopped this row — the fence's PR watch is a stale story from the rest BEFORE the
   // kill — so the mark names THAT: the "limit" kind's accent hourglass (2026-08-31; it was the muted
   // Snoozed hourglass before, which read as a calm park over a killed thread). The row is NOT dimmed
-  // (isSnoozed refuses a limit kill) and carries the hover Retry beside the fullscreen door.
+  // (isSnoozed refuses a limit kill) and carries the hover Retry.
   const html = row({
     runtime: "exited",
     limitPause: { backend: "claude", window: "session", at: "2026-08-01T00:00:00.000Z", resumesAt: 32503680000, autoResume: true },

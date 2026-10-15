@@ -9,7 +9,7 @@ import { GoalMark } from "./RecurringPromptControl.tsx"
 import { DeadlineFact } from "./DeadlineControl.tsx"
 
 // A THREAD HEADER'S SECOND LINE: the facts about the thread as a whole, in words — "Last active 2m ago ·
-// ◔ 74% context · ◎ run 7 of 20". The thread header (drawer and /full) renders it; the context reading
+// ◔ 74% context · ◎ run 7 of 20". The drawer's thread header renders it; the context reading
 // joined "Last active" here on 2026-10-05 when the lifecycle footer that carried it went (see
 // ThreadLifecycle.tsx for the top/bottom split).
 //

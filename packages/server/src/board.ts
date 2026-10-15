@@ -1394,7 +1394,7 @@ export function deriveNeedsYou(
   // the card can never disagree about whether a fault stands.
   limitPause: ThreadView["limitPause"] = undefined,
   // deriveAwaitingBackground passes false. The live-own-work excusal below is a QUEUE rule; the card
-  // states a FACT about the thread that has to survive it, or the drawer and the full-screen page blank
+  // states a FACT about the thread that has to survive it, or the drawer blanks
   // out at rest and read as "the agent died". Every OTHER excusal is still inherited. (Named for
   // sub-agents until 2026-08-01, when background shells joined the same excusal — the flag was never
   // about which KIND of work, only about queue-vs-fact.)
@@ -1563,8 +1563,8 @@ export function deriveNeedsYou(
   //
   // It rides `excuseLiveOwnWork` for the same reason the line below does: this is a QUEUE rule, and
   // deriveAwaitingBackground opts out of it so the card can still state the fact. Without the opt-out the
-  // card would be false for exactly the threads it exists to describe — the drawer and the full-screen
-  // page would blank out at rest and read as "the agent died".
+  // card would be false for exactly the threads it exists to describe — the drawer would blank out at
+  // rest and read as "the agent died".
   //
   // A REGISTERED park is the same rule with a durable row behind it instead of a sentence: it excuses
   // the thread for as long as the row is armed and its target is live, whether or not any fence says so.
@@ -1655,23 +1655,22 @@ function needsInputQueues(
 }
 
 // Whether a thread is resting while its own background work is still live — the signal the client keys
-// the awaiting-background card on, across all THREE surfaces (the queue card, the drawer and the
-// full-screen page). True only when it is at rest (turn-idle) with live own work and NO stronger reason
+// the awaiting-background card on, across both surfaces (the queue card and the drawer). True only when it is at rest (turn-idle) with live own work and NO stronger reason
 // outranks it (a native/typed ask, permission prompt, chat question, or ANY signal fence all render their
 // own card instead). Kept adjacent to deriveNeedsYou and delegating to it so the two never drift.
 //
 // The QUEUE surface is back as of 2026-08-04, for a SHELL-ONLY rest: those threads queue again
 // (deriveNeedsYou excuses live sub-agents only), so the card renders there (with its own Snooze until
 // 2026-10-14). A rest on a live sub-agent is still excused from the queue, so for that shape the drawer
-// and the full-screen page remain the only places this state is stated in words — which is why the card
+// remains the only place this state is stated in words — which is why the card
 // must keep rendering without a queue card behind it, and why the column below is dropped.
 //
 // The done card's Watch is deliberately NOT inherited (bg_snooze_rested_at is nulled out below). The
 // reasoning was written of the card's event-snooze, which shared that column until 2026-10-14:
 // Snoozing is a QUEUE VERB — "stop showing me this card in the queue" — while this flag states a FACT
-// about the thread, and AwaitingBackgroundCard renders that fact on the drawer and the standalone page
-// too, where there is no Snooze affordance and nothing to dismiss. Inheriting the snooze let one queue
-// click blank all three surfaces at once: the drawer then showed NOTHING at rest — the shimmer stops and
+// about the thread, and AwaitingBackgroundCard renders that fact in the drawer too, where there is no
+// Snooze affordance and nothing to dismiss. Inheriting the snooze let one queue click blank every
+// surface at once: the drawer then showed NOTHING at rest — the shimmer stops and
 // the transcript just ends — which is exactly the "reads as if the agent died" failure the card exists to
 // prevent (found 2026-07-29 on a shell-only thread; the report was "there's no card for it in the UI —
 // when I click it, it opens it in a drawer"). The queue card itself stays hidden regardless, because the
@@ -1743,7 +1742,7 @@ export function deriveAwaitingBackground(
     // suppressing this card left the wait stated nowhere but the fence's own machinery footer.
     !hasParkedTimerWatch(tele, armedTimerIds) &&
     // STEPS FOR THE HUMAN carry the card's own Done, so this card is the one place it can be pressed
-    // from — the queue, the drawer and the full-screen page alike.
+    // from — the queue and the drawer alike.
     !hasHumanSteps(tele)
   ) return false
   // Every OTHER excusal deriveNeedsYou applies still outranks the card (a user wall-clock snooze, a
@@ -1751,9 +1750,9 @@ export function deriveAwaitingBackground(
   // and the queue's live-OWN-WORK excusal is opted out of (excuseLiveOwnWork: false). That opt-out is
   // what keeps this flag meaningful at all: the very threads it describes are precisely the ones that
   // excusal removes from the queue, so inheriting it would make this function always false and blank the
-  // drawer and full-screen page for a healthy thread resting on its children or on a shell. Since
-  // 2026-08-01 that covers a shell-only rest too — it now has NO queue card at all, so this card in the
-  // drawer and on the standalone page is the only place that state is stated in words.
+  // drawer for a healthy thread resting on its children or on a shell. Since 2026-08-01 that covers a
+  // shell-only rest too — it now has NO queue card at all, so this card in the drawer is the only place
+  // that state is stated in words.
   return deriveNeedsYou({ ...row, bg_snooze_rested_at: null }, tele, runtime, hasActionableInteraction, nowMs, limitPause, false, deliveryProcessGone, {}, new Set(), armedTimerIds, armedWatches, openQuestions)
 }
 

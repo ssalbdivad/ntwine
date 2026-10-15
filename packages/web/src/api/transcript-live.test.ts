@@ -75,7 +75,7 @@ test("a board activity edge refetches an observed slug the push channel does not
 })
 
 // Socket-covered slugs are NOT edge-refetched; a slug the socket refused — payload-too-large or read
-// budget — IS. Before 2026-09-16 both refusals were left manual, which froze the /full page of any refused
+// budget — IS. Before 2026-09-16 both refusals were left manual, which froze the thread page of any refused
 // thread until a hard reload — the paged HTTP read is bounded and off the socket's budget, so one pull per
 // activity edge is the same policy a beyond-budget slug already gets.
 test("edge refetch: not for a socket-covered slug; yes for a refused one, whichever refusal", async () => {

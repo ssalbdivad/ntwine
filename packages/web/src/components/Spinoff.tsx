@@ -27,7 +27,7 @@ import { TextareaCodeFences } from "./TextareaCodeFences.tsx"
 // SPINOFFS — a new thread the human asks for from this one ("fix this", "investigate perf"), with this
 // thread supplying the context. Three surfaces, one concept:
 //
-//   · SpinoffButton — the icon in every thread header: each queue card's, and the drawer's and /full's.
+//   · SpinoffButton — the icon in every thread header: each queue card's and the drawer's.
 //     It opens the one-field dialog, and the `spinoff` RPC starts the new thread — a fork of this one's
 //     session, or a fresh thread on context ntwine assembles — without sending this one anything.
 //   · SpinoffCard — the request, in this thread's timeline where the human sent it: the human's

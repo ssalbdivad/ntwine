@@ -153,7 +153,8 @@ export type LocalMarkdownRead = { path: string; markdown: string; truncated: boo
 export type LocalTextRead = { path: string; text: string; truncated: boolean }
 
 /**
- * A file's source, for the fullscreen page's file viewer (the "edited files" rail, 2026-08-28).
+ * A file's source, for the file reader (FileReaderDrawer). Written 2026-08-28 for the fullscreen page's
+ * "edited files" rail, gone since 2026-10-15.
  *
  * The SAME openable roots as the Markdown reader, deliberately: this gate was the project directory
  * alone until 2026-09-03, on the premise that "the files it exists for are the ones a worker just
@@ -161,7 +162,7 @@ export type LocalTextRead = { path: string; text: string; truncated: boolean }
  * a worker's checkout is very often NOT the project directory. Over two weeks of this machine's
  * transcripts, 41% of every file a worker wrote sat outside every registered project dir: git
  * worktrees at `~/.cache/<tool>/worktrees/<slug>/`, sibling clones, `/tmp` scratch, the project's own
- * `attachments` state dir. Every one of those rail rows answered a click with "Local file is outside
+ * `attachments` state dir. Every one of those rows on the rail answered a click with "Local file is outside
  * ntwine's trusted roots" — while a `.md` in the SAME directory opened fine through the reader, which
  * had home-and-below all along (maintainer 2026-09-03: "why do we have this? I see it a lot, and it's
  * annoying").

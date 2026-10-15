@@ -60,13 +60,8 @@ test("a stalled row carries a hover-revealed retry button, right-justified", () 
   assert.match(btn, /text-muted/, "a quiet grey icon, not an accent box")
 })
 
-// Fullscreen is the drawer menu's option (ThreadMenu.tsx) since 2026-09-28, not a door on every row: a
-// row opens its thread's drawer, and the drawer is where /full is chosen.
-test("no row carries a fullscreen door", () => {
-  for (const html of [row({ runtime: "running" }), row(STALLED)]) {
-    assert.doesNotMatch(html, /data-expand-thread|\/full"/, "no door to /full in the row")
-  }
-  assert.doesNotMatch(row({ runtime: "running" }), /data-sidebar-retry/, "a healthy running row offers no Retry")
+test("a healthy running row offers no Retry", () => {
+  assert.doesNotMatch(row({ runtime: "running" }), /data-sidebar-retry/)
 })
 
 test("the older exited+needsYou snapshot shape (no `crashed` field) still gets the button", () => {

@@ -40,8 +40,7 @@ let fellBack = false // committed to the SSE fallback — never touch /ws again 
 // subscription per connection per slug, so we send `sub` on 0→1 and `unsub` on 1→0.
 const subs = new Map<string, number>()
 
-// path → count of READERS showing that local file (the /full split viewer, and every Markdown drawer
-// stacked over it). Same ref-count discipline as `subs`: `sub` on 0→1, `unsub` on 1→0, replayed on
+// path → count of READERS showing that local file (every Markdown drawer and file reader). Same ref-count discipline as `subs`: `sub` on 0→1, `unsub` on 1→0, replayed on
 // every (re)connect. The server answers a change with `file-changed`, and the handler below
 // invalidates the reader's query so it re-reads through its own gated RPC.
 const fileSubs = new Map<string, number>()

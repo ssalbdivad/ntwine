@@ -11,7 +11,7 @@ import { store } from "./store.ts"
 import "./styles.css"
 
 // Browser QA for the SATURATED RENDER WINDOW — the configuration every long thread is in and the one
-// that dragged a reader parked mid-thread on /full.
+// that dragged a reader parked mid-thread.
 //
 // The server projects at most MAX_MESSAGES (300), so once a thread passes that cap every new message also
 // pushes one off the HEAD of the live window. Those rows vanish from ABOVE the reader and the content

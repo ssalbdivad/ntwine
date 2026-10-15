@@ -4,11 +4,11 @@ import { join } from "node:path"
 import test from "node:test"
 import { createRpcClient } from "../../../../scripts/lib/rpc-client.mjs"
 
-// A thread's prompt box is ONE box: the queue card's and its /full page's, in the same tab or in two.
-// The fullscreen door is a real link, so ⌘-click and middle-click open /full in a NEW tab — which, while
-// drafts were per-tab sessionStorage, opened on an empty box (maintainer 2026-10-11: "The stuff that I
-// type into the prompt box when it's in the queue does not transfer over if I open that same queue card
-// in full-screen view").
+// A thread's prompt box is ONE box: the queue card's and its drawer's, in the same tab or in two. The
+// card's title is a real link to the drawer's address, so ⌘-click and middle-click open it in a NEW tab —
+// which, while drafts were per-tab sessionStorage, opened on an empty box (maintainer 2026-10-11: "The
+// stuff that I type into the prompt box when it's in the queue does not transfer over if I open that same
+// queue card in full-screen view"; the fullscreen page went 2026-10-15, the drawer is that view now).
 //
 // A real adhoc-stack, no provider required: the session row is the simulated worker, and nothing is
 // ever sent. Start the stack in a separate terminal:
@@ -21,7 +21,7 @@ import { createRpcClient } from "../../../../scripts/lib/rpc-client.mjs"
 const baseUrl = process.env.NTWINE_PROMPT_DRAFT_TABS_E2E_URL
 const home = process.env.NTWINE_PROMPT_DRAFT_TABS_E2E_HOME
 
-test("a draft typed on the queue card is in the thread's /full prompt box, in another tab and in this one", {
+test("a draft typed on the queue card is in the thread's drawer prompt box, in another tab and in this one", {
   skip: !baseUrl || !home, timeout: 120_000,
 }, async () => {
   const api = createRpcClient(baseUrl!)
@@ -51,8 +51,9 @@ test("a draft typed on the queue card is in the thread's /full prompt box, in an
     }
     // The fork's queue card: its slot is keyed `<project id>/<slug>` (lib/allQueues.ts threadKey).
     const card = `[data-xq-card='${project.id}/${slug}'] [data-xq-card-root]`
-    const queueBox = `${card} [data-thread-composer-box='queueComposer'] textarea`
-    const fullBox = "main[data-standalone-thread] [data-thread-composer-box='chatComposer'] textarea"
+    const queueBox = `${card} textarea[data-surface='queueComposer']`
+    const title = `${card} h3 a[data-command='open']`
+    const drawerBox = "[data-drawer-layer] [data-thread-composer-box='chatComposer'] textarea"
     type Tab = Awaited<ReturnType<typeof open>>
     // Polled on a timer, not on animation frames (puppeteer's default): one of the two tabs is always
     // in the background here, and a hidden tab is not promised a frame.
@@ -65,32 +66,36 @@ test("a draft typed on the queue card is in the thread's /full prompt box, in an
     await board.click(queueBox)
     await board.keyboard.type("typed in the queue card")
 
-    // 1. ANOTHER TAB — what ⌘-click on the card's fullscreen door opens: the same href, a tab of its own.
-    const href = await board.$eval(`${card} [data-expand-thread='${slug}']`, (el) => el.getAttribute("href"))
-    const full = await open()
-    await full.goto(`${baseUrl}${href}`, { waitUntil: "networkidle2" })
-    await full.waitForSelector(fullBox)
-    assert.equal(await full.$eval(fullBox, (el) => (el as HTMLTextAreaElement).value), "typed in the queue card")
+    // 1. ANOTHER TAB — what ⌘-click on the card's title opens: the same href, a tab of its own. A cold
+    // load of a queued thread's address lands on its card (lib/queueLandingHold.ts), so that tab's card
+    // holds the draft, and its title opens the drawer, which holds it too.
+    const href = await board.$eval(title, (el) => el.getAttribute("href"))
+    const other = await open()
+    await other.goto(`${baseUrl}${href}`, { waitUntil: "networkidle2" })
+    await holds(other, queueBox, "typed in the queue card")
+    await other.$eval(title, (el) => (el as HTMLAnchorElement).click())
+    await other.waitForSelector(drawerBox)
+    assert.equal(await other.$eval(drawerBox, (el) => (el as HTMLTextAreaElement).value), "typed in the queue card")
 
-    // 2. The two stay ONE box while both are open: words added on /full reach the card...
-    await full.bringToFront()
-    await full.click(fullBox)
-    await full.keyboard.type(", finished on /full")
-    await holds(board, queueBox, "typed in the queue card, finished on /full")
-    // ...and emptying it on the card (what a send does) empties /full, so nothing is left to send twice.
+    // 2. The two stay ONE box while both are open: words added in the drawer reach the card...
+    await other.bringToFront()
+    await other.click(drawerBox)
+    await other.keyboard.type(", finished in the drawer")
+    await holds(board, queueBox, "typed in the queue card, finished in the drawer")
+    // ...and emptying it on the card (what a send does) empties the drawer, so nothing is left to send twice.
     await board.bringToFront()
     await board.click(queueBox)
     await board.$eval(queueBox, (el) => (el as HTMLTextAreaElement).select())
     await board.keyboard.press("Backspace")
     await holds(board, queueBox, "")
-    await holds(full, fullBox, "")
+    await holds(other, drawerBox, "")
 
-    // 3. THIS TAB — the door's plain click, which always carried the draft and must go on doing so.
-    await board.keyboard.type("carried through the door")
-    await board.$eval(`${card} [data-expand-thread='${slug}']`, (el) => (el as HTMLAnchorElement).click())
-    await board.waitForSelector(fullBox)
-    assert.equal(await board.$eval(fullBox, (el) => (el as HTMLTextAreaElement).value), "carried through the door")
-    await holds(full, fullBox, "carried through the door")
+    // 3. THIS TAB — the title's plain click opens the drawer in place, carrying the draft.
+    await board.keyboard.type("carried into the drawer")
+    await board.$eval(title, (el) => (el as HTMLAnchorElement).click())
+    await board.waitForSelector(drawerBox)
+    assert.equal(await board.$eval(drawerBox, (el) => (el as HTMLTextAreaElement).value), "carried into the drawer")
+    await holds(other, drawerBox, "carried into the drawer")
 
     assert.deepEqual(errors, [])
   } finally {

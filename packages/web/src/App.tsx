@@ -244,8 +244,7 @@ export function App() {
   //   a standalone/PWA window, steals a system shortcut the user expects. New thread is `c` instead
   //   (Gmail's compose), plus ⌘K → "New thread", and the always-visible prompt box.
   //   Esc — overlays first (palette/modal/settings), then the drawer stack topmost-first. That chain
-  //   belongs to <DrawerStack> (the standalone /full page needs the identical unwinding), and it is
-  //   deliberately NOT rebindable: Esc is how every layer in the app is left.
+  //   belongs to <DrawerStack>, and it is deliberately NOT rebindable: Esc is how every layer in the app is left.
   //   Enter / Shift-Enter / ⌘-Enter belong to the composer (lib/composerKeyboard.ts).
   // (The xstate focus machine — nav selection, arrow-walk, chevron, step-in/out, focus registry — was
   // DELETED when the sidebar went mouse-only. The card keys do not bring it back: there is no virtual
@@ -290,8 +289,8 @@ export function App() {
   // parked slug AND a board.)
   useEffect(() => { resolveRoutedThread() }, [board, snap.routeThreadSlug])
 
-  // The window title is set by what is showing: the page names its view (AllQueues.tsx), StandaloneThreadPage
-  // its thread, and index.html's "ntwine" stands elsewhere. No effect here — it would run after the page's on
+  // The window title is set by what is showing: the page names its view (AllQueues.tsx), and index.html's
+  // "ntwine" stands elsewhere. No effect here — it would run after the page's on
   // mount and overwrite it.
 
   return (
@@ -314,8 +313,7 @@ export function App() {
         <AllQueuesPage />
       </ErrorBoundary>
 
-      {/* The side-drawer STACK — and the Escape chain that unwinds it — lives in <DrawerStack> so the
-          standalone `/thread/<slug>/full` page can mount the identical thing. See DrawerStack.tsx. */}
+      {/* The side-drawer STACK, and the Escape chain that unwinds it. See DrawerStack.tsx. */}
       <DrawerStack />
       <PendingThreadSheet />
       {snap.showSettings && <SettingsDrawer offerUpdate />}

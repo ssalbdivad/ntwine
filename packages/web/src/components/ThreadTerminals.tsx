@@ -214,7 +214,7 @@ const RAIL_HINT_LIFT: Record<ProcessFolderHint["kind"], string> = {
   root: "translate-y-[calc(0.5em_-_0.5cap)]",
 }
 
-/** A folder hint on a BASELINE line — the rows of the fullscreen rail and the resting card (WaitRow), where
+/** A folder hint on a BASELINE line — the resting card's rows (WaitRow), where
  *  it sits between the name and the status, leading the status as it leads the strip's readings. It gives
  *  way as the strip's does (WHO GIVES WAY, below): a box sized from zero that grows into what the NAME
  *  leaves, so the word wraps away (the box is one line tall and clips) before the name loses a pixel — and

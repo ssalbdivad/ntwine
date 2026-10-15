@@ -40,8 +40,8 @@ import type { SurfaceFileDrop } from "../lib/fileDrop.ts"
 // card injected the literal string into the running worker's stdin while the same keystroke in the drawer
 // opened the sign-in modal. Everything that must not diverge now lives here exactly once:
 //
-//   · the follow-up DRAFT key (so the queue card, the drawer and /full are the same textarea, and a
-//     draft typed in one is present in the others — in any tab — and survives a reload),
+//   · the follow-up DRAFT key (so the queue card and the drawer are the same textarea, and a
+//     draft typed in one is present in the other — in any tab — and survives a reload),
 //   · the `/login` | `/logout` alias intercept + its SignInModal / LogoutConfirmModal,
 //   · useThreadComposerControls (the model/effort footer and the backend busy fence),
 //   · the {controls.status} line under the box.
@@ -88,8 +88,7 @@ export function ThreadComposerBox({
   phoneBarOverride?: (api: PhoneBarApi) => ReactNode
   // Whether the thread around this box wears the PHONE's chrome (MobileThreadHeader and its ⋯ sheet),
   // which is what the phone bar is built to sit under. ChatView knows: a drawer below the breakpoint
-  // does, and /full never does — it keeps the desktop header at every width. Absent, the breakpoint
-  // alone decides, as it did before the caller could say.
+  // does. Absent, the breakpoint alone decides, as it did before the caller could say.
   phoneChrome?: boolean
   // The surface's file drop zone, when the SURFACE takes a dropped file rather than the box alone — the
   // queue card, anywhere on it. Desktop box only; see Composer's `fileDrop`.
@@ -155,8 +154,6 @@ export function ThreadComposerBox({
   // on a phone). Its right-hand verb follows the thread: Done while it rests and can be completed,
   // Send once there is text, a dimmed ↑ while a turn runs.
   const isMobile = useIsMobile()
-  // NOT on /full at a narrow width: that page keeps the desktop header, so its box is the desktop box
-  // too — the Goal rides this rail and nowhere else on desktop chrome, and the phone bar has no rail.
   const phoneBar = (phoneChrome ?? isMobile) && surface === "chatComposer"
   const turnRunning = thread?.runtime === "running" || thread?.runtime === "spawning"
   // NOT WHILE THE THREAD WAITS ON STEPS (`steps:` in its last fence). The card above carries its own

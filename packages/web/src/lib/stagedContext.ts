@@ -4,8 +4,8 @@ import { contextSourceLabel, hasToken, type ComposerContextItem } from "./compos
 import { draftStore } from "./drafts.ts"
 import { splitComposerValue } from "./imagePaths.ts"
 
-// SELECTED CONTEXT staged for a prompt box's next message: ⌘I over a selection in the file viewer
-// (FileViewerPanel), or a selection sent from an editor window (lib/editorCompose.ts). Each item is the
+// SELECTED CONTEXT staged for a prompt box's next message: a selection sent from an editor window
+// (lib/editorCompose.ts). Each item is the
 // quote its `@` token stands for — the token sits in the draft prose, the item here — and on send the
 // items serialize under the prose (composerContext.ts buildMessageWithContext). Every box that shows a
 // draft paints its tokens as chips: a thread's reply box in the drawer and on the queue card, and the

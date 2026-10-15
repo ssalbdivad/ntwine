@@ -168,8 +168,7 @@ const projectClients = new Map<string, Api>()
  *
  * `rpc` above answers "which project" from the address at call time — the PAGE project (base-path.ts
  * projectSlug: the page's project at `/`, the drawer's project under `/all/<slug>`, the launching one on
- * an unprefixed `/thread/<t>/full`). That is right for a drawer or /full, which show one thread of that
- * project, and silently wrong on the queue in All projects, which shows every project's cards at once:
+ * an unprefixed address). That is right for a drawer, which shows one thread of that project, and silently wrong on the queue in All projects, which shows every project's cards at once:
  * a thread action taken there for another project's `fix-auth` lands on the page project's
  * `fix-auth` instead (slugs are unique only within a project). That page makes every per-thread call
  * through one of these. (Until 2026-09-28 the default was also right on a project's own board, which

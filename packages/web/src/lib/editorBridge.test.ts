@@ -17,20 +17,21 @@ function at<T>(pathname: string, run: () => T): T {
   }
 }
 
-// The /full page's thread is the one the ADDRESS names, at any width. It was read off the split file
-// viewer's layout flag (true only at 1200px and wider), so beside VS Code in a half-width window an insert
-// went to a new-thread draft the page never shows, or navigated off the thread (review C4).
-test("the /full page's thread is in front whatever the window's width", () => {
+// The thread in front is the TOP thread drawer's, whatever the address says: a layer stacked over it (a
+// sub-agent, a file) still leaves that thread the one being read, and a closing drawer is not in front.
+test("the thread in front is the top thread drawer's", () => {
   resetProjectState()
-  store.board = { threads: [{ id: "fix-auth", sessionId: "s1" }] } as unknown as BoardSnapshot
-  store.splitFileViewer = false
+  store.board = { threads: [{ id: "fix-auth", sessionId: "s1" }, { id: "port", sessionId: "s2" }] } as unknown as BoardSnapshot
   try {
-    assert.deepEqual(at("/thread/fix-auth/full", threadInFront), { slug: "fix-auth", sessionId: "s1" })
-    assert.deepEqual(at("/all/nub/thread/fix-auth/full", threadInFront), { slug: "fix-auth", sessionId: "s1" })
     // The board, with no drawer open: no thread in front.
     assert.equal(at("/", threadInFront), undefined)
+    store.drawers = [{ id: 1, kind: "thread", slug: "port" }, { id: 2, kind: "thread", slug: "fix-auth" }, { id: 3, kind: "file", slug: "fix-auth", path: "/r/a.ts" }]
+    assert.deepEqual(at("/all/nub/thread/fix-auth", threadInFront), { slug: "fix-auth", sessionId: "s1" })
+    store.drawers = [{ id: 1, kind: "thread", slug: "port" }, { id: 2, kind: "thread", slug: "fix-auth", closing: true }]
+    assert.deepEqual(at("/all/nub/thread/port", threadInFront), { slug: "port", sessionId: "s2" })
     // A thread the board does not have is no target.
-    assert.equal(at("/thread/elsewhere/full", threadInFront), undefined)
+    store.drawers = [{ id: 1, kind: "thread", slug: "elsewhere" }]
+    assert.equal(at("/all/nub/thread/elsewhere", threadInFront), undefined)
   } finally {
     resetProjectState()
   }

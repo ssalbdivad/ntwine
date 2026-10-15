@@ -2060,7 +2060,7 @@ test("pagination: repeated pages walk whole turns backward, all of them when the
 
 // A renamed checkout strands every pre-rename transcript in the bucket for its ORIGINAL cwd (see
 // discover.ts). readTranscript learned to sweep for it; the PAGED reader — which is what the
-// `threadTranscript` RPC serves to the queue card and the standalone /full page — kept building
+// `threadTranscript` RPC serves to the queue card — kept building
 // `join(logDirOf(project), …)` by hand, so the recovery reached one producer and not the other. Measured
 // on the maintainer's own board: 386 of 430 threads returned messages through readThreadTranscript and an
 // EMPTY page through the RPC, which rendered as "No message yet." over a transcript sitting on disk.

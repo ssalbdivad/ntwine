@@ -29,9 +29,7 @@ import { RegisteredAnsweringContext } from "./RegisteredQuestionCards.tsx"
 // accent means "awaiting you", and on this card that is the question and the worker's own pick.
 //
 // PROVIDED, NOT DETECTED. The phone thread page (ChatView with `phone`) provides this context; every
-// registered card under it reads it and draws compactly. Detecting the width inside the card instead
-// would also compact the /full page on a narrow window, which keeps the desktop chrome — and its own
-// per-card Send — on every width. `numberOf` numbers a question by its place among the thread's open
+// registered card under it reads it and draws compactly. `numberOf` numbers a question by its place among the thread's open
 // questions, so a card placed inside a message and its sibling at the rest still count 1, 2. `openSheet`
 // opens the answer sheet, at the step `stepKey` names or else where the human left off.
 export interface PhoneQuestions {

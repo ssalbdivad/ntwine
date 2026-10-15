@@ -50,12 +50,9 @@ const root = path.dirname(here);
 const NEEDS_REAL_STACK = [
   "packages/web/src/components/registeredQuestionNavigation.e2e.test.ts",
   "packages/web/src/components/promptDraftTabs.e2e.test.ts",
-  "packages/web/src/components/filePanelStack.e2e.test.ts",
   "packages/web/src/lib/projectSwitch.e2e.test.ts",
   "packages/web/src/components/overlayAccessibility.e2e.test.ts",
   "packages/web/src/components/ui/Menu.e2e.test.ts",
-  "packages/web/src/components/fullscreenEscape.e2e.test.ts",
-  "packages/web/src/components/fullscreenOpsInRail.e2e.test.ts",
   // Steps the real picker through ≥3 projects with icons, which only an `adhoc-stack.mjs` serves.
   "packages/web/src/components/projectPickerIcon.e2e.test.ts",
   // Boots, seeds and tears down its OWN three stacks (17 projects at the heaviest), so it needs nothing
