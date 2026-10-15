@@ -1169,8 +1169,8 @@ test("thread_terminal: a pre-terminal command_thread file is renamed, gains the 
       ["term-old", "archived", null, null, 0],
     ], "kept for the record, filed away, and the new columns read as absent")
 
-    s.insertThreadTerminal({ slug: "term-new", parentSlug: "fix-auth", command: "zsh", cwd: dir, shell: true, createdAtMs: 5 })
-    s.insertThreadTerminal({ slug: "term-other", parentSlug: "other", command: "make", cwd: dir, shell: false, createdAtMs: 6 })
+    s.insertThreadTerminal({ slug: "term-new", parentSlug: "fix-auth", startedBy: "human", handle: "zsh", command: "zsh", cwd: dir, shell: true, createdAtMs: 5 })
+    s.insertThreadTerminal({ slug: "term-other", parentSlug: "other", startedBy: "other", handle: "make", command: "make", cwd: dir, shell: false, createdAtMs: 6 })
     // A reopen does not re-archive a terminal that has a parent: the migration is for parentless rows only.
     s.close()
     s = createStorage(path, "p")
@@ -1183,11 +1183,15 @@ test("thread_terminal: a pre-terminal command_thread file is renamed, gains the 
     const followed = s.listThreadTerminals().find((r) => r.slug === "term-new")
     assert.deepEqual([followed?.command, followed?.shell, followed?.runs], ["npm test", 0, 3])
 
-    assert.equal(s.archiveThreadTerminals("fix-auth"), 1)
-    assert.equal(s.archiveThreadTerminals("fix-auth"), 0, "idempotent")
-    assert.equal(s.listThreadTerminals().find((r) => r.slug === "term-other")?.state, "open", "another thread's terminal is untouched")
-    assert.equal(s.dropThreadTerminals("fix-auth"), 1)
-    assert.deepEqual(s.listThreadTerminals().map((r) => r.slug).sort(), ["term-done", "term-old", "term-other"])
+    // Done is per terminal now, clears a snooze, and a restart reopens it.
+    s.setThreadTerminalSnooze("term-new", "2099-01-01T00:00:00.000Z")
+    assert.equal(s.setThreadTerminalState("term-new", "archived"), true)
+    assert.equal(s.setThreadTerminalState("term-new", "archived"), false, "idempotent")
+    const filed = s.listThreadTerminals().find((r) => r.slug === "term-new")
+    assert.deepEqual([filed?.state, filed?.snoozed_until], ["archived", null])
+    assert.equal(s.listThreadTerminals().find((r) => r.slug === "term-other")?.state, "open", "another terminal is untouched")
+    s.restartThreadTerminal("term-new", 9)
+    assert.equal(s.listThreadTerminals().find((r) => r.slug === "term-new")?.state, "open")
   } finally {
     s.close()
     rmSync(dir, { recursive: true, force: true })
@@ -1233,10 +1237,12 @@ test("thread_terminal: the day-one command_thread table keeps every row and valu
   `)
   old.close()
   const all = (db: Database) => db.prepare("SELECT * FROM thread_terminal ORDER BY project_id, slug").all()
+  // 2026-10-15's columns ride along: a thread's terminal is now a terminal thread its parent's human started.
+  const added = { handle: null, pinned_at: null, snoozed_until: null, exit_signal: null }
   const expected = [
-    { project_id: "p", slug: "term-a", command: "npm test", created_at: 10, started_at: 12, runs: 3, exited_at: 20, exit_code: 1, stopped: 0, state: "open", parent_slug: "fix-auth", cwd: "/w/fix-auth", shell: 0 },
-    { project_id: "p", slug: "term-legacy", command: "npm run dev", created_at: 1, started_at: 1, runs: 2, exited_at: 9, exit_code: 130, stopped: 1, state: "archived", parent_slug: null, cwd: null, shell: 0 },
-    { project_id: "q", slug: "term-b", command: "zsh", created_at: 30, started_at: 30, runs: 1, exited_at: null, exit_code: null, stopped: 0, state: "open", parent_slug: "other", cwd: "/w/other", shell: 1 },
+    { project_id: "p", slug: "term-a", command: "npm test", created_at: 10, started_at: 12, runs: 3, exited_at: 20, exit_code: 1, stopped: 0, state: "open", parent_slug: "fix-auth", cwd: "/w/fix-auth", shell: 0, ...added, started_by: "human" },
+    { project_id: "p", slug: "term-legacy", command: "npm run dev", created_at: 1, started_at: 1, runs: 2, exited_at: 9, exit_code: 130, stopped: 1, state: "archived", parent_slug: null, cwd: null, shell: 0, ...added, started_by: null },
+    { project_id: "q", slug: "term-b", command: "zsh", created_at: 30, started_at: 30, runs: 1, exited_at: null, exit_code: null, stopped: 0, state: "open", parent_slug: "other", cwd: "/w/other", shell: 1, ...added, started_by: "human" },
   ]
   for (let boot = 0; boot < 2; boot++) {
     const s = createStorage(path, "p")
@@ -1257,7 +1263,7 @@ test("thread_terminal: rows an older build wrote into a fresh command_thread are
   const dir = mkdtempSync(join(tmpdir(), "ntwine-storage-merge-"))
   const path = join(dir, "ui.db")
   let s = createStorage(path, "p")
-  s.insertThreadTerminal({ slug: "term-new", parentSlug: "t", command: "make", cwd: dir, shell: false, createdAtMs: 1 })
+  s.insertThreadTerminal({ slug: "term-new", parentSlug: "t", startedBy: "human", handle: "make", command: "make", cwd: dir, shell: false, createdAtMs: 1 })
   s.close()
   const older = new Database(path)
   older.exec(`

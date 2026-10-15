@@ -6,6 +6,7 @@ import { z } from "zod"
 import { query, mutation } from "@ntwine/rpc/server"
 import {
   BoardSnapshot,
+  terminalOutcome,
   DispatchInput,
   SetThreadDeadlineInput,
   SetRunningDeadlinesInput,
@@ -68,6 +69,8 @@ import {
   AccountLogoutInput,
   AccountLogoutResult,
   StartTerminalInput,
+  StartTerminalThreadInput,
+  TerminalFolder,
   RunTerminalInput,
   TerminalInput,
   StartTerminalResult,
@@ -224,7 +227,8 @@ import {
   threadTranscriptSource,
 } from "./transcript.ts"
 import { readThreadStats, unrecordedStats } from "./thread-stats.ts"
-import { liftCheckout, resolveThreadWorkingDir, subAgentFolders, terminalFolder } from "./thread-cwd.ts"
+import { terminalThreadView } from "./thread-terminals.ts"
+import { liftCheckout, resolveThreadWorkingDir, subAgentFolders, terminalFolder, terminalFolders } from "./thread-cwd.ts"
 import { isDirectory } from "./path-probe.ts"
 import { reviewTargetOf } from "./review-target.ts"
 import { openExternalUrl } from "./open-external.ts"
@@ -564,23 +568,25 @@ export function cutOffHold(telemetry: SessionTelemetry | undefined): CompletionH
 // *registered* runtime is still executing, and it only records Done after any necessary termination
 // has been proved. A live resting shell is stopped and archived in one click; an executing or
 // unobservable runtime requires explicit confirmation.
-/** The thread's own TERMINALS, as a completion sees them (thread-terminals.ts): which are still running,
- *  and the two halves of ending them — stop the processes, then file the rows away. */
+/** The live TERMINAL THREADS a thread started, as its completion sees them (thread-terminals.ts), and how
+ *  to stop the ones the human ticked. Marking the thread done no longer stops them by itself: a dev server
+ *  is meant to outlive the effort that started it (plans/terminal-threads.md § Lifecycle). */
 export interface CompletionTerminals {
-  live: readonly { command: string; shell?: boolean }[]
+  live: readonly { id: string; command: string; shell?: boolean }[]
+  /** The terminals the human ticked in the dialog — stopped before Done is recorded. */
   stop: () => Promise<void>
-  close: () => Promise<void>
 }
 
-// Fold a thread's running terminals into the hold. They hold Done back on their own, whatever the agent
-// is doing — a resting worker with `npm run dev` still up in a terminal the human opened is exactly the
-// case the dialog exists for — and ride along with any other evidence the hold already carries.
+// Fold a thread's live terminals into the hold, so the dialog can list them with a stop checkbox each,
+// unticked. They still raise the dialog on their own, whatever the agent is doing: it is the one place the
+// human is asked whether `npm run dev` should go down with the thread — and the answer defaults to no.
 function withTerminalHold(hold: CompletionHold | undefined, terminals: CompletionTerminals["live"]): CompletionHold | undefined {
   if (terminals.length === 0) return hold
   const base: CompletionHold = hold ?? { turnInFlight: false, unobservable: false, subAgents: [], subAgentCount: 0, bgShells: [], bgShellCount: 0 }
   return {
     ...base,
-    terminals: holdOps(terminals.map((terminal) => ({ label: terminal.shell ? `${terminal.command} (shell)` : terminal.command, state: "running" as const }))),
+    // Every one, not holdOps' first few: each is a checkbox, and a box the dialog cannot show cannot be ticked.
+    terminals: terminals.map((terminal) => ({ id: terminal.id, label: terminal.shell ? `${terminal.command} (shell)` : terminal.command, state: "running" as const })),
     terminalCount: terminals.length,
   }
 }
@@ -646,16 +652,12 @@ export async function completeRegisteredThread(
     }
   }
 
-  // The terminals go down with the worker, before Done is recorded, for the same reason the worker does:
-  // nothing live is ever filed under Done. Their ROWS are filed away only once Done has been recorded, so
-  // a completion refused below (the thread was resumed meanwhile) leaves them in its strip, stopped and
-  // restartable, rather than hidden under a thread that is still open.
+  // The terminals the human ticked go down before Done is recorded; the rest keep running, on their own rows.
   await terminals?.stop()
   const generation = row.runtime_generation ?? 0
   if (!storage.completeIfCurrent(row.slug, row.session_id, generation)) {
     throw new Error("This thread resumed or was replaced while it was being completed; the new worker was preserved")
   }
-  await terminals?.close()
   return { needsConfirmation: false }
 }
 
@@ -697,8 +699,7 @@ export async function deleteOwnedThread(
   const row = ctx.storage.getSession(slug)
   if (!row) return false // already gone — idempotent
   const forgotten = await stopAndForgetRegisteredRuntime(ctx.storage, row, cachedLivenessTerminator, ctx.codexAppServer, ctx.claudeBroker, ctx.acpBridge)
-  // Its terminals have nothing left to show them in: stop them and drop the rows.
-  await ctx.terminalRunner.forgetThread(slug)
+  // The terminal threads it started are threads of their own, and stay (plans/terminal-threads.md).
   ctx.tailer.forget(slug)
   // The worker's notes (dispatch writeScratchDir): nothing can reach them once the thread is gone. The id
   // is checked before it is spliced into a path, as writeScratchDir checks it.
@@ -1260,6 +1261,7 @@ export function decodeDoneCursor(cursor: string): DoneKey {
  *  foreign session (one ntwine did not start) that is at rest. A foreign row never carries a state, so it
  *  is never `inactive`; at rest is all History can say about it. */
 function historyThread(thread: ThreadView, external: boolean): boolean {
+  if (thread.kind === "terminal") return !external && sectionOf(thread) === "inactive"
   if (thread.kind !== "session") return false
   if (thread.foreign) return external && !isActivelyRunning(thread)
   return sectionOf(thread) === "inactive"
@@ -1465,6 +1467,46 @@ export function createRouter(ctx: AppContext) {
   // card's checkout token), so reading it here means the dialog's prefill, a `$ cmd` terminal and that
   // token can never name two different places. The transcript rescan below remains for a thread the
   // tailer has no reading for yet. `kind` says what the folder is, for the dialog's hint.
+  /**
+   * START A TERMINAL THREAD (plans/terminal-threads.md) — the one path every surface goes through: the prompt
+   * box's top-level `$ cmd`, a thread's `t` / Open terminal / `$ cmd` line, and (next) an agent's
+   * `ntwinectl terminal start`, which passes `parent` and `startedBy` as the calling thread's slug and its
+   * working folder (`threadWorkingDir`). The handle avoids every thread name in this project, so `@nub-run-dev`
+   * names one thing. `cwd` is already checked (terminalFolder) by the caller.
+   */
+  function startTerminalThread(input: { parent?: string; startedBy: string; command?: string; cwd: string }): Promise<{ id: string; handle: string }> {
+    const taken = threadNamer().threads().filter((t) => t.open).map((t) => handleOf(t))
+    return ctx.terminalRunner.start({ ...input, takenHandles: taken })
+  }
+
+  /** The terminal thread a handle (or its slug) names: an open one before a Done one, then the newest. */
+  function terminalByHandle(handle: string): ThreadView | undefined {
+    const bare = handle.trim().replace(/^@/, "").toLowerCase()
+    const views = ctx.terminalRunner.terminals().map(({ row, terminal }) => terminalThreadView(row, terminal))
+    const hits = views.filter((t) => t.id === bare || t.terminal?.handle?.toLowerCase() === bare)
+    return hits.find((t) => t.state !== "archived") ?? hits.sort((a, b) => (b.spawnedAt ?? "").localeCompare(a.spawnedAt ?? ""))[0]
+  }
+
+  function readTerminal(t: ThreadView): ReadThreadResult {
+    const terminal = t.terminal!
+    const outcome = terminalOutcome(terminal)
+    return {
+      found: true,
+      handle: terminal.handle ?? t.id,
+      slug: t.id,
+      state: t.state === "archived" ? "done" : outcome === "running" ? "running" : "resting",
+      terminal: {
+        command: terminal.command,
+        cwd: terminal.cwd,
+        outcome,
+        ...(terminal.exitCode !== undefined ? { exitCode: terminal.exitCode } : {}),
+        ...(terminal.startedBy ? { startedBy: terminal.startedBy } : {}),
+        ...(terminal.parent ? { parent: terminal.parent } : {}),
+        screen: ctx.terminalRunner.screenTail(t.id, 8_000),
+      },
+    }
+  }
+
   function threadWorkingDir(slug: string): ThreadWorkingDir {
     const withKind = (reading: ThreadWorkingDir): ThreadWorkingDir => {
       const checkout = reading.dir === workDir ? undefined : liftCheckout(reading.dir, workDir)
@@ -3980,8 +4022,10 @@ export function createRouter(ctx: AppContext) {
         // path creates has `state = "open"` written explicitly, so this RPC set a bit nothing reads and
         // answered success while the card stayed exactly where it was. Caught 2026-08-08 archiving a
         // thread over the RPC: `archived = 1` in SQLite, `archived: false` on the board, forever.
-        // Filed under Done, so its terminals stop with it, as they do for Mark as done (completeThread).
-        await ctx.terminalRunner.closeThread(input.slug)
+        if (ctx.terminalRunner.has(input.slug)) {
+          await ctx.terminalRunner.setState(input.slug, "archived")
+          return
+        }
         ctx.storage.setState(input.slug, "archived")
         const t = (await ctx.board.snapshot()).threads.find((x) => x.id === input.slug)
         if (!isAutoTitledSession(input.slug) && t && t.status !== "done" && t.status !== "dismissed") {
@@ -4019,9 +4063,12 @@ export function createRouter(ctx: AppContext) {
     setThreadState: mutation({
       input: z.object({ slug: ThreadSlug, state: z.enum(["open", "archived"]) }).strict(),
       handler: async ({ input }) => {
+        // A TERMINAL THREAD's Done: a running one is stopped first, so nothing live is filed under Done.
+        if (ctx.terminalRunner.has(input.slug)) {
+          await ctx.terminalRunner.setState(input.slug, input.state)
+          return
+        }
         if (!ctx.storage.getSession(input.slug)) throw new Error(`no session registered for ${input.slug}`)
-        // Filed under Done ⇒ its terminals stop first (thread-terminals.ts), so nothing live is filed with it.
-        if (input.state === "archived") await ctx.terminalRunner.closeThread(input.slug)
         ctx.storage.setState(input.slug, input.state)
         ctx.board.refresh() // storage-only change — overlay is enough
       },
@@ -4030,10 +4077,21 @@ export function createRouter(ctx: AppContext) {
     // “Mark as done” stops a resting provider shell and archives in one action. The server—not the
     // client—asks for confirmation only when current telemetry shows an executing/ambiguous turn.
     completeThread: mutation({
-      input: z.object({ slug: ThreadSlug, sessionId: z.string().min(1), terminateLive: z.boolean().default(false) }).strict(),
+      input: z.object({
+        slug: ThreadSlug,
+        sessionId: z.string().min(1),
+        terminateLive: z.boolean().default(false),
+        // The terminals this thread started that the human ticked in the dialog: stopped before Done.
+        stopTerminals: z.array(ThreadSlug).max(200).optional(),
+      }).strict(),
       // `hold` rides along only with needsConfirmation:true — it is the evidence the dialog names.
       output: z.object({ needsConfirmation: z.boolean(), hold: CompletionHold.optional() }),
       handler: async ({ input }) => {
+        // A TERMINAL THREAD's Mark as done is its own: stop the process if it runs, then file it.
+        if (ctx.terminalRunner.has(input.slug)) {
+          await ctx.terminalRunner.setState(input.slug, "archived")
+          return { needsConfirmation: false }
+        }
         const row = currentOwnedSession(input.slug, input.sessionId)
         // The standing sign-off, as the BOARD reads it: a done registered through the tool is in no
         // transcript record, so the tailer's own `lastFence` never carries it (board.registeredDoneFence).
@@ -4044,8 +4102,11 @@ export function createRouter(ctx: AppContext) {
           ctx.storage, row, input.terminateLive, cachedLivenessTerminator, telemetry, ctx.codexAppServer, ctx.claudeBroker, ctx.acpBridge,
           {
             live: ctx.terminalRunner.live(input.slug),
-            stop: () => ctx.terminalRunner.stopThread(input.slug),
-            close: () => ctx.terminalRunner.closeThread(input.slug),
+            // Only this thread's own terminals: an id from a stale dialog naming another thread's is ignored.
+            stop: () => {
+              const mine = new Set(ctx.terminalRunner.live(input.slug).map((terminal) => terminal.id))
+              return ctx.terminalRunner.stopMany((input.stopTerminals ?? []).filter((id) => mine.has(id)))
+            },
           },
         )
         if (!result.needsConfirmation) ctx.board.refresh()
@@ -4065,6 +4126,18 @@ export function createRouter(ctx: AppContext) {
     setThreadSnooze: mutation({
       input: SetThreadSnoozeInput,
       handler: async ({ input }) => {
+        // A TERMINAL THREAD: the human's snooze, to a time, on one that is not running (a running process is
+        // Working, and a working thread is never snoozed). No prompt: there is no agent to deliver one to.
+        if (ctx.terminalRunner.has(input.slug)) {
+          const thread = (await ctx.board.snapshot()).threads.find((candidate) => candidate.id === input.slug)
+          if (input.until !== null) {
+            if (!thread || thread.state === "archived") throw new Error("Reopen this terminal before snoozing it")
+            if (Date.parse(input.until) <= Date.now()) throw new Error("Snooze time must be in the future")
+            if (isActivelyRunning(thread)) throw new Error("Can't snooze while it's running")
+          }
+          ctx.terminalRunner.setSnooze(input.slug, input.until)
+          return
+        }
         currentOwnedSession(input.slug, input.sessionId)
         const thread = (await ctx.board.snapshot()).threads.find((candidate) => candidate.id === input.slug)
         if (!thread || thread.kind !== "session" || thread.foreign) throw new Error(`thread ${input.slug} is not editable`)
@@ -4103,6 +4176,10 @@ export function createRouter(ctx: AppContext) {
     setThreadPinned: mutation({
       input: SetThreadPinnedInput,
       handler: async ({ input }) => {
+        if (ctx.terminalRunner.has(input.slug)) {
+          ctx.terminalRunner.setPinned(input.slug, input.pinned ? new Date().toISOString() : null)
+          return
+        }
         currentOwnedSession(input.slug, input.sessionId)
         const thread = (await ctx.board.snapshot()).threads.find((candidate) => candidate.id === input.slug)
         if (!thread || thread.kind !== "session" || thread.foreign) throw new Error(`thread ${input.slug} is not editable`)
@@ -5624,6 +5701,10 @@ export function createRouter(ctx: AppContext) {
         const [threadPart = input.handle, ...childPath] = addressSegments(input.handle)
         const hit = resolveThreadHandle(threadPart, threads)
         const row = hit ? ctx.storage.getSession(hit.slug) : undefined
+        // A TERMINAL THREAD (thread-terminals.ts): what it runs and the tail of its screen. An open thread of
+        // the same name wins (it was named first; a terminal's handle is minted around the names in use).
+        const terminal = childPath.length === 0 && !(hit && row && hit.open) ? terminalByHandle(threadPart) : undefined
+        if (terminal) return readTerminal(terminal)
         if (!hit || !row) {
           // Another open project's thread is read by that project's own router, and says whose it is.
           const elsewhere = resolveElsewhere(threadPart)
@@ -5909,8 +5990,26 @@ export function createRouter(ctx: AppContext) {
         // Checked here, not left to the pty: a folder that does not exist would otherwise surface as a
         // spawn failure on a terminal that already has a row.
         const cwd = input.cwd ? terminalFolder(input.cwd) : threadWorkingDir(input.slug).dir
-        return ctx.terminalRunner.start({ parent: input.slug, command: input.command, cwd })
+        return startTerminalThread({ parent: input.slug, startedBy: "human", command: input.command, cwd })
       },
+    }),
+
+    // A TOP-LEVEL TERMINAL THREAD: a `$ cmd` in the prompt box on All projects, a project page or Home. No
+    // parent; it starts in the folder the box's picker named — one `terminalFolders` lists — or the root.
+    terminalThreadStart: mutation({
+      input: StartTerminalThreadInput,
+      output: StartTerminalResult,
+      handler: async ({ input }) => {
+        const cwd = input.cwd ? terminalFolder(input.cwd) : workDir
+        return startTerminalThread({ startedBy: "human", command: input.command, cwd })
+      },
+    }),
+
+    // Where a top-level terminal can start (the prompt box's folder picker): the project root, then every
+    // `.ntwine/worktrees/*` checkout. A parented terminal keeps following its agent's folder instead.
+    terminalFolders: query({
+      output: z.array(TerminalFolder),
+      handler: async () => terminalFolders(workDir),
     }),
 
     terminalStop: mutation({
@@ -6042,8 +6141,8 @@ export function createRouter(ctx: AppContext) {
             const done: ThreadView[] = []
             const pinnedDone: ThreadView[] = []
             const threads = snapshot.threads.filter((thread) => {
-              // A thread's terminals ride its row (`terminals`), so the session rows are the whole list.
-              if (thread.kind !== "session" || thread.foreign) return false
+              // Sessions and terminal threads; a foreign session is History's, not a row here.
+              if ((thread.kind !== "session" && thread.kind !== "terminal") || thread.foreign) return false
               // Archived is Done unless its worker is still running: shared `sectionOf` lifts that row into
               // Running until it rests (upstream 2026-07-10), so it travels with the open threads and the
               // client bands it with the same function. A PINNED Done thread is the exception the pin makes:
@@ -6151,7 +6250,7 @@ export function createRouter(ctx: AppContext) {
             const projectSlug = snapshot.projectSlug ?? project.id
             const projectName = snapshot.projectName || project.name
             for (const thread of snapshot.threads) {
-              if (thread.kind !== "session" || thread.foreign) continue
+              if ((thread.kind !== "session" && thread.kind !== "terminal") || thread.foreign) continue
               const section = sectionOf(thread)
               if (section === null || !threadMatches(thread, needle)) continue
               hits.push({ projectId: project.id, projectSlug, projectName, thread, done: section === "inactive" })

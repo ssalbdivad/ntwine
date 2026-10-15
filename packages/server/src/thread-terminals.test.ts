@@ -4,9 +4,9 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { ThreadSlug } from "@ntwine/shared"
+import { ThreadSlug, terminalOutcome } from "@ntwine/shared"
 import { createStorage, type Storage } from "./storage.ts"
-import { commandEnvironment, createTerminalRunner, endsOnPrompt, followUpScreen, type TerminalRunner, type TerminalRunnerDeps } from "./thread-terminals.ts"
+import { commandEnvironment, createTerminalRunner, endsOnPrompt, followUpScreen, plainScreen, terminalHandle, terminalThreadView, type TerminalRunner, type TerminalRunnerDeps } from "./thread-terminals.ts"
 
 // REAL ptys and a real SQLite file: the runner's whole job is the seam between a shell, its process
 // group and the rows the board renders, and a fake pty would only prove the fake. The one injected seam
@@ -34,7 +34,7 @@ function harness(opts: { storage?: Storage; dir?: string; inputQuietMs?: number;
     ...(opts.loadPty ? { loadPty: opts.loadPty } : {}),
   })
   runners.push(runner)
-  const start = (command: string | undefined, parent = PARENT, cwd = dir) => runner.start({ parent, command, cwd })
+  const start = (command: string | undefined, parent: string | undefined = PARENT, cwd = dir) => runner.start({ parent, startedBy: "human", command, cwd })
   return { runner, storage: store, dir, start, changes: () => changes }
 }
 
@@ -48,9 +48,15 @@ async function until<T>(read: () => T | undefined, what: string, timeoutMs = 10_
   }
 }
 
-/** A terminal as its thread's row carries it. */
-function term(runner: TerminalRunner, id: string, parent = PARENT) {
-  return runner.byThread().get(parent)?.find((t) => t.id === id)
+/** A terminal's process, as its own row carries it. */
+function term(runner: TerminalRunner, id: string) {
+  return runner.terminals().find((t) => t.row.slug === id)?.terminal
+}
+
+/** A terminal thread's row, as the board lists it. */
+function row(runner: TerminalRunner, id: string) {
+  const hit = runner.terminals().find((t) => t.row.slug === id)
+  return hit && terminalThreadView(hit.row, hit.terminal)
 }
 
 function exitedTerm(runner: TerminalRunner, id: string) {
@@ -137,28 +143,76 @@ test("stop ends the whole process group — the shell's children too — and rec
   runner.shutdown()
 })
 
-test("marking the thread done stops every terminal on it and files them away; another thread's are untouched", { skip: !posix }, async () => {
-  const { runner, start } = harness()
-  const a = await start("sleep 60")
-  const b = await start("sleep 60 & wait")
-  const other = await start("sleep 60", "other-thread")
-  assert.deepEqual(runner.live(PARENT).map((t) => t.id).sort(), [a.id, b.id].sort())
+test("each way a run ends lands in its band: a failure and a prompt queue, a clean exit and Ctrl-C are Done", { skip: !posix }, async () => {
+  const { runner, start } = harness({ inputQuietMs: 150 })
+  const failed = await start("exit 1", undefined)
+  const clean = await start("exit 0", undefined)
+  const interrupted = await start("sleep 60", undefined)
+  const asking = await start("printf 'Continue? '; read x", undefined)
+  await exitedTerm(runner, failed.id)
+  await exitedTerm(runner, clean.id)
+  await until(() => (term(runner, asking.id)?.awaitingInput ? true : undefined), "the prompt")
 
-  await runner.closeThread(PARENT)
-  assert.deepEqual(runner.live(PARENT), [], "nothing on the done thread is still running")
-  assert.equal(runner.byThread().get(PARENT), undefined, "and its strip is empty")
-  assert.equal(term(runner, other.id, "other-thread")?.state, "running", "the other thread's terminal is not its business")
-  // Filed away, not forgotten: the rows remain, stopped, and a restart brings one back into the strip.
-  await runner.restart(a.id)
-  assert.equal(term(runner, a.id)?.state, "running")
-  assert.equal(term(runner, a.id)?.runId, 2)
+  assert.deepEqual([terminalOutcome(term(runner, failed.id)!), row(runner, failed.id)!.needsYou, row(runner, failed.id)!.state], ["failed", true, "open"])
+  assert.deepEqual([terminalOutcome(term(runner, clean.id)!), row(runner, clean.id)!.needsYou, row(runner, clean.id)!.state], ["finished", false, "archived"])
+  assert.deepEqual([terminalOutcome(term(runner, asking.id)!), row(runner, asking.id)!.needsYou, row(runner, asking.id)!.runtime], ["prompt", true, "turn-idle"])
+  assert.deepEqual([row(runner, interrupted.id)!.needsYou, row(runner, interrupted.id)!.runtime], [false, "running"])
 
-  await runner.forgetThread(PARENT)
-  assert.equal(runner.has(a.id), false)
-  assert.equal(runner.has(b.id), false)
-  assert.equal(runner.attach(a.id), null)
-  assert.equal(runner.has(other.id), true)
+  // Ctrl-C typed into it: 130, the human ending it.
+  const sigint = runner.attach(interrupted.id)!
+  sigint.write("\x03")
+  const ended = await exitedTerm(runner, interrupted.id)
+  assert.equal(terminalOutcome(ended), "finished")
+  assert.equal(row(runner, interrupted.id)!.state, "archived")
   runner.shutdown()
+})
+
+test("Mark as done on a running terminal stops it before filing it; a restart reopens it", { skip: !posix }, async () => {
+  const { runner, start } = harness()
+  const { id } = await start("sleep 60 & echo child=$!; wait", undefined)
+  const attachment = runner.attach(id)!
+  const child = Number(await until(() => /child=(\d+)/.exec(attachment.replay())?.[1], "the child pid"))
+  await runner.setState(id, "archived")
+  assert.equal(term(runner, id)!.state, "exited", "nothing live is filed under Done")
+  assert.equal(row(runner, id)!.state, "archived")
+  await until(() => (alive(child) ? undefined : true), "the child to die")
+  await runner.restart(id)
+  assert.deepEqual([row(runner, id)!.state, term(runner, id)!.runId], ["open", 2])
+  runner.shutdown()
+})
+
+test("a parent's strip lists the terminals it started until each is Done, and its Done stops none of them", { skip: !posix }, async () => {
+  const { runner, start } = harness()
+  const server = await start("sleep 60")
+  const build = await start("exit 0")
+  const other = await start("sleep 60", "other-thread")
+  await exitedTerm(runner, build.id)
+  assert.deepEqual(runner.byThread().get(PARENT)?.map((t) => t.id), [server.id], "the clean exit is Done, off the strip")
+  assert.deepEqual(runner.live(PARENT).map((t) => t.id), [server.id])
+  assert.equal(term(runner, server.id)!.parent, PARENT)
+  assert.equal(term(runner, server.id)!.startedBy, "human")
+  // The Done dialog's ticked boxes, and nothing else, go down.
+  await runner.stopMany([])
+  assert.equal(term(runner, server.id)!.state, "running")
+  await runner.stopMany([server.id])
+  assert.equal(term(runner, server.id)!.state, "exited")
+  assert.equal(term(runner, other.id)!.state, "running", "another thread's terminal is not its business")
+  runner.shutdown()
+})
+
+test("a terminal's handle is its command's first words, `shell` for a bare shell, with a suffix on a clash", () => {
+  assert.equal(terminalHandle("nub run dev"), "nub-run-dev")
+  assert.equal(terminalHandle("printf 'Continue? '; read x"), "printf-continue-read")
+  assert.equal(terminalHandle(undefined), "shell")
+  assert.equal(terminalHandle("nub run dev", ["nub-run-dev", "nub-run-dev-2"]), "nub-run-dev-3")
+  // Held to a handle's length at a word boundary; a single overlong word is cut.
+  assert.equal(terminalHandle("supercalifragilistic expialidocious"), "supercalifragilistic")
+  // A program named by its path is named by its file.
+  assert.equal(terminalHandle("./node_modules/.bin/vite --port 3000"), "vite-port-3000")
+})
+
+test("a terminal's screen reads as text: escapes dropped, a carriage-returned line as its last frame", () => {
+  assert.equal(plainScreen("\x1b[32mok\x1b[0m\r\n[1/3]\r[2/3]\r[3/3]\r\ndone"), "ok\n[3/3]\ndone")
 })
 
 test("restart is a fresh run of the same command; remove forgets the terminal", { skip: !posix }, async () => {
@@ -231,15 +285,19 @@ test("a run the previous server never saw finish reads as interrupted after a re
   after.runner.shutdown()
 })
 
-test("a pre-2026-09-29 command thread, with no parent, is nobody's terminal", () => {
+test("migration: a thread's terminal becomes a terminal thread it started; a 2026-09-23 command thread stays a Done record", () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-term-")))
+  const first = createStorage(join(dir, "ui.db"), "p")
+  // The two shapes before 2026-10-15: no parent and no folder (2026-09-23), and a parent with no `started_by`.
+  first.db.prepare("INSERT INTO thread_terminal (project_id, slug, command, created_at, started_at) VALUES ('p', 'term-legacy', 'npm run dev', 1, 1)").run()
+  first.db.prepare("INSERT INTO thread_terminal (project_id, slug, parent_slug, command, cwd, created_at, started_at, exited_at, exit_code) VALUES ('p', 'term-child', 'fix-auth', 'nub run dev', ?, 2, 2, 3, 1)").run(dir)
+  first.db.close()
   const storage = createStorage(join(dir, "ui.db"), "p")
-  // The old top-level shape: no parent, no folder. The schema migration also archives it.
-  storage.db.prepare("INSERT INTO thread_terminal (project_id, slug, command, created_at, started_at) VALUES ('p', 'term-legacy', 'npm run dev', 1, 1)").run()
   const { runner } = harness({ storage, dir })
-  assert.equal(runner.has("term-legacy"), false)
-  assert.equal(runner.attach("term-legacy"), null)
-  assert.equal([...runner.byThread().values()].flat().length, 0)
+  assert.deepEqual([row(runner, "term-legacy")!.state, term(runner, "term-legacy")!.startedBy], ["archived", undefined])
+  const child = term(runner, "term-child")!
+  assert.deepEqual([child.parent, child.startedBy, child.handle], ["fix-auth", "human", "nub-run-dev"])
+  assert.equal(row(runner, "term-child")!.needsYou, true, "its failed run queues it, on its own row")
   runner.shutdown()
 })
 

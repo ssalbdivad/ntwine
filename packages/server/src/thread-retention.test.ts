@@ -47,7 +47,8 @@ function harness() {
   const terminalsForgot: string[] = []
   const ctx = {
     project, storage, board, tailer,
-    terminalRunner: { live: () => [], stopThread: async () => {}, closeThread: async () => {}, forgetThread: async (slug: string) => { terminalsForgot.push(slug) } },
+    // No lifecycle verb on the runner: the terminal threads a deleted thread started are threads of their own.
+    terminalRunner: { live: () => [], has: () => false },
     // Worktree cleanup is off here: it is its own feature, with its own tests.
     getSettings: () => ({}) as unknown as Settings,
   } as unknown as AppContext
@@ -98,7 +99,7 @@ test("deleting a thread frees its slug and its @handle, and removes everything n
     assert.equal(existsSync(scratch), false, "the scratch directory goes with the thread")
     assert.ok(h.storage.forgottenIds().has("sid-shell-budgets"), "its transcript is tombstoned so discovery cannot bring it back")
     assert.deepEqual(h.tailerForgot, ["shell-budgets"])
-    assert.deepEqual(h.terminalsForgot, ["shell-budgets"])
+    assert.deepEqual(h.terminalsForgot, [], "the terminals it started stay, on their own rows")
     assert.equal(h.refreshes(), 1)
 
     // Idempotent: a second delete is a no-op, not an error, and rebuilds nothing.

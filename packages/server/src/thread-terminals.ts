@@ -1,27 +1,24 @@
 import { randomBytes } from "node:crypto"
 import { basename } from "node:path"
 import type { IPty, IPtyForkOptions } from "node-pty"
-import type { ThreadTerminal } from "@ntwine/shared"
+import { THREAD_HANDLE_MAX_CHARS, terminalOutcome, type ThreadTerminal, type ThreadView } from "@ntwine/shared"
 import type { ThreadTerminalRow, Storage } from "./storage.ts"
 import type { TerminalAttachment } from "./terminal.ts"
 import { launchEnvironment } from "./backend/worker-env.ts"
 
-// THREAD TERMINALS — a live pty that belongs to one thread. The human opens it from the thread's drawer
-// (or types `$ cmd` into the thread's prompt box), and it runs in the folder that thread's agent is
-// working in: the project root, or the worktree the agent moved into (thread-cwd.ts). It is never a
-// thread of its own. It has no row in the rail and no card in the queue; it shows INSIDE its thread
-// (the drawer's terminals strip, a mark on the thread's row and card), and it ends with its thread:
-// marking the thread done stops every terminal it still has running.
+// TERMINAL THREADS — a live pty a human or an agent started, and a thread of its own (plans/terminal-threads.md,
+// maintainer 2026-10-15): a row in one of the six bands, a card when it needs the human, its own drawer and an
+// `@handle` minted from its command. It is started from anywhere — a top-level `$ cmd` in the prompt box (no
+// parent, in the folder the box's picker names), or `t` / Open terminal / a `$ cmd` line in a thread's box,
+// which make it a CHILD of that thread (`parent_slug`) running where that thread's agent works (thread-cwd.ts).
+// A child shows in its parent's strip as a link to its own row; it does NOT end with its parent, because a
+// dev server is meant to outlive the effort that started it — the parent's Done dialog offers to stop it.
 //
-// This is the second shape of the feature. It shipped on 2026-09-23 as TERMINAL COMMAND THREADS: the
-// prompt box's Terminal tab ran a command as a top-level `kind: "command"` thread with its own row, its
-// own queue card and its own Done. That was reversed on 2026-09-29 (maintainer: prompt threads are the
-// only top-level thread kind; terminals hang off a thread), for two reasons raised upstream: a
-// standalone terminal ran in the project root and so ignored which worktree an agent was actually in —
-// ntwine deliberately leaves the worktree choice to the agent, so the terminal has to follow it — and
-// every terminal was one more row in a sidebar whose whole value is density. The table, `thread_terminal`,
-// was named `command_thread` until 2026-10-06 (storage.ts renameCommandThreadTable); `parent_slug` is what
-// makes a row a thread's terminal, and a row without one is a pre-2026-09-29 command thread, archived at boot.
+// ITS BAND IS ITS PROCESS'S STATE (shared terminalOutcome): running → Working; at a prompt, failed by itself,
+// or interrupted by a restart → Ready; exit 0, Stop, Ctrl-C, or the end of an interactive shell → Done. The
+// last is DERIVED here, not written on exit, so every path that records an exit (the live runner, a host that
+// reports one after a restart) files the run the same way. (History: a top-level command thread from
+// 2026-09-23, reversed on 2026-09-29 into a terminal hanging off a thread, reversed back on 2026-10-15.)
 //
 // The pty rides the hardened /term/<id> transport (terminal.ts): ONE process per terminal, a bounded
 // replay so a tab that opens late (or reloads) sees the screen so far, and a subscriber set so two tabs
@@ -33,16 +30,11 @@ import { launchEnvironment } from "./backend/worker-env.ts"
 // So nothing here imports it at module load. A start that cannot load it records a failed run whose
 // screen says why, which is where the human who pressed "Open terminal" is already looking.
 //
-// WHAT IS DURABLE AND WHAT IS NOT. The row — its thread, the command, the folder, how its last run ended —
-// lives in SQLite, so the thread keeps it across a restart. The process does not: a pty is a child of this
-// server, and replacing the control plane (Restart ntwine, an update) closes the pty master and hangs the
-// process up. Boot records every run that never reported an exit as interrupted, so the strip says
-// "interrupted" and offers Restart rather than showing a process that is not there.
-//
-// ONE WAY A TERMINAL REACHES THE QUEUE: A RUN SITTING AT A PROMPT. `npm publish` stopping at "Enter
-// one-time password:", an ssh passphrase, a `[y/N]` — the process is alive and will stay alive forever,
-// and the human is the only one who can move it. See `awaitingInput`; the board queues the PARENT thread
-// on it (board.ts withThreadTerminals), since the terminal has no card of its own to queue.
+// WHAT IS DURABLE AND WHAT IS NOT. The row — the command, the folder, who started it, how its last run ended,
+// its pin and snooze — lives in SQLite. The process does not: a pty is a child of this server, and replacing
+// the control plane (Restart ntwine, an update) hangs it up. Boot records every run that never reported an
+// exit as interrupted, so the row says "interrupted" and offers Restart rather than showing a process that is
+// not there.
 
 // How long a run must be silent, sitting on an unterminated line, before it reads as waiting for input.
 // Long enough that a program between two writes of one line (a spinner frame, a slow `printf`) is not
@@ -68,8 +60,12 @@ const START_FAILED_EXIT = 127
 type SpawnPty = (file: string, args: string[], options: IPtyForkOptions) => IPty
 
 export interface StartTerminalInput {
-  /** The thread the terminal belongs to. */
-  parent: string
+  /** The thread it was started from, when it was. */
+  parent?: string
+  /** `human`, or the slug of the thread whose agent started it. */
+  startedBy: string
+  /** Handles already taken by other threads (their names), so this one's gets a suffix rather than a clash. */
+  takenHandles?: Iterable<string>
   /** One line of shell, run under the login shell. Absent ⇒ an interactive login shell. */
   command?: string
   /** Absolute, existing directory — the caller resolved and checked it (thread-cwd.ts). */
@@ -77,7 +73,7 @@ export interface StartTerminalInput {
 }
 
 export interface TerminalRunner {
-  start(input: StartTerminalInput): Promise<{ id: string }>
+  start(input: StartTerminalInput): Promise<{ id: string; handle: string }>
   /** A fresh run of a terminal's command (or shell): stops the current run first if it is alive. */
   restart(id: string): Promise<void>
   /** The terminal's NEXT command, typed into its drawer once a run finished — a shell's next line.
@@ -87,20 +83,26 @@ export interface TerminalRunner {
   stop(id: string): Promise<void>
   /** Stop, then forget the terminal entirely. */
   remove(id: string): Promise<void>
-  /** Stop every live terminal the PARENT has — together, not one grace after another. */
-  stopThread(parent: string): Promise<void>
-  /** Mark as done on the PARENT: stop every live terminal it has, then file them all away. */
-  closeThread(parent: string): Promise<void>
-  /** The parent was forgotten (dismissed): stop its terminals and drop them — nothing is left to show them. */
-  forgetThread(parent: string): Promise<void>
-  /** The confirmation dialog's list: this thread's terminals still running something — alive, and not an
-   *  interactive shell idle at its own prompt (`shellIdle`). */
+  /** Stop these terminals together, not one grace after another — the Done dialog's ticked boxes. */
+  stopMany(ids: readonly string[]): Promise<void>
+  /** Mark as done (`archived`, stopping a live run first) or reopen (`open`) a terminal thread. */
+  setState(id: string, state: "open" | "archived"): Promise<void>
+  /** Pin (an ISO instant) or unpin (null). */
+  setPinned(id: string, at: string | null): void
+  /** A human snooze to an ISO instant, or null to wake it. Refused on a running terminal by the caller. */
+  setSnooze(id: string, until: string | null): void
+  /** The parent's Done dialog's list: the terminals it started still running something — alive, and not
+   *  an interactive shell idle at its own prompt (`shellIdle`). */
   live(parent: string): ThreadTerminal[]
+  /** The run's screen so far, escape sequences dropped — `read-thread`'s answer for a terminal. */
+  screenTail(id: string, maxChars?: number): string
   /** The /term transport's gate: non-null iff this id is one of this project's terminals. */
   attach(id: string): TerminalAttachment | null
   has(id: string): boolean
-  /** Every open terminal, grouped by the thread it belongs to — what the board attaches to its rows. */
+  /** Every terminal not yet Done, grouped by the thread it was started from — the parent's strip. */
   byThread(): Map<string, ThreadTerminal[]>
+  /** Every terminal thread with its process — what the board draws as rows. */
+  terminals(): { row: ThreadTerminalRow; terminal: ThreadTerminal }[]
   /** Server shutdown: hang up every live run. */
   shutdown(): void
 }
@@ -191,7 +193,8 @@ export function startFailureScreen(what: "load" | "spawn", cause: unknown): stri
 export interface TerminalRunnerDeps {
   storage: Pick<Storage,
     "insertThreadTerminal" | "listThreadTerminals" | "restartThreadTerminal" | "recordTerminalExit" |
-    "interruptRunningTerminals" | "dropThreadTerminal" | "archiveThreadTerminals" | "dropThreadTerminals">
+    "interruptRunningTerminals" | "dropThreadTerminal" | "setThreadTerminalState" | "setThreadTerminalPin" |
+    "setThreadTerminalSnooze" | "setThreadTerminalHandle">
   /** The board's overlay refresh — every state change is a change to a thread's row. */
   onChange: () => void
   env?: NodeJS.ProcessEnv
@@ -265,6 +268,92 @@ function trimReplay(run: Run): void {
   run.bufferBytes -= Buffer.byteLength(drop)
 }
 
+// How many of a command's words its handle keeps: `nub run dev` is the whole of it, and a long line's first
+// three words still say which program it is (`printf 'Continue? '; read x` → `printf-continue-read`).
+const HANDLE_WORDS = 3
+
+/**
+ * A terminal's `@handle`, from its command (plans/terminal-threads.md § The model): `$ nub run dev` →
+ * `nub-run-dev`, a bare shell `shell`, its first words kebab-cased as a thread's name is (shared threadHandle)
+ * and held to a thread handle's length at a word boundary. A handle another thread already carries gets the
+ * first free `-2`, `-3`, … suffix, so `@nub-run-dev` always names one thing.
+ */
+export function terminalHandle(command: string | undefined, taken: Iterable<string> = []): string {
+  // A program named by its path is named by its file: `./node_modules/.bin/vite --port 3000` → `vite-port-3000`.
+  const tokens = command === undefined ? [] : command.trim().split(/\s+/)
+  if (tokens[0]) tokens[0] = tokens[0].slice(tokens[0].lastIndexOf("/") + 1)
+  const words = tokens.join(" ").normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+  let base = ""
+  for (const word of words.slice(0, HANDLE_WORDS)) {
+    const next = base ? `${base}-${word}` : word
+    if (next.length > THREAD_HANDLE_MAX_CHARS) break
+    base = next
+  }
+  if (!base) base = words[0]?.slice(0, THREAD_HANDLE_MAX_CHARS) || (command === undefined ? "shell" : "terminal")
+  const used = new Set([...taken].map((h) => h.toLowerCase()))
+  if (!used.has(base)) return base
+  for (let n = 2; ; n++) if (!used.has(`${base}-${n}`)) return `${base}-${n}`
+}
+
+/** The text of a screen: escape sequences dropped, and on each line only what the last carriage return left
+ *  (a progress bar's final frame, not every frame). */
+export function plainScreen(screen: string): string {
+  return screen.replace(ANSI_RE, "").split("\n").map((line) => {
+    const bare = line.endsWith("\r") ? line.slice(0, -1) : line
+    return bare.slice(bare.lastIndexOf("\r") + 1)
+  }).join("\n")
+}
+
+/**
+ * A terminal thread's row, as the board lists it. Its band is its process's state (shared terminalOutcome):
+ * it is queued (`needsYou`) at a prompt, after a failure and after an interruption, and Done (`archived`) when
+ * the human marked it so or it finished cleanly. A human snooze to a time parks a Ready one; a running one
+ * cannot be snoozed (router), and a snooze ends at its next exit (storage recordTerminalExit).
+ */
+export function terminalThreadView(row: Pick<ThreadTerminalRow, "slug" | "state" | "created_at" | "pinned_at" | "snoozed_until">, terminal: ThreadTerminal, nowMs = Date.now()): ThreadView {
+  const outcome = terminalOutcome(terminal)
+  const archived = row.state === "archived" || outcome === "finished"
+  const snoozedUntil = row.snoozed_until && Date.parse(row.snoozed_until) > nowMs && outcome !== "running" ? row.snoozed_until : undefined
+  const ready = !archived && (outcome === "prompt" || outcome === "failed" || outcome === "interrupted")
+  // The instant it last changed state: what the row's age and the queue's order read.
+  const at = terminal.awaitingSince ?? terminal.exitedAt ?? terminal.startedAt
+  return {
+    id: row.slug,
+    title: terminal.command,
+    status: "active", // required by the shape, unused — as on every row that is not a legacy file
+    hasPlan: false,
+    mechanism: null,
+    humanBlocked: false,
+    ready: false,
+    dependsOn: [],
+    externalDeps: [],
+    agents: [],
+    errors: [],
+    warnings: [],
+    // `turn-idle` at a prompt so a Ready terminal is at rest (it can be snoozed); `running` only while it moves.
+    runtime: outcome === "running" ? "running" : outcome === "prompt" ? "turn-idle" : "exited",
+    unread: false,
+    archived,
+    spawnedAt: new Date(row.created_at).toISOString(),
+    lastActivityAt: at,
+    lastUserAt: terminal.startedAt,
+    subAgents: [],
+    bgShells: [],
+    watches: [],
+    pendingQuestion: false,
+    questions: [],
+    kind: "terminal",
+    // Its slug stands in for a session id: the human's verbs (pin, snooze, Mark as done) carry one, and the
+    // router answers a terminal by its slug before it looks for a session.
+    sessionId: row.slug,
+    terminal,
+    state: archived ? "archived" : "open",
+    ...(row.pinned_at ? { pinnedAt: row.pinned_at } : {}),
+    ...(snoozedUntil ? { snoozedUntil } : {}),
+    needsYou: ready && snoozedUntil === undefined,
+  } as ThreadView
+}
+
 export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
   const loadPty = deps.loadPty ?? loadNodePty
   const env = deps.env ?? process.env
@@ -277,14 +366,40 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
   // Whatever was running when the last server went away went with it.
   deps.storage.interruptRunningTerminals(now())
 
-  // A thread's terminals only: a row with no parent is a pre-2026-09-29 command thread (see the header),
-  // which nothing addresses any more.
-  function rows(): Map<string, ThreadTerminalRow & { parent_slug: string }> {
-    const out = new Map<string, ThreadTerminalRow & { parent_slug: string }>()
-    for (const row of deps.storage.listThreadTerminals()) {
-      if (row.parent_slug) out.set(row.slug, row as ThreadTerminalRow & { parent_slug: string })
+  // Every row is a terminal thread — a 2026-09-23 command thread included, archived, as the record it is.
+  function rows(): Map<string, ThreadTerminalRow> {
+    return new Map(deps.storage.listThreadTerminals().map((row) => [row.slug, row]))
+  }
+
+  // A row migrated from a thread's terminal (storage.ts, 2026-10-15) has no handle yet: mint it once.
+  {
+    const taken: string[] = []
+    for (const row of rows().values()) if (row.handle) taken.push(row.handle)
+    for (const row of rows().values()) {
+      if (row.handle) continue
+      const handle = terminalHandle(row.shell === 1 ? undefined : row.command, taken)
+      deps.storage.setThreadTerminalHandle(row.slug, handle)
+      taken.push(handle)
     }
-    return out
+  }
+
+  // A snooze ends at its time: the board has to be told then, since nothing else changes at that instant.
+  const snoozeTimers = new Map<string, NodeJS.Timeout>()
+  function armSnooze(id: string, until: string | null | undefined): void {
+    clearTimeout(snoozeTimers.get(id))
+    snoozeTimers.delete(id)
+    const ms = Date.parse(until ?? "") - now()
+    if (!Number.isFinite(ms) || ms <= 0) return
+    // setTimeout's own ceiling is ~24.8 days; a longer snooze re-arms on the next board change anyway.
+    const timer = setTimeout(() => { snoozeTimers.delete(id); deps.onChange() }, Math.min(ms + 50, 2 ** 31 - 1))
+    timer.unref?.()
+    snoozeTimers.set(id, timer)
+  }
+  for (const row of rows().values()) armSnooze(row.slug, row.snoozed_until)
+
+  /** The handles open terminal threads carry, beside whatever the caller says is taken. */
+  function openHandles(): string[] {
+    return [...rows().values()].filter((row) => row.state !== "archived" && row.handle).map((row) => row.handle!)
   }
 
   function newRun(screen: string | undefined, interactive: boolean): { run: Run; settle: () => void } {
@@ -352,13 +467,13 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       watchForPrompt(id, run, chunk)
       for (const listener of run.dataListeners) { try { listener(chunk) } catch { /* one bad viewer must not stall the others */ } }
     })
-    term.onExit(({ exitCode }) => {
+    term.onExit(({ exitCode, signal }) => {
       run.exited = true
       run.exitCode = exitCode
       clearTimeout(run.promptTimer)
       // A run replaced by restart() has already been swapped out of the map; its outcome is history.
       if (runs.get(id) === run && !shuttingDown) {
-        deps.storage.recordTerminalExit(id, { exitedAtMs: now(), exitCode, stopped: run.stopRequested })
+        deps.storage.recordTerminalExit(id, { exitedAtMs: now(), exitCode, ...(signal ? { signal } : {}), stopped: run.stopRequested })
         deps.onChange()
       }
       for (const listener of run.exitListeners) { try { listener(exitCode) } catch { /* ignore */ } }
@@ -454,16 +569,30 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       ...(running || row.exited_at === null ? {} : { exitedAt: new Date(row.exited_at).toISOString() }),
       ...(!running && row.exit_code !== null ? { exitCode: row.exit_code } : {}),
       ...(row.stopped === 1 ? { stopped: true } : {}),
+      ...(!running && row.exit_signal ? { signal: row.exit_signal } : {}),
+      ...(row.parent_slug ? { parent: row.parent_slug } : {}),
+      ...(row.started_by ? { startedBy: row.started_by } : {}),
+      ...(row.handle ? { handle: row.handle } : {}),
     }
   }
 
-  // Every stop at once: a thread with two dev servers should not wait out one grace, then the other.
-  async function stopThread(parent: string): Promise<void> {
-    const mine = [...rows().values()].filter((row) => row.parent_slug === parent)
-    await Promise.all(mine.map((row) => stopRun(runs.get(row.slug))))
+  /** Done as the board files it: marked so, or finished cleanly (see terminalThreadView). */
+  function done(row: ThreadTerminalRow): boolean {
+    return row.state === "archived" || terminalOutcome(view(row)) === "finished"
   }
 
-  function requireRow(id: string): ThreadTerminalRow & { parent_slug: string } {
+  // Every stop at once: two dev servers should not wait out one grace, then the other.
+  async function stopMany(ids: readonly string[]): Promise<void> {
+    await Promise.all(ids.map((id) => stopRun(runs.get(id))))
+  }
+
+  function knownRow(id: string): ThreadTerminalRow {
+    const row = rows().get(id)
+    if (!row) throw new Error(`no terminal ${id}`)
+    return row
+  }
+
+  function requireRow(id: string): ThreadTerminalRow {
     const row = rows().get(id)
     if (!row) throw new Error(`no terminal ${id}`)
     if (!row.cwd) throw new Error(`terminal ${id} has no folder to run in`)
@@ -471,16 +600,17 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
   }
 
   return {
-    async start({ parent, command, cwd }) {
+    async start({ parent, startedBy, takenHandles = [], command, cwd }) {
       const id = `term-${randomBytes(6).toString("hex")}`
       const line = command?.trim() || undefined
-      deps.storage.insertThreadTerminal({ slug: id, parentSlug: parent, command: line ?? shellLabel(env), cwd, shell: line === undefined, createdAtMs: now() })
+      const handle = terminalHandle(line, [...openHandles(), ...takenHandles])
+      deps.storage.insertThreadTerminal({ slug: id, parentSlug: parent ?? null, startedBy, handle, command: line ?? shellLabel(env), cwd, shell: line === undefined, createdAtMs: now() })
       try {
         await spawn(id, { command: line, cwd })
       } finally {
         deps.onChange()
       }
-      return { id }
+      return { id, handle }
     },
     async restart(id) {
       const row = requireRow(id)
@@ -519,17 +649,30 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       deps.onChange()
       await stopRun(run)
     },
-    stopThread,
-    async closeThread(parent) {
-      // The rows are filed away only after every stop, so nothing live is ever listed as closed.
-      await stopThread(parent)
-      if (deps.storage.archiveThreadTerminals(parent) > 0) deps.onChange()
+    stopMany,
+    async setState(id, state) {
+      knownRow(id)
+      // Mark as done on a running terminal stops it first (SIGTERM, SIGKILL past the grace), so nothing live
+      // is ever filed under Done.
+      if (state === "archived") await stopRun(runs.get(id))
+      if (state === "archived") armSnooze(id, null)
+      if (deps.storage.setThreadTerminalState(id, state)) deps.onChange()
     },
-    async forgetThread(parent) {
-      await stopThread(parent)
-      const mine = [...rows().values()].filter((row) => row.parent_slug === parent)
-      for (const row of mine) runs.delete(row.slug)
-      if (deps.storage.dropThreadTerminals(parent) > 0) deps.onChange()
+    setPinned(id, at) {
+      knownRow(id)
+      if (deps.storage.setThreadTerminalPin(id, at)) deps.onChange()
+    },
+    setSnooze(id, until) {
+      knownRow(id)
+      if (deps.storage.setThreadTerminalSnooze(id, until)) {
+        armSnooze(id, until)
+        deps.onChange()
+      }
+    },
+    screenTail(id, maxChars = 8_000) {
+      const run = runs.get(id)
+      if (!run) return ""
+      return plainScreen(run.buffer.slice(-Math.max(maxChars * 4, PROMPT_TAIL_CHARS))).replace(/\s+$/, "").slice(-maxChars)
     },
     live(parent) {
       return [...rows().values()].filter((row) => row.parent_slug === parent).map(view)
@@ -579,16 +722,21 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
     byThread() {
       const out = new Map<string, ThreadTerminal[]>()
       for (const row of rows().values()) {
-        // Filed away with its thread (Mark as done). Restart, or a follow-up line, reopens it.
-        if (row.state === "archived") continue
+        // Done (marked so, or finished cleanly) leaves the parent's strip; it is in Done on its own row.
+        if (!row.parent_slug || done(row)) continue
         const list = out.get(row.parent_slug) ?? []
         list.push(view(row))
         out.set(row.parent_slug, list)
       }
       return out
     },
+    terminals() {
+      return [...rows().values()].map((row) => ({ row, terminal: view(row) }))
+    },
     shutdown() {
       shuttingDown = true
+      for (const timer of snoozeTimers.values()) clearTimeout(timer)
+      snoozeTimers.clear()
       for (const run of runs.values()) {
         clearTimeout(run.promptTimer)
         if (!run.exited) signalGroup(run, "SIGHUP")

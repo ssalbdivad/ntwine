@@ -106,7 +106,7 @@ function harness(opts: Partial<Pick<ScheduleServiceDeps, "bootAtMs" | "postBootG
     getSettings: () => defaultSettings(),
     schedules: service,
     startHeldThread: (row: never, prompt: string, profile: never) => service.startHeldRow(row, prompt, profile),
-    terminalRunner: { closeThread: async () => {}, live: () => false, stopThread: async () => {} },
+    terminalRunner: { live: () => [], has: () => false, stopMany: async () => {} },
   } as unknown as AppContext
   return {
     storage, service, router: createRouter(ctx), spawned, readings,

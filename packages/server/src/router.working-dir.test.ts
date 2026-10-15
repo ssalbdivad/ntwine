@@ -23,11 +23,11 @@ function world() {
 }
 
 function router(w: ReturnType<typeof world>, over: { workingDir?: string; backend?: string; execs?: { processId: string; command?: string; startedAtMs: number; cwd?: string }[] } = {}) {
-  const started: { parent: string; command?: string; cwd: string }[] = []
+  const started: { parent?: string; startedBy: string; command?: string; cwd: string }[] = []
   const ctx = {
     project: { dir: w.project, stateDir: w.root, cwdSlug: "-ntwine-router-wd-test-none" },
     // `setInteractedAt`: terminalStart is a human verb, so createRouter's wrapper stamps the thread first.
-    storage: { getSession: (slug: string) => (slug === "t" ? { slug, session_id: "sid", backend: over.backend ?? "claude" } : undefined), setInteractedAt: () => {} },
+    storage: { getSession: (slug: string) => (slug === "t" ? { slug, session_id: "sid", backend: over.backend ?? "claude" } : undefined), setInteractedAt: () => {}, allSessions: () => [] },
     board: {},
     tailer: {
       get: (slug: string) => (slug === "t" && over.workingDir ? { workingDir: over.workingDir } : undefined),
@@ -35,7 +35,7 @@ function router(w: ReturnType<typeof world>, over: { workingDir?: string; backen
       subAgent: () => undefined,
     },
     codexAppServer: over.execs ? { backgroundExecs: (slug: string, sessionId: string) => (slug === "t" && sessionId === "sid" ? over.execs : []), binding: () => undefined } : undefined,
-    terminalRunner: { start: (input: { parent: string; command?: string; cwd: string }) => { started.push(input); return { id: "term-1" } } },
+    terminalRunner: { start: ({ takenHandles: _taken, ...input }: { parent?: string; startedBy: string; takenHandles?: unknown; command?: string; cwd: string }) => { started.push(input); return { id: "term-1", handle: "npm-test" } } },
     backendFor: () => ({}),
   } as unknown as AppContext
   return { rpc: createRouter(ctx), started }
@@ -58,7 +58,7 @@ test("a terminal started with no folder opens where the fold says the agent is",
   try {
     const r = router(w, { workingDir: w.worktree })
     await r.rpc.terminalStart.handler({ input: { slug: "t", command: "npm test" } })
-    assert.deepEqual(r.started, [{ parent: "t", command: "npm test", cwd: w.worktree }])
+    assert.deepEqual(r.started, [{ parent: "t", startedBy: "human", command: "npm test", cwd: w.worktree }])
   } finally {
     w.cleanup()
   }

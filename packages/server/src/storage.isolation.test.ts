@@ -81,7 +81,7 @@ function seed(storage: Storage): void {
     message: `steer from ${storage.projectId}`,
     sentAtMs: 1,
   })
-  storage.insertThreadTerminal({ slug: "term-alpha", parentSlug: "alpha-thread", command: `echo ${storage.projectId}`, cwd: `/work/${storage.projectId}`, shell: false, createdAtMs: 1 })
+  storage.insertThreadTerminal({ slug: "term-alpha", parentSlug: "alpha-thread", startedBy: "human", handle: "echo", command: `echo ${storage.projectId}`, cwd: `/work/${storage.projectId}`, shell: false, createdAtMs: 1 })
   storage.insertSchedule(schedule())
   storage.insertScheduleRun(run("run_a", 500))
   storage.insertScheduleRun(run("run_b", 600, "skipped"))

@@ -3,16 +3,17 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { ThreadTerminal, ThreadView } from "@ntwine/shared"
+import { inActiveBand, sectionOf, type ThreadTerminal, type ThreadView } from "@ntwine/shared"
 import { createBoard, endedShellViews, withThreadTerminals } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
 import type { Project } from "./project.ts"
 import type { SessionTelemetry, Tailer } from "./tailer.ts"
 import { resetCheckoutMemo } from "./thread-cwd.ts"
+import { terminalThreadView } from "./thread-terminals.ts"
 
-// A THREAD'S TERMINALS ON THE BOARD (thread-terminals.ts): they ride their thread's row, and one waiting
-// at a prompt queues that THREAD — a terminal has no row of its own to queue.
+// TERMINAL THREADS ON THE BOARD (thread-terminals.ts, plans/terminal-threads.md): a terminal is a row of its
+// own, banded by its process, and the thread that started it lists it in its strip — nothing more.
 
 const at = (hhmm: string) => `2026-09-29T${hhmm}:00.000Z`
 const terminal = (over: Partial<ThreadTerminal> = {}): ThreadTerminal => ({
@@ -20,27 +21,18 @@ const terminal = (over: Partial<ThreadTerminal> = {}): ThreadTerminal => ({
 })
 const view = (over: Partial<ThreadView> = {}) => ({ id: "fix-auth", state: "open", needsYou: false, ...over }) as ThreadView
 
-test("withThreadTerminals: terminals ride the row, and only one at a prompt queues it", () => {
+test("withThreadTerminals: a thread's terminals ride its row for its strip, and never queue it", () => {
   const plain = view()
   assert.equal(withThreadTerminals(plain, undefined), plain, "no terminals leaves the view untouched")
-  assert.equal(withThreadTerminals(plain, []), plain)
-
-  const running = withThreadTerminals(plain, [terminal()])
-  assert.deepEqual(running.terminals?.map((t) => t.id), ["term-1"])
-  assert.equal(running.needsYou, false, "a terminal that is merely running asks nothing of the human")
-
-  const prompting = withThreadTerminals(plain, [terminal(), terminal({ id: "term-2", awaitingInput: true, awaitingSince: at("09:05") })])
-  assert.equal(prompting.needsYou, true, "a password / OTP / [y/N] prompt queues the thread it hangs off")
-
-  // Done is done, and a snooze the human set is theirs: neither is overridden by a prompt.
-  assert.equal(withThreadTerminals(view({ state: "archived" }), [terminal({ awaitingInput: true })]).needsYou, false)
-  assert.equal(withThreadTerminals(view({ snoozedUntil: at("12:00") }), [terminal({ awaitingInput: true })]).needsYou, false)
+  const prompting = withThreadTerminals(plain, [terminal({ awaitingInput: true, awaitingSince: at("09:05") })])
+  assert.deepEqual(prompting.terminals?.map((t) => t.id), ["term-1"])
+  assert.equal(prompting.needsYou, false, "a prompt queues the terminal's own row, not the thread that started it")
 })
 
-test("a terminal at a prompt queues its RUNNING thread through the real board, and leaves once answered", async () => {
+test("a terminal at a prompt is its own Ready row on the real board; its running parent stays out of the queue", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-board-terminals-"))
   const project: Project = { dir, id: "project-terminals", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
-  // The agent is mid-turn: on its own it would never be in the queue.
+  // The agent is mid-turn: on its own it is never in the queue.
   const telemetry: SessionTelemetry = { turn: "in-flight", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00") }
   const tailer = {
     get: (slug: string) => (slug === "busy" ? telemetry : undefined),
@@ -52,7 +44,8 @@ test("a terminal at a prompt queues its RUNNING thread through the real board, a
     tick: () => {},
   } satisfies Tailer
   const nowMs = Date.parse(at("10:00"))
-  let terminals = new Map<string, ThreadTerminal[]>([["busy", [terminal({ awaitingInput: true, awaitingSince: at("09:58") })]]])
+  let process = terminal({ parent: "busy", awaitingInput: true, awaitingSince: at("09:58") })
+  const termRow = { slug: "term-1", state: "open" as const, created_at: Date.parse(at("09:00")), pinned_at: null, snoozed_until: null }
   const storage = createStorage(join(dir, "ui.db"), "p")
   const row: SessionRow = {
     slug: "busy", session_id: "busy-session", thread_name: "ntwine-busy", spawned_at: at("08:00"), last_read_at: null,
@@ -61,19 +54,23 @@ test("a terminal at a prompt queues its RUNNING thread through the real board, a
   }
   storage.upsertSession(row)
   storage.setClaudeRuntime("busy", "broker")
-  const board = createBoard(project, storage, new Bus(), tailer, "terminals-boot", { now: () => nowMs, threadTerminals: () => terminals })
+  const board = createBoard(project, storage, new Bus(), tailer, "terminals-boot", {
+    now: () => nowMs,
+    threadTerminals: () => new Map([["busy", [process]]]),
+    terminalThreads: (now) => [terminalThreadView(termRow, process, now)],
+  })
   try {
-    const queued = board.refresh().threads.find((t) => t.id === "busy")
-    assert.ok(queued, "the thread is on the board")
-    assert.equal(queued.needsYou, true, "the prompt queues the thread")
-    assert.deepEqual(queued.terminals?.map((t) => [t.id, t.awaitingInput]), [["term-1", true]])
-    assert.ok(queued.queuedAt, "and it holds a place in line")
-    assert.ok(!board.refresh().threads.some((t) => t.id === "term-1"), "the terminal has no row of its own")
+    const threads = board.refresh().threads
+    const own = threads.find((t) => t.id === "term-1")
+    assert.deepEqual([own?.kind, own?.needsYou, sectionOf(own!), inActiveBand(own!)], ["terminal", true, "active", false], "the prompt queues the terminal itself: Ready")
+    assert.ok(own?.queuedAt, "with a place in line")
+    const parent = threads.find((t) => t.id === "busy")
+    assert.equal(parent?.needsYou, false, "the parent keeps working")
+    assert.deepEqual(parent?.terminals?.map((t) => t.id), ["term-1"], "and links to it from its strip")
 
-    terminals = new Map([["busy", [terminal()]]])
-    const answered = board.refresh().threads.find((t) => t.id === "busy")
-    assert.equal(answered?.needsYou, false, "answered: the thread goes back to working")
-    assert.deepEqual(answered?.terminals?.map((t) => t.id), ["term-1"], "and still shows its terminal")
+    process = terminal({ parent: "busy" })
+    const answered = board.refresh().threads.find((t) => t.id === "term-1")
+    assert.deepEqual([answered?.needsYou, inActiveBand(answered!)], [false, true], "answered: it goes back to Working")
   } finally {
     await board.stop()
     storage.close()

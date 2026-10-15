@@ -55,7 +55,7 @@ import { createCodexBackend, codexSandbox } from "./backend/codex.ts"
 import { createAcpBackend } from "./backend/acp-transcript.ts"
 import { createAcpBridge, type AcpBridge } from "./backend/acp-bridge.ts"
 import { readClaudePreflightAuth, readCodexAuthState, readCodexBinaryState } from "./backend/auth-status.ts"
-import { createTerminalRunner, type TerminalRunner } from "./thread-terminals.ts"
+import { createTerminalRunner, terminalThreadView, type TerminalRunner } from "./thread-terminals.ts"
 import type { EditorBridge } from "./editor-bridge.ts"
 import { ntwineCliEnv, withNtwineCliOnPath, type AgentBackend } from "./backend/types.ts"
 import { sanitizeProviderChildEnvironment } from "./backend/claude-agent-sdk.ts"
@@ -1107,7 +1107,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   // The bridge is the authority on whether a codex app-server TURN is actually running — a rollout
   // frozen by a dead app-server reads "in-flight" forever on its own. Without this the board spins
   // such a thread on `running` and never queues it (live stall 2026-07-22).
-  // Thread terminals. Created before the board because the board attaches them to their threads' rows;
+  // Terminal threads. Created before the board because the board lists them and attaches each to its parent;
   // every run state change is an overlay refresh. A refresh after the board has stopped (a run exiting
   // during shutdown) is a no-op, not an error. Constructing it loads nothing native: node-pty is
   // imported on a terminal's first start, so a host without it still serves this project.
@@ -1126,6 +1126,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   board = createBoard(project, storage, bus, tailer, bootId, {
     scheduleRef: (row) => schedules?.threadRef(row),
     threadTerminals: () => terminalRunner.byThread(),
+    terminalThreads: (nowMs) => terminalRunner.terminals().map(({ row, terminal }) => terminalThreadView(row, terminal, nowMs)),
     codexTurnLiveness: (slug, sessionId) => codexAppServer?.turnLiveness(slug, sessionId),
     // Headless-stall signal for a broker row: the ownerless daemon's record. Absent bridge ⇒ default
     // "alive" so a bridge-less server never falsely crash-cards a broker row (there are none anyway).

@@ -2649,41 +2649,37 @@ export interface BoardManagerDeps {
   claudeBrokerDaemonAlive?: ClaudeBrokerLivenessReader
   /** The pinned Claude runtime's resolved catalogue, read synchronously per build (peekClaudeModels). */
   claudeModels?: () => readonly ClaudeModel[] | undefined
-  // Every open thread terminal (thread-terminals.ts), grouped by the thread it belongs to.
+  // Every terminal thread not yet Done, grouped by the thread it was started from (thread-terminals.ts).
   threadTerminals?: () => Map<string, ThreadTerminal[]>
+  // Every terminal thread, as its row (thread-terminals.ts terminalThreadView).
+  terminalThreads?: (nowMs: number) => ThreadView[]
   // The schedule a row is a run of (schedules.ts threadRef) — the repeat glyph's data, and what parks a
   // schedule's pending next run in Snoozed. Absent ⇒ no row carries one.
   scheduleRef?: (row: SessionRow) => ThreadScheduleRef | undefined
 }
 
-/**
- * Put a thread's TERMINALS on its row, and let one waiting at a prompt queue it.
- *
- * A terminal has no row or card of its own (thread-terminals.ts), so the one moment it needs the human —
- * `npm publish` stopped at "Enter one-time password:", an ssh passphrase, a `[y/N]` — can only reach the
- * queue through its thread. The thread queues whatever its own runtime is doing, since the terminal's
- * process is alive and will wait forever, and a spurious card costs one click where a missed prompt stalls
- * a publish for hours. Two gates: a thread filed under Done queues nothing (its terminals were stopped
- * with it, and the server clears `needsYou` on an archived row everywhere), and the human's own wall-clock
- * snooze still parks it.
- */
-// `projectDir` classifies each terminal's folder by the same rule an agent's shell row uses (thread-cwd.ts
+// `projectDir` classifies a terminal's folder by the same rule an agent's shell row uses (thread-cwd.ts
 // liftWorkingDir): `checkout` when it is off the project root, `atRoot` when it is in it, and neither when
 // there is no reading (the folder is gone) — so a terminal left in a removed worktree claims no place.
-export function withThreadTerminals(t: ThreadView, terminals: readonly ThreadTerminal[] | undefined, projectDir?: string): ThreadView {
-  if (!terminals || terminals.length === 0) return t
-  const prompting = t.state !== "archived" && t.snoozedUntil === undefined && terminals.some((terminal) => terminal.awaitingInput === true)
-  const stamped = terminals.map((terminal) => {
-    const where = liftWorkingDir(terminal.cwd, projectDir)
-    if (!where) return terminal
-    return where.checkout ? { ...terminal, checkout: where.checkout } : { ...terminal, atRoot: true as const }
-  })
-  return { ...t, terminals: stamped, ...(prompting ? { needsYou: true } : {}) }
+export function placeTerminal(terminal: ThreadTerminal, projectDir?: string): ThreadTerminal {
+  const where = liftWorkingDir(terminal.cwd, projectDir)
+  if (!where) return terminal
+  return where.checkout ? { ...terminal, checkout: where.checkout } : { ...terminal, atRoot: true as const }
 }
 
-/** The terminal a thread is queued on, when one is: the prompt the card and the notification name. */
-export function promptingTerminal(t: Pick<ThreadView, "terminals">): ThreadTerminal | undefined {
-  return t.terminals?.find((terminal) => terminal.awaitingInput === true)
+/**
+ * Put the terminal threads a thread STARTED on its row (`terminals`), for its strip — each a link to the
+ * terminal's own row. Nothing else: since 2026-10-15 a terminal at a prompt queues itself (its own row and
+ * card, plans/terminal-threads.md), so the rule that queued the parent on its behalf is gone.
+ */
+export function withThreadTerminals(t: ThreadView, terminals: readonly ThreadTerminal[] | undefined, projectDir?: string): ThreadView {
+  if (!terminals || terminals.length === 0) return t
+  return { ...t, terminals: terminals.map((terminal) => placeTerminal(terminal, projectDir)) }
+}
+
+/** The process of a terminal thread at a prompt: what the card and the notification name. */
+export function promptingTerminal(t: Pick<ThreadView, "kind" | "terminal">): ThreadTerminal | undefined {
+  return t.kind === "terminal" && t.terminal?.awaitingInput === true ? t.terminal : undefined
 }
 
 export function createBoard(
@@ -2748,9 +2744,10 @@ export function createBoard(
   // raised by a pending approval the notification never mentioned). Read here, not carried on the
   // view: this runs once per queue ENTRY, never per rebuild.
   function needsYouBody(t: ThreadView): string | undefined {
-    // A thread queued by its terminal's prompt says so — its agent's last line is about something else.
+    // A terminal thread says what it is waiting on, or how it ended.
     const prompting = promptingTerminal(t)
-    if (prompting) return capLine(`Terminal waiting for input: ${prompting.command}`)
+    if (prompting) return capLine(`Waiting for input: ${prompting.command}`)
+    if (t.kind === "terminal") return capLine(t.terminal?.exitCode === undefined ? `Interrupted: ${t.title}` : `Exited ${t.terminal.exitCode}: ${t.title}`)
     if (t.actionableInteraction && t.sessionId) {
       try {
         const [first] = storage.interactions
@@ -2956,6 +2953,11 @@ export function createBoard(
     // Each thread's terminals ride its row (withThreadTerminals) — read once per build, like the registries.
     const terminals = deps.threadTerminals?.()
     const sessionThreads = buildSessionThreads(assembledAtMs).map((t) => withThreadTerminals(t, terminals?.get(t.id), workDirOf(project)))
+    // TERMINAL THREADS (thread-terminals.ts): rows of their own, banded by their process. They ride the queue
+    // clock with the sessions (a place in line, the needs-decision notification) but persist no stamp: a
+    // restart interrupts their runs anyway, which is a new entry.
+    const terminalThreads = (deps.terminalThreads?.(assembledAtMs) ?? []).map((t) => (t.terminal ? { ...t, terminal: placeTerminal(t.terminal, workDirOf(project)) } : t))
+    const ownThreads = [...sessionThreads, ...terminalThreads]
     // REGISTERED ROWS ONLY reach these two, and that is the point rather than an oversight. A snooze
     // is a durable column on a row a foreign session does not have, and a needs-decision notification
     // is ntwine telling you a WORKER is waiting on you — a terminal session is waiting on you in the
@@ -2964,7 +2966,7 @@ export function createBoard(
     // Foreign rows never queue (queuedThread), so they have no place in line to keep. Ahead of the notify
     // on purpose: the clock withholds an entry off a park (queue-clock.ts), and a withheld entry must not
     // notify either.
-    queueClock.stamp(sessionThreads, assembledAtMs, {
+    queueClock.stamp(ownThreads, assembledAtMs, {
       // A session reading is only vouched for once the tailer has PRIMED the row — folded its transcript,
       // or given up on one and flagged it missing — or when durable row state alone decided it (archived,
       // snoozed). A row the tailer has not reached, or has set up but not yet folded, is drawn from a
@@ -2995,10 +2997,10 @@ export function createBoard(
         promptingTerminal(t) !== undefined || t.actionableInteraction === true || t.runtime === "perm-prompt" || t.pendingAsk !== undefined,
     })
     armSnoozeWake(sessionThreads, assembledAtMs, queueClock.nextEntryAt(assembledAtMs))
-    notifyNeedsYou(sessionThreads)
+    notifyNeedsYou(ownThreads)
     return {
       ...base,
-      threads: [...sessionThreads, ...buildForeignThreads()],
+      threads: [...ownThreads, ...buildForeignThreads()],
       errors: [],
       warnings: [],
       errorItems: [],

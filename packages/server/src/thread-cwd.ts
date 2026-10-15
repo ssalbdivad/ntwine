@@ -1,6 +1,6 @@
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import type { ThreadWorkingDir, TranscriptMessage, WorkCheckout } from "@ntwine/shared"
 import { isDirectory } from "./path-probe.ts"
 
@@ -467,4 +467,26 @@ function nearestDirectory(path: string): string {
   let at = path
   while (!isDirectory(at) && dirname(at) !== at) at = dirname(at)
   return at
+}
+
+/**
+ * Where a TOP-LEVEL terminal can start (the prompt box's folder picker, plans/terminal-threads.md § Worktrees):
+ * the project root, then every checkout under `.ntwine/worktrees/` — where the worker contract sends each
+ * git worktree — by name. ntwine chooses no worktree for anyone; it only lists where one already is. A folder
+ * there that is not a checkout (no `.git`) is skipped: it is a worktree's leftovers, not somewhere to work.
+ */
+export function terminalFolders(projectDir: string): { dir: string; kind: "root" | "worktree"; label: string }[] {
+  const root = { dir: projectDir, kind: "root" as const, label: basename(projectDir) || projectDir }
+  const parent = join(projectDir, ".ntwine", "worktrees")
+  let names: string[] = []
+  try {
+    names = readdirSync(parent, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+  } catch {
+    return [root]
+  }
+  const worktrees = names
+    .filter((name) => existsSync(join(parent, name, ".git")))
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ dir: join(parent, name), kind: "worktree" as const, label: name }))
+  return [root, ...worktrees]
 }

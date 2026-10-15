@@ -39,6 +39,8 @@ import type {
   BackgroundShellOutputResult,
   WorkflowAgentView,
   StartTerminalInput,
+  StartTerminalThreadInput,
+  TerminalFolder,
   TerminalInput,
   RunTerminalInput,
   StartTerminalResult,
@@ -279,7 +281,7 @@ export interface Api {
   // WHY it declined — the executing turn and/or the named live sub-agents/shells — for the dialog to name.
   // `sessionId` binds the click to the session the tab was looking at: a stale tab fails closed rather
   // than completing whatever now owns the slug.
-  completeThread(input: { slug: string; sessionId: string; terminateLive?: boolean }): Promise<{ needsConfirmation: boolean; hold?: CompletionHold }>
+  completeThread(input: { slug: string; sessionId: string; terminateLive?: boolean; stopTerminals?: string[] }): Promise<{ needsConfirmation: boolean; hold?: CompletionHold }>
   setThreadSnooze(input: SetThreadSnoozeInput): Promise<void>
   // Pin/unpin the thread out of the rail's band system (the pinned band at the top of the rail).
   setThreadPinned(input: SetThreadPinnedInput): Promise<void>
@@ -430,6 +432,9 @@ export interface Api {
   // The ⋯ menu's Thread info: what the thread has consumed (server thread-stats.ts).
   threadStats(input: { slug: string }): Promise<ThreadStats>
   terminalStart(input: StartTerminalInput): Promise<StartTerminalResult>
+  // A TOP-LEVEL terminal thread (the prompt box's `$ cmd`), and the folders its picker offers.
+  terminalThreadStart(input: StartTerminalThreadInput): Promise<StartTerminalResult>
+  terminalFolders(): Promise<TerminalFolder[]>
   terminalStop(input: TerminalInput): Promise<Record<never, never>>
   terminalRestart(input: TerminalInput): Promise<Record<never, never>>
   terminalRun(input: RunTerminalInput): Promise<Record<never, never>>
@@ -649,6 +654,8 @@ export const PROCEDURES = {
   threadWorkingDir: "query",
   threadStats: "query",
   terminalStart: "mutation",
+  terminalThreadStart: "mutation",
+  terminalFolders: "query",
   terminalStop: "mutation",
   terminalRestart: "mutation",
   terminalRun: "mutation",
