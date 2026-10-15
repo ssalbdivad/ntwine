@@ -6,6 +6,9 @@ maintainer has explicitly confirmed it in the current conversation.** If a task 
 first, not a call to make. An approval given for one case does not carry over to the next. Detail lives where each line
 points.
 
+**Lines from Colin's original design are flexible where they conflict with better UX** (maintainer 2026-10-14). When one
+stands between the human and a clearly better experience, propose changing it rather than designing around it.
+
 **How a thread hands off (original design; ARCHITECTURE.md § How a thread hands off its state)**
 - The worker's own last word decides its thread's state, and ntwine only checks it. There is no status field: the final
   message is the interface, and its fence language is the state.
@@ -14,8 +17,9 @@ points.
 - A row beats a sentence. What must outlive a message is registered (`done`, `ask`, `watch`), and a wait always takes the
   awaiting fence.
 - A gate can refuse, and it has no bypass. A parameter on the gated call that skips the gate is not a gate.
-- A question is a row with a lifecycle. It stays open until it is answered, dismissed or withdrawn with `unask`; ntwine
-  never retracts one by omission.
+- A question is a row with a lifecycle, and it moves with the conversation (2026-10-14). Once the human types past it, it
+  stays answerable where it was asked but no longer holds the thread: it blocks no `done`, needs no later `questions:`,
+  queues nothing, and is never re-asked or redrawn at the bottom.
 - Every queue item can be answered or archived. Nothing enters the queue just to be dismissed, and a running thread never
   enters it.
 - The worker contract states rules, not rationale. A new rule earns its tokens only if a worker measurably gets it wrong

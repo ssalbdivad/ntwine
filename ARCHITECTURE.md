@@ -183,7 +183,8 @@ A wait always takes the awaiting fence, because where the thread sits meanwhile 
 ntwine only CHECKS what the worker declared:
 
 - **Park integrity** (scheduler SOURCE 12, `evalParkIntegrity`). An awaiting fence must answer
-  `status:`, name only live items the thread owns, and name every open question. One that does not
+  `status:`, name only live items the thread owns, and name every open question the human has not typed
+  past. One that does not
   queues the thread and draws a correction naming the fault, at most `PARK_BUMP_MAX` (3) in a row. An
   expired `for:` wakes the worker to re-check, uncapped.
 - **The sign-off nudge** (SOURCE 9, `evalSignoffNudges`, `board.signoffNudgeVerdict`). A rest with no
@@ -233,9 +234,12 @@ worker therefore signs off `done` naming the ref rather than parking on it.
 **A question is a row with a lifecycle** (`ntwinectl ask`, `thread_question`). It is open until the
 human answers or dismisses it or the worker withdraws it with `ntwinectl unask`; ntwine never retracts one by
 omission. A question is the sign-off of the rest that asked it, and every later rest names it under
-`questions:` or withdraws it. A message the human types instead of answering changes nothing: the router
-appends a note to the worker's copy naming every open question (`openQuestionsNote`). `ask` refuses to
-re-ask a question the human dismissed, or one the worker withdrew after the human's newest message. On
+`questions:` or withdraws it — until the human TYPES PAST it (`questionRepliedPast`; since 2026-10-14,
+maintainer: *"the questions should move along with the conversation and not be re-asked if the user moves
+on"*). A question typed past stays open and answerable where it was asked, but no longer holds the thread:
+it blocks no `done`, needs no `questions:`, queues nothing and gets no reminder. A `secret` or MCP request
+is exempt: it is an input the worker cannot proceed without. `ask` refuses to re-ask a question the human
+dismissed or typed past, or one the worker withdrew after the human's newest message. On
 the page a card stays at the bottom of the rest that asked it until a later fence claims it, then moves
 to the end of that rest (`questionClaims`, `web/src/lib/questionAnchor.ts`); a wake never moves it. An
 empty placement marker, ```` ```question qst_… ````, draws its card where the marker sits instead

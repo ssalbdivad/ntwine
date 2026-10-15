@@ -58,7 +58,7 @@ These are Colin's design principles from Frizz, and ntwine keeps all of them. I 
 - ntwine never acts on an agent's behalf. It doesn't answer, withdraw, park or queue for one. The few deliberate exceptions are listed below.
 - What must outlive a message gets recorded. A question, a finish and a watch are rows, not sentences, and a wait always names what it's waiting on.
 - A gate can refuse, and it has no bypass.
-- A question stays open until it's answered, dismissed or withdrawn. Typing past it leaves it open, and nothing retracts it by omission.
+- A question moves with the conversation. Type past it and it stays answerable where it was asked, but the agent carries on without it and never asks it again.
 - Every card can be answered or archived. Nothing enters the queue just to be dismissed, and a running thread never enters it.
 
 **The board shows what's true, densely.**
