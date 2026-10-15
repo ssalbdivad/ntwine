@@ -1188,6 +1188,30 @@ const signsOffDone = (m: TranscriptMessage): boolean =>
 /** More than one paragraph: an answer or a write-up, as against a line of narration between tool calls. */
 const isParagraphs = (text: string): boolean => /\S\s*\n\s*\n\s*\S/.test(text.trim())
 
+/** Narration this long or longer reads as a reply, even in one paragraph ("**Fixed** — the divider now
+ *  shows …, `749a37b` on `main`."). Below it sit "Looks right. Waiting on the naming agent." and its kin. */
+const REPLY_MIN_CHARS = 200
+
+/** Has the worker written NOTHING the human can read since their last message — no prose but fences and
+ *  one-line narration between tool calls? Asked at `done`, whose reply then demands the result outright.
+ *
+ *  WHY (@thread-addressing, 2026-10-15): asked a question mid-task, a worker fixed it with two others, ran
+ *  `done`, and ended on "The details on all three fixes are above." No details existed anywhere: the turn
+ *  held three quiet parks, a one-line "Looks right.", and the card — which renders BELOW the final message,
+ *  but which the worker had just written and so read as above it. The generic reply ("if that prose does not
+ *  already hold the result…") left the judgement to the worker, which judged wrong. This one it can read. */
+export function nothingWrittenSinceHuman(messages: readonly TranscriptMessage[]): boolean {
+  let anchor = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (isHumanTurn(messages[i]!)) { anchor = i; break }
+  }
+  return !messages.slice(anchor + 1).some((m) => {
+    if (m.role !== "assistant" || m.kind) return false
+    const prose = m.text.replace(/^(`{3,})[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, "").trim()
+    return isParagraphs(prose) || prose.length >= REPLY_MIN_CHARS
+  })
+}
+
 /** What a transcript message SAID, as the chat shows it. */
 const saidOf = (m: TranscriptMessage): string => (m.displayText ?? m.text).trim()
 
@@ -5430,7 +5454,12 @@ export function createRouter(ctx: AppContext) {
         }
         ctx.storage.markThreadDone(input.slug, input.body, Date.now())
         ctx.board.refresh()
-        return { done: true, blockingQuestions: [], blockingWatches: [] }
+        // Read after the write so a transcript that cannot be read never costs the worker its done.
+        let unwritten = false
+        try {
+          unwritten = nothingWrittenSinceHuman(readLatestThreadTranscriptPage(ctx.project, ctx.storage, input.slug, ctx.backendFor).messages)
+        } catch {}
+        return { done: true, blockingQuestions: [], blockingWatches: [], ...(unwritten ? { unwritten } : {}) }
       },
     }),
 

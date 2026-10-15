@@ -2762,13 +2762,30 @@ async function done(args) {
     )
   }
   if (result?.done) {
-    return (
+    // NO "ABOVE" IN THIS REPLY. It used to say "the user reads your prose above this card", and a worker
+    // with no prose at all echoed it straight back as its final message: "The details on all three fixes
+    // are above." (@thread-addressing, 2026-10-15). The card draws BELOW the final message.
+    const head =
       "Marked done. Your thread cards as a checked success in the user's queue and stays there until " +
-      "they archive it.\n\nNOTHING WAS CLOSED, HIDDEN OR ARCHIVED. The user reads your prose above this " +
-      "card and nothing else — not your thinking, not your tool calls. If that prose does not already " +
-      "hold the result in full (the answer itself, when they asked a question), write it now as your " +
-      "final message. Never end on an acknowledgement like \"Signed off as done.\": on the card it is " +
-      "the whole reply. If more work appears, keep going and run this again."
+      "they archive it.\n\nNOTHING WAS CLOSED, HIDDEN OR ARCHIVED. "
+    const tail = " If more work appears, keep going and run this again."
+    if (result.unwritten) {
+      return (
+        head +
+        "THE USER HAS NO REPLY YET. Since their last message you have written nothing they can read: " +
+        "only tool calls, fences and one-line narration, none of which reaches them. Write the result in " +
+        "full NOW, as your final message: what you did and what they need to know, and the answer itself " +
+        "to every question they asked. The card draws BELOW that message, so never refer to it or to " +
+        "anything \"above\" — there is nothing above it for them." + tail
+      )
+    }
+    return (
+      head +
+      "The user reads your prose and nothing else — not your thinking, not your tool calls. If it does not " +
+      "already hold the result in full (the answer itself, when they asked a question), write it now as " +
+      "your final message. The card draws BELOW your final message, so never point at it or at anything " +
+      "\"above\", and never end on an acknowledgement like \"Signed off as done.\": on the card it is the " +
+      "whole reply." + tail
     )
   }
   // REFUSED, with everything that refuses it named by id, so the next move is a command and not a

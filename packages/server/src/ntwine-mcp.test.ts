@@ -1585,6 +1585,7 @@ test("`done` marks the CALLING thread finished, and reports a refusal as an acti
   const replies: any[] = [
     { done: false, blockingQuestions: [{ id: "qst_aaa111", question: "Ship it?" }], blockingWatches: [{ id: "wch_bbb222", what: "shell: nub --test (bzvtnt3ig)" }] },
     { done: true, blockingQuestions: [], blockingWatches: [] },
+    { done: true, blockingQuestions: [], blockingWatches: [], unwritten: true },
   ]
   const http = createServer((req, res) => {
     let body = ""
@@ -1620,6 +1621,15 @@ test("`done` marks the CALLING thread finished, and reports a refusal as an acti
     assert.match(marked.result.content[0].text, /Marked done/)
     // Marking done is not dismissal — the card sits in the queue until the human archives it.
     assert.match(marked.result.content[0].text, /NOTHING WAS CLOSED, HIDDEN OR ARCHIVED/)
+    // The card draws below the final message; a reply that called the prose "above this card" was
+    // echoed back as a final message pointing at nothing (@thread-addressing, 2026-10-15).
+    assert.doesNotMatch(marked.result.content[0].text, /above this card/)
+    assert.doesNotMatch(marked.result.content[0].text, /HAS NO REPLY YET/)
+
+    // A done over no readable prose demands the result outright rather than leaving it a judgement.
+    rpc.send({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "done", arguments: { body: "- **Fixed** the parser" } } })
+    const unwritten = await rpc.next(5)
+    assert.match(unwritten.result.content[0].text, /THE USER HAS NO REPLY YET/)
 
     const before = seen.length
     rpc.send({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "done", arguments: {} } })

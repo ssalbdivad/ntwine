@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { tmpdir } from "node:os"
 import test from "node:test"
 import { parkExpiredWakeMessage, parseParkWake, questionAnswerMessage, SIGNOFF_NUDGE_MESSAGE, type BoardSnapshot, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
-import { createRouter, handoffOf } from "./router.ts"
+import { createRouter, handoffOf, nothingWrittenSinceHuman } from "./router.ts"
 import type { AppContext } from "./context.ts"
 import type { BoardManager } from "./board.ts"
 import type { Project } from "./project.ts"
@@ -306,4 +306,18 @@ test("an empty window has no handoff, a thread that has not spoken has only its 
   const handoff = handoffOf([msg("user", long), msg("assistant", "Done.")])
   assert.equal(handoff.asked?.length, 1200)
   assert.ok(handoff.asked?.endsWith("…"))
+})
+
+// @thread-addressing (2026-10-15): asked mid-task, the worker ran `done` over quiet parks and one-liners
+// and ended on "The details on all three fixes are above." — there were none. `done` now says so.
+test("a worker has written nothing for the human when only fences and one-liners follow their message", () => {
+  const park = "```awaiting\nagents: [a5e52f1ad121c5403]\nstatus: working\nfor: 30m\n```"
+  const asked = msg("user", "also when I click the terminal thread it opens then closes")
+  assert.equal(nothingWrittenSinceHuman([asked, msg("assistant", park), msg("assistant", `Looks right. Waiting on the naming agent.\n\n${park}`)]), true)
+  // A write-up written BEFORE the human's message answers an older ask, not this one.
+  assert.equal(nothingWrittenSinceHuman([msg("assistant", "Para one.\n\nPara two."), asked, msg("assistant", "Looking.")]), true)
+  assert.equal(nothingWrittenSinceHuman([asked, msg("assistant", "It closed because the drawer's route dropped the slug.\n\nFixed in 769e375c.")]), false)
+  assert.equal(nothingWrittenSinceHuman([asked, msg("assistant", `**Fixed** — ${"the drawer stays open from All projects and from a link; ".repeat(4)}769e375c on main.`)]), false)
+  // A wake is not the human's message, so it does not reset what they have been told.
+  assert.equal(nothingWrittenSinceHuman([asked, msg("assistant", "Para one.\n\nPara two."), msg("user", "Agent finished", { wake: true }), msg("assistant", "Done.")]), false)
 })

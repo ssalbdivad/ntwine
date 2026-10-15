@@ -4176,6 +4176,9 @@ export const MarkOwnDoneResult = z.object({
   blockingQuestions: z.array(z.object({ id: z.string(), question: z.string() }).strict()),
   /** Armed registrations, by id and what each names. Watches, PR watchers and timers alike. */
   blockingWatches: z.array(z.object({ id: z.string(), what: z.string() }).strict()),
+  /** Set on a done when the worker has written no prose the human can read since their last message
+   *  (router nothingWrittenSinceHuman), so the reply demands the result rather than leaving it a judgement. */
+  unwritten: z.literal(true).optional(),
 }).strict()
 export type MarkOwnDoneResult = z.infer<typeof MarkOwnDoneResult>
 
