@@ -53,7 +53,7 @@ test("the migration holds every legacy unstarted row, leaves its note where it w
     const before = columns(file, true)
     assert.equal(before.length, 6)
     // `lazy` is legacy data: the holder id the migration gives a plain unstarted row, from lazy threads
-    // (removed 2026-10-07). Nothing answers to it now, so those rows wait unstarted until a message.
+    // (removed 2026-10-07). Its rows are to-dos again (isTodoRow, 2026-10-15).
     const expected = [
       { slug: "a-note", lazy_prompt: "Look into the flaky resume test", held_by: "lazy", schedule_id: null },
       { slug: "b-empty-note", lazy_prompt: "", held_by: "lazy", schedule_id: null },
@@ -124,6 +124,21 @@ test("base never queues a held thread whose holder has not said so", () => {
   assert.equal(view.needsYou, false)
   assert.equal(view.runtime, "turn-idle", "never reads as a dispatch still spinning up")
   assert.equal(view.crashed, false, "never reads as a worker that died")
+})
+
+test("a to-do waits in Ready until it is done or snoozed, and a legacy lazy row is a to-do again", () => {
+  const base = {
+    id: "t", title: "t", status: "active", hasPlan: false, mechanism: null, humanBlocked: false, ready: false,
+    dependsOn: [], externalDeps: [], agents: [], errors: [], warnings: [], runtime: "exited", sessionId: "s",
+    unread: false, archived: false, subAgents: [], bgShells: [], watches: [], pendingQuestion: false, questions: [],
+    needsYou: false, awaitingBackground: false, crashed: false, kind: "session",
+  } as unknown as ThreadView
+  const todo = row("todo", { lazy_prompt: "fix the flaky resume test", held_by: "todo" })
+  assert.equal(heldThreadView(base, todo).needsYou, true)
+  assert.equal(heldThreadView(base, row("old", { lazy_prompt: "", held_by: "lazy" })).needsYou, true)
+  assert.equal(heldThreadView({ ...base, archived: true }, todo).needsYou, false, "marked done")
+  assert.equal(heldThreadView({ ...base, snoozedUntil: "2099-01-01T00:00:00.000Z" }, todo).needsYou, false, "snoozed")
+  assert.equal(heldThreadView(base, row("run", { lazy_prompt: "triage", held_by: "schedules", schedule_id: "sch_aaaaaaaaaaaa" })).needsYou, false)
 })
 
 // Legacy data, kept with the migration it feeds: the build that called the column `todo` (2026-10-01) left

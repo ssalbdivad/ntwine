@@ -1,7 +1,7 @@
 import * as RadixDialog from "@radix-ui/react-dialog"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query"
-import { expandUserCommandDraft, type AccountBackend, type CreateScheduleInput, type DispatchInput } from "@ntwine/shared"
+import { expandUserCommandDraft, type AccountBackend, type CreateHeldThreadInput, type CreateScheduleInput, type DispatchInput } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { useSnapshot } from "valtio"
 import { showToast, store } from "../store.ts"
@@ -11,6 +11,7 @@ import { EditorLine } from "./EditorLine.tsx"
 import { embedFileMentions } from "../lib/editorReach.ts"
 import { useMentionCandidates } from "../hooks/useMentionCandidates.ts"
 import { userCommandItems, useUserCommands } from "../hooks/useUserCommands.ts"
+import { composerTodoLine, TODO_SLASH_ITEM } from "../lib/todoLine.ts"
 import { ProfileGridSelector } from "./ProfileGridSelector.tsx"
 import { SETTINGS_WRITE_KEY } from "../hooks/useSettingsAutosave.tsx"
 import { AcpModelSelect } from "./AcpModelSelect.tsx"
@@ -109,10 +110,11 @@ function PromptForm({
   // A new thread can be pointed at any thread on the board it is dispatched into (`@shell-budgets`).
   const mentions = useMentionCandidates()
   // No session yet, so no harness to list skills: the `/` menu here is the operator's own user commands,
-  // which ntwine expands itself (useUserCommands.ts) — `/commit` starts a thread on that prompt.
+  // which ntwine expands itself (useUserCommands.ts) — `/commit` starts a thread on that prompt — and
+  // ntwine's own `/todo` (lib/todoLine.ts), which the submit reads before any user command of that name.
   const userCommandsQuery = useUserCommands()
   const userCommands = userCommandsQuery.data?.commands
-  const slashSuggest = useMemo(() => () => Promise.resolve(userCommandItems(userCommands ?? [])), [userCommands])
+  const slashSuggest = useMemo(() => () => Promise.resolve([TODO_SLASH_ITEM, ...userCommandItems((userCommands ?? []).filter((c) => c.name !== TODO_SLASH_ITEM.name))]), [userCommands])
   const expandedPrompt = (text: string) => expandUserCommandDraft(text, userCommands ?? []) ?? text
   const boardDir = useProjectDir()
   const projectDir = dirs ? dirs.projectDir : boardDir
@@ -183,6 +185,24 @@ function PromptForm({
     terminalDirFor.current = terminalKey
     if (terminalDir !== undefined) setTerminalDir(undefined)
   }
+  // THE `/todo` LINE: the task it writes down (undefined ⇒ the words are a prompt). Read from the prose, so a
+  // file chip below it rides along into the to-do.
+  const todoLine = useMemo(() => composerTodoLine(splitComposerValue(prompt).prose), [prompt])
+  const createTodo = useMutation({
+    mutationFn: ({ draft: _draft, items: _items, ...input }: CreateHeldThreadInput & { draft: string; items: ReturnType<typeof takeContextItems> }) => {
+      const project = projectSlug()
+      return rpc.createTodo(input).then((res) => ({ ...res, project }))
+    },
+    onSuccess: (res) => {
+      onDispatched?.()
+      showToast("To-do added", { link: { label: "Open to-do", slug: res.slug, project: res.project } })
+    },
+    onError: (e, { draft, items }) => {
+      restoreSubmitted(draft)
+      restoreContextItems(promptKey, items)
+      showToast(`Could not add the to-do: ${(e as Error).message.slice(0, 80)}`)
+    },
+  })
   const startTerminal = useMutation({
     mutationFn: (input: { command?: string; cwd?: string }) => {
       const project = projectSlug()
@@ -282,8 +302,8 @@ function PromptForm({
     // What the human said about the draft's schedule ("not a schedule") is part of the draft, under its sibling
     // key: it survives a remount and a reload, and the page box and the `c` dialog over it — one draft — agree.
     draftKey: draftKey.dispatchSchedule(projectDir),
-    // A `$` line is a command, never a schedule's words.
-    prose: terminalLine ? "" : promptProse,
+    // A `$` line is a command and a `/todo` is written down for later: neither is a schedule's words.
+    prose: terminalLine || todoLine ? "" : promptProse,
     exclude: scheduleExclude,
     promptOf: (cut) => {
       const value = joinComposerValue(cut, promptAttachments.map((a) => a.path))
@@ -358,6 +378,23 @@ function PromptForm({
       submittedScheduleRef.current = ""
       clearDispatchDraft(projectDir, { keepPick: true })
       startTerminal.mutate({ ...(terminalLine.command ? { command: terminalLine.command } : {}), ...(terminalDir ? { cwd: terminalDir } : {}) })
+      return
+    }
+    // A `/todo` is written down, not started: it needs no sign-in, and the pick is only what it will start on.
+    if (todoLine) {
+      if (!todoLine.task || createTodo.isPending) return
+      const draft = prompt
+      const items = takeContextItems(promptKey)
+      // Its chips ride as text, without the editor's live context: that is read when it starts, not now.
+      const task = outgoingMessage(joinComposerValue(todoLine.task, promptAttachments.map((a) => a.path)), items, projectDir, false).trim()
+      submittedScheduleRef.current = ""
+      clearDispatchDraft(projectDir, { keepPick: true })
+      createTodo.mutate({
+        draft,
+        items,
+        prompt: task,
+        ...(resolved?.modelAvailable ? { model: resolved.model, backend: resolved.backend, effort: (resolved.effort || undefined) as CreateHeldThreadInput["effort"] } : {}),
+      })
       return
     }
     if (!prompt.trim() || !resolved || savingSettings) return

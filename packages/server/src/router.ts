@@ -58,6 +58,7 @@ import {
   Settings,
   StartHeldThreadInput,
   UpdateHeldPromptInput,
+  CreateHeldThreadInput,
   TranscriptMessage,
   WorkflowAgentView,
   TranscriptPage,
@@ -258,7 +259,7 @@ import { liveThreadsForBackend, runProviderLogout } from "./backend/account-acti
 import type { BackendKind } from "./backend/types.ts"
 import { threadProfileOptions, validateThreadProfile } from "./backend/thread-profiles.ts"
 import { parsePrRef, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING } from "./awaiting.ts"
-import { isBrokerClaudeRow, isHeldRow, isScheduleHeldRow, type CommandWatchRow, type RecurringWrite, type SessionRow, type Storage, type SubAgentSteerRow, type ThreadQuestionRow } from "./storage.ts"
+import { isBrokerClaudeRow, isHeldRow, isScheduleHeldRow, TODO_HOLDER, type CommandWatchRow, type RecurringWrite, type SessionRow, type Storage, type SubAgentSteerRow, type ThreadQuestionRow } from "./storage.ts"
 import { COMMAND_WATCH_FALLBACK } from "./command-watch.ts"
 import { createHeldThreadStarter, type HeldStartProfile } from "./held-start.ts"
 import { scheduleProcedures } from "./schedule-router.ts"
@@ -3541,10 +3542,18 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // HELD THREADS (SessionRow.held_by) — base's two verbs on a thread written down with no agent, whoever holds
-    // it. Creating one is the holder's (a schedule).
+    // it. Creating one is the holder's: a schedule, or the human's `/todo` (createTodo).
     //
     // Rewrite a held thread's opening prompt — a schedule's next run's, edited for that run alone, or the text
     // base would start a thread whose holder is gone on. Refused once it has started: it was the first message.
+    // Write down a TO-DO: `/todo <task>` in the new-thread box. A held row, no agent, waiting in Ready
+    // (heldThreadView) until the human starts it. The profile is the box's pick, what the agent starts on.
+    createTodo: mutation({
+      input: CreateHeldThreadInput,
+      output: z.object({ slug: ThreadSlug, sessionId: z.string() }),
+      handler: async ({ input }) => ctx.dispatcher.createHeldThread(input, { holder: TODO_HOLDER }),
+    }),
+
     updateHeldPrompt: mutation({
       input: UpdateHeldPromptInput,
       handler: async ({ input }) => {

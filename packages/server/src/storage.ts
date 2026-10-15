@@ -320,6 +320,15 @@ export interface SessionRow {
 /** Base's own holder: a schedule's next run (schedules.ts). */
 export const SCHEDULES_HOLDER = "schedules"
 
+/** A TO-DO (2026-10-15): a task the human wrote down with `/todo`, waiting in Ready until they start it. */
+export const TODO_HOLDER = "todo"
+
+/** A to-do: held by `todo`, or by `lazy` — the same feature under its 2026-10-01 to 2026-10-07 name, whose
+ *  rows are to-dos again rather than orphans. */
+export function isTodoRow(row: Pick<SessionRow, "held_by"> | undefined | null): boolean {
+  return row?.held_by === TODO_HOLDER || row?.held_by === "lazy"
+}
+
 /** A schedule's pending next run: an unstarted thread a schedule materialized and holds (SessionRow.held_by). */
 export function isScheduleHeldRow(row: Pick<SessionRow, "held_by" | "schedule_id"> | undefined | null): boolean {
   return row?.held_by === SCHEDULES_HOLDER && typeof row.schedule_id === "string" && row.schedule_id.length > 0

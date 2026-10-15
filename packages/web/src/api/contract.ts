@@ -29,6 +29,7 @@ import type {
   UpdateScheduleInput,
   StartHeldThreadInput,
   UpdateHeldPromptInput,
+  CreateHeldThreadInput,
   EditorComposeInput,
   EditorComposeItem,
   EditorFront,
@@ -251,6 +252,8 @@ export interface Api {
   // Held threads (ThreadView.held): a thread written down without an agent — a schedule's next run —
   // its opening prompt edited, and its agent started.
   updateHeldPrompt(input: UpdateHeldPromptInput): Promise<void>
+  // `/todo <task>` in the new-thread box: a held thread that waits in Ready until it is started.
+  createTodo(input: CreateHeldThreadInput): Promise<{ slug: string; sessionId: string }>
   startHeldThread(input: StartHeldThreadInput): Promise<{ slug: string; sessionId: string }>
   unqueueFollowUp(input: UnqueueFollowUpInput): Promise<UnqueueFollowUpResult>
   // The × (and Edit) on a FAILED send's bubble — see DismissFailedFollowUpInput.
@@ -566,6 +569,7 @@ export const PROCEDURES = {
   followUp: "mutation",
   spinoff: "mutation",
   updateHeldPrompt: "mutation",
+  createTodo: "mutation",
   startHeldThread: "mutation",
   unqueueFollowUp: "mutation",
   dismissFailedFollowUp: "mutation",

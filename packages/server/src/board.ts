@@ -12,7 +12,7 @@ import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSl
 import type { Bus } from "./bus.ts"
 import { workDirOf, type Project } from "./project.ts"
 import { liftWorkingDir } from "./thread-cwd.ts"
-import { isHeadlessRow, isBrokerClaudeRow, isHeldRow, sessionTitleLocked, type ThreadQuestionRow } from "./storage.ts"
+import { isHeadlessRow, isBrokerClaudeRow, isHeldRow, isTodoRow, sessionTitleLocked, type ThreadQuestionRow } from "./storage.ts"
 import type { Storage, SessionRow, PrWatchRow, ThreadTimerRow, ThreadWatchRow, ThreadLinkRow, ShellBudgetRow, ThreadSpinoffRow, CommandWatchRow } from "./storage.ts"
 import { resolveShellBudget, shellBudgetRecordOf } from "./shell-budget.ts"
 import { deadlineViewOf, rowDeadline } from "./deadline.ts"
@@ -2497,10 +2497,9 @@ function sessionThreadView(
 // a dispatch still spinning up (Active, forever), and past the discovery grace as a worker that never wrote
 // its transcript (a stall card).
 //
-// BASE NEVER QUEUES IT. With no agent there is nothing in it waiting on the human — upstream's own rule,
-// "with no agent it makes no sense for a thread to ever show up inside the queue" (shared deriveNeedsYou) —
-// so a held thread stays out of the queue, in Active with a "Not started" box, until a message
-// starts it.
+// A held thread stays out of the queue, in Active with a "Not started" box, until a message starts it —
+// EXCEPT A TO-DO (isTodoRow, 2026-10-15): the human wrote it down to come back to, so it waits in Ready
+// exactly like a bare rest, unless it is done or snoozed. Starting it, or Mark as done, answers it.
 //
 // A SCHEDULE'S NEXT RUN (`view.schedule.pending`, ARCHITECTURE.md § Scheduled threads) is parked: it keeps its
 // wake time even once that has passed — the scheduler, not the clock, starts it, and the seconds between
@@ -2514,7 +2513,7 @@ export function heldThreadView(view: ThreadView, row: SessionRow): ThreadView {
     heldPrompt: row.lazy_prompt ?? "",
     runtime: "turn-idle",
     ...(parkedUntil ? { snoozedUntil: parkedUntil } : {}),
-    needsYou: false,
+    needsYou: isTodoRow(row) && !view.archived && view.snoozedUntil === undefined,
     awaitingBackground: false,
     crashed: false,
     deliveryInFlight: undefined,
