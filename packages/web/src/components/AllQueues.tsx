@@ -1372,7 +1372,11 @@ function useRoutedLanding(enabled: boolean, known: boolean, projectId: string | 
       if (projectId === undefined) return "absent"
       const key = threadKey(projectId, slug)
       if (!document.querySelector(`[data-xq-card="${CSS.escape(key)}"][data-queue-leaving="false"]:not([data-queue-ghost])`)) return "absent"
-      return land(key, true) === null ? "absent" : "landed"
+      // The card is on the page, so it lands. Not here, though: this runs inside React's effects (App's
+      // resolveRoutedThread, the one below), and landing builds the card with `flushSync`, which React
+      // refuses mid-lifecycle ("flushSync was called from inside a lifecycle method", on every cold link).
+      queueMicrotask(() => land(key, true))
+      return "landed"
     })
     // The slug that waited while the queue was loading.
     resolveRoutedThread()
