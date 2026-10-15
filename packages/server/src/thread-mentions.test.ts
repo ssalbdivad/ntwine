@@ -361,6 +361,44 @@ test("messageThread delivers into another project's thread, and its answer settl
   } finally { close() }
 })
 
+// A TERMINAL THREAD IS ADDRESSABLE LIKE ANY OTHER (2026-10-15: "@job-search created a terminal thread with no
+// name for nub-run-dev"): `@nub-run-dev` read from another project answered "No thread is called", because
+// only session threads were looked for elsewhere. Its handle holds its name across projects as a thread's
+// does, so a second project's `nub run dev` is not a second `@nub-run-dev` that would hide it.
+test("another open project's terminal is read by its handle, refuses a typist from here, and holds its name", async () => {
+  const { a, b, close } = twoProjects()
+  const noPty = () => Promise.reject(new Error("no pty in this test"))
+  const terminalsA = createTerminalRunner({ storage: a.storage, onChange: () => {}, loadPty: noPty })
+  const terminalsB = createTerminalRunner({ storage: b.storage, onChange: () => {}, loadPty: noPty })
+  Object.assign(a.ctx, { terminalRunner: terminalsA })
+  Object.assign(b.ctx, { terminalRunner: terminalsB })
+  try {
+    a.storage.upsertSession(row("me", "Mentions"))
+    const started = await b.router.terminalThreadStart.handler({ input: { command: "nub run dev" } })
+    assert.equal(started.handle, "nub-run-dev")
+    const read = await a.router.readThread.handler({ input: { slug: "me", handle: "@nub-run-dev" } })
+    assert.equal(read.found, true)
+    assert.equal(read.slug, started.id)
+    assert.equal(read.project, "beta")
+    assert.equal(read.terminal?.command, "nub run dev")
+
+    const typed = await a.router.messageThread.handler({ input: { slug: "me", handle: "@nub-run-dev", message: "q" } })
+    assert.deepEqual(typed, {
+      sent: false, handle: "nub-run-dev", project: "beta",
+      refusal: "@nub-run-dev is a terminal in beta, and only the thread there that drives it can type into it. `ntwinectl read-thread @nub-run-dev` still reads it.",
+    })
+
+    // The same command here mints a handle of its own, and a thread here cannot take the terminal's name.
+    assert.equal((await a.router.terminalThreadStart.handler({ input: { command: "nub run dev" } })).handle, "nub-run-dev-2")
+    const refused = await a.router.setOwnThreadTitle.handler({ input: { slug: "me", title: "Nub run dev" } })
+    assert.equal(refused.accepted, false)
+
+    // NEGATIVE CONTROL: a Done terminal's name is free again, as a finished thread's is.
+    b.storage.setThreadTerminalState(started.id, "archived")
+    assert.equal((await a.router.terminalThreadStart.handler({ input: { command: "nub run dev" } })).handle, "nub-run-dev")
+  } finally { terminalsA.shutdown(); terminalsB.shutdown(); close() }
+})
+
 // A THREAD'S SUB-AGENTS BY ADDRESS — `port-the-parser.cache-keys`, resolved against the thread's directory
 // (live first, then finished newest first; tailer subAgentDirectory).
 const DIRECTORY = [
