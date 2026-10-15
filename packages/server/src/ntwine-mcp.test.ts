@@ -2184,7 +2184,7 @@ test("`activity` reads the open questions back, with the ids `unask` takes and a
       questions: [
         { id: "qst_ab12cd34ef56", spec: { question: "Should the settings store use SQLite or a JSON file?", kind: "question" }, askedAt: "2026-08-28T09:05:00.000Z" },
         { id: "qst_0011223344ff", spec: { question: "Which dist-tag should 4.5.0 publish under?", kind: "question" }, askedAt: "2026-08-28T09:05:00.000Z" },
-        { id: "qst_99887766aabb", spec: { question: "Rename the package first?", kind: "question" }, askedAt: "2026-08-28T08:00:00.000Z" },
+        { id: "qst_99887766aabb", spec: { question: "Rename the package first?", kind: "question" }, askedAt: "2026-08-28T08:00:00.000Z", passedOver: true },
       ],
     } }))
   })
@@ -2198,16 +2198,15 @@ test("`activity` reads the open questions back, with the ids `unask` takes and a
     await rpc.next(1)
     rpc.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "activity", arguments: {} } })
     const text = (await rpc.next(2)).result.content[0].text
-    // Every open question is owed, the one asked before the human's last message too: a typed message
-    // leaves each one open.
-    assert.match(text, /3 questions still owed an answer:\n\n {2}question: qst_ab12cd34ef56\n.*\n {2}question: qst_0011223344ff\n.*\n {2}question: qst_99887766aabb\n/)
-    assert.doesNotMatch(text, /set aside|`keep`/)
+    // The held questions are owed; the one the human typed past is listed apart, as holding nothing.
+    assert.match(text, /2 questions still owed an answer:\n\n {2}question: qst_ab12cd34ef56\n.*\n {2}question: qst_0011223344ff\n/)
+    assert.match(text, /1 question the user typed past:\n\n {2}question: qst_99887766aabb\n.*\n\nStill answerable where you asked, and an answer still reaches you, but they hold nothing/)
     assert.match(text, /Should the settings store use SQLite or a JSON file\?/)
-    // The ready fence names the shell AND every open question under `questions:` (2026-10-05): a fence
-    // beside open questions must name each one the worker still needs, or ntwine refuses the park.
+    // The ready fence names the shell AND every held question under `questions:` (2026-10-05) — never one
+    // typed past, which a fence may not name.
     const fence = text.slice(text.indexOf("```awaiting"), text.indexOf("```\n\nDrop the lines"))
     assert.match(fence, /shells: \[bzvtnt3ig\]/)
-    assert.match(fence, /questions: \[qst_ab12cd34ef56, qst_0011223344ff, qst_99887766aabb\]/)
+    assert.match(fence, /questions: \[qst_ab12cd34ef56, qst_0011223344ff\]/)
     assert.match(fence, /status: needs_input/, "a fence on questions always needs the human")
   } finally {
     rpc.kill()

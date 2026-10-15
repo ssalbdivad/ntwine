@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
 import { AlertTriangle, ArrowDown, ArrowUp, Bot, Check, ChevronRight, FileText, HelpCircle, Hourglass, KeyRound, Loader2, Repeat, TerminalSquare } from "lucide-react"
-import { awaitingSteps, parseScheduledRunPrompt, parseThreadMessage, questionFencesLive } from "@ntwine/shared"
+import { awaitingSteps, heldQuestionViews, parseScheduledRunPrompt, parseThreadMessage, questionFencesLive } from "@ntwine/shared"
 import type { AskQuestion, AwaitingHint, BgShellView, PendingAsk, ThreadWatchView, RegisteredQuestionView, SubAgentView, ThreadView as ThreadViewData, TranscriptEdit, TranscriptMessage, TranscriptPart, TranscriptTodo, TranscriptToolCall } from "@ntwine/shared"
 import { store, threadBySlug, pushDrawer, pushScheduleDrawer, pushSubAgentDrawer, pushBackgroundShellDrawer, showToast } from "../store.ts"
 import { scheduledRunFacts } from "../lib/schedules.ts"
@@ -262,6 +262,9 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
   // never draws as both.
   const settledQuestions = useSettledQuestions(thread)
   const openQuestions = useMemo(() => openQuestionsOf(thread, settledQuestions), [thread, settledQuestions])
+  // …of which the ones still HOLDING the thread: a question the human typed past is answered from its
+  // card where it was asked, never from the bottom bar (heldQuestionViews).
+  const heldOpenQuestions = useMemo(() => heldQuestionViews(openQuestions), [openQuestions])
   // ON A PHONE the registered cards are read-only and answering is a sheet (PhoneQuestionCards,
   // RegisteredAnswerSheet), opened from the bottom bar's "Answer". Null off the phone page.
   // The sheet's open state carries the step it opens at: `true` is "where the human left off" (the bar's
@@ -359,7 +362,8 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
   // was gone 25ms later (measured on a real worker, 2026-10-12). The rest did ask; answering it does not
   // change that, and the board's own copy moves on together with the runtime that retires this rung.
   const boardQuestions = thread?.questions ?? NO_QUESTIONS
-  const questionsHere = useMemo(() => questionsAtCurrentRest(messages, boardQuestions), [messages, boardQuestions])
+  // Held ones only: a question the human typed past is never this rest's card (heldQuestionViews).
+  const questionsHere = useMemo(() => questionsAtCurrentRest(messages, heldQuestionViews(boardQuestions)), [messages, boardQuestions])
   const restedCard = showsRestedCard(thread, lastAgentIdx >= 0 ? presentationMessages[lastAgentIdx]?.text : undefined, questionsHere)
   // Everything the runtime-status ladder needs that it cannot work out itself — see runtimeStatusRung.
   const runtimeStatus: RuntimeStatusState = { thread, showWorking, registeredDone, restedCard, errorVisible: providerErrorVisible(presentationMessages, thread?.providerError) }
@@ -674,8 +678,8 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
           // 'cause it's already showing up in the sidebar to the right"). The rail (FocusRail) lists every
           // row the line counts, its saved links and Codex shells included.
           above={phone || railBeside || !thread ? undefined : <QueueOpsSummary thread={thread} transcriptShells={liveTranscriptShells} />}
-          phoneBarOverride={phone && openQuestions.length > 0
-            ? (api) => <PhoneAnswerBar count={openQuestions.length} onAnswer={() => setAnswerSheetOpen(true)} onReply={api.editReply} />
+          phoneBarOverride={phone && heldOpenQuestions.length > 0
+            ? (api) => <PhoneAnswerBar count={heldOpenQuestions.length} onAnswer={() => setAnswerSheetOpen(true)} onReply={api.editReply} />
             : undefined}
           // The box matches the header above it: the phone bar under the phone's chrome, the desktop box
           // (and its rail's Goal) under the desktop header — which /full keeps at every width.
@@ -683,7 +687,7 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
         />
       </div>}
       {phone && answerSheetOpen !== false && (
-        <RegisteredAnswerSheet questions={openQuestions} initialStep={typeof answerSheetOpen === "string" ? answerSheetOpen : undefined} onClose={() => setAnswerSheetOpen(false)} />
+        <RegisteredAnswerSheet questions={answerSheetOpen === true ? heldOpenQuestions : openQuestions} initialStep={typeof answerSheetOpen === "string" ? answerSheetOpen : undefined} onClose={() => setAnswerSheetOpen(false)} />
       )}
     </div>
     </PhoneQuestionsContext.Provider>
@@ -1021,7 +1025,8 @@ function VirtualizedThreadTranscript({
   // The RESIDUAL rung: a rest that carries no other card at all (RestedCard). Same final-message key, and
   // the same board questions as ChatView's copy of this rung, for the same reason.
   const boardQuestions = thread?.questions ?? NO_QUESTIONS
-  const questionsHere = useMemo(() => questionsAtCurrentRest(messages, boardQuestions), [messages, boardQuestions])
+  // Held ones only: a question the human typed past is never this rest's card (heldQuestionViews).
+  const questionsHere = useMemo(() => questionsAtCurrentRest(messages, heldQuestionViews(boardQuestions)), [messages, boardQuestions])
   const restedCard = showsRestedCard(thread, lastAgentIdx >= 0 ? messages[lastAgentIdx]?.text : undefined, questionsHere)
   // Everything the runtime-status ladder needs that it cannot work out itself — see runtimeStatusRung.
   // The row EXISTS when some rung wins, and its own gap is that same answer: the eager path derives both

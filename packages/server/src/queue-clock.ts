@@ -1,4 +1,4 @@
-import type { ThreadView } from "@ntwine/shared"
+import { heldQuestionViews, type ThreadView } from "@ntwine/shared"
 
 // THE QUEUE CLOCK — when each thread ENTERED the queue, which is what the queue is ordered by.
 //
@@ -157,9 +157,9 @@ function withhold(t: ThreadView): void {
   t.queueSettling = true
 }
 
-// The registered questions a thread has open.
+// The registered questions holding a thread: open, and not typed past (heldQuestionViews).
 function openQuestions(t: ThreadView): Set<string> {
-  return new Set((t.questions ?? []).map((q) => q.id))
+  return new Set(heldQuestionViews(t.questions).map((q) => q.id))
 }
 
 function allStillOpen(ids: ReadonlySet<string>, open: ReadonlySet<string>): boolean {

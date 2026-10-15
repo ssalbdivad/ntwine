@@ -40,7 +40,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { X } from "lucide-react"
-import { type QuestionAnswer, type RegisteredQuestionView, type SettledQuestionView, type ThreadView } from "@ntwine/shared"
+import { heldQuestionViews, type QuestionAnswer, type RegisteredQuestionView, type SettledQuestionView, type ThreadView } from "@ntwine/shared"
 import { rpc, type Api } from "../api/rpc.ts"
 import { draftKey, draftStore, useDraftValues, useProjectDir } from "../lib/drafts.ts"
 import { clearSteered, clearSteeredIn, markSteered, markSteeredIn } from "../lib/steering.ts"
@@ -378,7 +378,8 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
     // still asks something HOLDS (David 2026-09-29: "the remaining questions … should stay there"):
     // the worker starts on this answer and leaves the queue for it, and the card stays in its place, live,
     // with the answered question greyed and the rest answerable, until the last one is sent.
-    const stillOpen = open.some((q) => !ids.has(q.id) && !sent.has(q.id)) || [...editing.keys()].some((id) => !ids.has(id))
+    // Held questions only: one the human typed past asks nothing of the queue (heldQuestionViews).
+    const stillOpen = heldQuestionViews(open).some((q) => !ids.has(q.id) && !sent.has(q.id)) || [...editing.keys()].some((id) => !ids.has(id))
     if (stillOpen) queueDismiss?.hold?.()
     else queueDismiss?.dismiss()
     // …AND THE RAIL ROW GOES TO WORK WITH IT. Every answer wakes the worker (the scheduler delivers it),

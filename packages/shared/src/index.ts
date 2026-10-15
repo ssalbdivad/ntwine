@@ -3621,21 +3621,51 @@ export const RegisteredQuestionView = z.object({
   /** A `secret` question only: the path its value will be served at. Known at registration, so the
    *  worker can prepare the command that reads it before the human has answered. */
   secretPath: z.string().optional(),
+  /** The human TYPED PAST it (questionPassedOver): still open, and its card still answerable in the
+   *  transcript where it was asked, but it no longer holds the thread — no queue, no `done` refusal, no
+   *  `questions:` claim, no default. Absent on every question that still holds. */
+  passedOver: z.literal(true).optional(),
 }).strict()
 export type RegisteredQuestionView = z.infer<typeof RegisteredQuestionView>
 
+/** The questions that still HOLD their thread — every open one but those the human typed past. What
+ *  every queue, needs-you and handoff reader counts; only the transcript draws the passed-over ones. */
+export function heldQuestionViews<Q extends { passedOver?: true }>(questions: readonly Q[] | undefined): Q[] {
+  return (questions ?? []).filter((q) => !q.passedOver)
+}
+
 /** HAS THE HUMAN TYPED TO THE WORKER SINCE THIS WAS ASKED? True when their newest TYPED turn landed
  *  after the ask (`lastHumanAt` is the tailer's clock for exactly that; ntwine's own wakes never move it,
- *  and neither does a delivery of answers). An unknown clock reads as "no".
- *
- *  It changes nothing about the question's lifecycle: a question stays open, and owed, until the human
- *  answers or dismisses it or the worker withdraws it with `unask`. The one reader is ntwine's default
- *  answer (scheduler evalQuestionDefaults, and the board's countdown), which never takes an option on a
- *  question the human has typed past: that one waits for the human, or for the worker's `unask`. */
+ *  and neither does a delivery of answers). An unknown clock reads as "no". */
 export function questionRepliedPast(q: { asked_at: number }, lastHumanAt: string | undefined): boolean {
   if (!lastHumanAt) return false
   const human = Date.parse(lastHumanAt)
   return Number.isFinite(human) && Number.isFinite(q.asked_at) && human > q.asked_at
+}
+
+/** IS THIS OPEN QUESTION PASSED OVER — the human typed past it (2026-10-14)? Then it stays open and its
+ *  card stays answerable where it was asked, and an answer still reaches the worker; but it no longer
+ *  holds the thread. It does not queue it, refuse `done`, need naming under `questions:` (a fence naming
+ *  it is refused, so its card never moves down to a later rest), sign off a rest, or take ntwine's
+ *  default answer, and `ask` refuses it again in the same words.
+ *
+ *  WHY (maintainer 2026-10-14): "The questions should move along with the conversation and not be
+ *  re-asked if the user moves on — they can still go back up and provide an answer, but I don't like it
+ *  staying at the bottom of the dialog." This reverses f515ee44's "a typed message decides nothing",
+ *  which had every open question hold the thread until the worker `unask`ed it, and kept its other half:
+ *  the cards stay answerable in place. The 2026-09-30 "set aside" version this resembles failed because
+ *  it took the cards away; here nothing is taken away.
+ *
+ *  A `secret` or `mcp` request is exempt: it is an input the worker cannot proceed without, not a
+ *  decision, so it holds until it is answered, dismissed or withdrawn, as before. A `danger` question is
+ *  not exempt. An unparsed spec (undefined) is not exempt either. */
+export function questionPassedOver(
+  q: { asked_at: number },
+  spec: Pick<AskedQuestion, "secret" | "mcp"> | undefined,
+  lastHumanAt: string | undefined,
+): boolean {
+  if (spec?.secret || spec?.mcp) return false
+  return questionRepliedPast(q, lastHumanAt)
 }
 
 /** HOW LONG A RESTED THREAD WAITS ON AN UNANSWERED QUESTION BEFORE NTWINE TAKES THE WORKER'S RECOMMENDED
@@ -3657,7 +3687,7 @@ export const QUESTION_DEFAULT_ENGAGED_GRACE_MS = 2 * 60_000
 /** THE ONE READING OF WHEN A QUESTION DEFAULTS — the scheduler acts on it and the board counts down to
  *  it, so the two cannot disagree. Undefined while the thread is working (`restedMs` undefined), and for
  *  a question the human turned the default off on. Callers check `recommendedDefaultAnswer` and
- *  `questionRepliedPast` themselves. */
+ *  `questionPassedOver` themselves. */
 export function questionDefaultAtMs(
   q: { asked_at: number; engaged_at?: number | null; default_off?: number | null },
   restedMs: number | undefined,
@@ -3739,22 +3769,23 @@ function holdsForHuman(spec: AskedQuestion): boolean {
  *  for the human who is away; one who has to come back for any of them answers all of them. So any open
  *  question marked `danger`, a pickable one not marked `mayDefault`, or whose countdown the human turned off, holds every one,
  *  and the rest share ONE deadline — the latest of their own (questionDefaultAtMs) — so touching any
- *  card holds the group. A question with nothing to take (free text, `multi`, no recommendation) or one
- *  the human typed past simply waits for them without holding the others. The board's countdown and the
+ *  card holds the group. A question with nothing to take (free text, `multi`, no recommendation) simply
+ *  waits for them without holding the others. One the human typed past (questionPassedOver) is out of
+ *  the group altogether: it takes no default and holds no other's. The board's countdown and the
  *  scheduler both read this. */
 export function threadQuestionDefaults(
   open: readonly { id: string; asked_at: number; engaged_at?: number | null; default_off?: number | null; spec: AskedQuestion }[],
   restedMs: number | undefined,
   lastHumanAt: string | undefined,
 ): { atMs: number; answers: Map<string, QuestionAnswer> } | undefined {
-  if (open.some((q) => q.spec.danger || q.spec.waitForHuman || q.default_off || holdsForHuman(q.spec))) return undefined
+  const held = open.filter((q) => !questionPassedOver(q, q.spec, lastHumanAt))
+  if (held.some((q) => q.spec.danger || q.spec.waitForHuman || q.default_off || holdsForHuman(q.spec))) return undefined
   const answers = new Map<string, QuestionAnswer>()
   let atMs: number | undefined
-  for (const q of open) {
+  for (const q of held) {
     const due = questionDefaultAtMs(q, restedMs)
     if (due === undefined) return undefined
     atMs = Math.max(atMs ?? due, due)
-    if (questionRepliedPast(q, lastHumanAt)) continue
     const answer = recommendedDefaultAnswer(q.id, q.spec)
     if (answer) answers.set(q.id, answer)
   }
@@ -4722,7 +4753,7 @@ export function queueUrgency(t: ThreadView): string {
   if (t.runtime === "perm-prompt") reasons.push("perm-prompt")
   if (t.pendingAsk !== undefined) reasons.push("ask")
   if (t.pendingQuestion === true) reasons.push("question")
-  for (const q of t.questions ?? []) reasons.push(`q:${q.id}`)
+  for (const q of heldQuestionViews(t.questions)) reasons.push(`q:${q.id}`)
   if (t.crashed === true) reasons.push("crashed")
   if (t.limitPause !== undefined) reasons.push("limit")
   if (t.providerError !== undefined && t.providerError.retrying !== true) reasons.push("provider-error")
@@ -5124,8 +5155,8 @@ export function needsAction(t: ThreadView): boolean {
   // channel — the server queues it once at rest (deriveNeedsYou's openQuestions), and this predicate
   // must agree so the mobile asks-first ordering and the attention sort count it. Same rest-gate as the
   // fence net above: the worker keeps working after registering, and the card lands at its rest. Every
-  // open one: a question stays the human's until it is answered, dismissed or withdrawn.
-  if ((t.questions?.length ?? 0) > 0 && t.runtime !== "running" && t.runtime !== "spawning") return true
+  // HELD one: a question the human typed past no longer holds the thread (questionPassedOver).
+  if (heldQuestionViews(t.questions).length > 0 && t.runtime !== "running" && t.runtime !== "spawning") return true
   // CRASH / STALL net (replaces the old `unread`-gated clause — `unread` no longer drives anything).
   // A thread whose status still claims WORK IN FLIGHT (active or planning) but whose backing agent
   // PROCESS is gone — `exited` (session row present, worker process dead) or `none` (registry lost the row)
@@ -6440,28 +6471,15 @@ export function stripHumanGapNote(text: string): string {
   return text.replace(HUMAN_GAP_NOTE_TAIL, "")
 }
 
-/** A TYPED MESSAGE REACHING A WORKER THAT HAS QUESTIONS OPEN, with ntwine's note naming them — appended
- *  to the copy handed to the worker, exactly as humanGapNote is, and to that copy ONLY.
- *
- *  THE MESSAGE CHANGES NOTHING ABOUT THEM: each stays open until the human answers or dismisses it or the
- *  worker withdraws it. ntwine cannot tell a pivot from a side question; the worker can, so the note tells
- *  it to `unask` at once any the message moved past, and to name the rest under `questions:` when it
- *  rests — the rule the park-integrity check and the carried-questions nudge then hold it to.
- *
- *  Each question is named by its text AND its id, because `questions:` and `unask` take the id and the
- *  worker never chose one. Folded to one line and clipped, so the note stays ONE line and its stripper
- *  can anchor on it. Undefined with nothing open. */
-export function openQuestionsNote(open: readonly { id: string; question: string }[]): string | undefined {
-  if (open.length === 0) return undefined
-  const named = open.map((q) => {
-    const text = q.question.replace(/\s+/g, " ").trim()
-    return `“${text.length > 100 ? `${text.slice(0, 99)}…` : text}” (${q.id})`
-  })
-  const count = open.length === 1 ? "1 question you registered is" : `${open.length} questions you registered are`
-  return `❓ ntwine: ${count} still open: ${named.join(", ")}.${OPEN_QUESTIONS_NOTE_TAIL}`
-}
+// A TYPED MESSAGE REACHING A WORKER WITH QUESTIONS OPEN used to carry ntwine's note naming them, appended
+// to the copy handed to the worker exactly as humanGapNote is (openQuestionsNote, 2026-09-29 to
+// 2026-10-14). Since 2026-10-14 a typed message passes over every question open when it lands
+// (questionPassedOver), so there is nothing left to tell the worker to name or withdraw and the note is
+// gone. Its tails are still stripped, so a transcript written then does not start showing it in the
+// human's bubble.
 
-const OPEN_QUESTIONS_NOTE_TAIL =
+// The tail from 2026-10-13 to 2026-10-14.
+const OPEN_QUESTIONS_NOTE_TAIL_2026_10_14 =
   " The message above leaves them open. If it moves past one — a new direction, a different priority — " +
   "`unask` that one NOW, before any other work: an open card keeps the thread waiting on the human while " +
   "the question scrolls away above the new work. Name each one still needed under `questions:` when you rest."
@@ -6497,7 +6515,7 @@ const OPEN_QUESTIONS_NOTE_TAIL_2026_09_29 =
 // its own and to the note's fixed opening AND closing words, so a message that quotes one keeps it.
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 const OPEN_QUESTIONS_NOTE_LINE = new RegExp(
-  `\\n+❓ ntwine: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_13)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
+  `\\n+❓ ntwine: (?:1 question you registered is|\\d+ questions you registered are) (?:still open|now set aside by this message): [^\\n]*(?:${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_14)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_13)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_10_02)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_30)}|${escapeRegExp(OPEN_QUESTIONS_NOTE_TAIL_2026_09_29)})[ \\t]*$`,
 )
 
 /** Display projection: the human's message without the open-questions note ntwine appended for the

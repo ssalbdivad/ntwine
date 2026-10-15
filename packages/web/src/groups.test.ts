@@ -217,6 +217,10 @@ test("workingWithOpenQuestion: a running thread with an open registered question
   // No open row, no badge: a running thread keeps the empty spinner.
   assert.equal(workingWithOpenQuestion(thread({ ...running, questions: [] })), false)
   assert.equal(workingWithOpenQuestion(thread({ ...running, questions: undefined })), false)
+  // A question the human TYPED PAST holds nothing (2026-10-14): the run is their message, not the ask.
+  const typedPast = regQuestion.map((q) => ({ ...q, passedOver: true as const }))
+  assert.equal(workingWithOpenQuestion(thread({ ...running, questions: typedPast })), false)
+  assert.notEqual(sessionIndicatorKind(thread({ ...running, needsYou: true, runtime: "turn-idle", questions: typedPast })), "needs-input")
 })
 
 // A USER SNOOZE OUTRANKS THE ASK MARKS, because the SERVER already dequeued the thread on it

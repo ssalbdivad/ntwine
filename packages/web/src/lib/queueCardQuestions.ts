@@ -18,8 +18,10 @@
 // through a windowed transcript (TodosView flushQuestions):
 //
 //   • ABOVE — a rest older than the human's last turn. Upstream flushes these first, above the window, and
-//     so does the card: above the human's bubble, since everything after that bubble is newer. It is the
-//     common place for a question the human typed past and the worker has not named since.
+//     so does the card: above the human's bubble, since everything after that bubble is newer. Since
+//     2026-10-14 a question the human TYPED past never reaches this module (the card passes held ones
+//     only), so what lands here is a held one older than the human's last turn — asked before an answer
+//     they gave on another card, which counts as their turn here (lastHumanTurnIndex).
 //   • BETWEEN — a rest after the human's turn that is not the newest: the rest the `answer` prose is the
 //     reply of, or one the handoff skips (a wake's reply). It draws under the answer prose, over the newest.
 //   • TAIL — the newest rest: under the handoff, where the card's stack has always been.

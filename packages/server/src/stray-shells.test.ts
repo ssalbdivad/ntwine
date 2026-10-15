@@ -75,9 +75,8 @@ test("no question, no message — a bare rest lists its shells in SOURCE 9, and 
   } finally { h.close() }
 })
 
-// A question the human typed past is CARRIED into the rest after their message (board.carriedQuestionRows):
-// still open, but no sign-off for that rest, so no card hides the shell and this stays quiet — the sign-off
-// nudge's carried variant covers that rest instead.
+// A question the human typed past holds nothing (board.heldQuestionRows): still open, but no sign-off for
+// the rest after their message, so no card hides the shell and this stays quiet.
 test("a question the human typed past is not the rest's sign-off, so it does not trigger this", async () => {
   const h = harness({ lastHumanAt: "2026-09-29T14:50:00.000Z", lastUserAt: "2026-09-29T14:50:00.000Z", lastAssistantAt: "2026-09-29T14:51:00.000Z" })
   try {

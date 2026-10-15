@@ -1,6 +1,6 @@
 // THE TWO TEXTS NTWINE ADDS NOW THAT ANSWERS ARRIVE A QUESTION AT A TIME (2026-09-29): the answers fold,
 // which puts several answer deliveries back into the ONE shape the chat reads as the human's own turn,
-// and the open-questions note, which a typed message carries to a worker that still has questions open.
+// and the open-questions note a typed message carried until 2026-10-14, still stripped from old transcripts.
 // Both ride the human's own words, so each is pinned against the reader that must not see ntwine in them.
 import { test } from "node:test"
 import assert from "node:assert/strict"
@@ -16,7 +16,6 @@ import {
   BURIED_ANSWERS_HEADER,
   humanGapNote,
   mergeAnswerMessages,
-  openQuestionsNote,
   questionAnswerMessage,
   questionsCancelledWakeMessage,
   stripFollowUpRiders,
@@ -70,23 +69,9 @@ test("answer deliveries carrying a typed note fold with all the rows first and t
   assert.deepEqual(splitAnswersNote(merged), { answers: `${BURIED_ANSWERS_HEADER}\n1. “Which store?” → SQLite\n2. “Publish?” → Yes`, note: "keep it small" })
 })
 
-test("the open-questions note names each question by text and id, and comes back off the human's bubble", () => {
-  assert.equal(openQuestionsNote([]), undefined, "nothing open, nothing said")
-  const note = openQuestionsNote([
-    { id: "qst_aaaaaaaaaaaa", question: "Should the settings store use\nSQLite or a JSON file?" },
-    { id: "qst_bbbbbbbbbbbb", question: "x".repeat(140) },
-  ])!
-  assert.doesNotMatch(note, /\n/, "one line, so the stripper can anchor on it")
-  assert.match(note, /^❓ ntwine: 2 questions you registered are still open: “Should the settings store use SQLite or a JSON file\?” \(qst_aaaaaaaaaaaa\), “x{99}…” \(qst_bbbbbbbbbbbb\)\./)
-  // A typed message leaves them open, and the next rest names each one still needed or withdraws it.
-  // One the message moved past is withdrawn at once, not at the next rest: a stale card otherwise sits
-  // open above the new work, holding the thread as waiting on the human (2026-10-13).
-  assert.match(note, /If it moves past one — a new direction, a different priority — `unask` that one NOW, before any other work/)
-  assert.match(note, /Name each one still needed under `questions:` when you rest\.$/)
-  assert.doesNotMatch(note, /set aside|`keep`/)
-  assert.match(openQuestionsNote([{ id: "qst_1", question: "Merge it?" }])!, /^❓ ntwine: 1 question you registered is still open: “Merge it\?” \(qst_1\)\./)
-
-  // ROUND TRIP, as the router appends it — after the gap note, so "the message above" stays the human's.
+test("the retired open-questions note comes back off the human's bubble, and prose quoting it keeps it", () => {
+  // The note's last wording (2026-10-13 to 2026-10-14), as the router appended it: after the gap note.
+  const note = "❓ ntwine: 2 questions you registered are still open: “Should the settings store use SQLite or a JSON file?” (qst_aaaaaaaaaaaa), “Merge it?” (qst_bbbbbbbbbbbb). The message above leaves them open. If it moves past one — a new direction, a different priority — `unask` that one NOW, before any other work: an open card keeps the thread waiting on the human while the question scrolls away above the new work. Name each one still needed under `questions:` when you rest."
   const gap = humanGapNote(Date.parse("2026-09-29T15:00:00.000Z"), "2026-09-29T11:00:00.000Z")!
   assert.equal(stripOpenQuestionsNote(`should we use this thread or the other one?\n\n${note}`), "should we use this thread or the other one?")
   assert.equal(stripFollowUpRiders(`one\n\ntwo\n\n${gap}\n\n${note}`), "one\n\ntwo")
@@ -172,6 +157,10 @@ test("threadQuestionDefaults: a thread's questions default together on the lates
   assert.equal(threadQuestionDefaults([a, { ...b, default_off: 1 }], 5_000, undefined), undefined, "one × turns off the group")
   assert.equal(threadQuestionDefaults([a, b], undefined, undefined), undefined, "a working thread defaults nothing")
   assert.equal(threadQuestionDefaults([a], 5_000, new Date(2_000).toISOString()), undefined, "typed past: waits for the human")
+  // Passed over, a question is out of the group: a danger one typed past no longer holds a newer sibling.
+  const later = { id: "l", asked_at: 3_000, spec: rec("L") }
+  const typedPast = threadQuestionDefaults([{ ...a, spec: { ...a.spec, danger: true } }, later], 5_000, new Date(2_000).toISOString())
+  assert.deepEqual([...typedPast!.answers.keys()], ["l"])
 })
 
 test("questionAnswerMessage: a question skipped beside its group's answers tells the worker it may ask again", () => {

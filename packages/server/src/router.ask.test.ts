@@ -612,25 +612,63 @@ test("questions asked in ONE call keep their order — the tiebreak is insertion
   } finally { h.close() }
 })
 
-// A TYPED MESSAGE LEAVES A QUESTION OPEN AND OWED. The human wrote to the worker instead of answering: the
-// question still blocks `done` and still reads back as open, until the human answers or dismisses it or the
-// worker withdraws it. ntwine never withdraws it on the worker's behalf.
-test("a question the human typed past stays open and owed — it blocks done until the worker unasks it", async () => {
+// A QUESTION THE HUMAN TYPED PAST IS PASSED OVER (2026-10-14): still open, still answerable where it was
+// asked, but it no longer holds the thread — `done` goes through it. One asked after their message holds.
+test("a question the human typed past no longer blocks done, stays open, and still takes an answer", async () => {
   const h = harness()
   try {
     h.storage.upsertSession(row("t"))
     const [passed] = (await h.router.ask.handler({ input: { slug: "t", questions: [simple()] } })).registered
     h.humanSpokeAt(new Date(Date.parse(passed.askedAt) + 1).toISOString())
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const [held] = (await h.router.ask.handler({ input: { slug: "t", questions: [simple("Which dist-tag should 4.5.0 publish under?")] } })).registered
     const read = await h.router.listOwnThreadActivity.handler({ input: { slug: "t" } })
-    assert.deepEqual(read.questions.map((q) => q.id), [passed.id], "still open")
+    assert.deepEqual(read.questions.map((q) => [q.id, q.passedOver ?? false]), [[passed.id, true], [held.id, false]])
     const blocked = await h.router.markOwnDone.handler({ input: { slug: "t", body: "done" } })
-    assert.equal(blocked.done, false)
-    assert.deepEqual(blocked.blockingQuestions.map((q) => q.id), [passed.id], "still owed")
+    assert.deepEqual(blocked.blockingQuestions.map((q) => q.id), [held.id], "only the held one refuses")
 
-    // The worker's own act clears it.
-    assert.equal((await h.router.unask.handler({ input: { slug: "t", id: passed.id } })).withdrawn, true)
-    const done = await h.router.markOwnDone.handler({ input: { slug: "t", body: "done" } })
-    assert.equal(done.done, true)
+    await h.router.unask.handler({ input: { slug: "t", id: held.id } })
+    assert.equal((await h.router.markOwnDone.handler({ input: { slug: "t", body: "done" } })).done, true)
+    assert.equal(h.storage.getThreadQuestion(passed.id)?.state, "open", "done takes nothing away from the card")
+    const answered = await h.router.answerQuestions.handler({ input: { slug: "t", answers: [{ questionId: passed.id, question: passed.spec.question, chosen: ["JSON file"] }] } })
+    assert.deepEqual(answered.answered, [passed.id])
+  } finally { h.close() }
+})
+
+// A SECRET OR MCP REQUEST IS AN INPUT, NOT A DECISION: the worker cannot proceed without it, so typing past
+// it releases nothing.
+test("a secret or MCP request the human typed past still blocks done", async () => {
+  const h = harness()
+  try {
+    h.storage.upsertSession(row("t"))
+    h.storage.askThreadQuestion({ id: "qst_secret00001", slug: "t", askedAtMs: 1_000, spec: JSON.stringify({ question: "The npm code.", kind: "question", secret: true }) })
+    h.storage.askThreadQuestion({ id: "qst_mcp00000001", slug: "t", askedAtMs: 1_000, spec: JSON.stringify({ question: "Allow it?", kind: "question", mcp: "desktop" }) })
+    h.humanSpokeAt(new Date(2_000).toISOString())
+    const blocked = await h.router.markOwnDone.handler({ input: { slug: "t", body: "done" } })
+    assert.deepEqual(blocked.blockingQuestions.map((q) => q.id), ["qst_secret00001", "qst_mcp00000001"])
+  } finally { h.close() }
+})
+
+// NOT RE-ASKED IF THE USER MOVES ON (2026-10-14): its card is still answerable where it was asked, so a
+// copy under the human's newest message is refused. Only while it is open and typed past.
+test("an open question the human typed past is refused if asked again, and the refusal says it is still answerable", async () => {
+  const h = harness()
+  try {
+    h.storage.upsertSession(row("t"))
+    const [first] = (await h.router.ask.handler({ input: { slug: "t", questions: [simple()] } })).registered
+    // Negative control: not yet typed past, a twin is just a second question.
+    assert.equal((await h.router.ask.handler({ input: { slug: "t", questions: [simple()] } })).registered.length, 1)
+    h.humanSpokeAt(new Date(Date.now() + 1).toISOString())
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await assert.rejects(
+      h.router.ask.handler({ input: { slug: "t", questions: [simple("SQLite, or a JSON file")] } }),
+      (error: Error) => {
+        assert.equal(error.message.split("\n")[0], `"SQLite, or a JSON file" repeats ${first.id}`)
+        assert.match(error.message, /The user typed past it\. It is still answerable where you asked, and an answer reaches you when it is given\. Do not ask again/)
+        return true
+      },
+    )
+    assert.equal(h.storage.listThreadQuestions("t").length, 2, "nothing refused was stored")
   } finally { h.close() }
 })
 
@@ -650,8 +688,6 @@ test("a question the worker withdrew after the human's message, or the human dis
     h.humanSpokeAt(new Date().toISOString())
     await new Promise((resolve) => setTimeout(resolve, 5))
     const [again] = (await h.router.ask.handler({ input: { slug: "t", questions: [simple()] } })).registered
-    // Nor does the human typing past an OPEN one refuse a twin: two identical questions are two.
-    assert.equal((await h.router.ask.handler({ input: { slug: "t", questions: [simple("Which dist-tag should 4.5.0 publish under?")] } })).registered.length, 1)
 
     // The dodge: the human's message made it moot, the worker withdraws it — then asks it again.
     await h.router.unask.handler({ input: { slug: "t", id: again.id } })
@@ -664,7 +700,7 @@ test("a question the worker withdrew after the human's message, or the human dis
     const [dismissible] = (await h.router.ask.handler({ input: { slug: "t", questions: [simple("Rename the package first?")] } })).registered
     await h.router.dismissQuestions.handler({ input: { slug: "t", ids: [dismissible.id] } })
     await assert.rejects(h.router.ask.handler({ input: { slug: "t", questions: [simple("Rename the package first?")] } }), /which the user dismissed/)
-    assert.equal(h.storage.listThreadQuestions("t").filter((q) => q.state === "open").length, 1, "nothing refused was stored")
+    assert.equal(h.storage.listThreadQuestions("t").filter((q) => q.state === "open").length, 0, "nothing refused was stored")
   } finally { h.close() }
 })
 

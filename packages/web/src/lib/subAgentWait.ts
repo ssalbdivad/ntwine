@@ -1,4 +1,4 @@
-import { isDirectSubAgent, type ReturnedSubAgentView, type SubAgentView, type ThreadView } from "@ntwine/shared"
+import { heldQuestionViews, isDirectSubAgent, type ReturnedSubAgentView, type SubAgentView, type ThreadView } from "@ntwine/shared"
 
 // ── A QUEUED PARENT'S SUB-AGENT WAIT — what its card says about the batch it fanned out ──────────────
 //
@@ -54,7 +54,7 @@ export function showsSubAgentWait(
 ): boolean {
   if (thread.kind !== "session" || thread.foreign === true || thread.runtime !== "turn-idle") return false
   if (thread.lastFence?.kind === "done") return false
-  if (thread.pendingAsk || thread.pendingQuestion || (thread.questions?.length ?? 0) > 0) return false
+  if (thread.pendingAsk || thread.pendingQuestion || heldQuestionViews(thread.questions).length > 0) return false
   return subAgentWait(thread) !== undefined
 }
 

@@ -153,6 +153,13 @@ test("a claim brings a question asked above the loaded window into it", () => {
   assert.deepEqual([...questionsByAnchor(messages, [{ id: "qst_a", askedAt: at(1) }]).keys()], [1])
 })
 
+// A QUESTION THE HUMAN TYPED PAST NEVER MOVES (2026-10-14): it stays at the rest that asked it, and a later
+// fence naming it is ignored (the server refuses that fence too).
+test("a claim on a question the human typed past is ignored: the card stays at the rest that asked it", () => {
+  const messages = [msg("user", 0), msg("assistant", 2), msg("user", 3), said(4, fence("questions: [qst_a]"))]
+  assert.deepEqual([...questionsByAnchor(messages, [{ id: "qst_a", askedAt: at(2), passedOver: true as const }]).keys()], [1])
+})
+
 test("claims: false reads the asking rest alone — the fold's reading", () => {
   const messages = [msg("user", 0), msg("assistant", 2), msg("user", 3), said(4, fence("questions: [qst_a]"))]
   assert.deepEqual([...questionsByAnchor(messages, [{ id: "qst_a", askedAt: at(2) }], { claims: false }).keys()], [1])

@@ -166,7 +166,7 @@ import {
   OWN_WATCH_MAX_ARMED,
   type OwnWatchView,
   humanGapNote,
-  openQuestionsNote,
+  questionPassedOver,
   SetOwnThreadTitleInput,
   SetOwnThreadTitleResult,
   ReadThreadInput,
@@ -1187,7 +1187,7 @@ function openingRequestOf(messages: readonly TranscriptMessage[]): TranscriptMes
 /** Is this the human's turn, for the question "what did the human last SAY that this handoff answers"?
  *
  *  An answers delivery COUNTS here, and it differs on purpose from the two readings that no longer count
- *  it — the tailer's `lastHumanAt` (the clock questionRepliedPast reads) and the web's questionAnchor,
+ *  it — the tailer's `lastHumanAt` (the clock questionPassedOver reads) and the web's questionAnchor,
  *  where only a typed turn is the human moving the conversation and an answer to one card must not
  *  release or strand the others (2026-09-29). This one pairs the queue card's quoted ask with the reply
  *  under it. Answers now arrive one question at a time and the worker rests after acting on each, so
@@ -1675,16 +1675,11 @@ export function createRouter(ctx: AppContext) {
       // uses below): what the human typed is what the board shows. Only the copy handed to the worker
       // carries the note, and the note names ntwine as its author because the message it rides on is
       // not ntwine's.
+      // No note about open questions rides it any more (2026-10-14): this message passes over every
+      // question open when it lands (questionPassedOver), so there is nothing for the worker to name or
+      // withdraw. The cards stay answerable where they were asked.
       const gapNote = humanGapNote(Date.now(), ctx.tailer.get(input.slug)?.lastAssistantAt)
-      // …AND THE QUESTIONS STILL OPEN, the same way and for the same reader. A typed message changes
-      // nothing about them: each stays open until it is answered, dismissed or withdrawn. The worker —
-      // which reads the message, as ntwine cannot — decides which it still needs, so it is told, here,
-      // which are open and by what id, and that its next rest names the ones it needs under
-      // `questions:` and `unask`s the rest. Appended AFTER the gap note, so that note's "the message
-      // above" still means the human's words.
-      const questionsNote = openQuestionsNote(heldQuestions(input.slug))
-      const riders = [gapNote, questionsNote].filter((note): note is string => note !== undefined)
-      const messageForWorker = riders.length > 0 ? `${input.message}\n\n${riders.join("\n\n")}` : input.message
+      const messageForWorker = gapNote !== undefined ? `${input.message}\n\n${gapNote}` : input.message
       if (row) reopenArchivedThreadForFollowUp(ctx, row)
       // Un-park HERE, above the runtime branches, for the same reason the reopen is here: a broker
       // Claude row and an app-server Codex row both return from their own branch below, so anything
@@ -2386,36 +2381,37 @@ export function createRouter(ctx: AppContext) {
     }
   }
 
-  // This thread's OPEN questions, in the shape the worker's read-back, the board and the card all use.
+  // This thread's OPEN questions, in the shape the worker's read-back, the board and the card all use —
+  // each one the human typed past flagged `passedOver` (shared questionPassedOver).
   function openQuestionViews(slug: string): RegisteredQuestionView[] {
+    const lastHumanAt = ctx.tailer.get(slug)?.lastHumanAt
     const out: RegisteredQuestionView[] = []
     for (const q of ctx.storage.listThreadQuestions(slug, { openOnly: true })) {
       const spec = parseQuestionSpec(q.spec)
       if (!spec) continue
-      out.push(questionView(slug, q.id, spec, q.asked_at))
+      out.push({ ...questionView(slug, q.id, spec, q.asked_at), ...(questionPassedOver(q, spec, lastHumanAt) ? { passedOver: true as const } : {}) })
     }
     return out
   }
 
-  /** The open questions HOLDING this thread — every open one, until the human answers or dismisses it or
-   *  the worker withdraws it. What `done` refuses on and what the note on a typed message names. */
+  /** The open questions HOLDING this thread — every open one the human has not typed past, until it is
+   *  answered, dismissed or withdrawn. What `done` refuses on. */
   function heldQuestions(slug: string): { id: string; question: string }[] {
-    return ctx.storage.listThreadQuestions(slug, { openOnly: true }).flatMap((q) => {
-      const spec = parseQuestionSpec(q.spec)
-      return spec ? [{ id: q.id, question: spec.question }] : []
-    })
+    return openQuestionViews(slug).flatMap((q) => (q.passedOver ? [] : [{ id: q.id, question: q.spec.question }]))
   }
 
-  /** The question on this thread that `q` would re-ask after a PIVOT, if any, matched on its question
-   *  text with case, punctuation and spacing folded away. Two pivots count, and both are somebody's
-   *  explicit act — never a timestamp (a typed reply alone releases nothing):
+  /** The question on this thread that `q` would RE-ASK, if any, matched on its question text with case,
+   *  punctuation and spacing folded away. Three count, and none is a guess about what the human meant:
    *
    *    · the HUMAN DISMISSED it — the × says "decide it yourself", and the answer row says "do not re-ask";
    *    · the WORKER WITHDREW it after the human's newest TYPED turn — the pivot the worker itself declared
-   *      on reading that message (openQuestionsNote tells it to `unask` what it no longer needs). A withdrawal from before that turn was
-   *      the worker's own call about its own work, and the human has spoken since, so it may ask again.
+   *      on reading that message. A withdrawal from before that turn was the worker's own call about its
+   *      own work, and the human has spoken since, so it may ask again;
+   *    · it is still OPEN and the human TYPED PAST it (2026-10-14, questionPassedOver) — its card is still
+   *      answerable where it was asked, so asking it again would only pull a copy down under the human's
+   *      newest message, the thing the maintainer ruled out ("not re-asked if the user moves on").
    *
-   *  That second one is what stops the failure d76c845d refused in the first place: a worker `unask`ing
+   *  The second one is what stops the failure d76c845d refused in the first place: a worker `unask`ing
    *  the cards the human's message made moot and re-registering them word for word under it. Text only,
    *  not option labels: two different questions routinely share "Yes"/"No" or "Push it"/"Keep it local",
    *  and refusing those is worse than missing a reworded re-ask, which the contract already rules out. */
@@ -2425,10 +2421,11 @@ export function createRouter(ctx: AppContext) {
     const fold = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
     const text = fold(q.question)
     return ctx.storage.listThreadQuestions(slug).find((row) => {
-      const pivoted = row.state === "dismissed" ||
-        (row.state === "withdrawn" && Number.isFinite(humanMs) && (row.settled_at ?? 0) > humanMs)
-      if (!pivoted) return false
       const spec = parseQuestionSpec(row.spec)
+      const pivoted = row.state === "dismissed" ||
+        (row.state === "withdrawn" && Number.isFinite(humanMs) && (row.settled_at ?? 0) > humanMs) ||
+        (row.state === "open" && questionPassedOver(row, spec, lastHumanAt))
+      if (!pivoted) return false
       return spec !== undefined && fold(spec.question) === text
     })
   }
@@ -4989,12 +4986,24 @@ export function createRouter(ctx: AppContext) {
         // A PIVOT STICKS: a question dropped is never asked again (David 2026-09-28, after a worker
         // `unask`ed both of its stale cards and re-registered them word for word under the human's
         // unrelated next request). Dropping is an act — the human's ×, or the worker's own `unask` after
-        // the human's newest typed message — never a timestamp (see pivotTwin).
-        const reasked = input.questions.flatMap((q) => {
+        // the human's newest typed message. And a question the human typed past is not asked again
+        // either while its card is still open (2026-10-14; see pivotTwin).
+        const twins = input.questions.flatMap((q) => {
           const prior = pivotTwin(input.slug, q)
-          if (!prior) return []
+          return prior ? [{ q, prior }] : []
+        })
+        // STILL OPEN, TYPED PAST: its card is still there to answer, so the refusal says so and stops.
+        const passedOver = twins.filter(({ prior }) => prior.state === "open")
+        if (passedOver.length > 0) {
+          throw new Error(
+            `${passedOver.map(({ q, prior }) => `"${q.question.slice(0, 120)}" repeats ${prior.id}`).join("\n")}\n\n` +
+            `The user typed past ${passedOver.length === 1 ? "it" : "them"}. ${passedOver.length === 1 ? "It is" : "They are"} still answerable where you asked, ` +
+            "and an answer reaches you when it is given. Do not ask again: carry on with what the user's newest message asks.",
+          )
+        }
+        const reasked = twins.map(({ q, prior }) => {
           const why = prior.state === "dismissed" ? "which the user dismissed" : "which you withdrew after the user's newest message"
-          return [`"${q.question.slice(0, 120)}" repeats ${prior.id}, ${why}.`]
+          return `"${q.question.slice(0, 120)}" repeats ${prior.id}, ${why}.`
         })
         if (reasked.length > 0) {
           throw new Error(

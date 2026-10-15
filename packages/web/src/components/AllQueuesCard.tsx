@@ -22,7 +22,7 @@ import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, use
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, CheckCheck, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react"
 import { useLocation, useNavigate } from "react-router"
-import { expandUserCommandDraft, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
+import { expandUserCommandDraft, heldQuestionViews, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { prefetchProjectTranscript } from "../hooks.ts"
@@ -400,8 +400,9 @@ function CardArticle({
   // ANSWERED questions keep their rest too (the drawer's SettledQuestionStack, which only ChatView drew).
   const settledQuestions = useSettledQuestions(thread, { scope: settledScope, enabled: needsTranscript })
   // The drawer's open set (openQuestionsOf: minus any already drawn settled), so the card and the drawer
-  // agree on which rest each question belongs to.
-  const openQuestions = useMemo(() => openQuestionsOf(thread, settledQuestions), [thread, settledQuestions])
+  // agree on which rest each question belongs to — less every one the human typed past, which holds
+  // nothing and is answered in the thread, where it was asked (heldQuestionViews).
+  const openQuestions = useMemo(() => heldQuestionViews(openQuestionsOf(thread, settledQuestions)), [thread, settledQuestions])
   const slots = useMemo(() => {
     if (messages) return handoffQuestionSlots(messages, openQuestions, settledQuestions)
     if (needsTranscript && !transcript.isError) return null
@@ -1088,10 +1089,10 @@ function CollapseCardButton({ collapsed, onToggle }: { collapsed: boolean; onTog
   )
 }
 
-/** Does the card read its transcript (hooks/useCardTranscript.ts)? While the thread has an open question,
+/** Does the card read its transcript (hooks/useCardTranscript.ts)? While the thread has a held question,
  *  to place it at its rest — the handoff alone cannot say which rest that is. */
 function cardNeedsTranscript(thread: Pick<ThreadView, "questions">): boolean {
-  return (thread.questions?.length ?? 0) > 0
+  return heldQuestionViews(thread.questions).length > 0
 }
 
 /** Answered questions at their rest, greyed (the drawer's SettledQuestionStack) — minus any this card's
@@ -1357,7 +1358,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
         value={text}
         onChange={(value) => draftStore.set(key, value)}
         onSubmit={submit}
-        placeholder={answering?.staged ? "Add a note to your answers…" : (thread.questions?.length ?? 0) > 0 ? "Or reply without answering…" : "Reply to the agent…"}
+        placeholder={answering?.staged ? "Add a note to your answers…" : heldQuestionViews(thread.questions).length > 0 ? "Or reply without answering…" : "Reply to the agent…"}
         attachBase={projectApiBase(project.id)}
         fileDrop={fileDrop}
         mentionCandidates={mentions}

@@ -28,6 +28,11 @@
 // rest never reads as a bare stop with an ask hidden above it, and this file only has to honour what the
 // worker said: a card stays where it was asked until a later rest claims it, and a claim moves it to the
 // end of that rest — under the fence that named it.
+//
+// - 2026-10-14: a question the human TYPED PAST (`passedOver`, shared questionPassedOver) no longer holds
+//   the thread, and it never moves again: it stays at the rest that asked it, answerable there, and a
+//   later claim on it is ignored (maintainer: "they can still go back up and provide an answer, but I
+//   don't like it staying at the bottom of the dialog"). The server refuses such a claim as well.
 
 import { awaitingQuestions } from "@ntwine/shared"
 import { splitFenceBlocks } from "./fenceBlocks.ts"
@@ -96,7 +101,7 @@ export function questionClaims(messages: readonly AnchorMessage[]): Map<string, 
  *
  *  `claims: false` reads the ASKING rest alone, ignoring any later fence — the reading lib/questionShadow's
  *  fold needs, because a fence restating a question must fold from the rest that asked it onward. */
-export function questionsByAnchor<Q extends { askedAt: string; id?: string }>(
+export function questionsByAnchor<Q extends { askedAt: string; id?: string; passedOver?: true }>(
   messages: readonly AnchorMessage[],
   questions: readonly Q[],
   opts: { claims?: boolean } = {},
@@ -105,7 +110,8 @@ export function questionsByAnchor<Q extends { askedAt: string; id?: string }>(
   const claims = opts.claims === false || questions.length === 0 ? undefined : questionClaims(messages)
   for (const q of questions) {
     let anchor = questionAnchorIndex(messages, q.askedAt)
-    const claimedAt = q.id ? claims?.get(q.id.toLowerCase()) : undefined
+    // A question the human typed past stays where it was asked: no later fence moves it down.
+    const claimedAt = q.id && !q.passedOver ? claims?.get(q.id.toLowerCase()) : undefined
     if (claimedAt !== undefined && claimedAt > anchor) anchor = restEnd(messages, claimedAt)
     const group = byAnchor.get(anchor)
     if (group) group.push(q)

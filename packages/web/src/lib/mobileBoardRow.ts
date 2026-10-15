@@ -1,4 +1,4 @@
-import { futureSnoozedUntil, type ThreadView } from "@ntwine/shared"
+import { futureSnoozedUntil, heldQuestionViews, type ThreadView } from "@ntwine/shared"
 import type { SessionIndicatorKind } from "../groups.ts"
 import { awaitingProse, awaitingWaitClause, hintGloss } from "./awaitingPresentation.ts"
 import { toolActivityLabel } from "./toolActivity.ts"
@@ -134,7 +134,7 @@ export function rowSecondLine(
     return handoffLine(t.lastAssistantLine, true) ?? handoffLine(t.lastAssistant)
   }
   if (kind === "needs-input") {
-    const registered = questionsLine((t.questions ?? []).map((q) => q.spec.question))
+    const registered = questionsLine(heldQuestionViews(t.questions).map((q) => q.spec.question))
     if (registered) return { text: registered }
     const native = questionsLine((t.pendingAsk?.questions ?? []).map((q) => q.question))
     if (native) return { text: native }

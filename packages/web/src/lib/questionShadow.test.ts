@@ -159,6 +159,14 @@ test("a marker in a LATER rest places the question there — the newest handoff 
   assert.deepEqual([...placed.keys()], [6])
 })
 
+// …but never a question the human typed past (2026-10-14): it stays in the rest that asked it.
+test("a marker in a later rest does not move a question the human typed past", () => {
+  const later = [...MESSAGES, { role: "user", at: at(15) }, { role: "assistant", at: at(16), text: MARKER(QUESTION.id) }]
+    .map((m, i) => ("text" in m ? m : { ...m, text: i === 4 ? MARKER(QUESTION.id) : "prose" }))
+  const { placed } = placeQuestions(later, [{ ...QUESTION, passedOver: true as const }])
+  assert.deepEqual([...placed.keys()], [4], "the asking rest's own marker still places it")
+})
+
 test("a registration whose rest is above the loaded window is placed by a marker inside the window", () => {
   const windowed = [{ role: "user", at: at(15), text: "Well done" }, { role: "assistant", at: at(16), text: MARKER(QUESTION.id) }]
   const { placed } = placeQuestions(windowed, [{ ...QUESTION, askedAt: at(10) }])

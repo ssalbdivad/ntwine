@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Hono } from "hono"
 import { mountRouter } from "@ntwine/rpc/server"
-import { openQuestionsNote, stripFollowUpRiders, type BoardSnapshot, type Settings, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
+import { type BoardSnapshot, type Settings, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
 import type { BoardManager } from "./board.ts"
 import { appendDelivery, parseDeliveryLedger, projectDeliveryLedger } from "./delivery-ledger.ts"
 import { createWakeDeliveryStore } from "./wake-store.ts"
@@ -490,10 +490,9 @@ test("followUp wakes a snoozed thread and disarms the bump it owed", async () =>
   assert.equal(h.storage.getSession(slug)?.snooze_prompt, null, "and so is the bump it owed at that deadline")
   h.storage.close()
 })
-// A TYPED MESSAGE LEAVES THE OPEN QUESTIONS OPEN, and reaches the worker with ntwine's note naming each, by
-// the id `questions:` and `unask` take, so its next rest names the ones it still needs and withdraws the
-// rest. The bubble keeps the human's bare words; only the worker's copy carries the note.
-test("a typed follow-up to a thread with questions open names them, by id, and says the next rest names or withdraws each", async () => {
+// A TYPED MESSAGE PASSES OVER THE OPEN QUESTIONS (2026-10-14), so it reaches the worker as the human's
+// words alone: there is nothing left to name or withdraw, and no note naming the questions rides it.
+test("a typed follow-up to a thread with a question open reaches the worker bare", async () => {
   const h = harness()
   const slug = "asking-followup"
   h.storage.upsertSession(row(slug))
@@ -506,23 +505,9 @@ test("a typed follow-up to a thread with questions open names them, by id, and s
     resumeOwnedSession: async () => {},
     followUp: async ({ text }: { text: string }) => void sent.push(text),
   }
-  // Negative control: nothing open, nothing appended.
-  await h.router.followUp.handler({ input: { slug, sessionId: `sid-${slug}`, message: "carry on" } })
-  assert.deepEqual(sent, ["carry on"])
-
   h.storage.askThreadQuestion({ id: "qst_open0000001", slug, askedAtMs: Date.now(), spec: JSON.stringify({ question: "SQLite or a JSON file?", kind: "question" }) })
-  h.storage.askThreadQuestion({ id: "qst_answered001", slug, askedAtMs: Date.now(), spec: JSON.stringify({ question: "Which dist-tag?", kind: "question" }) })
-  h.storage.answerThreadQuestion("qst_answered001", JSON.stringify({ questionId: "qst_answered001", question: "Which dist-tag?", chosen: ["next"] }), Date.now())
   await h.router.followUp.handler({ input: { slug, sessionId: `sid-${slug}`, message: "should we use this thread or the other one?" } })
-  const [, noted] = sent
-  assert.equal(noted, `should we use this thread or the other one?\n\n${openQuestionsNote([{ id: "qst_open0000001", question: "SQLite or a JSON file?" }])}`)
-  assert.match(noted, /still open: .*name each one you still need under `questions:`.*withdraw the rest with `unask`/)
-  assert.doesNotMatch(noted, /qst_answered001/, "an answered question is not open")
-  // The human's own bubble, once the transcript reads it back, is their words and nothing else.
-  assert.equal(stripFollowUpRiders(noted), "should we use this thread or the other one?")
-  // A SECOND message still names it: the first one changed nothing about the question.
-  await h.router.followUp.handler({ input: { slug, sessionId: `sid-${slug}`, message: "and the docs too" } })
-  assert.match(sent[2], /qst_open0000001/)
+  assert.deepEqual(sent, ["should we use this thread or the other one?"])
   h.storage.close()
 })
 

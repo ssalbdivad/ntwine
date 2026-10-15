@@ -15,7 +15,7 @@ import { createWakeDeliveryStore, WAKE_QUIET_WINDOW_MS, type WakeDelivery } from
 import { armedTimerKeys, replyWaitOf, threadAwaitKey } from "./thread-mentions.ts"
 // The board owns the registered-done lifetime rule, and the waker must read it by exactly the same rule
 // or the two disagree about whether a thread is finished.
-import { answersInFlight, carriedQuestionRows, childJustReturned, openQuestionRows, registeredDoneFence, safeQuestionAnswer, safeQuestionSpec, SIGNOFF_NUDGE_SETTING, signoffNudgeVerdict } from "./board.ts"
+import { answersInFlight, carriedQuestionRows, childJustReturned, heldQuestionRows, registeredDoneFence, rowPassedOver, safeQuestionAnswer, safeQuestionSpec, SIGNOFF_NUDGE_SETTING, signoffNudgeVerdict } from "./board.ts"
 import { ProducerStoppedError } from "./shutdown.ts"
 import { liveShellBudget, SHELL_BUDGET_GRACE_MS, shellBudgetWarningMessage, type ShellStopReason } from "./shell-budget.ts"
 import { deadlineCheckInMessage, deadlineStageToSend, rowDeadline } from "./deadline.ts"
@@ -2335,8 +2335,8 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // AN OPEN QUESTION IS A SIGN-OFF ONLY AT THE REST THAT ASKED IT (upstream 2026-10-05). A question
       // CARRIED from an earlier rest is not this rest's sign-off: its card stays where it was asked, so the
       // worker names it under `questions:` in an awaiting fence (evalParkIntegrity) or withdraws it, and is
-      // told so below (carriedQuestionsNudgeMessage). A typed message changes nothing about that: a
-      // question the human typed past is still open, still owed, and carried (board.carriedQuestionRows).
+      // told so below (carriedQuestionsNudgeMessage). A question the human TYPED PAST is not carried: it
+      // holds nothing, so it needs neither (board.heldQuestionRows, shared questionPassedOver).
       // A native ask is a question by another route: the thread is frozen on a modal the human has to
       // answer, and telling it to write a ```question fence is telling it to do what it already did.
       // The sentinel still ends the arrangement for sessions that predate the fence (see `saidDone`).
@@ -2438,7 +2438,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   // files, posts, merges or publishes) is never taken: the first option that stays on this machine is,
   // and with none the question waits. A question with nothing to take — free
   // text, `multi`, no recommendation, `danger` — waits for the human as before, and so does one they
-  // typed past: it waits for them, or for the worker's `unask` (shared questionRepliedPast).
+  // typed past: it holds nothing and waits for them (shared questionPassedOver).
   function evalQuestionDefaults(nowMs: number): void {
     let answered = 0
     for (const row of deps.storage.allSessions()) {
@@ -2490,7 +2490,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // …and only a rest the question SIGNS OFF: one carried from an earlier rest draws SOURCE 9's carried
       // reminder instead (board.carriedQuestionRows), which lists the live shells itself.
       const questionRows = deps.storage.listThreadQuestions(row.slug)
-      const onQuestion = Boolean(tele.pendingQuestion) || (openQuestionRows(questionRows).length > 0 && carriedQuestionRows(questionRows, tele).length === 0)
+      const onQuestion = Boolean(tele.pendingQuestion) || (heldQuestionRows(questionRows, tele).length > 0 && carriedQuestionRows(questionRows, tele).length === 0)
       if (!onQuestion) continue
       const watched = deps.storage.listThreadWatches(row.slug, { armedOnly: true }).filter((w) => w.kind === "shell").map((w) => w.target)
       const stray = (tele.bgShells ?? []).filter((sh) => sh.state === "running" && ![sh.id, sh.taskId, sh.label].some((h) => h !== undefined && watched.includes(h)))
@@ -2599,19 +2599,30 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // refused too, unless it settled AFTER the rest — answered or withdrawn while the park stood, which
       // its own wake carries. Counted against PARK_BUMP_MAX like the other corrections, keyed on the rest
       // so one fence draws one bump, and checked BEFORE the honoured-park reset below on purpose.
+      //
+      // A QUESTION THE HUMAN TYPED PAST (2026-10-14) needs no name, and a name on one is refused like a
+      // name on a settled one: it holds nothing, so a fence cannot wait on it, and a claim would move its
+      // card down under this rest — the pull to the bottom of the dialog the maintainer ruled out ("I don't
+      // like it staying at the bottom of the dialog"). Ignoring the name silently was the alternative; it
+      // was rejected because a fence naming only passed-over questions would then still read as a wait on
+      // the human and queue the thread on nothing. The card stays answerable where it was asked.
       const park = readAwaitingPark(tele.lastFence.hints)
       const questionRows = deps.storage.listThreadQuestions(row.slug)
-      // Every open question — a typed message leaves each one open and owed (board.openQuestionRows).
-      const openQuestions = openQuestionRows(questionRows)
+      const heldQuestions = heldQuestionRows(questionRows, tele)
       const named = new Set(park.questions)
-      const unnamed = openQuestions.filter((q) => !named.has(q.id.toLowerCase()))
+      const unnamed = heldQuestions.filter((q) => !named.has(q.id.toLowerCase()))
       const spokeMs = Date.parse(spokeAt)
+      const passedOver: string[] = []
       const notOpen = park.questions.filter((id) => {
         const q = questionRows.find((r) => r.id.toLowerCase() === id)
+        if (q && rowPassedOver(q, tele)) {
+          passedOver.push(id)
+          return false
+        }
         if (q?.state === "open") return false
         return !q || q.settled_at === null || q.settled_at <= spokeMs
       })
-      if (unnamed.length > 0 || notOpen.length > 0) {
+      if (unnamed.length > 0 || notOpen.length > 0 || passedOver.length > 0) {
         if ((row.park_bumps ?? 0) >= PARK_BUMP_MAX) continue
         const fenceId = parkFenceId("question", spokeAt)
         const deliveryId = wakeDeliveryId(row.slug, row.session_id, fenceId)
@@ -2619,11 +2630,14 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         const one = unnamed.length === 1
         const head = unnamed.length > 0
           ? `${one ? "a question of yours was" : `${unnamed.length} questions of yours were`} still OPEN and it does not name ${one ? "it" : "them"}, so ntwine refused the park.`
-          : `it names ${notOpen.length === 1 ? "a question that is" : "questions that are"} not open, so ntwine refused the park.`
+          : notOpen.length > 0
+          ? `it names ${notOpen.length === 1 ? "a question that is" : "questions that are"} not open, so ntwine refused the park.`
+          : `it names ${passedOver.length === 1 ? "a question" : "questions"} the user typed past, so ntwine refused the park.`
         const message = [
           `${PARK_CORRECTION_QUESTION_LEAD}${head}`,
           ...(unnamed.length > 0 ? ["", "Open, and not named under `questions:`:", ...unnamed.map((q) => `- \`${q.id}\` — ${questionLine(q.spec)}`)] : []),
           ...(notOpen.length > 0 ? ["", "Named, but not an open question of yours:", ...notOpen.map((id) => `- \`${id}\``)] : []),
+          ...(passedOver.length > 0 ? ["", "Named, but the user typed past it — drop it; its card stays answerable where you asked it:", ...passedOver.map((id) => `- \`${id}\``)] : []),
           "",
           "A fence beside open questions names EVERY one you still need answered — `questions: [qst_…]` —",
           "and you withdraw the rest with `ntwinectl unask <id>`. A named question's card is drawn at this rest;",
@@ -2637,7 +2651,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           fenceId,
           hintKey: fenceId,
           message: `${message}\n\n${wakeTimeHeader(nowMs, spokeAt)}`,
-          reason: `awaiting fence leaves ${unnamed.length} open question(s) unnamed${notOpen.length ? `, names ${notOpen.length} that are not open` : ""}`,
+          reason: `awaiting fence leaves ${unnamed.length} open question(s) unnamed${notOpen.length ? `, names ${notOpen.length} that are not open` : ""}${passedOver.length ? `, names ${passedOver.length} typed past` : ""}`,
         }, nowMs).delivery
         deps.storage.countParkBump(row.slug, fenceId)
         log(`waker: queued ${row.slug} — ${item.reason}`)
@@ -3940,7 +3954,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (tele.turn !== "idle") return false
     if (threadSaidDone(deps.storage, slug, tele)) return true
     if (tele.pendingQuestion) return true
-    if (deps.storage.listThreadQuestions(slug, { openOnly: true }).length > 0) return true
+    if (heldQuestionRows(deps.storage.listThreadQuestions(slug, { openOnly: true }), tele).length > 0) return true
     const fence = tele.lastFence
     if (fence?.kind === "awaiting") {
       if (awaitingStatus(fence.hints) === "needs_input") return true

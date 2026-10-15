@@ -1497,8 +1497,8 @@ function isLocalCommandReceipt(content: unknown): boolean {
 /** Of the turns isHumanSpeaking admits, did the human TYPE this one — or did ntwine deliver it? A
  *  scheduler wake delivery is a real user turn to the model, but nobody typed it. The answers to
  *  registered questions ride a wake too (the worker may be down when the human answers), and they do
- *  NOT count here: this is the clock questionRepliedPast reads (information only since 2026-09-29), and
- *  answering some cards is not moving on from the others. The web's questionAnchor `isHumanTurn` reads
+ *  NOT count here: this is the clock questionPassedOver reads (a question typed past stops holding its
+ *  thread, 2026-10-14), and answering some cards is not moving on from the others. The web's questionAnchor `isHumanTurn` reads
  *  the same way now — an answer ends no exchange there either — while the router's `handoffOf` still
  *  counts one, because it asks what the newest handoff is a reply TO. */
 function tookHumanTurn(text: string): boolean {

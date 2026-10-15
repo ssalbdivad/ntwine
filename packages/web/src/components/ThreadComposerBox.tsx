@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react"
 import { useSnapshot } from "valtio"
-import { awaitingSteps, expandUserCommandDraft, questionAnswerMessage, withAnswersNote, type AccountBackend, type ThreadView } from "@ntwine/shared"
+import { awaitingSteps, expandUserCommandDraft, heldQuestionViews, questionAnswerMessage, withAnswersNote, type AccountBackend, type ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast, store } from "../store.ts"
 import { outgoingMessage } from "../lib/editorContext.ts"
@@ -112,7 +112,7 @@ export function ThreadComposerBox({
   // way AROUND an open question. An open question is a registered one or a fence the worker's last
   // message still asks. With an answer staged the box is a note on it, and with the menu shut this line
   // is also what says how the button will send (sendPlaceholder).
-  const placeholder = sendPlaceholder({ staged, openQuestions: Boolean(thread?.pendingQuestion) || (thread?.questions?.length ?? 0) > 0, running, mode })
+  const placeholder = sendPlaceholder({ staged, openQuestions: Boolean(thread?.pendingQuestion) || heldQuestionViews(thread?.questions).length > 0, running, mode })
   const projectDir = useProjectDir()
   const key = draftKey.followUp(projectDir, slug, thread?.sessionId)
   const [message, setMessage, clearMessage] = useDraft(key)

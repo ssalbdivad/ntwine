@@ -42,7 +42,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, ChevronDown, Inbox } from "lucide-react"
 import { useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
-import type { BoardSnapshot, ProjectCard, ProjectQueue } from "@ntwine/shared"
+import { heldQuestionViews, type BoardSnapshot, type ProjectCard, type ProjectQueue } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { projectsQueuesQuery, readStartedAt } from "../lib/projectsQueuesRead.ts"
 import { liveQueue, mergedQueue, overlayQueues, projectMarkdownScope, queuesProjects, threadKey, type QueueEntry, type QueuesProject } from "../lib/allQueues.ts"
@@ -1214,7 +1214,7 @@ export function useLeavingCards(projects: QueuesProject[], readAt: number | unde
   // done, archived): a hold keeps a card for its questions, and a card with none is not the human's.
   const held = useRef(new Set<string>())
   const asking = useMemo(
-    () => new Set(projects.flatMap((p) => [...p.queued, ...p.running, ...p.snoozed].filter((t) => (t.questions?.length ?? 0) > 0).map((t) => threadKey(p.id, t.id)))),
+    () => new Set(projects.flatMap((p) => [...p.queued, ...p.running, ...p.snoozed].filter((t) => heldQuestionViews(t.questions).length > 0).map((t) => threadKey(p.id, t.id)))),
     [projects],
   )
   useEffect(() => {

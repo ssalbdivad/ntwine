@@ -322,22 +322,23 @@ function askQ(h: Harness, slug: string, id: string, question: string) {
   return id
 }
 
-// A TYPED MESSAGE WITHDRAWS NOTHING. The question stays open at the worker's next rest, and a bare rest
-// carrying it gets the carried-questions nudge: name it under `questions:` or withdraw it with `unask`.
-test("question: the first rest after a typed message withdraws nothing, and a bare one is nudged to name or withdraw it", async () => {
+// A QUESTION THE HUMAN TYPED PAST HOLDS NOTHING (2026-10-14): the worker's reply to their message is not
+// nudged to name or withdraw it, and ntwine withdraws nothing. One carried past a WAKE still is.
+test("question: a rest after a typed message is not nudged about the question typed past; a rest after a wake is", async () => {
   const h = harness()
-  h.storage.upsertSession(row("t"))
   const t0 = h.clock.ms
-  askQ(h, "t", "qst_plain", "SQLite or a JSON file?")
-  const humanAt = t0 + 1_000
+  h.storage.upsertSession(row("typed"))
+  askQ(h, "typed", "qst_typed", "SQLite or a JSON file?")
+  h.tele.set("typed", { ...tele(), firstHumanAt: iso(t0 - 60_000), lastHumanAt: iso(t0 + 1_000), lastUserAt: iso(t0 + 1_000), lastAssistantAt: iso(t0 + 2_000) })
+  h.storage.upsertSession(row("woken"))
+  askQ(h, "woken", "qst_woken", "Which dist-tag?")
+  h.tele.set("woken", { ...tele(), firstHumanAt: iso(t0 - 60_000), lastHumanAt: iso(t0 - 60_000), lastUserAt: iso(t0 + 1_000), lastAssistantAt: iso(t0 + 2_000) })
   const s = h.make()
-  h.tele.set("t", { ...tele(), lastHumanAt: iso(humanAt), lastUserAt: iso(humanAt), lastAssistantAt: iso(humanAt + 2_000) })
   await s.tick()
-  assert.equal(h.storage.getThreadQuestion("qst_plain")?.state, "open", "ntwine never withdraws it")
-  assert.equal(h.resumes.length, 1)
-  assert.match(h.resumes[0].message, /qst_plain/)
+  assert.equal(h.storage.getThreadQuestion("qst_typed")?.state, "open", "ntwine never withdraws it")
+  assert.deepEqual(h.resumes.map((r) => r.slug), ["woken"])
+  assert.match(h.resumes[0].message, /qst_woken/)
   assert.match(h.resumes[0].message, /questions:/)
-  assert.match(h.resumes[0].message, /unask/)
   h.storage.close()
 })
 

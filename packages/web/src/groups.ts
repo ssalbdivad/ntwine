@@ -4,6 +4,7 @@ import {
   doneButRunning,
   futureSnoozedUntil,
   hasLiveOps,
+  heldQuestionViews,
   hasLiveSubAgents,
   inActiveBand,
   isActivelyRunning,
@@ -567,7 +568,7 @@ export function restingOnSubAgents(t: ThreadView): boolean {
  *  INSIDE the spinner — the motion is real and the band does not change, only the mark inside it says
  *  that an answer would steer the work. Outranks the sub-agent ellipsis: the ask is what the human can act on. */
 export function workingWithOpenQuestion(t: ThreadView): boolean {
-  return (t.questions?.length ?? 0) > 0 && sessionIndicatorKind(t) === "working"
+  return heldQuestionViews(t.questions).length > 0 && sessionIndicatorKind(t) === "working"
 }
 
 /** AWAITING A PULL REQUEST — the one wait whose subject is not on this machine at all, and since
@@ -716,7 +717,7 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // rather than the bare-rest ellipsis it wore before this branch existed (maintainer 2026-08-31: a
   // queue card showing a question beside a row marked […]). Above "snoozed" and "stalled" on purpose:
   // an ask outranks a park, and a real human ask stays a question after the worker exits.
-  if ((t.questions?.length ?? 0) > 0) return "needs-input"
+  if (heldQuestionViews(t.questions).length > 0) return "needs-input"
 
   if (isSnoozed(t)) return "snoozed"
   // KILLED BY A USAGE LIMIT. Its own attention mark — the yellow hourglass — because it is BOTH things

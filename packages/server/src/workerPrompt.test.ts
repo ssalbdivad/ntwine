@@ -65,7 +65,7 @@ test("done is a dismissal: landed as far as asked, nothing owed, and found work 
   for (const kind of ALL) {
     const c = flat(kind)
     assert.match(c, /what is lost if nobody ever opens this thread again\?\*\* If you can name anything, or are unsure, it is not done/)
-    assert.match(c, /It refuses while a question is open or a watch is armed/)
+    assert.match(c, /It refuses while a question is open \(one the user typed past excepted\) or a watch is armed/)
     assert.match(c, /There is no force flag/)
     assert.match(c, /Commit, push or open a pull request only when their current request asks for it or the project's docs tell workers to/)
     assert.match(c, /finished code is `done` where it sits/)
@@ -133,8 +133,9 @@ test("questions: registered, recommended first, actor-explicit, self-contained, 
     assert.match(c, /never on a decision the work builds on/)
     assert.match(c, /Ask last, then rest/)
     assert.match(c, /drawn at the BOTTOM of the handoff of the rest that asked it, so every word of explanation goes before it, and the prose never restates the question/)
-    assert.match(c, /At every later rest, say where each open question stands:\*\* name it under `questions: \[qst_…\]` in an awaiting fence, which redraws its card there, or withdraw it with `ntwinectl unask <id>`/)
-    assert.match(c, /a message the user types instead of answering does not close it/)
+    assert.match(c, /A question the user types past\*\* stays answerable where you asked it, and its answer still reaches you, but it holds nothing: it does not block `done`, is never named under `questions:`, needs no `unask`, and is never asked again/)
+    assert.match(c, /At every later rest, say where each other open question stands:\*\* name it under `questions: \[qst_…\]` in an awaiting fence, which redraws its card there, or withdraw it with `ntwinectl unask <id>`/)
+    assert.doesNotMatch(c, /does not close it/)
     assert.match(c, /A discussion is not a decision/)
   }
 })

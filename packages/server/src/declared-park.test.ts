@@ -1030,10 +1030,10 @@ test("an ANSWERED question no longer refuses the park", async () => {
   } finally { h.close() }
 })
 
-// A TYPED MESSAGE LEAVES A QUESTION OPEN AND OWED. The human wrote past it, the worker rested again with a
-// fence that leaves it out: refused, exactly like any open question. Naming it takes the park, and so does
-// withdrawing it — the worker's own act, never ntwine's.
-test("a question the human typed past still refuses a later fence that leaves it out", async () => {
+// A QUESTION THE HUMAN TYPED PAST HOLDS NOTHING (2026-10-14): a later fence need not name it, and one that
+// does is refused like a name on a settled question — the claim would move its card down under this rest.
+// A secret request is an input the worker cannot proceed without, so typing past it changes nothing.
+test("a question the human typed past needs no name in a later fence, and a fence naming it is refused", async () => {
   const typedPast = { shells: [LIVE_SHELL], lastHumanAt: new Date(Date.now() - 30 * 60_000).toISOString() }
   const askedAtMs = Date.now() - 90 * 60_000
   const spec = JSON.stringify({ question: "Which store — SQLite or a JSON file?", kind: "question" })
@@ -1041,27 +1041,26 @@ test("a question the human typed past still refuses a later fence that leaves it
   try {
     h.storage.askThreadQuestion({ id: "qst_typedpast01", slug: "parked", askedAtMs, spec })
     await h.s.tick()
-    assert.equal(h.queued().length, 1, "refused: the question is still open")
-    assert.equal(isParkCorrection(h.queued()[0].message), true)
-    assert.match(h.queued()[0].message, /qst_typedpast01/)
+    assert.deepEqual(h.queued().filter((r) => isParkCorrection(r.message)), [], "left out: the park takes")
   } finally { h.close() }
 
-  // Negative controls: the same rest naming it under `questions:` takes…
   const named = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }, { kind: "question", value: "qst_typedpast02" }, { kind: "for", value: "1h" }], typedPast)
   try {
     named.storage.askThreadQuestion({ id: "qst_typedpast02", slug: "parked", askedAtMs, spec })
     await named.s.tick()
-    assert.deepEqual(named.queued().filter((r) => isParkCorrection(r.message)), [], "named: the park takes")
+    const [refusal] = named.queued().filter((r) => isParkCorrection(r.message))
+    assert.ok(refusal, "named: refused")
+    assert.match(refusal.message, /it names a question the user typed past, so ntwine refused the park\./)
+    assert.match(refusal.message, /Named, but the user typed past it — drop it; its card stays answerable where you asked it:\n- `qst_typedpast02`/)
   } finally { named.close() }
 
-  // …and so does the fence that leaves it out once the worker has `unask`ed it.
-  const withdrawn = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "1h" }], typedPast)
+  const secret = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "1h" }], typedPast)
   try {
-    withdrawn.storage.askThreadQuestion({ id: "qst_typedpast03", slug: "parked", askedAtMs, spec })
-    assert.equal(withdrawn.storage.withdrawThreadQuestion("parked", "qst_typedpast03", Date.now() - 20 * 60_000), true)
-    await withdrawn.s.tick()
-    assert.deepEqual(withdrawn.queued().filter((r) => isParkCorrection(r.message)), [], "withdrawn: nothing left to name")
-  } finally { withdrawn.close() }
+    secret.storage.askThreadQuestion({ id: "qst_typedpast03", slug: "parked", askedAtMs, spec: JSON.stringify({ question: "The npm code.", kind: "question", secret: true }) })
+    await secret.s.tick()
+    const [refusal] = secret.queued().filter((r) => isParkCorrection(r.message))
+    assert.match(refusal?.message ?? "", /Open, and not named under `questions:`:\n- `qst_typedpast03`/, "a secret still has to be named")
+  } finally { secret.close() }
 })
 
 // ---- `threads:` — a wait on another thread's answer -------------------------------------------------

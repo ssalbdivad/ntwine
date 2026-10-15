@@ -196,7 +196,7 @@ export function markerIdsIn(text: string): string[] {
  *  onward whose empty marker names its id. A question no loaded message names is absent from `placed`
  *  and renders at its anchor. Human turns never place anything — a wake carries no marker of the
  *  worker's. */
-export function placeQuestions<Q extends Pick<RegisteredQuestionView, "id"> & { askedAt: string }>(
+export function placeQuestions<Q extends Pick<RegisteredQuestionView, "id"> & { askedAt: string; passedOver?: true }>(
   messages: readonly AnchorMessage[],
   questions: readonly Q[],
 ): QuestionPlacement<Q> {
@@ -218,7 +218,10 @@ export function placeQuestions<Q extends Pick<RegisteredQuestionView, "id"> & { 
     for (const q of group) {
       const id = q.id.toLowerCase()
       let placedAt = -1
-      for (let i = restStart(messages, anchor); i < messages.length; i++) {
+      // A question the human typed past places only within the rest that asked it: a marker in a later
+      // handoff would move it down under their newest message (questionAnchor, 2026-10-14).
+      const end = q.passedOver ? restEnd(messages, anchor) + 1 : messages.length
+      for (let i = restStart(messages, anchor); i < end; i++) {
         if (isTurn(messages[i])) continue
         if (markersOf(i).includes(id)) placedAt = i
       }

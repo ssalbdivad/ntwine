@@ -38,8 +38,8 @@ export function useSendMode(slug: string, running: boolean): SendMode {
 }
 
 /** What the placeholder says an empty prompt box is for. A staged answer outranks everything: the box
- *  is then a note on the answers, whichever way they go. An open question with nothing staged makes
- *  the box the way AROUND it. Otherwise it names how the ticked row will send, which only differs from
+ *  is then a note on the answers, whichever way they go. A held question (open, and not yet typed
+ *  past — heldQuestionViews) with nothing staged makes the box the way AROUND it. Otherwise it names how the ticked row will send, which only differs from
  *  an ordinary reply while there is a turn to queue behind. */
 export function sendPlaceholder(input: { staged: number; openQuestions: boolean; running: boolean; mode: SendMode }): string {
   if (input.staged > 0) return input.staged === 1 ? "Add a note to send with your answer…" : `Add a note to send with your ${input.staged} answers…`

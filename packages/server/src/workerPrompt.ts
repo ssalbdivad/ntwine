@@ -37,7 +37,7 @@
 //     carded "Ranked the next items"; another, asked for ten names, offered three.
 //   - `done` is a dismissal: zod #6022 drafted a close comment, "not posted", and fenced done; #6065
 //     reasoned a discovered fix was "not mine, so not owed". Hence the recommendation/draft clause and
-//     the four exits. `ntwinectl done` refuses on open questions and armed watches, with no force flag.
+//     the four exits. `ntwinectl done` refuses on held questions and armed watches, with no force flag.
 //   - Landing is the user's call (360458b7): asked for one PR, a worker opened a second and kept
 //     pushing. Following a change is judgment (2026-10-07): "done waits for the merge" parked a worker
 //     180d on the maintainer's own PR after a comment-only push. The done card's per-ref Watch button
@@ -51,7 +51,11 @@
 //   - Questions: the free-form fence was retired 2026-09-11 (nothing tracks a fence's answer) and the
 //     placement marker 2026-09-28 (7 of 15 real markers had prose under the card). The web still renders
 //     a marker (upstream's questionShadow.ts), so the contract simply teaches none. A card draws at the
-//     BOTTOM of the rest that asked it; a later rest names or unasks it (2026-10-05). No "I"/"you"
+//     BOTTOM of the rest that asked it; a later rest names or unasks it (2026-10-05). A question the
+//     user typed past holds nothing and is never re-asked (2026-10-14, reversing f515ee44's "a typed
+//     message decides nothing": "not re-asked if the user moves on … I don't like it staying at the
+//     bottom of the dialog"); before, a worker had to `unask` each one or carry it under `questions:`,
+//     and its card moved down under every later handoff. No "I"/"you"
 //     (2026-08-24: "you run it" / "I run it" named no actor). The user's vocabulary (coined lane, tier
 //     and phase names made cards unanswerable). The draft inside the option (7ee0b772: the queue clips
 //     prose). Ask last (d3906c64: a running thread never queues). Options state cost (2026-10-09: an
@@ -193,9 +197,10 @@ not done.
 - **The body:** at most one sentence, then one one-line \`- \` bullet per deliverable, each opening with a
   **bolded verb phrase** naming what shipped and where. Backtick paths and commands; make files real
   links. A handful of lines — no sub-bullets, no plan.
-- **Run \`ntwinectl done\`** rather than writing the fence. It refuses while a question is open or a watch
-  is armed, naming each by id: resolve them for real — \`unask\` what you decided yourself, \`unwatch\`
-  what stopped mattering — and run it again. There is no force flag.
+- **Run \`ntwinectl done\`** rather than writing the fence. It refuses while a question is open (one the
+  user typed past excepted) or a watch is armed, naming each by id: resolve them for real — \`unask\`
+  what you decided yourself, \`unwatch\` what stopped mattering — and run it again. There is no force
+  flag.
 - A background process you have moved on from — a dev server, a poller — does not block \`done\`; name it
   in the body.
 - **Landing is the user's call.** Commit, push or open a pull request only when their current request
@@ -354,11 +359,11 @@ does not depend on the answer first. If what remains is work you would do on you
 anyway, the call was yours: take it. The card is drawn at the BOTTOM of the handoff of the rest that
 asked it, so every word of explanation goes before it, and the prose never restates the question.
 
-**At every later rest, say where each open question stands:** name it under \`questions: [qst_…]\` in an
-awaiting fence, which redraws its card there, or withdraw it with \`ntwinectl unask <id>\`. A rest that
-does neither is bumped. A question stays open until it is answered, dismissed or withdrawn — a message
-the user types instead of answering does not close it, so when they move on to a new direction,
-\`unask\` it that same turn.
+**A question the user types past** stays answerable where you asked it, and its answer still reaches
+you, but it holds nothing: it does not block \`done\`, is never named under \`questions:\`, needs no
+\`unask\`, and is never asked again. **At every later rest, say where each other open question stands:**
+name it under \`questions: [qst_…]\` in an awaiting fence, which redraws its card there, or withdraw it
+with \`ntwinectl unask <id>\`. A rest that does neither is bumped.
 
 **A discussion is not a decision.** While the user is talking with you — asking why, pushing back,
 walking items one at a time — answer in prose and stop: no card to close the exchange, ask "next item?"

@@ -106,8 +106,8 @@ export interface NormalizedTail {
   aiTitle?: string
   lastUserAt?: string
   // ISO8601 of the newest turn the HUMAN typed — lastUserAt minus every ntwine wake delivery (a watcher,
-  // a timer, a nudge, and the one that carries their answers). The clock questionRepliedPast reads —
-  // information only since 2026-09-29; it releases nothing.
+  // a timer, a nudge, and the one that carries their answers). The clock questionPassedOver reads: an
+  // open question asked before it no longer holds the thread (2026-10-14).
   lastHumanAt?: string
   // ISO8601 of the FIRST turn the human typed — the dispatch prompt, on a thread ntwine started. Tells a
   // reply to that prompt (work the sign-off nudge still asks about) from a reply in a later conversation.
@@ -185,7 +185,7 @@ export interface FoldState {
   // …and of the newest one the human actually TYPED: a scheduler wake delivery reaches the fold as a
   // genuine user turn (it bumps the row key like any delivery), so this skips every one of them — the
   // answers-to-questions wake included, because answering some cards is not replying past the rest
-  // (tailer.ts tookHumanTurn). The clock questionRepliedPast reads.
+  // (tailer.ts tookHumanTurn). The clock questionPassedOver reads.
   lastHumanAt?: string
   // …and the FIRST such turn, set once (see SessionTelemetry.firstHumanAt).
   firstHumanAt?: string

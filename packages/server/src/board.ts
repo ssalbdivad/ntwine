@@ -8,7 +8,7 @@ import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import watcher from "@parcel/watcher"
 import type { BoardSnapshot, ClaudeModel, ThreadScheduleRef, ThreadTerminal, ThreadView, RuntimeState, ThreadRecurringPrompt, ProviderError } from "@ntwine/shared"
-import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingNeedsInput, awaitingStatus, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
+import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingNeedsInput, awaitingStatus, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionPassedOver, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import { workDirOf, type Project } from "./project.ts"
 import { liftWorkingDir } from "./thread-cwd.ts"
@@ -722,19 +722,26 @@ export function signoffNudgeVerdict(
   return "nudge"
 }
 
-/** The open questions holding the thread — every open row, until it is answered, dismissed or withdrawn.
- *  A typed message changes nothing about one. */
-export function openQuestionRows(rows: readonly ThreadQuestionRow[]): ThreadQuestionRow[] {
-  return rows.filter((q) => q.state === "open")
+/** The open questions HOLDING the thread: every open row the human has not typed past
+ *  (questionPassedOver). A passed-over one stays open and answerable where it was asked, and holds
+ *  nothing — no queue, no `done` refusal, no `questions:` claim, no sign-off. */
+export function heldQuestionRows(rows: readonly ThreadQuestionRow[], tele: Pick<SessionTelemetry, "lastHumanAt"> | undefined): ThreadQuestionRow[] {
+  return rows.filter((q) => q.state === "open" && !rowPassedOver(q, tele))
 }
 
-/** The open questions CARRIED into this rest from an earlier one: asked no later than the newest user
- *  record, which a typed message and a wake both are. Upstream's 2026-10-05 rule: such a question is not
- *  this rest's sign-off and its card is not redrawn under the new handoff, so the worker names it under
- *  `questions:` in an awaiting fence or withdraws it. */
-export function carriedQuestionRows(rows: readonly ThreadQuestionRow[], tele: Pick<SessionTelemetry, "lastUserAt"> | undefined): ThreadQuestionRow[] {
+/** Is this row an OPEN question the human typed past? Read off its stored spec, so a secret or MCP
+ *  request (exempt) is told apart. */
+export function rowPassedOver(q: ThreadQuestionRow, tele: Pick<SessionTelemetry, "lastHumanAt"> | undefined): boolean {
+  return q.state === "open" && questionPassedOver(q, safeQuestionSpec(q.spec), tele?.lastHumanAt)
+}
+
+/** The held questions CARRIED into this rest from an earlier one: asked no later than the newest user
+ *  record — a wake, since a typed message passes over every question open when it lands. Upstream's
+ *  2026-10-05 rule: such a question is not this rest's sign-off and its card is not redrawn under the
+ *  new handoff, so the worker names it under `questions:` in an awaiting fence or withdraws it. */
+export function carriedQuestionRows(rows: readonly ThreadQuestionRow[], tele: Pick<SessionTelemetry, "lastUserAt" | "lastHumanAt"> | undefined): ThreadQuestionRow[] {
   const restFrom = tele?.lastUserAt ? Date.parse(tele.lastUserAt) : Number.NEGATIVE_INFINITY
-  return openQuestionRows(rows).filter((q) => q.asked_at <= restFrom)
+  return heldQuestionRows(rows, tele).filter((q) => q.asked_at <= restFrom)
 }
 
 /** Is this rest a reply in a live conversation: it answers a turn the human TYPED after the dispatch
@@ -753,12 +760,12 @@ function conversationalReply(tele: SessionTelemetry, rows: readonly ThreadQuesti
   if (!tele.lastHumanAt || !tele.lastUserAt || !tele.firstHumanAt) return false
   const human = Date.parse(tele.lastHumanAt)
   if (human < Date.parse(tele.lastUserAt) || human <= Date.parse(tele.firstHumanAt)) return false
-  return openQuestionRows(rows).length === 0
+  return heldQuestionRows(rows, tele).length === 0
 }
 
-/** Do this rest's open questions sign it off? Only when there are some and none was carried in. */
-function openQuestionsSignOff(rows: readonly ThreadQuestionRow[], tele: Pick<SessionTelemetry, "lastUserAt">): boolean {
-  return openQuestionRows(rows).length > 0 && carriedQuestionRows(rows, tele).length === 0
+/** Do this rest's held questions sign it off? Only when there are some and none was carried in. */
+function openQuestionsSignOff(rows: readonly ThreadQuestionRow[], tele: Pick<SessionTelemetry, "lastUserAt" | "lastHumanAt">): boolean {
+  return heldQuestionRows(rows, tele).length > 0 && carriedQuestionRows(rows, tele).length === 0
 }
 
 /** Does this row carry a Goal armed to fire at rest? The same reading answersInFlight is handed above,
@@ -1446,8 +1453,8 @@ export function deriveNeedsYou(
   armedTimerIds: ReadonlySet<string> = new Set(),
   // This thread's ARMED `thread_watch` rows. Same reason as the two above — the caller holds storage.
   armedWatches: readonly RegisteredWatch[] = [],
-  // How many REGISTERED questions this thread has open (thread_question). A count rather than the rows:
-  // the queue rule only asks whether there are any, and the rows themselves travel on the view.
+  // How many REGISTERED questions HOLD this thread (heldQuestionRows): open, and not typed past. A count
+  // rather than the rows: the queue rule only asks whether there are any, and the rows travel on the view.
   openQuestions = 0,
   // The human has ANSWERED a registered question and the wake carrying it has not landed yet — see
   // answerAwaitingDelivery, which bounds it. The caller's for the same reason `openQuestions` is.
@@ -2266,16 +2273,20 @@ function sessionThreadView(
     const defaultsAtMs = defaultAnswer ? defaults!.atMs : undefined
     const recommendedLabel = q.spec.options?.find((o) => o.recommended)?.label
     const defaultsTo = defaultAnswer?.chosen[0] !== recommendedLabel ? defaultAnswer?.chosen[0] : undefined
+    // A question the human TYPED PAST still travels, flagged: the transcript draws it where it was asked
+    // and it stays answerable there, while every queue reader skips it (heldQuestionViews).
+    const passedOver = questionPassedOver(q, q.spec, rawTele?.lastHumanAt)
     questions.push({
       id: q.id,
       spec: q.spec,
       askedAt: new Date(q.asked_at).toISOString(),
       ...(defaultsAtMs !== undefined ? { defaultsAt: new Date(defaultsAtMs).toISOString() } : {}),
       ...(defaultsAtMs !== undefined && defaultsTo ? { defaultsTo } : {}),
+      ...(passedOver ? { passedOver: true as const } : {}),
     })
   }
-  // The ones HOLDING the thread — every open one, until it is answered, dismissed or withdrawn.
-  const currentQuestionCount = questions.length
+  // The ones HOLDING the thread — every open one the human has not typed past (heldQuestionRows).
+  const currentQuestionCount = questions.filter((q) => !q.passedOver).length
   // The dismissal-only case counts as in flight EXACTLY when a cancellation wake is coming — an armed
   // rest Goal with text, the same gate the scheduler's evalQuestionAnswers wakes on. Anything looser
   // would also cover the human's own ×, which deliberately wakes nobody and has no arrival to bridge to.

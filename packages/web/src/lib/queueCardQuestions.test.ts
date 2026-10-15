@@ -42,7 +42,8 @@ test("a later fence that names the question under `questions:` brings it to that
 })
 
 test("a question from before the human's last turn flushes above the bubble, as upstream's window flushes it", () => {
-  // Asked, then the human typed past it (it stays open and owed), then the worker rested again.
+  // Asked, then a human turn, then the worker rested again. (The card passes only held questions since
+  // 2026-10-14, so in the product this is one asked before an answer to another card; the slotting is the same.)
   const messages = [human(0), worker(1), human(2, "Do the other thing first."), worker(3)]
   const slots = handoffQuestionSlots(messages, [question("qst_before", 1)], [])
   assert.deepEqual(names(slots.above), ["qst_before"])

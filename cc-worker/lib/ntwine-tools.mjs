@@ -636,20 +636,21 @@ const ASK = {
     "placement marker either: an empty ```question qst_… fence draws the card where it sits instead, " +
     "mid-handoff.\n\n" +
     "AT EVERY LATER REST IT IS NO LONGER YOUR SIGN-OFF, and ntwine does not redraw it under your newer " +
-    "handoff — it stays where you asked it. Name it under `questions:` in an ```awaiting fence while you " +
-    "still need the answer (its card is then drawn at that rest), or withdraw it with `ntwinectl unask <id>`. A rest " +
-    "that does neither is bumped, and so is any ```awaiting fence that leaves an open question out.\n\n" +
+    "handoff — it stays where you asked it. Until the user types past it, name it under `questions:` in an " +
+    "```awaiting fence while you still need the answer (its card is then drawn at that rest), or withdraw it " +
+    "with `ntwinectl unask <id>`. A rest that does neither is bumped, and so is any ```awaiting fence that " +
+    "leaves such a question out.\n\n" +
     "A QUESTION MARKED `mayDefault` DOES NOT WAIT FOREVER. Ten minutes after you rest on it, ntwine takes its " +
     "`recommended` option for the user and delivers that as the answer, noting it was the default — " +
     "UNLESS that option is `external` (it files, posts, merges, pushes or publishes): then the default " +
     "takes the first option that is not `external`, and you must not do the external act anyway. Any other question — unmarked, `danger`, `multi` or " +
     "free text, one with no recommendation, or one whose every option is `external`, waits " +
     "for the user.\n\n" +
-    "A QUESTION STAYS OPEN UNTIL IT IS ANSWERED, THE USER DISMISSES IT, OR YOU `ntwinectl unask` IT. A message " +
-    "the user types instead of answering changes nothing about it; the message comes with a note naming " +
-    "the questions still open, and your next rest names each one you still need under `questions:` or " +
-    "withdraws it, like any later rest. Never ask again a question the user dismissed, or one you " +
-    "yourself withdrew after their newest message — `ntwinectl ask` refuses both.\n\n" +
+    "A QUESTION STAYS OPEN UNTIL IT IS ANSWERED, THE USER DISMISSES IT, OR YOU `ntwinectl unask` IT. ONE THE " +
+    "USER TYPES PAST stays answerable where you asked it, and its answer still reaches you, but it holds " +
+    "nothing: it does not block `done`, is never named under `questions:` (a fence naming it is refused), " +
+    "and needs no `unask`. Carry on with what their message asks. Never ask it again, nor a question the " +
+    "user dismissed or one you withdrew after their newest message — `ntwinectl ask` refuses all three.\n\n" +
     "SEVERAL AT ONCE IS ONE COMMAND — register them together, so they render as one stack. Each must stand " +
     "alone (a question that only makes sense after another's answer is that option's `followUps`), " +
     "because ANSWERS ARRIVE ONE AT A TIME: each card is sent the moment the user completes it, so you " +
@@ -688,7 +689,8 @@ const UNASK = {
     "WITHDRAW A QUESTION you registered with `ntwinectl ask`, by its id. Its card disappears and the user is " +
     "never asked.\n\n" +
     "Use it the moment the question stops mattering: you worked out the answer yourself, the code moved " +
-    "and the fork is gone, the user's newest message made it moot, or you are about to finish. A stale " +
+    "and the fork is gone, or you are about to finish. A question the user typed past needs none — it " +
+    "already holds nothing, and its card stays answerable where you asked it. A stale " +
     "question on someone's board is worse than no question — they answer it, and the answer is about a " +
     "decision that no longer exists. Withdrawn after the user's newest message, it is a pivot you " +
     "declared, and `ask` will not take it back.\n\n" +
@@ -721,8 +723,9 @@ const SECRET = {
     "value in the transcript. To discard an unread value, `rm` the path.\n\n" +
     "A one-time code expires in about thirty seconds, so have the command ready BEFORE you rest: when the " +
     "answer wakes you, run it at once.\n\n" +
-    "Like a question, it is your rest's sign-off and it gates `done` until answered; name it under " +
-    "`questions:` at later rests, withdraw it with `ntwinectl unask <id>`. It is allowed on an autonomous thread — a " +
+    "Like a question, it is your rest's sign-off and it gates `done` until answered — even after the user " +
+    "types past it; name it under `questions:` at later rests, or withdraw it with `ntwinectl unask <id>`. " +
+    "It is allowed on an autonomous thread — a " +
     "credential is not something you can decide.",
   inputSchema: {
     type: "object",
@@ -748,8 +751,8 @@ const MCP_REQUEST = {
     "a desktop-control server for a screenshot of a native window, say.\n\n" +
     "It registers a question like `ntwinectl ask`, worded by ntwine: the user allows the server for this thread, " +
     "for every thread in this project, or not at all. Once allowed, its tools (`mcp__<name>__*`) are yours from " +
-    "your next turn. Like a question, it is your rest's sign-off and gates `done` until answered; name it under " +
-    "`questions:` at later rests, or withdraw it with `ntwinectl unask <id>`.",
+    "your next turn. Like a question, it is your rest's sign-off and gates `done` until answered — even after " +
+    "the user types past it; name it under `questions:` at later rests, or withdraw it with `ntwinectl unask <id>`.",
   inputSchema: {
     type: "object",
     properties: {
@@ -772,7 +775,7 @@ const DONE = {
     "success in their queue and stays there until they archive it — marking done is not dismissal, and " +
     "it does not close, archive or hide anything.\n\n" +
     "NTWINE CAN REFUSE THIS, which is the whole reason it is a command rather than a fence. An OPEN " +
-    "QUESTION or an ARMED REGISTRATION blocks it, and the refusal names each one by id: a question " +
+    "QUESTION the user has not typed past, or an ARMED REGISTRATION, blocks it, and the refusal names each one by id: a question " +
     "nobody answered dies with the card, and a live wait means the thing you were waiting for has not " +
     "happened yet. Resolve them for real — answer it yourself and `unask`, or `unwatch` the wait you no " +
     "longer need — then run it again. There is no force flag and there will not be one.\n\n" +
@@ -1348,7 +1351,10 @@ async function title(args) {
 async function activity() {
   const result = (await callRpc("listOwnThreadActivity", { slug: threadSlug() }))?.result
   const items = Array.isArray(result?.activity) ? result.activity : []
-  const questions = Array.isArray(result?.questions) ? result.questions : []
+  // A question the user TYPED PAST is listed apart: it holds nothing, so it is never named in a fence.
+  const allQuestions = Array.isArray(result?.questions) ? result.questions : []
+  const questions = allQuestions.filter((q) => !q?.passedOver)
+  const passedOver = allQuestions.filter((q) => q?.passedOver)
   const links = Array.isArray(result?.links) ? result.links : []
   // WHO THIS THREAD IS, first: the handle other threads and the human call it, and the head of every
   // sub-agent address below — the names to write in prose, where the board turns each into a link.
@@ -1359,20 +1365,27 @@ async function activity() {
     links.map((link) => `  ${link.id}  ${link.kind}: ${link.label}\n    ${link.target}`).join("\n")
   // THE QUESTIONS GET THEIR OWN SECTION, because they are not running work: a question waits on a
   // person. Since 2026-10-05 a fence names the ones still needed under `questions:` (and must name every
-  // open one), so the ready-to-paste fence below carries every open one too.
+  // held one), so the ready-to-paste fence below carries every held one too — never one typed past.
   const questionLine = (q) =>
     `  question: ${q.id}\n` +
     `    ${String(q?.spec?.question ?? "").replace(/\s+/g, " ").slice(0, 160)}`
-  const askedBlock = questions.length === 0 ? "" : (
+  const heldBlock = questions.length === 0 ? "" : (
     `\n\n${questions.length} question${questions.length === 1 ? "" : "s"} still owed an answer:\n\n` +
     questions.map(questionLine).join("\n") +
     "\n\nEach one blocks `done` until it is answered, dismissed or withdrawn, and draws its own card at the " +
     "BOTTOM of the handoff of the rest that asked it — never write it into a handoff, and put the " +
     "explanation above it. Answers arrive one question at a time; act on each as it lands. `ntwinectl unask <id>` the " +
-    "ones since decided. Any ```awaiting fence names EVERY open one under `questions:` or is refused, and " +
+    "ones since decided. Any ```awaiting fence names EVERY one listed here under `questions:` or is refused, and " +
     "at a rest after the one that asked, a question you neither name nor withdraw gets you bumped. In a " +
     "fence: `questions: [" + questions.map((q) => q.id).join(", ") + "]`"
   )
+  const passedOverBlock = passedOver.length === 0 ? "" : (
+    `\n\n${passedOver.length} question${passedOver.length === 1 ? "" : "s"} the user typed past:\n\n` +
+    passedOver.map(questionLine).join("\n") +
+    "\n\nStill answerable where you asked, and an answer still reaches you, but they hold nothing: they " +
+    "do not block `done`, are never named under `questions:`, and are not asked again."
+  )
+  const askedBlock = heldBlock + passedOverBlock
   if (!items.length) {
     if (questions.length > 0) {
       return selfLine + (
@@ -1386,7 +1399,7 @@ async function activity() {
       "Nothing is running on this thread — no background shells, no sub-agents, no armed timers, no " +
       "registered PRs, and no question still owed an answer.\n\nSo there is nothing to wait on: an ```awaiting fence " +
       "would have nothing to name, and a fence naming nothing is not a park. End with ```done, or " +
-      "register a question with `ntwinectl ask` if you need the user." + linksBlock
+      "register a question with `ntwinectl ask` if you need the user." + passedOverBlock + linksBlock
     )
   }
   const lines = items.map((i) => {
@@ -2453,7 +2466,7 @@ async function unwatch(args) {
 function openQuestionList(result) {
   const open = Array.isArray(result?.open) ? result.open : []
   if (!open.length) return "Nothing else is open on this thread — the user owes you no answer."
-  const lines = open.map((q) => `  ${q.id}  ${(q.spec?.question ?? "").split("\n")[0]}`)
+  const lines = open.map((q) => `  ${q.id}  ${(q.spec?.question ?? "").split("\n")[0]}${q.passedOver ? "  (typed past: holds nothing)" : ""}`)
   return `Open on this thread now:\n${lines.join("\n")}`
 }
 
