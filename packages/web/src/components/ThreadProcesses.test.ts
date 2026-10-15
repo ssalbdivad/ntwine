@@ -7,7 +7,7 @@ import type { BgShellView, ThreadTerminal, ThreadView } from "@ntwine/shared"
 import { ROOT_CHECKOUT_WORD, ProcessRow, QUIET_TITLE, TerminalPromptPane, ThreadProcessStrip, cardProcesses, folderHintTitle, processFolderHint, processTitle } from "./ThreadTerminals.tsx"
 import { threadProcesses, type ThreadProcess } from "../lib/threadProcesses.ts"
 import { AGENT_GLYPH_STROKE, CHILD_MARK_SLOT_CLASS } from "../lib/childOps.ts"
-import { BgShellRow, TermWaitRow } from "./AwaitingBackgroundCard.tsx"
+import { BgShellRow } from "./AwaitingBackgroundCard.tsx"
 import { FolderHintToken } from "./ThreadTerminals.tsx"
 
 // ONE STRIP, TWO OWNERS. The row box is the ops strip's, so the checks that matter are the ones that keep
@@ -328,37 +328,35 @@ test("the card's prompt pane wears its terminal's row as its caption, and the st
   assert.equal(withQuery(createElement(TerminalPromptPane, { thread: { ...thread, terminals: [term()] }, base: "/x" })), "")
 })
 
-// THE FULLSCREEN RAIL'S TERMINAL ROWS read the strip's order (budget, then age) and carry its folder hint on
-// its rule; they read `1m · 13m left` with no hint beside a strip reading `root · 13m left · 1m`.
-test("the rail's terminal rows read the strip's order, and its folder hint", () => {
+// THE RESTING CARD'S TERMINAL ROW reads the strip's order (budget, then age) and carries its folder hint on
+// its rule; it read `1m · 13m left` with no hint beside a strip reading `root · 13m left · 1m`.
+test("the resting card's terminal row reads the strip's order, and its folder hint", () => {
   const started = new Date(Date.now() - 12 * 60_000 - 30_000).toISOString()
   const probe = { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" as const }
   const agent = processes({ bgShells: [shell({ startedAt: started, budgetEndsAt: new Date(Date.now() + 15 * 60_000 + 20_000).toISOString() })] })[0]!
   const where = processFolderHint(agent, probe)!
   const hint = createElement(FolderHintToken, { hint: where, title: folderHintTitle(where, "/repo", undefined) })
   const status = (html: string) => /data-wait-status[^>]*>([\s\S]*?)<\/span><svg/.exec(html)?.[1]?.replace(/<[^>]+>/g, "") ?? html
-  const rail = renderToStaticMarkup(createElement(BgShellRow, { shell: agent.shell!, slug: "t", now: Date.now(), hint }))
-  assert.match(rail, /data-process-checkout="root"/)
-  assert.equal(status(rail), "times out in 15m · 12m")
-  const yours = renderToStaticMarkup(createElement(TermWaitRow, { terminal: term({ startedAt: started }), slug: "t", now: Date.now(), hint }))
-  assert.match(yours, /data-process-checkout="root"/)
-  assert.equal(status(yours), "12m")
+  const row = renderToStaticMarkup(createElement(BgShellRow, { shell: agent.shell!, slug: "t", now: Date.now(), hint }))
+  assert.match(row, /data-process-checkout="root"/)
+  assert.equal(status(row), "times out in 15m · 12m")
   // No hint where the row runs where the header says.
   assert.doesNotMatch(renderToStaticMarkup(createElement(BgShellRow, { shell: agent.shell!, slug: "t", now: Date.now() })), /data-process-checkout/)
 })
 
-// THE RAIL'S HINT LEADS THE STATUS, as the strip's leads its readings. Every rail row is its own flex line
+// A ROW'S HINT LEADS THE STATUS, as the strip's leads its readings. Every wait row is its own flex line
 // since upstream 1ef572bb (2026-10-08): the mark, the name, then — on a hinted row — the hint's zero-based box
 // and its `·`, then the status, then the chevron. The name keeps its natural width beside a hint (one line,
 // truncating last) and the hint's box grows into the rest; without one, the name is the slack and wraps.
 // And the hint's glyph never wraps away: its box reserves the glyph's 1em, so a `root` row whose word cannot
 // fit still says it is not where the header says.
-test("every rail row is one layout, and a rail hint's word gives way before the name while its glyph never does", () => {
-  const where = processFolderHint(processes({ bgShells: [shell()] })[0]!, { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" })!
+test("every wait row is one layout, and a row hint's word gives way before the name while its glyph never does", () => {
+  const agent = processes({ bgShells: [shell()] })[0]!
+  const where = processFolderHint(agent, { dir: "/repo/.ntwine/worktrees/probe", kind: "worktree" })!
   const hint = createElement(FolderHintToken, { hint: where, title: "t" })
-  const html = renderToStaticMarkup(createElement(TermWaitRow, { terminal: term({ awaitingInput: true }), slug: "t", now: Date.now(), hint }))
+  const html = renderToStaticMarkup(createElement(BgShellRow, { shell: agent.shell!, slug: "t", now: Date.now(), hint }))
   // On the row's one line: the name (natural width, truncating), the hint's box and its `·`, the status.
-  assert.match(html, /<button[^>]*class="[^"]*min-w-0 truncate[^"]*"[\s\S]*?<\/button><span data-process-give="true" data-process-checkout="root" title="t" class="[^"]*"><span class="shrink-0 whitespace-nowrap"><svg[^>]*class="[^"]*inline[^"]*align-baseline[^"]*"[\s\S]*?<\/svg><\/span><span data-process-checkout-word="true" class="[^"]*">root<\/span><\/span><span aria-hidden="true" class="mx-1 shrink-0 text-muted-25">·<\/span><span data-wait-status="true" class="[^"]*"><span class="text-attention">waiting for input<\/span><\/span>/)
+  assert.match(html, /<button[^>]*class="[^"]*min-w-0 truncate[^"]*"[\s\S]*?<\/button><span data-process-give="true" data-process-checkout="root" title="t" class="[^"]*"><span class="shrink-0 whitespace-nowrap"><svg[^>]*class="[^"]*inline[^"]*align-baseline[^"]*"[\s\S]*?<\/svg><\/span><span data-process-checkout-word="true" class="[^"]*">root<\/span><\/span><span aria-hidden="true" class="mx-1 shrink-0 text-muted-25">·<\/span><span data-wait-status="true" class="[^"]*">/)
   const box = /<span data-process-give="true"[^>]*class="([^"]*)"/.exec(html)?.[1]?.split(" ") ?? []
   for (const cls of ["w-0", "min-w-[1em]", "flex-1", "basis-0", "flex-wrap", "h-[1lh]", "overflow-hidden", "justify-end", "items-baseline"]) assert.ok(box.includes(cls), `hint box: ${cls}`)
   // The glyph is an INLINE run in its own box — which carries the line's strut, so its line is a full line tall
@@ -366,7 +364,7 @@ test("every rail row is one layout, and a rail hint's word gives way before the 
   const status = /<span data-wait-status="true" class="([^"]*)"/.exec(html)?.[1]?.split(" ") ?? []
   assert.ok(status.includes("shrink-0"))
   // A row without a hint: the name is the slack (`flex-1`) and the status follows it directly.
-  const plain = renderToStaticMarkup(createElement(TermWaitRow, { terminal: term(), slug: "t", now: Date.now() }))
+  const plain = renderToStaticMarkup(createElement(BgShellRow, { shell: agent.shell!, slug: "t", now: Date.now() }))
   assert.match(plain, /<button[^>]*class="[^"]*flex-1[^"]*"[\s\S]*?<\/button><span data-wait-status="true" class="([^"]*)">/)
   assert.doesNotMatch(plain, /data-process-give/)
 })

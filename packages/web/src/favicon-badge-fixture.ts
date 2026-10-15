@@ -20,8 +20,8 @@ root.style.cssText = "display:flex;flex-direction:column;gap:8px;padding:16px;fo
 
 const base = new Image()
 base.onload = () => {
-  // The rest dot, then the counts a queue actually reaches: one digit, the widest digit, and the cap.
-  const badges = ["dot", "1", "3", "8", "12"].map((n) => drawBadgedIcon(base, n === "12" ? "9+" : n))
+  // The counts a queue actually reaches: one digit, the widest digit, and the cap.
+  const badges = ["1", "3", "8", "12"].map((n) => drawBadgedIcon(base, n === "12" ? "9+" : n))
   for (const [label, background, color] of STRIPS) {
     const row = document.createElement("div")
     row.dataset.strip = label

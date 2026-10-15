@@ -40,8 +40,8 @@ export const CHILD_KIND_TAG_CLASS = "ntwine-kind-tag petite-caps shrink-0 text-[
 export const CHILD_MARK_SLOT_CLASS = "flex w-[9px] shrink-0 justify-center"
 
 // THE AGENT'S TERMINAL GLYPH (lucide `Bot`) beside YOURS (`SquareTerminal`), at one size and one weight,
-// wherever the two owners sit together — the ops strip's rows (ThreadTerminals.tsx ProcessRow) and the
-// rail's / resting card's rows (AwaitingBackgroundCard.tsx BgShellRow beside TermWaitRow).
+// wherever the two owners sit together — the ops strip's rows (ThreadTerminals.tsx ProcessRow). The resting
+// card's agent terminal row (AwaitingBackgroundCard.tsx BgShellRow) wears the same bot.
 //
 // Lucide draws the bot 22×18 units and the square 20×20, so at one box the bot is wider, shorter and
 // LIGHTER: at 1em in the 11.5px row its painted ink measured 10.63×8.75px and 18.57px² of ink mass against

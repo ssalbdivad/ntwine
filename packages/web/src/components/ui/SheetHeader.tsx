@@ -33,7 +33,7 @@ export function SheetHeader({
   /** The title is a COMMAND LINE (a terminal's), set in mono as every surface sets a command: a step
    *  smaller than the sans title (the strip's own 11-in-11.5 ratio), so mono's wider face reads at its size,
    *  and at the regular weight the strip and the rail set a command in — mono at the sans title's
-   *  `font-medium` reads visibly bolder (the rail's finding, AwaitingBackgroundCard WaitRow `mono`). */
+   *  `font-medium` reads visibly bolder (measured on the fullscreen page's rail, 2026-09-29, dsf 3). */
   titleMono?: boolean
   /** The subtitle node declares a part it must KEEP (its min-content — TerminalSubtitle's `…/probe ·
    *  worktree`): under 28rem, where the meta shares its line, the meta gives way before that part does. */

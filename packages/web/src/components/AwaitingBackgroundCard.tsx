@@ -24,8 +24,8 @@
 // and the parent genuinely resumes; measured 15/15 times on a live worker thread, with idle windows as
 // short as 0.13s. This card is what makes that alternation legible.)
 import { createContext, Fragment, useContext, useEffect, useState, type ReactNode } from "react"
-import { Bot, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleDot, CircleSlash, CircleX, Clock, GitMerge, GitPullRequestClosed, Hourglass, ListTodo, MessageSquare, SquareTerminal, TerminalSquare, X } from "lucide-react"
-import type { AwaitingHint, GithubIssueStatus, GithubWatchStatus, ThreadTerminal, ThreadView, ThreadWatchView } from "@ntwine/shared"
+import { Bot, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleDot, CircleSlash, CircleX, Clock, GitMerge, GitPullRequestClosed, Hourglass, ListTodo, MessageSquare, TerminalSquare } from "lucide-react"
+import type { AwaitingHint, GithubIssueStatus, GithubWatchStatus, ThreadView, ThreadWatchView } from "@ntwine/shared"
 import { awaitingFenceTitle, awaitingSteps, isDirectSubAgent, replyWaitOf } from "@ntwine/shared"
 import { subAgentName } from "../groups.ts"
 import { githubRefUrl } from "../lib/githubRef.ts"
@@ -33,11 +33,11 @@ import { noteGithubRefs } from "../lib/githubHovercards.ts"
 import { AWAITING_FALLBACK_TITLE, AWAITING_NO_PROSE, awaitingDefersToQuestions, awaitingProseBlock, prWatchRefs, STEPS_CHIP } from "../lib/awaitingPresentation.ts"
 import { compactElapsedSince, formatCompactElapsed, liveAgeSince } from "../lib/durationLabels.ts"
 import { shellBudgetLabel } from "../lib/shellBudget.ts"
-import { AGENT_GLYPH_STROKE, CHILD_DISMISS_NOUN, CHILD_DISMISS_TITLE, CHILD_DISMISS_VERB, CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE, checksCounterLabel, issueCounterLabel } from "../lib/childOps.ts"
+import { AGENT_GLYPH_STROKE, CHILD_STALE_SHELL_TITLE, checksCounterLabel, issueCounterLabel } from "../lib/childOps.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { PROFILE_NAMESPACE } from "../lib/subAgentProfile.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
-import { pushBackgroundShellDrawer, pushSubAgentDrawer, pushTerminalDrawer, showToast } from "../store.ts"
+import { pushBackgroundShellDrawer, pushSubAgentDrawer, showToast } from "../store.ts"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { stopBackgroundShells } from "../lib/dismissChildOp.ts"
 import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
@@ -66,7 +66,7 @@ import { CARD_ACTION_EXPLAINER, CARD_ACTION_RADIUS, CardActions, CARD_BODY, CARD
 // than getting a card of their own: the awaiting fence no longer offers a park action for a PR wait
 // (lib/awaitingPresentation), so this card is the one place a parked watcher is stated in words (its
 // event-snooze was the one control for hiding it until 2026-10-14).
-export function prWatcherCount(thread: Pick<ThreadView, "watches">): number {
+function prWatcherCount(thread: Pick<ThreadView, "watches">): number {
   return (thread.watches ?? []).filter((w) => w.kind === "github" && w.state === "armed").length
 }
 
@@ -159,7 +159,7 @@ export function awaitingBackgroundLabel(
 /** The shell-only rest's title. The maintainer named this shape "Background shells running" (2026-08-04);
  *  the noun moved with the rows' (2026-09-29, "agent terminal" — see awaitingBackgroundSubject), the rule
  *  that this one shape keeps a kind-naming title did not. */
-export const SHELLS_ALONE_TITLE = "Agent terminals running"
+const SHELLS_ALONE_TITLE = "Agent terminals running"
 
 /** Background shells and nothing else — the one shape with a title of its own. An armed timer
  *  disqualifies it the same way a PR watcher does: the card then holds a Timers group too, and a
@@ -172,13 +172,13 @@ function shellsAlone(thread: Pick<ThreadView, "subAgents" | "bgShells" | "watche
 /** The thread's armed timers, as the board's watch rows state them (kind "timer" since 2026-08-24 —
  *  before that a timer park reached this card nowhere at all). A reply wait is a timer too, and is rowed
  *  as the thread it waits on instead (awaitedThreadWatches). */
-export function armedTimerWatches(thread: Pick<ThreadView, "watches">): ThreadWatchView[] {
+function armedTimerWatches(thread: Pick<ThreadView, "watches">): ThreadWatchView[] {
   return (thread.watches ?? []).filter((w) => w.kind === "timer" && w.state === "armed" && !replyWaitOf(w.timer?.prompt ?? ""))
 }
 
 /** The other threads this one awaits a reply from (`message_thread` with `await_reply`) — registered as a
  *  timer whose prompt names the thread (shared replyWaitOf). */
-export function awaitedThreadWatches(thread: Pick<ThreadView, "watches">): ThreadWatchView[] {
+function awaitedThreadWatches(thread: Pick<ThreadView, "watches">): ThreadWatchView[] {
   return (thread.watches ?? []).filter((w) => w.kind === "timer" && w.state === "armed" && replyWaitOf(w.timer?.prompt ?? "") !== undefined)
 }
 
@@ -280,7 +280,7 @@ function mergeClause(status: GithubWatchStatus): string | null {
 // (scripts/ink-gaps.mjs, dsf 4, sans): glyph→ref 6.50px against ref→headline 6.27px, both on one
 // `gap-1.5`. A -1px trim "to be safe" made it WORSE (5.50 vs 6.27). 0.23px is inside the instrument's
 // own noise floor — leave it.
-export const ON_CAP = "shrink-0 self-baseline translate-y-[calc(0.5em_-_0.5cap)]"
+const ON_CAP = "shrink-0 self-baseline translate-y-[calc(0.5em_-_0.5cap)]"
 
 /** RUNNING CHECKS SPIN (maintainer 2026-08-14: "the yellow should be a spinner if the checks are still
  *  running. A yellow spinner"). A static amber dot claimed "in progress" without showing it.
@@ -447,29 +447,23 @@ export function watchCounterLine(status: GithubWatchStatus | undefined): string 
 // `px-2` INSETS every mark from the row's hover fill, and WaitGrid's `-mx-2` gives that inset back, so
 // the ink stays on the content edge it always sat on while the fill reaches 8px past it on both sides.
 // Without it the chevron's ink ran to 1.88px from the fill's right edge and the mark sat flush on its
-// left (maintainer 2026-10-08: "the chevron goes all the way to the very edge"). A row in a TREE (the
-// rail's edited files) indents by setting its left padding inline: its `indent` plus the same 8px.
+// left (maintainer 2026-10-08: "the chevron goes all the way to the very edge").
 const ROW = "group relative flex items-baseline rounded-sm px-2 text-[12px] leading-5"
-/** The inset every row keeps inside its hover fill, in px — ROW's `px-2`, for the tree rows that set
- *  their left padding inline. */
-export const ROW_INSET = 8
 // ml-1.5 → 6.5px of ink between the mark and the name, which is the figure the old single-row layout was
 // measured and left at (a -1px "safety" trim made it worse). A lucide circle at 12 inks ~10 of its box,
 // so it behaves like a text run and needs no trim of its own.
 //
 // THE NAME WRAPS rather than truncating (maintainer 2026-10-08, choosing it off a mockup sheet: every
-// title on the /full rail had been cut to two or three words, a one-line name getting 107px of a 308px
-// rail). Wrapped, it keeps its whole width and the row simply grows; `items-baseline` keeps the mark, the
-// status and the chevron on its FIRST line. Two lines at most: a sub-agent or a saved file is named in a
-// handful of words, and a third line read as a paragraph in a column of titles (maintainer 2026-10-08).
+// title on the fullscreen page's rail had been cut to two or three words, a one-line name getting 107px
+// of a 308px rail). Wrapped, it keeps its whole width and the row simply grows; `items-baseline` keeps
+// the mark, the status and the chevron on its FIRST line. Two lines at most: a sub-agent is named in a handful of
+// words, and a third line read as a paragraph in a column of titles (maintainer 2026-10-08).
 // A TIMER takes one (`oneLine`): its name is the prompt the worker armed it with, which runs to a
 // paragraph and is an instruction rather than a title, so the row reads its opening and the tooltip
 // carries the rest.
-// A tree row (the edited files) still truncates: a basename is one token and wrapping it breaks a word.
 // No `min-w-*` here: each use sets its own, and two in one class list resolve by stylesheet order.
 const NAME = "ml-1.5 font-medium text-fg/90"
 const NAME_WRAP = `${NAME} line-clamp-2 break-words`
-const NAME_TREE = `${NAME} min-w-0 flex-1 truncate`
 /** The light-gray status. It keeps its own width and the name's `flex-1` eats the slack, so the status
  *  lands against the chevron at the card's right edge; `text-right` matters only once it truncates.
  *  `ml-3` is only a floor — the distance the reader actually sees is whatever the name leaves.
@@ -484,7 +478,7 @@ const STATUS = "ml-3 min-w-0 truncate text-right text-muted-70"
 /** The status after a folder hint, which carries its own `ml-3` and `·`: whole up to half the row, and the
  *  hint's word gives way before it does (ThreadTerminals' WHO GIVES WAY). */
 const STATUS_AFTER_HINT = "max-w-[50%] shrink-0 truncate text-right text-muted-70"
-/** Half the row for the name — or for the name and its ×, which travel together. See STATUS. */
+/** Half the row for the name. See STATUS. */
 const NAME_FLOOR = "min-w-1/2 flex-1"
 
 /** The whole row is the target, so the name's link stretches over it (`after:inset-0` against the row's
@@ -514,7 +508,7 @@ function Chevron() {
   return <ChevronRight size={13} aria-hidden className={`${ON_CAP} ml-[3px] -mr-[4px] text-muted-35 transition-colors group-hover:text-muted-70`} />
 }
 
-export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, href, ghRef, title, testKind, testId, indent, dismiss, oneLine }: {
+function WaitRow({ mark, name, hint, status, onOpen, href, ghRef, title, testKind, testId, oneLine }: {
   mark: ReactNode
   name: string
   /** A terminal row's folder hint (ThreadTerminals' FolderHintToken). It leads the STATUS, as the strip's
@@ -524,26 +518,10 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
    *  shared status track narrowed every label in the group, 2026-09-30; that grid went with upstream's
    *  per-row flex lines, 1ef572bb.) */
   hint?: ReactNode
-  /** The name is a COMMAND LINE (a terminal of yours), set in mono as the strip sets the same command —
-   *  one process, one typeface, on every surface. An inline run on the row's baseline, a step smaller so
-   *  mono's wider, taller face reads at the sans name's size (the strip's 11px-in-11.5px ratio), and at
-   *  the regular weight the strip uses: the row's `font-medium` set the mono visibly bolder than the sans
-   *  names beside it (2026-09-29, dsf 3). */
-  mono?: boolean
   status: ReactNode
   onOpen?: () => void
-  /** The ops strip's stop/clear × (ChildOpRow), for the rows that REPLACE that strip: the /full rail's
-   *  sub-agents and shells (maintainer 2026-07-30: "the X button to stop a sub-agent should show up
-   *  everywhere sub-agents are listed"). Absent ⇒ no ×; the card leaves it to the strip beneath it. */
-  dismiss?: { onDismiss: () => void; title: string; label: string }
   /** Truncate the name to one line instead of wrapping it (a timer's prompt — see NAME). */
   oneLine?: boolean
-  /** Left inset in px for a row in a TREE (the rail's edited files), added to the row's own 8px. A tree
-   *  row's name truncates rather than wraps (see NAME). */
-  indent?: number
-  /** Fired when a pointer rests on the row, or the row's control takes focus — the row's chance to
-   *  fetch what the click is about to need. Must be idempotent and silent: it runs on a HOVER. */
-  onPrewarm?: () => void
   href?: string
   /** The `owner/repo#N` key of a GitHub row, stamped as `data-gh-ref` so the app-wide hovercard layer
    *  (GithubHovercards, delegated off the document) opens the PR's card on it exactly as it does on a
@@ -551,17 +529,14 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
    *  is right, because the whole row is the link. */
   ghRef?: string
   title?: string
-  testKind: "github" | "shell" | "terminal" | "agent" | "timer" | "thread" | "file" | "link"
+  testKind: "github" | "shell" | "agent" | "timer" | "thread"
   testId: string
 }) {
-  const tree = indent !== undefined
-  // The name is the row's `flex-1` — unless a × follows it, when the pair is, so the × sits directly
-  // after the name rather than at the far end of the slack — and unless a folder HINT follows it: the
-  // hint's zero-based box is then what grows into the slack (ThreadTerminals FolderHintToken), so the
-  // name keeps its natural width on one line, and truncates last.
+  // The name is the row's `flex-1` — unless a folder HINT follows it: the hint's zero-based box is then
+  // what grows into the slack (ThreadTerminals FolderHintToken), so the name keeps its natural width on
+  // one line, and truncates last.
   const wrap = oneLine ? `${NAME} truncate` : NAME_WRAP
-  const nameClass = tree ? NAME_TREE : hint ? `${NAME} min-w-0 truncate` : dismiss ? `${wrap} min-w-0` : `${wrap} ${NAME_FLOOR}`
-  const label = mono ? <span className="font-mono-keep text-[11.5px] font-normal">{name}</span> : name
+  const nameClass = hint ? `${NAME} min-w-0 truncate` : `${wrap} ${NAME_FLOOR}`
   const open = href
     ? (
       <a
@@ -575,7 +550,7 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
         onMouseDown={(e) => e.stopPropagation()}
         className={`${nameClass} ${STRETCH} group-hover:underline group-hover:decoration-fg/40 group-hover:underline-offset-2`}
       >
-        {label}
+        {name}
       </a>
     )
     : onOpen
@@ -587,41 +562,20 @@ export function WaitRow({ mark, name, mono, hint, status, onOpen, onPrewarm, hre
         title={title}
         className={`${nameClass} ${STRETCH} text-left group-hover:underline group-hover:decoration-fg/40 group-hover:underline-offset-2`}
       >
-        {label}
+        {name}
       </button>
     )
-    : <span className={nameClass} title={title}>{label}</span>
+    : <span className={nameClass} title={title}>{name}</span>
   const interactive = !!(href || onOpen)
-  // DIRECTLY AFTER THE NAME and always visible, quietly — the strip's placement and tone (ChildOpRow:
-  // at the far right it read as too subtle to find). `relative` lifts it over the name's stretched
-  // overlay, as the PR row's failures link is lifted, so pressing it never opens the row.
-  // `ml-0.5`, not the strip's 6px gap, and measured (ink-gaps.mjs, dsf 4, sans): 6.6–7.1px of ink after
-  // an untruncated name, the row's tight mark-to-name figure, because the × is the name's handle. Its
-  // ink centre is 0.23px under the cap band's: no nudge. (It rides only a SETTLED rail row since
-  // 2026-10-08 — see railDismiss — and those names wrap rather than truncate.)
-  const x = dismiss && (
-    <button
-      type="button"
-      onClick={dismiss.onDismiss}
-      onMouseDown={(e) => e.stopPropagation()}
-      title={dismiss.title}
-      aria-label={dismiss.label}
-      className="relative ml-0.5 shrink-0 self-start mt-[2.5px] rounded-sm p-0.5 text-muted-45 outline-none transition-colors hover:text-fg focus-visible:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60"
-    >
-      <X size={11} />
-    </button>
-  )
   return (
     <div
       data-wait-row={testId}
       data-wait-kind={testKind}
-      onMouseEnter={onPrewarm}
-      onFocus={onPrewarm}
-      style={tree ? { paddingLeft: ROW_INSET + indent } : undefined}
       className={`${ROW} ${interactive ? "cursor-pointer transition-colors hover:bg-fg/[0.045]" : ""}`}
     >
       <span className="flex shrink-0">{mark}</span>
-      {hint ? <>{open}{x}{hint}</> : x ? <span className={`flex items-baseline ${NAME_FLOOR}`}>{open}{x}</span> : open}
+      {open}
+      {hint}
       <span data-wait-status className={hint ? STATUS_AFTER_HINT : STATUS}>{status}</span>
       {/* A row with nothing to open keeps the chevron's footprint (13px box, +3px, −4px = 12px), so its
           status still ends on the one right edge every other status ends on. */}
@@ -780,37 +734,20 @@ function ShellWatchRow({ watch, thread, slug, now }: {
   )
 }
 
-/** The strip's × for a rail row: STOP while the op runs, CLEAR once it does not — ChildOpRow's two
- *  meanings and words. Whether there is a × at all is the caller's `childOpDismisser`, as on the strip.
- *
- *  A RUNNING row that OPENS carries none (maintainer 2026-10-08: "it's fine if you need to open the
- *  subagent to close it"): its drawer has the same stop — "Stop sub-agent" in SubAgentSheet, "Stop
- *  shell" in BackgroundShellSheet — and the × cost a wrapped title its width on every live row. The
- *  × stays where nothing else on /full can do its job: CLEAR on a settled row, which no drawer offers,
- *  and STOP on a running row with no drawer to open. */
-function railDismiss(onDismiss: (() => void) | undefined, running: boolean, openable: boolean, kind: "AGENT" | "SHELL", label: string) {
-  if (!onDismiss || (running && openable)) return undefined
-  const tone = running ? "running" : "settled"
-  return { onDismiss, title: CHILD_DISMISS_TITLE[tone], label: `${CHILD_DISMISS_VERB[tone]} ${CHILD_DISMISS_NOUN[kind]}: ${label}` }
-}
-
-/** An AGENT TERMINAL as a row — the declared-watch row above once its target resolved, and the fullscreen
- *  rail's row for EVERY one the thread tracks, declared or not (a dev server the worker walked away from
- *  is still what is going on in the thread). The bot is the owner mark the ops strip gives the same row
+/** An AGENT TERMINAL as a row — the declared-watch row above once its target resolved. The bot is the owner mark the ops strip gives the same row
  *  (ThreadTerminals.tsx ProcessRow); a human terminal's row beside it wears the terminal square.
  *
  *  A STALE shell is a process the OS has confirmed gone (CHILD_STALE_SHELL_TITLE), so it drops the
  *  shell blue and says "stale". It read as running here until 2026-10-05: a declared watch keeps its row
  *  after the shell it names dies, and that row is the reason the thread is back in the queue. */
-export function BgShellRow({ shell, slug, now, testId, hint, onDismiss }: {
+export function BgShellRow({ shell, slug, now, testId, hint }: {
   shell: ThreadView["bgShells"][number]
   slug: string
   now: number
   testId?: string
   /** Where it runs, when that is not where the thread's header says the agent is (ThreadTerminals'
-   *  processFolderHint) — the strip's own hint, on the rail's rows too. */
+   *  processFolderHint) — the strip's own hint, on this row too. */
   hint?: ReactNode
-  onDismiss?: () => void
 }) {
   const elapsed = liveAgeSince(shell.startedAt, now)
   const running = shell.state === "running"
@@ -830,34 +767,13 @@ export function BgShellRow({ shell, slug, now, testId, hint, onDismiss }: {
       // Where one was declared, what is left of its budget (lib/shellBudget.ts), then its age — the strip's
       // order, so one shell reads one way on neighbouring surfaces (it read `1m · 13m left` here beside the
       // strip's `13m left · 1m`). No "running": a running row is the default, the sub-agent rows above
-      // state no such word either, and on the 308px fullscreen rail the word is what pushed "46m left" —
+      // state no such word either, and on the fullscreen page's 308px rail the word pushed "46m left" —
       // the one reading with a deadline — past the status track's half-width cap into an ellipsis. A STALE
       // one says its age alone (upstream b31c4d5c): the grey mark and the tooltip say it is gone.
       hint={hint}
       status={running
         ? [shellBudgetLabel(shell.budgetEndsAt, now), elapsed || "running"].filter(Boolean).join(" · ")
         : elapsed}
-      dismiss={railDismiss(onDismiss, running, openable, "SHELL", shell.label)}
-    />
-  )
-}
-
-/** One of YOUR terminals, running or waiting at a prompt, as a rail row — the human twin of BgShellRow. */
-export function TermWaitRow({ terminal, slug, now, hint }: { terminal: ThreadTerminal; slug: string; now: number; hint?: ReactNode }) {
-  const prompting = terminal.awaitingInput === true
-  const elapsed = liveAgeSince(terminal.startedAt, now)
-  const open = useContext(WaitRowOpenContext)
-  return (
-    <WaitRow
-      testKind="terminal"
-      testId={terminal.id}
-      mark={<SquareTerminal size={12} className={`${ON_CAP} ${prompting ? "text-attention" : "text-shell"}`} />}
-      name={terminal.command}
-      mono
-      onOpen={() => open(() => pushTerminalDrawer(slug, terminal.id, { label: terminal.command }))}
-      title={`Open your terminal — ${terminal.command}`}
-      hint={hint}
-      status={prompting ? <span className="text-attention">waiting for input</span> : elapsed || "running"}
     />
   )
 }
@@ -872,7 +788,7 @@ export function TermWaitRow({ terminal, slug, now, hint }: { terminal: ThreadTer
 // data attributes. NON-INTERACTIVE by ChildOpRow's settled policy: there is nothing to open — no output
 // drawer, no transcript, no external page — so it renders without a chevron, hover, or focus stop
 // rather than as a disabled control.
-export function TimerRow({ watch, now }: { watch: ThreadWatchView; now: number }) {
+function TimerRow({ watch, now }: { watch: ThreadWatchView; now: number }) {
   const fireMs = Date.parse(watch.timer?.fireAt ?? "")
   // "in 34m", counting down live off the card's shared clock — under a "Timers" heading the verb is
   // implied, and "fires in 33m" was the widest status in the rail for it (maintainer 2026-10-08: "pretty
@@ -902,7 +818,7 @@ export function TimerRow({ watch, now }: { watch: ThreadWatchView; now: number }
 // Another thread this one asked with `await_reply`, rowed as that thread — its `@handle`, the name the
 // worker's `threads:` line uses — rather than as the timer the wait is registered as. Non-interactive,
 // like a timer row; the status is how long the question has been out.
-export function ThreadWaitRow({ watch, now }: { watch: ThreadWatchView; now: number }) {
+function ThreadWaitRow({ watch, now }: { watch: ThreadWatchView; now: number }) {
   const reply = replyWaitOf(watch.timer?.prompt ?? "")
   const name = reply ? `@${reply.handle}` : watch.target
   return (
@@ -921,11 +837,11 @@ export function ThreadWaitRow({ watch, now }: { watch: ThreadWatchView; now: num
 // DIRECT children only. A descendant rides `subAgents` so other surfaces can nest the tree, but it was
 // dispatched by the child rather than by this thread's worker — and it has no retirement signal in this
 // thread's transcript, so a stale grandchild would sit on this card indefinitely.
-export function liveAgents(thread: Pick<ThreadView, "subAgents">) {
+function liveAgents(thread: Pick<ThreadView, "subAgents">) {
   return (thread.subAgents ?? []).filter((a) => isDirectSubAgent(a) && a.state === "running")
 }
 
-export function AgentRow({ agent, slug, now, onDismiss }: { agent: ThreadView["subAgents"][number]; slug: string; now: number; onDismiss?: () => void }) {
+export function AgentRow({ agent, slug, now }: { agent: ThreadView["subAgents"][number]; slug: string; now: number }) {
   const elapsed = compactElapsedSince(agent.startedAt, now)
   const open = useContext(WaitRowOpenContext)
   // The profile without its namespace: `ntwine:opus-high` is how it is dispatched, `opus-high` is how the
@@ -933,31 +849,21 @@ export function AgentRow({ agent, slug, now, onDismiss }: { agent: ThreadView["s
   // the model and effort is very important") — the status track is width the title needs, and the
   // elapsed time is the one reading on this row that changes.
   const profile = agent.subagentType?.replace(PROFILE_NAMESPACE, "")
-  // STALE reaches the fullscreen rail only (this card's set is `liveAgents`): a child whose completion
-  // never arrived and whose transcript has gone quiet past its window (tailer `quietPastWindow`). It does
-  // not spin. It wears the flat dot every other surface gives a stale child, in a box the size of the
-  // spinner so the column keeps one footprint. The dot is the whole signal and the tooltip the words: a
-  // "stale ·" in the status said the same thing a third time (maintainer 2026-10-08: "I don't think it's
-  // worth including the stale label either").
-  const stale = agent.state === "stale"
   return (
     <WaitRow
       testKind="agent"
       testId={agent.id ?? agent.label}
       // A running sub-agent is in motion — it returns and re-invokes its parent — so it is the spinner.
       // Accent-yellow rather than the checks' amber, matching the rail's one-hue-per-runtime-concern (a
-      // sub-agent pulses accent, a shell pulses blue). A RESTED one (rail only) spins too: the rail rows
-      // direct children alone, so it stands for the fan-out still running beneath it.
-      mark={stale ? <span aria-hidden className={`inline-block size-3 p-[3px] ${ON_CAP}`}><span className={CHILD_STALE_DOT_CLASS} /></span> : <Spinner tone="border-accent" />}
+      // sub-agent pulses accent, a shell pulses blue). This card rows only running ones (`liveAgents`).
+      mark={<Spinner tone="border-accent" />}
       // Its handle (`cache-keys`), as on every row that shows a child as itself (groups.ts subAgentName).
       name={subAgentName(agent.label)}
       onOpen={agent.id ? () => open(() => pushSubAgentDrawer(slug, agent.id!, { label: agent.label, subagentType: agent.subagentType, startedAt: agent.startedAt })) : undefined}
       // ONE FACT on the line, the elapsed time (upstream b31c4d5c, maintainer 2026-10-08: "We need to be
-      // picky about what we include as the light gray metadata"): the mark already says stale, and the
-      // profile rides the tooltip.
-      title={agent.id ? `Open this sub-agent${profile ? ` (${profile})` : ""} — ${stale ? CHILD_STALE_TITLE : `working for ${elapsed}`}` : agent.label}
+      // picky about what we include as the light gray metadata"): the profile rides the tooltip.
+      title={agent.id ? `Open this sub-agent${profile ? ` (${profile})` : ""} — working for ${elapsed}` : agent.label}
       status={elapsed}
-      dismiss={railDismiss(onDismiss, agent.state === "running", !!agent.id, "AGENT", agent.label)}
     />
   )
 }
@@ -1007,9 +913,7 @@ function hintedShellWatches(thread: Pick<ThreadView, "id" | "bgShells">, hints: 
   return out
 }
 
-/** The rows themselves, before they are drawn — one list per kind, already filtered to what is live.
- *  Exported through hasAwaitingWaitRows so a caller can decide whether to spend a card on them without
- *  rendering one. */
+/** The rows themselves, before they are drawn — one list per kind, already filtered to what is live. */
 function awaitingWaitItems(thread: Pick<ThreadView, "id" | "subAgents" | "bgShells" | "watches">, opts: AwaitingWaitOptions = {}) {
   const github = (thread.watches ?? []).filter((w) => w.kind === "github" && w.state === "armed")
   const prs = github.filter((w) => w.subject !== "issue")
@@ -1020,13 +924,6 @@ function awaitingWaitItems(thread: Pick<ThreadView, "id" | "subAgents" | "bgShel
   const timers = armedTimerWatches(thread)
   const threads = awaitedThreadWatches(thread)
   return { prs, issues, shells, agents, timers, threads }
-}
-
-/** Would the wait table draw at least one row for this thread? A card with a heading and no rows says
- *  less than nothing, so a caller asks first. */
-export function hasAwaitingWaitRows(thread: Pick<ThreadView, "id" | "subAgents" | "bgShells" | "watches">, opts: AwaitingWaitOptions = {}): boolean {
-  const items = awaitingWaitItems(thread, opts)
-  return items.prs.length + items.issues.length + items.shells.length + items.agents.length + items.timers.length + items.threads.length > 0
 }
 
 function awaitingWaitGroups(thread: Pick<ThreadView, "id" | "subAgents" | "bgShells" | "watches" | "checkout">, now: number, opts: AwaitingWaitOptions = {}): Array<{ head: string; rows: ReactNode[] }> {
@@ -1048,52 +945,18 @@ function awaitingWaitGroups(thread: Pick<ThreadView, "id" | "subAgents" | "bgShe
   ].filter((g) => g.rows.length > 0)
 }
 
-/** One group of the table. A group with `onToggle` is COLLAPSIBLE: its heading becomes the toggle,
- *  wears the row count and a trailing caret, and hides its rows while `collapsed`. The fullscreen
- *  rail's edited-files list is the one group that takes it (maintainer 2026-09-03) — a wait row is
- *  never hidden, because a hidden live wait is the thing this table exists to stop. */
-export interface WaitGroup {
+/** One group of the table: a heading over its rows. */
+interface WaitGroup {
   head: string
   rows: ReactNode[]
-  count?: number
-  collapsed?: boolean
-  onToggle?: () => void
-  /** A verb on the whole group, at the heading's right end (the rail's Edited files → Review). */
-  action?: ReactNode
 }
 
-// The heading's caret TRAILS the label rather than leading it, so a collapsible heading's label sits
-// on the same left edge as every heading without one — the rail mixes both kinds in one grid, and the
-// awaiting card never has a caret at all. A chevron is mostly empty box, so its distance is set in INK:
-// the label→count gap reads wider than its `ml-1.5` because `tracking-wide` trails letter-space after
-// the last cap, and `ml-[5px]` is what puts the caret the same distance from the count. Measured with
-// scripts/ink-gaps.mjs at dsf 6 on the fullscreen rail — label→count / count→caret: sans 7.84 / 8.10px,
-// mono 8.10 / 7.42px. `ml-[3px]` read 6.10px in sans, visibly tighter than the gap before it.
 function GroupHeading({ group, first }: { group: WaitGroup; first: boolean }) {
   // `px-2`: the rows' inset (ROW), so a heading's first letter stays on the column of marks below it.
   // `mt-4` above every heading but the first — 16px against the rows' 1px. It was 10px while every row
   // was one line; once names wrap, a two-line row is 40px tall and 10px no longer read as a section
   // break (maintainer 2026-10-08: "We need more spacing between sections").
-  const place = `px-2 ${first ? "" : "mt-4"}`
-  // With an action the heading and the action share the row, which takes the placement; the toggle
-  // stays its own button (a button cannot hold another), and both keep the heading's type on one baseline.
-  const at = group.action ? "" : place
-  const cls = `${at} text-[10.5px] uppercase tracking-wide text-muted-45`
-  const heading = !group.onToggle ? <div className={cls}>{group.head}</div> : (
-    <button
-      type="button"
-      onClick={group.onToggle}
-      aria-expanded={!group.collapsed}
-      onMouseDown={(e) => e.stopPropagation()}
-      className={`${cls} flex items-baseline rounded-sm text-left transition-colors hover:text-muted-80`}
-    >
-      <span>{group.head}</span>
-      {group.count !== undefined && <span className="ml-1.5 tabular-nums">{group.count}</span>}
-      <ChevronRight size={10} aria-hidden className={`${ON_CAP} ml-[5px] transition-transform ${group.collapsed ? "" : "rotate-90"}`} />
-    </button>
-  )
-  if (!group.action) return heading
-  return <div className={`${place} flex items-baseline justify-between gap-3`}>{heading}{group.action}</div>
+  return <div className={`px-2 ${first ? "" : "mt-4"} text-[10.5px] uppercase tracking-wide text-muted-45`}>{group.head}</div>
 }
 
 export function WaitGrid({ groups, divider }: { groups: ReadonlyArray<WaitGroup>; divider: boolean }) {
@@ -1121,7 +984,7 @@ export function WaitGrid({ groups, divider }: { groups: ReadonlyArray<WaitGroup>
                 a group and the one above it has to beat the gap between two rows, or the heading reads
                 as belonging to the rows above rather than the ones below. */}
             <GroupHeading group={g} first={i === 0} />
-            {!g.collapsed && g.rows}
+            {g.rows}
           </Fragment>
         ))}
       </div>
@@ -1175,8 +1038,8 @@ export function showsRestingCard(
  *
  *  ROWED, not every running shell of the thread. The card lists only the shells the worker DECLARED
  *  (see declaredShellWatches), and an undeclared dev server beside them is often one the human is
- *  using; a "Stop 2 terminals" over one visible row would end work the card never showed. The fullscreen
- *  rail and the ops strip list every shell, each with its own ×, for the rest.
+ *  using; a "Stop 2 terminals" over one visible row would end work the card never showed. The ops strip
+ *  lists every shell, each with its own ×, for the rest.
  *
  *  `stoppable` is the SERVER's answer, read exactly as childOpDismisser reads it (lib/dismissChildOp.ts)
  *  and never re-derived: it depends on the thread's transport and on a task handle only the tailer
@@ -1195,7 +1058,7 @@ export function stoppableShellIds(thread: Pick<ThreadView, "id" | "subAgents" | 
  *  they did). STOP, not Cancel: it is the same verb the × on a running row states
  *  (CHILD_DISMISS_VERB) and the one the shell's own drawer footer says, and it kills a real process —
  *  "cancel" reads as backing out of something that has not happened yet. */
-export function stopShellsLabel(count: number): string {
+function stopShellsLabel(count: number): string {
   return count === 1 ? "Stop terminal" : `Stop ${count} terminals`
 }
 

@@ -408,7 +408,7 @@ export function AllQueuesPage() {
   useEffect(() => () => { document.title = "ntwine" }, [])
   useEffect(() => {
     setFaviconBadge(ready)
-    return () => setFaviconBadge(false)
+    return () => setFaviconBadge(0)
   }, [ready])
   const chooseView = useChooseView()
   const scrollToCard = useScrollToCard()

@@ -7,7 +7,7 @@ import { promptingTerminal, terminalFailed, terminalLive } from "./threadTermina
 // pty each) and the ones the agent started (a background `Bash`, a `Monitor`, a Codex background exec;
 // server tailer.ts bgShells). Until 2026-09-29 the two rendered as two strips with two row shapes, and only
 // the human's opened anything. The maintainer asked for one place, told apart by an owner mark, and every
-// row introspectable the same way — so the strip, the card, the rail and the sidebar mark all read this.
+// row introspectable the same way — so the strip, the card and the sidebar mark all read this.
 //
 // An agent's shell is NOT a pty: its output is a file the harness writes, and its drawer reads that file by
 // offset (read-only). The human's is the pty itself. The model says which by `owner` and nothing else.
@@ -125,7 +125,7 @@ const time = (iso: string | undefined) => {
  * A finished AGENT terminal left the list the moment it ended until 2026-09-30, so a 10-second shell could
  * not be opened from anywhere while a finished one of yours sat here with Open. It now stays as yours do,
  * bounded by the server's retired ring (ThreadView.endedShells). A surface that lists only live work (the
- * queue card, the rail, the sidebar mark) filters with processIsLive, as it always did for yours.
+ * queue card, the sidebar mark) filters with processIsLive, as it always did for yours.
  * `scopedToSubAgent` is a sub-agent drawer's strip: only that child's own transcript shells, and none of
  * yours — nobody opens a terminal on a sub-agent.
  */
@@ -172,7 +172,7 @@ export function collapseFinished(processes: readonly ThreadProcess[], expanded: 
   return { shown: processes.filter((p) => processIsLive(p) || kept.has(p)), hidden: finished.length - FINISHED_SHOWN, foldable }
 }
 
-/** Whether a process is alive — what the sidebar mark and the rail's "Terminals" group count. */
+/** Whether a process is alive — what the sidebar mark counts and the strip folds finished ones by. */
 export function processIsLive(p: ThreadProcess): boolean {
   return p.state === "running" || p.state === "quiet" || p.state === "prompt"
 }

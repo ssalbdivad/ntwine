@@ -22,7 +22,7 @@ const readLinks = () => [...document.querySelectorAll('link[rel~="icon"]')].map(
   sizes: link.getAttribute("sizes"),
 }))
 
-test("the rest dot or a count repoints every icon link at a badged raster, and clearing it restores them", {
+test("a count repoints every icon link at a badged raster, and clearing it restores them", {
   skip: !baseUrl,
   timeout: 60_000,
 }, async () => {
@@ -36,14 +36,20 @@ test("the rest dot or a count repoints every icon link at a badged raster, and c
     await page.waitForFunction(() => window.specimenReady === true)
     assert.deepEqual(await page.evaluate(readLinks), ORIGINAL)
 
-    // THE RACE FIRST, while the raster is still uncached and the window is real: a thread that rests and
-    // is steered again before the icon has decoded must not have the late badge land on a working tab.
-    await page.evaluate(() => { window.setFaviconBadge(true); window.setFaviconBadge(false) })
+    // THE RACE FIRST, while the raster is still uncached and the window is real: a queue that empties
+    // before the icon has decoded must not have the late badge land on a tab with nothing waiting.
+    await page.evaluate(() => { window.setFaviconBadge(2); window.setFaviconBadge(0) })
     await new Promise((r) => setTimeout(r, 500))
     assert.deepEqual(await page.evaluate(readLinks), ORIGINAL)
 
-    await page.evaluate(() => window.setFaviconBadge(true))
-    await page.waitForFunction(() => document.querySelector('link[rel~="icon"]')!.getAttribute("href")!.startsWith("data:image/png"))
+    // Each count is its own raster, a count that moves inside the raster window lands the LATEST one,
+    // and 0 is no badge.
+    const hrefFor = async (count: number) => {
+      await page.evaluate((n) => window.setFaviconBadge(n), count)
+      await page.waitForFunction(() => document.querySelector('link[rel~="icon"]')!.getAttribute("href")!.startsWith("data:image/png"))
+      return (await page.evaluate(readLinks))[0]!.href!
+    }
+    const three = await hrefFor(3)
     const badged = await page.evaluate(readLinks)
     // ALL of them: a browser picks among several rel="icon" candidates by its own rules, so one left
     // pointing at the plain PNG is one it may show instead.
@@ -51,42 +57,8 @@ test("the rest dot or a count repoints every icon link at a badged raster, and c
     for (const link of badged) assert.deepEqual({ type: link.type, sizes: link.sizes }, { type: "image/png", sizes: null })
     // The home-screen art is a different `rel` token and is not the tab's.
     assert.equal(await page.$eval('link[rel="apple-touch-icon"]', (l) => l.getAttribute("href")), "/apple-touch-icon.png?v=9")
-
-    const pixels = await page.evaluate(async (url) => {
-      const img = new Image()
-      img.src = url
-      await img.decode()
-      const canvas = document.createElement("canvas")
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      const ctx = canvas.getContext("2d")!
-      ctx.drawImage(img, 0, 0)
-      const at = (x: number, y: number) => [...ctx.getImageData(x, y, 1, 1).data]
-      return { size: [img.naturalWidth, img.naturalHeight], dot: at(48, 16), ring: at(48, 30), tile: at(32, 56), oldCorner: at(48, 48) }
-    }, badged[0]!.href!)
-    assert.deepEqual(pixels.size, [64, 64])
-    assert.deepEqual(pixels.dot, [0x4a, 0x9e, 0xff, 255])
-    // The ring is PUNCHED OUT, not painted: the strip behind a favicon is the browser theme's colour.
-    assert.equal(pixels.ring[3], 0)
-    assert.equal(pixels.tile[3], 255)
-    // TOP right, not bottom: the corner it first shipped in is plain tile again.
-    assert.equal(pixels.oldCorner[3], 255)
-    assert.notDeepEqual(pixels.oldCorner, pixels.dot)
-
-    await page.evaluate(() => window.setFaviconBadge(false))
-    assert.deepEqual(await page.evaluate(readLinks), ORIGINAL)
-
-    // A COUNT: the page's tab says how many cards wait, not only that some do. Each count is its own
-    // raster, a count that moves inside the raster window lands the LATEST one, and 0 is no badge.
-    const hrefFor = async (count: number) => {
-      await page.evaluate((n) => window.setFaviconBadge(n), count)
-      await page.waitForFunction(() => document.querySelector('link[rel~="icon"]')!.getAttribute("href")!.startsWith("data:image/png"))
-      return (await page.evaluate(readLinks))[0]!.href!
-    }
-    const three = await hrefFor(3)
     const four = await hrefFor(4)
     assert.notEqual(three, four)
-    assert.notEqual(three, badged[0]!.href)
     await page.evaluate(() => { window.setFaviconBadge(5); window.setFaviconBadge(3) })
     await new Promise((r) => setTimeout(r, 300))
     assert.equal((await page.evaluate(readLinks))[0]!.href, three)
@@ -100,11 +72,15 @@ test("the rest dot or a count repoints every icon link at a badged raster, and c
       ctx.drawImage(img, 0, 0)
       const at = (x: number, y: number) => [...ctx.getImageData(x, y, 1, 1).data]
       // Inside the pill, clear of the numeral; and the punched ring just below the pill.
-      return { body: at(60, 17), ring: at(47, 35), tile: at(8, 56) }
+      return { size: [img.naturalWidth, img.naturalHeight], body: at(60, 17), ring: at(47, 35), tile: at(8, 56), lowerCorner: at(48, 48) }
     }, three)
+    assert.deepEqual(pill.size, [64, 64])
     assert.deepEqual(pill.body, [0x1f, 0x6f, 0xd1, 255])
     assert.equal(pill.ring[3], 0)
     assert.equal(pill.tile[3], 255)
+    // TOP right: the corner below it is plain tile.
+    assert.equal(pill.lowerCorner[3], 255)
+    assert.notDeepEqual(pill.lowerCorner, pill.body)
     await page.evaluate(() => window.setFaviconBadge(0))
     assert.deepEqual(await page.evaluate(readLinks), ORIGINAL)
     assert.deepEqual(pageErrors, [])

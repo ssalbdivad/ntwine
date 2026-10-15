@@ -3,8 +3,8 @@ import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { AgentRow, AwaitingBackgroundCard, AwaitingWaitTable, BgShellRow, awaitingBackgroundLabel, awaitingBackgroundSubject, hasAwaitingWaitRows, restingOnSteps, showsRestingCard, stoppableShellIds } from "./AwaitingBackgroundCard.tsx"
-import { CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE } from "../lib/childOps.ts"
+import { AgentRow, AwaitingBackgroundCard, AwaitingWaitTable, awaitingBackgroundLabel, awaitingBackgroundSubject, restingOnSteps, showsRestingCard, stoppableShellIds } from "./AwaitingBackgroundCard.tsx"
+import { CHILD_STALE_SHELL_TITLE } from "../lib/childOps.ts"
 import type { ThreadView } from "@ntwine/shared"
 
 // One card, three surfaces, and since 2026-08-15 one TABLE: every kind of live work the thread declared
@@ -257,45 +257,6 @@ test("a declared shell whose process is gone reads stale, never running", () => 
   assert.ok(row.includes(CHILD_STALE_SHELL_TITLE), "the tooltip says the process exited")
 })
 
-// STALE reaches only the fullscreen rail (this card's set is `liveAgents`), which rows every direct child
-// since 2026-10-05. It must not spin beside a child that has gone quiet past its window.
-test("the rail's row for a stale sub-agent wears the stale dot, never the spinner", () => {
-  const now = Date.parse("2026-07-28T09:30:00.000Z")
-  const stale = renderToStaticMarkup(createElement(AgentRow, { agent: agent("stale"), slug: "demo-thread", now }))
-  assert.ok(stale.includes(`class="${CHILD_STALE_DOT_CLASS}"`))
-  assert.doesNotMatch(stale, /animate-spin/)
-  assert.match(stale, /data-wait-status[^>]*>30m</, "the dot says stale; the status is the elapsed time")
-  assert.ok(stale.includes(CHILD_STALE_TITLE))
-  const live = renderToStaticMarkup(createElement(AgentRow, { agent: agent("running"), slug: "demo-thread", now }))
-  assert.match(live, /animate-spin/)
-  assert.doesNotMatch(live, /stale/)
-})
-
-// On /full the rail REPLACES the ops strip, so its agent and shell rows carry the strip's × where nothing
-// else on the page does its job: CLEAR on a settled row, with ChildOpRow's own words, and STOP only on a
-// running row with no drawer — a running row that opens leaves its stop to the drawer (maintainer
-// 2026-10-08). The card passes none (the strip sits beneath it).
-test("a rail row given onDismiss carries the strip's × only where its drawer cannot stand in", () => {
-  const now = Date.parse("2026-07-28T09:30:00.000Z")
-  const noop = () => {}
-  const running = renderToStaticMarkup(createElement(AgentRow, { agent: agent("running"), slug: "demo-thread", now, onDismiss: noop }))
-  assert.doesNotMatch(running, /aria-label="Stop/, "a running sub-agent is stopped from its drawer")
-  const clearAgent = renderToStaticMarkup(createElement(AgentRow, { agent: agent("stale"), slug: "demo-thread", now, onDismiss: noop }))
-  assert.match(clearAgent, /aria-label="Clear sub-agent: Audit the parser"/)
-  assert.ok(clearAgent.indexOf("Audit the parser</button>") < clearAgent.indexOf('aria-label="Clear sub-agent'), "the × follows the name")
-  assert.ok(clearAgent.indexOf('aria-label="Clear sub-agent') < clearAgent.indexOf("data-wait-status"), "…and precedes the status")
-  const clearX = renderToStaticMarkup(createElement(BgShellRow, { shell: { ...shell("running"), state: "stale" }, slug: "demo-thread", now, onDismiss: noop }))
-  assert.match(clearX, /aria-label="Clear agent terminal: vite dev"/)
-  assert.match(clearX, /title="Clear — stop tracking this finished operation"/)
-  // A Codex exec's drawer opens even with its output unreadable — its command, folder and Stop are real — so
-  // its row leaves the stop to it. Only a shell with no id has no drawer, and keeps the only stop it has.
-  const codex = renderToStaticMarkup(createElement(BgShellRow, { shell: { ...shell("running"), outputUnavailable: true }, slug: "demo-thread", now, onDismiss: noop }))
-  assert.doesNotMatch(codex, /aria-label="Stop/)
-  const drawerless = renderToStaticMarkup(createElement(BgShellRow, { shell: { ...shell("running"), id: undefined }, slug: "demo-thread", now, onDismiss: noop }))
-  assert.match(drawerless, /aria-label="Stop agent terminal: vite dev"/)
-  assert.doesNotMatch(renderToStaticMarkup(createElement(AgentRow, { agent: agent("stale"), slug: "demo-thread", now })), /aria-label="Clear/, "no onDismiss, no ×")
-})
-
 test("sub-agent rows are DIRECT and RUNNING only", () => {
   const t = thread([agent("running"), agent("stale"), nested(2)], [])
   const html = render(t)
@@ -390,7 +351,7 @@ test("AwaitingWaitTable draws the resting card's rows off a thread that is not a
   assert.match(plain, /vite dev/)
   assert.doesNotMatch(plain, /bzvtnt3ig/, "a runtime id is never the reader's text")
   // Its age, and no "running": every row in the group is running, as the sub-agent rows above say by not
-  // saying so — and on the fullscreen rail that word pushed the budget into the status track's ellipsis.
+  // saying so — and on the fullscreen page's rail that word pushed the budget into the status track's ellipsis.
   assert.doesNotMatch(plain, /running · /)
   // The divider is the caller's call — it separates prose the caller drew above.
   assert.match(html, /-mx-4 mt-3 border-t border-border/)
@@ -434,15 +395,6 @@ test("a fence's shell hint rows the shell the board no longer lists", () => {
   // The resting card reads the same hints off the thread's own fence.
   const rested = { ...bumped, lastFence: { kind: "awaiting", body: "", hints } } as Parameters<typeof AwaitingBackgroundCard>[0]["thread"]
   assert.match(render(rested), /data-wait-row="bzvtnt3ig" data-wait-kind="shell"/)
-})
-
-// THE GATE for spending a card: a card with a heading and no rows says less than nothing, so a caller
-// asks first, off the same rows the table would draw.
-test("hasAwaitingWaitRows agrees with the table", () => {
-  const rows = { ...thread([], []), watches: [watcher()] } as Parameters<typeof AwaitingWaitTable>[0]["thread"]
-  assert.equal(hasAwaitingWaitRows(rows), true)
-  assert.equal(hasAwaitingWaitRows({ ...thread([], [shell("running")]), watches: [] } as Parameters<typeof AwaitingWaitTable>[0]["thread"]), false, "an undeclared shell is no row")
-  assert.equal(hasAwaitingWaitRows({ ...thread([], [shell("running")]), watches: [] } as Parameters<typeof AwaitingWaitTable>[0]["thread"], { hints: [{ kind: "shell", value: "vite dev" }] }), true, "…a declared one is")
 })
 
 // THE STOP (David 2026-09-29: "there also needs to be a cancel button for background shell,
