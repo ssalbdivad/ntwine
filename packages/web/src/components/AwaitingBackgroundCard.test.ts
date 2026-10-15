@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AgentRow, AwaitingBackgroundCard, AwaitingWaitTable, BgShellRow, awaitingBackgroundLabel, awaitingBackgroundSubject, hasAwaitingWaitRows, restingOnSteps, showsRestingCard, stoppableShellIds } from "./AwaitingBackgroundCard.tsx"
 import { CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE } from "../lib/childOps.ts"
 import type { ThreadView } from "@ntwine/shared"
@@ -41,8 +42,10 @@ const timerWatch = (inMinutes = 34, prompt = "Re-check: tip quiet, install green
   timer: { fireAt: new Date(Date.now() + inMinutes * 60_000).toISOString(), prompt },
 })
 
+// In a QueryClient: a sub-agent rest with no fence offers Keep working (lib/keepWorking.ts), whose send
+// reads the page's client.
 const render = (t: Parameters<typeof AwaitingBackgroundCard>[0]["thread"]) =>
-  renderToStaticMarkup(createElement(AwaitingBackgroundCard, { thread: t }))
+  renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(AwaitingBackgroundCard, { thread: t })))
 const text = (t: Parameters<typeof AwaitingBackgroundCard>[0]["thread"]) =>
   render(t).replace(/<[^>]+>/g, "").replace(/&#x27;|&rsquo;/g, "’")
 
@@ -68,7 +71,8 @@ test("awaitingBackgroundSubject names exactly the work that is RUNNING", () => {
 test("the resting card states the wait and offers no snooze", () => {
   const bare = render(thread([agent("running")], []))
   assert.doesNotMatch(bare, /Snooze/)
-  assert.doesNotMatch(bare, /data-card-actions/, "no verb, no footer band")
+  // Its one verb is Keep working: a rest with no fence while a sub-agent runs (KeepWorking.test.ts).
+  assert.match(bare, /data-card-actions="true"[^>]*><button[^>]*data-keep-working[^>]*>Keep working<\/button><\/div>/)
   assert.match(bare, /Awaiting/)
   assert.match(bare, /data-wait-kind="agent"/)
 })

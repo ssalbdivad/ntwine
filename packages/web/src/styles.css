@@ -2727,3 +2727,18 @@ html[data-vt-door="expand"]::view-transition-old(thread-chat) {
     outline-offset: 2px;
   }
 }
+
+/* A CARD FOOTER'S VERBS ARE TAPPED, on a phone. They draw 24px tall (CARD_PRIMARY_ACTION), half the
+   ~44px a fingertip needs, and the footer band around them is 43.7px (CardActions' py-2.5). So on a
+   coarse pointer each one's hit area grows to fill the band — 10px above and below, 5px aside, half the
+   2.5 gap — with nothing drawn: Keep working on the phone's thread page measured 94.3×23.7 before. */
+@media (pointer: coarse) {
+  [data-card-actions] > button {
+    position: relative;
+  }
+  [data-card-actions] > button::after {
+    content: "";
+    position: absolute;
+    inset: -10px -5px;
+  }
+}
