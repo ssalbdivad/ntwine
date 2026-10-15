@@ -12,7 +12,8 @@ import "./styles.css"
 //
 // `?font=mono` flips the app's font setting — this app renders in two fonts and a fixture that never
 // sets `data-font` silently pins the mono default (see AGENTS.md).
-const font = new URLSearchParams(location.search).get("font") ?? "sans"
+const params = new URLSearchParams(location.search)
+const font = params.get("font") ?? "sans"
 document.documentElement.dataset.font = font
 
 // One row per SOURCE the harness can report, plus one with none — the unlabelled row is the case that
@@ -52,7 +53,12 @@ function Fixture() {
           placeholder="Reply…"
           slashSuggest={() => {
             hooks.fetches += 1
-            return Promise.resolve(SKILLS)
+            // `?empty=1`: the first answer is empty, as a resting thread's harness gave before the server
+            // fell back to its last list — the box must ask again at the next `/`.
+            const items = params.get("empty") && hooks.fetches === 1 ? [] : SKILLS
+            // `?delay=<ms>`: a slow first answer from the harness, which the menu shows as loading.
+            const delay = Number(params.get("delay") ?? 0)
+            return delay ? new Promise((resolve) => setTimeout(() => resolve(items), delay)) : Promise.resolve(items)
           }}
         />
       </div>

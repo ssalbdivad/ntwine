@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import type { ThreadSkill } from "@ntwine/shared"
 import { mergeSlashItems } from "../hooks/useUserCommands.ts"
-import { draftStart, insertSlashCommand, matchSlashItems, slashQueryAt, slashSegments } from "./slashCommands.ts"
+import { draftStart, holdsSlashToken, insertSlashCommand, matchSlashItems, slashQueryAt, slashSegments } from "./slashCommands.ts"
 
 const items: ThreadSkill[] = [
   { name: "ntwine-stack", description: "Boot a stack", source: "project" },
@@ -16,6 +16,10 @@ test("the menu opens on a `/` at any word boundary, with the caret inside its to
   assert.deepEqual(slashQueryAt("/con", 4), { start: 0, query: "con" })
   assert.deepEqual(slashQueryAt("then run /fri and report", 13), { start: 9, query: "fri" })
   assert.deepEqual(slashQueryAt("line one\n/", 10), { start: 9, query: "" })
+  // After an opening bracket or quote, as the `@` menu always has; never after a backtick (inline code).
+  assert.deepEqual(slashQueryAt("see (/ntw", 9), { start: 5, query: "ntw" })
+  assert.deepEqual(slashQueryAt('say "/ntw', 9), { start: 5, query: "ntw" })
+  assert.equal(slashQueryAt("see `/ntw", 9), undefined)
 })
 
 test("a path, a URL or a slash inside a word never opens it", () => {
@@ -47,6 +51,8 @@ test("only names the thread can run are tinted, commands only at the start", () 
   assert.deepEqual(segs("use /context"), ["text:use /context"], "mid-sentence a command is plain text to Claude")
   assert.deepEqual(segs("use /ntwine-stack, then /ntwine:gh."), ["text:use ", "command:/ntwine-stack", "text:, then ", "command:/ntwine:gh", "text:."])
   assert.deepEqual(segs("/nope and /tmp/ntwine-stack"), ["text:/nope and /tmp/ntwine-stack"])
+  assert.deepEqual(segs("first (/ntwine-stack) then"), ["text:first (", "command:/ntwine-stack", "text:) then"])
+  assert.deepEqual(segs("see `/ntwine-stack`"), ["text:see `/ntwine-stack`"])
 })
 
 test("a run's offset decides whether its command opens the draft", () => {
@@ -58,4 +64,10 @@ test("a user command is offered and tinted mid-prompt, where ntwine expands it",
   assert.deepEqual(matchSlashItems(withUserCommand, "arm", false).map((s) => s.name), ["armstrong"])
   const text = "only finish when sure /armstrong"
   assert.deepEqual(slashSegments(text, withUserCommand, 0, draftStart(text)).map((s) => `${s.kind}:${s.text}`), ["text:only finish when sure ", "command:/armstrong"])
+})
+
+test("a draft wants the list for a started name anywhere, not for a bare slash or a path's", () => {
+  assert.equal(holdsSlashToken("then (/ntw"), true)
+  assert.equal(holdsSlashToken("then /"), false)
+  assert.equal(holdsSlashToken("and/or"), false)
 })

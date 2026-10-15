@@ -1400,6 +1400,10 @@ export function createRouter(ctx: AppContext) {
   // joins the first attempt, and one this process already delivered is a no-op. The memory is bounded
   // and dies with the process; a repeat across a server restart still has the ledger's own guard.
   const inflightFollowUps = new Map<string, Promise<void>>()
+  // Each thread's last skill listing, for the `/` menu of a thread whose session is not running
+  // (threadSkills). Bounded, oldest first out; a restart falls back to the project's persisted latest.
+  const lastThreadSkills = new Map<string, ThreadSkill[]>()
+  const LAST_THREAD_SKILLS_MEMORY = 500
   const deliveredFollowUps = new Set<string>()
   const DELIVERED_FOLLOW_UP_MEMORY = 1_000
   function joinInflightFollowUp(slug: string, deliveryId: string | undefined, run: () => Promise<void>): Promise<void> {
@@ -3927,29 +3931,45 @@ export function createRouter(ctx: AppContext) {
     // `supportedCommands()` for Claude, the app-server's `skills/list` for Codex. ntwine owns no skill
     // discovery of its own, on purpose: the harness already resolves plugins, project and global roots
     // and enable state, and an ntwine-side scan could only drift from what the session actually loaded.
-    // Unavailability (no live daemon, a legacy row, an old broker) THROWS with a reason; the web treats
-    // any failure as "no suggestions" rather than surfacing an error.
+    // Unavailability (no live daemon, a legacy row, an old broker) answers with the LAST LIST THIS
+    // THREAD GAVE, else the last one any thread of the project on the same backend gave, marked `stale`
+    // (2026-10-15). Without it a resting thread — hibernated after an hour idle, which is most of the
+    // queue — offered no skills at all, and `/` read as broken at random. A thread's skills are its
+    // project's, its user's and its plugins', so a sibling's list is the right one in all but a rare
+    // worktree-local skill; the web shows a stale list and asks again at the next `/`. With nothing to
+    // fall back on it still THROWS, and the web treats that as "no suggestions".
     threadSkills: query({
       input: ThreadSkillsInput,
       output: ThreadSkillsResult,
       handler: async ({ input }) => {
         const row = ctx.storage.getSession(input.slug)
         if (!row) throw new Error(`thread ${input.slug} has no session to ask for skills`)
+        if (row.backend === "acp") return { skills: [] } // an ACP agent's skills are its own; the protocol lists commands, not skills
+        const latestKey = `threadSkills.latest.${row.backend === "codex" ? "codex" : "claude"}`
         let skills: ThreadSkill[]
-        if (row.backend === "acp") {
-          skills = [] // an ACP agent's skills are its own; the protocol lists commands, not skills
-        } else if (row.backend === "codex") {
-          if (!isAppServerCodexRow(row) || !ctx.codexAppServer) {
-            throw new Error("This Codex thread has no app-server session to ask for skills")
+        try {
+          if (row.backend === "codex") {
+            if (!isAppServerCodexRow(row) || !ctx.codexAppServer) {
+              throw new Error("This Codex thread has no app-server session to ask for skills")
+            }
+            skills = await ctx.codexAppServer.listSkills(input.slug, row.session_id)
+          } else {
+            if (row.claude_runtime !== "broker" || !ctx.claudeBroker) {
+              throw new Error("This Claude thread has no broker session to ask for skills")
+            }
+            skills = await ctx.claudeBroker.listSkills({ threadSlug: input.slug, sessionId: row.session_id })
           }
-          skills = await ctx.codexAppServer.listSkills(input.slug, row.session_id)
-        } else {
-          if (row.claude_runtime !== "broker" || !ctx.claudeBroker) {
-            throw new Error("This Claude thread has no broker session to ask for skills")
-          }
-          skills = await ctx.claudeBroker.listSkills({ threadSlug: input.slug, sessionId: row.session_id })
+        } catch (cause) {
+          const known = lastThreadSkills.get(input.slug) ?? ThreadSkillsResult.shape.skills.safeParse(ctx.storage.getSetting(latestKey)).data
+          if (!known) throw cause
+          return { skills: known, stale: true }
         }
-        return { skills: skills.sort((a, b) => a.name.localeCompare(b.name)) }
+        skills = skills.sort((a, b) => a.name.localeCompare(b.name))
+        lastThreadSkills.delete(input.slug)
+        lastThreadSkills.set(input.slug, skills)
+        if (lastThreadSkills.size > LAST_THREAD_SKILLS_MEMORY) lastThreadSkills.delete(lastThreadSkills.keys().next().value!)
+        if (skills.length > 0) ctx.storage.setSetting(latestKey, skills)
+        return { skills }
       },
     }),
 

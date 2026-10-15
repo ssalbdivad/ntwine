@@ -6244,7 +6244,9 @@ export type ThreadSkill = z.infer<typeof ThreadSkill>
 
 export const ThreadSkillsInput = z.object({ slug: ThreadSlug }).strict()
 export type ThreadSkillsInput = z.infer<typeof ThreadSkillsInput>
-export const ThreadSkillsResult = z.object({ skills: z.array(ThreadSkill).max(1024) }).strict()
+// `stale`: the thread's session is not running, so this is the last list it (or, failing that, another
+// thread of its project) gave — shown, but asked again rather than cached.
+export const ThreadSkillsResult = z.object({ skills: z.array(ThreadSkill).max(1024), stale: z.boolean().optional() }).strict()
 export type ThreadSkillsResult = z.infer<typeof ThreadSkillsResult>
 
 // USER SLASH COMMANDS — a markdown file whose body is a prompt, invoked by its file name (`commit.md` is
@@ -6306,9 +6308,10 @@ export function expandUserCommand(command: Pick<UserCommand, "name" | "body">, a
   return `<slash-command name="${escapeAttr(command.name)}"${args ? ` args="${escapeAttr(args)}"` : ""}>\n${prompt}${USER_COMMAND_CLOSE}`
 }
 
-// A `/name` token at a word boundary, ending before whitespace or trailing sentence punctuation — the
-// composer's tint rule (web lib/slashCommands.ts SLASH_TOKEN), so what is tinted is what expands.
-const USER_COMMAND_TOKEN = /(^|\s)\/([^\s/@]+?)(?=[.,;!?)]*(?:\s|$))/gu
+// A `/name` token at a word boundary (or after an opening bracket or quote), ending before whitespace or
+// trailing sentence punctuation or a closing bracket or quote — the composer's tint rule (web
+// lib/slashCommands.ts SLASH_TOKEN), so what is tinted is what expands.
+const USER_COMMAND_TOKEN = /(^|[\s(\["'])\/([^\s/@]+?)(?=[.,;!?)\]"']*(?:\s|$))/gu
 // A command referenced MID-PROMPT rides after the prose as a block of its own. The leading wrapper
 // opens the text; these never do, so a reader tells the two apart by position.
 const USER_COMMAND_REFERENCE = /\n\n<slash-command name="[^"]+">\n[\s\S]*?\n<\/slash-command>/g

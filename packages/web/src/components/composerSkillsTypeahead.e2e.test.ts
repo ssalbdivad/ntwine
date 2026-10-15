@@ -80,9 +80,9 @@ async function pressSendChord() {
   await page!.keyboard.up("Meta")
 }
 
-async function open() {
+async function open(query = "") {
   errors = []
-  await page!.goto(`${baseUrl}/skills-typeahead-fixture.html`, { waitUntil: "networkidle2" })
+  await page!.goto(`${baseUrl}/skills-typeahead-fixture.html${query}`, { waitUntil: "networkidle2" })
   await page!.waitForSelector(BOX)
   await page!.click(BOX)
 }
@@ -96,13 +96,41 @@ test("typing `/` opens the menu once fetched, filters as the name grows, and a s
   await page!.waitForSelector(MENU)
   assert.equal((await menuRows()).length, 8, "a bare slash opening the draft offers the whole list, commands included")
 
-  await page!.type(BOX, "fr")
+  await page!.type(BOX, "ntw")
   // Prefix matches lead; the namespaced `ntwine:gh` is still reachable this way.
   assert.deepEqual(await menuRows(), ["/ntwine-stack", "/ntwine:gh"])
 
-  await page!.type(BOX, "izz-stack now")
+  await page!.type(BOX, "ine-stack now")
   assert.equal(await menuVisible(), false, "arguments have begun — the menu must be gone")
-  assert.equal((await hooks()).fetches, 1, "the list is fetched exactly once")
+  // Asked when the box took focus and again for the `/` — the caller caches a full answer, so a repeat
+  // is free, and it is what lets a first answer that came back empty be replaced.
+  assert.equal((await hooks()).fetches, 2, "asked on focus and once for the `/`, never per keystroke")
+  assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`)
+})
+
+test("a list still on its way shows a loading row, then the list", {
+  skip: !baseUrl,
+  timeout: 150_000,
+}, async () => {
+  await open("?delay=800")
+  await page!.type(BOX, "/ntw")
+  await page!.waitForSelector("[data-menu-loading]")
+  assert.equal(await page!.$eval("[data-menu-loading]", (el) => el.textContent), "Loading…")
+  await page!.waitForSelector(MENU)
+  assert.equal(await page!.$("[data-menu-loading]"), null, "the list replaces the loading row")
+  assert.deepEqual(await menuRows(), ["/ntwine-stack", "/ntwine:gh"])
+  assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`)
+})
+
+test("a first answer that came back empty is asked again at the next `/`", {
+  skip: !baseUrl,
+  timeout: 150_000,
+}, async () => {
+  await open("?empty=1")
+  await page!.type(BOX, "hi ")
+  await page!.type(BOX, "/ntw")
+  await page!.waitForSelector(MENU)
+  assert.deepEqual(await menuRows(), ["/ntwine-stack", "/ntwine:gh"])
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`)
 })
 
@@ -133,7 +161,7 @@ test("ArrowDown+Enter completes the highlighted skill instead of sending, and th
   timeout: 150_000,
 }, async () => {
   await open()
-  await page!.type(BOX, "/fr")
+  await page!.type(BOX, "/ntw")
   await page!.waitForSelector(MENU)
   await page!.keyboard.press("ArrowDown")
   await page!.keyboard.press("Enter")
@@ -153,12 +181,12 @@ test("⌘-Enter overrides the open menu and sends the draft as typed", {
   timeout: 150_000,
 }, async () => {
   await open()
-  await page!.type(BOX, "/fr")
+  await page!.type(BOX, "/ntw")
   await page!.waitForSelector(MENU)
   // The menu claims only the UNMODIFIED Enter. A send chord mid-name is the operator overriding the
   // suggestion, so the draft goes out uncompleted rather than turning into `/ntwine-stack`.
   await pressSendChord()
-  assert.deepEqual((await hooks()).submitted, ["/fr"], "the send chord is not the menu's accept key")
+  assert.deepEqual((await hooks()).submitted, ["/ntw"], "the send chord is not the menu's accept key")
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`)
 })
 
@@ -206,7 +234,7 @@ test("a `/` mid-sentence offers skills, completes in place, and tints the name i
   assert.equal(rows.length, 7, "every skill, and no command")
   assert.ok(!rows.includes("/context"), "a command mid-sentence would be plain text to Claude")
 
-  await page!.type(BOX, "fri")
+  await page!.type(BOX, "ntw")
   assert.deepEqual(await menuRows(), ["/ntwine-stack", "/ntwine:gh"])
   await page!.keyboard.press("Enter")
   await waitForCaretAtEnd()

@@ -19,7 +19,7 @@ import { detectPlatform, effortStepOf } from "../lib/keybindings.ts"
 import { localImageUrl } from "../lib/markdownTargets.ts"
 import { DROPPED_URI_TYPES, droppedUris, fileQueryAt, insertFileReference, insertReferencesAt, isVscodeDrag, type FileMentionSource } from "../lib/editorReach.ts"
 import { basename, dirnameLike } from "../lib/paths.ts"
-import { draftStart, insertSlashCommand, matchSlashItems, slashQueryAt, slashSegments } from "../lib/slashCommands"
+import { draftStart, holdsSlashToken, insertSlashCommand, matchSlashItems, slashQueryAt, slashSegments } from "../lib/slashCommands"
 import { insertMention, matchMentions, mentionQueryAt, mentionSegments, resolveMention, splitMentionQuery, subAgentMentionCandidates, type MentionCandidate } from "../lib/threadMentions.ts"
 import { insertProjectMention, leadingProjectRoute, matchProjects, projectQueryAt, scanProjectMentions, useProjectMentions, type ProjectMentionCandidate } from "../lib/projectMentions.ts"
 import { useSubAgentDirectory } from "../hooks/useSubAgentDirectory.ts"
@@ -90,6 +90,9 @@ const NO_PROJECTS: readonly ProjectMentionCandidate[] = []
 const FILE_ROWS = 12
 /** How long the menu waits after a keystroke before asking the editor for files. */
 const FILE_QUERY_DEBOUNCE_MS = 60
+// How long a menu's answer may take before the box says it is loading — past an answer from cache, short
+// of a wait anyone notices.
+const MENU_LOADING_DELAY_MS = 120
 
 // A staged context reference in the prose is the literal `@guide.md:3` token the ⌘I flow splices in
 // at the caret (lib/composerContext.ts) — the chip's own label, so the text reads as the chip. The
@@ -654,11 +657,36 @@ export function Composer({
   // that failed, which must read as "no suggestions", never as an error the operator has to dismiss).
   // Read by the menu AND the tint, so a draft restored with `/ntwine-stack` in it lights up too.
   const [skillItems, setSkillItems] = useState<ThreadSkill[] | null>(null)
+  // An ask in flight. The list on screen stays up meanwhile; the menu says "Loading…" only when nothing
+  // in it matches yet.
+  const [skillsPending, setSkillsPending] = useState(false)
   const [skillsVersion, setSkillsVersion] = useState(slashSuggestVersion)
   if (skillsVersion !== slashSuggestVersion) {
     setSkillsVersion(slashSuggestVersion)
     setSkillItems(null)
   }
+  // ASKED AGAIN AT EVERY NEW `/`, not once per mount (2026-10-15). The first answer can be partial — a
+  // resting thread's session is hibernated, so its harness has no list to give — and a box that kept
+  // that answer for its lifetime offered nothing but user commands until it was remounted, which read
+  // as `/` failing at random. The caller caches a full answer, so a repeat ask costs nothing; only the
+  // newest ask may land, so a slow first answer can never overwrite a fresh one.
+  const skillsAsk = useRef(0)
+  const askSkills = () => {
+    if (!slashSuggest) return
+    const ask = ++skillsAsk.current
+    setSkillsPending(true)
+    // Errors resolve to "asked, nothing to offer" — a typeahead never toasts — but keep a list already
+    // on screen rather than wiping it.
+    void slashSuggest().then(
+      (items) => { if (ask === skillsAsk.current) { setSkillItems(items); setSkillsPending(false) } },
+      () => { if (ask === skillsAsk.current) { setSkillItems((current) => current ?? []); setSkillsPending(false) } },
+    )
+  }
+  // An unmount drops whatever is still in flight.
+  useEffect(() => () => { skillsAsk.current++ }, [])
+  // Asked on FOCUS, before any `/`: a box being typed into is the strongest sign the menu will be wanted,
+  // and a thread's first answer costs its harness about a second, which the first `/` then never sees.
+  const prefetchSkills = slashSuggest ? () => { if (skillItems === null && !skillsPending) askSkills() } : undefined
   const slashItems = useMemo(() => skillItems ?? [], [skillItems])
   const opensAt = draftStart(prose)
   // The textarea's collapsed selection (null while blurred or while a range is selected), refreshed on
@@ -837,24 +865,23 @@ export function Composer({
   // The `/` token the caret is in, at any word boundary — the mention menu's own rule (lib/slashCommands.ts).
   // A space (arguments have begun) or the caret leaving the token closes it.
   const slash = slashSuggest ? slashQueryAt(prose, caret) : undefined
-  const slashActive = slash !== undefined
-  const wantsSkills = Boolean(slashSuggest) && /(?:^|\s)\/[^\s/@]/.test(prose)
+  const wantsSkills = Boolean(slashSuggest) && holdsSlashToken(prose)
+  // A new `/` (its position is its identity) asks again; so does a restored draft that holds a finished
+  // `/name` to tint, and a list the caller has changed (`slashSuggestVersion`, which nulls it above).
   useEffect(() => {
-    if (!(slashActive || wantsSkills) || skillItems !== null) return
-    let live = true
-    // Errors resolve to "asked, nothing to offer": the caller decides whether to retry on a later
-    // trigger by handing this component a fresh mount (drawer reopen) — a typeahead never toasts.
-    void slashSuggest!().then(
-      (items) => { if (live) setSkillItems(items) },
-      () => { if (live) setSkillItems([]) },
-    )
-    return () => { live = false }
-  }, [slashActive, wantsSkills, skillItems, slashSuggest])
+    if (slash) askSkills()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per `/`, not per keystroke inside it
+  }, [slash?.start, slashSuggest])
+  useEffect(() => {
+    if ((wantsSkills || slash) && skillItems === null && !skillsPending) askSkills()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- askSkills is a fresh closure every render
+  }, [wantsSkills, slash !== undefined, skillItems, skillsPending, slashSuggest])
   const suggestions = useMemo(() => {
     if (!slash || !skillItems || dismissedFor === prose) return []
     return matchSlashItems(skillItems, slash.query, slash.start === opensAt)
   }, [slash?.start, slash?.query, opensAt, skillItems, dismissedFor, prose])
   const suggestOpen = suggestions.length > 0
+  const skillsWaiting = slash !== undefined && !suggestOpen && skillsPending && dismissedFor !== prose
   // The DISTINCT source labels in the list on screen, which every row then reserves room for (see the
   // sizer in the menu below). Empty when no visible suggestion reports a source — a harness that says
   // nothing must not cost the descriptions a column of width.
@@ -925,7 +952,24 @@ export function Composer({
   // and hid most of its rows. So a menu opens below whenever the room above the box is less than the
   // menu's full height (`max-h-56`, 224px, plus its 6px margin).
   const [menuBelow, setMenuBelow] = useState(false)
-  const menuOpen = suggestOpen || mentionOpen
+  // A MENU STILL LOADING says so (2026-10-15): a `/` whose list is still on its way (a thread's first
+  // ask goes to its harness, about a second), a `@thread.` whose sub-agents are, or an editor's file
+  // search. Before, the box simply showed nothing until the answer landed, which read as the trigger not
+  // working. Only past a short beat, so an answer from cache never flashes it.
+  const subAgentsWaiting = Boolean(mentionThread && !mentionThread.project && subMentions?.slug !== mentionThread.slug) && dismissedFor !== prose
+  const filesWaiting = fileQuery !== undefined && !(filePicks?.start === fileQuery.start && filePicks.query === fileQuery.query) && dismissedFor !== prose
+  const waiting = !mentionOpen && (skillsWaiting || subAgentsWaiting || filesWaiting)
+  const [waitedLong, setWaitedLong] = useState(false)
+  useEffect(() => {
+    if (!waiting) {
+      setWaitedLong(false)
+      return
+    }
+    const timer = setTimeout(() => setWaitedLong(true), MENU_LOADING_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [waiting])
+  const menuLoading = waiting && waitedLong
+  const menuOpen = suggestOpen || mentionOpen || menuLoading
   useLayoutEffect(() => {
     const box = suggestListRef.current?.parentElement
     if (menuOpen && box) setMenuBelow(box.getBoundingClientRect().top < 230)
@@ -1124,6 +1168,8 @@ export function Composer({
   // the direction with room). Rows are text-only — a name and its one-line description — which keeps
   // this out of icon-ink territory entirely. Mousedown is prevented on every row for the same reason as
   // the send button: choosing a suggestion must never blur the textarea. Shared by every layout.
+  // While nothing matches yet and an answer is on its way, the same box holds one "Loading…" row instead.
+  // It claims no keys: Enter still does what it would with no menu.
   const suggestMenu = suggestOpen ? (
         <div
           ref={suggestListRef}
@@ -1168,6 +1214,15 @@ export function Composer({
               )}
             </button>
           ))}
+        </div>
+  ) : menuLoading ? (
+        <div
+          ref={suggestListRef}
+          data-menu-loading
+          role="status"
+          className={`absolute ${menuBelow ? "top-full mt-1.5" : "bottom-full mb-1.5"} left-0 right-0 z-20 rounded-lg border border-border bg-bg py-1 shadow-lg`}
+        >
+          <div className={`${MENU_ROW_INSET} py-1.5 text-[12px] text-muted`}>Loading…</div>
         </div>
   ) : null
 
@@ -1258,7 +1313,10 @@ export function Composer({
           }}
           onSelect={slashSuggest ? (e) => trackCaret(e.currentTarget) : undefined}
           onKeyDown={onKeyDown}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true)
+            prefetchSkills?.()
+          }}
           onBlur={() => {
             setFocused(false)
             setCaret(null)
@@ -1579,6 +1637,7 @@ export function Composer({
             trackCaret(e.target)
           }}
           onCompositionEnd={onInputEvent ? (e) => onInputEvent({ type: "compositionend", prose: e.currentTarget.value, caret: e.currentTarget.selectionStart }) : undefined}
+          onFocus={prefetchSkills}
           onSelect={mentionCandidates || slashSuggest || fileMentions ? (e) => trackCaret(e.currentTarget) : undefined}
           onBlur={mentionCandidates || slashSuggest || fileMentions || onInputEvent ? () => {
             setCaret(null)

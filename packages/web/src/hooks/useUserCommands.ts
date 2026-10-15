@@ -62,7 +62,12 @@ export function fetchThreadSkills(slug: string, api: Api = rpc): Promise<ThreadS
   const cached = threadSkillsCache.get(slug)
   if (cached) return cached
   const fetched = api.threadSkills({ slug }).then(
-    (result) => result.skills,
+    (result) => {
+      // A STALE list (the session is not running, so the server answered with the last one it saw) is
+      // shown but not kept: the next `/` asks again, and gets the live list once the thread wakes.
+      if (result.stale) threadSkillsCache.delete(slug)
+      return result.skills
+    },
     () => {
       threadSkillsCache.delete(slug)
       return []

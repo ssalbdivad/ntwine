@@ -12,9 +12,18 @@
 
 import { insideCodeFence, type ThreadSkill } from "@ntwine/shared"
 
-// A `/` after the start of the draft or whitespace, then the token typed so far, up to the caret. A
-// second `/` or an `@` ends it: `/tmp/foo` is a path and `/a@b` is not a name either.
-const SLASH_BEFORE_CARET = /(?:^|\s)\/([^\s/@]*)$/u
+// A `/` after the start of the draft, whitespace or an opening bracket or quote — `(/commit first)`
+// and `"/review"` name a skill as surely as a bare one does, and the `@` menu has always opened after
+// them — then the token typed so far, up to the caret. A second `/` or an `@` ends it: `/tmp/foo` is a
+// path and `/a@b` is not a name either. Not after a backtick: that is inline code.
+const SLASH_BOUNDARY = String.raw`(?:^|[\s(\["'])`
+const SLASH_BEFORE_CARET = new RegExp(`${SLASH_BOUNDARY}\\/([^\\s/@]*)$`, "u")
+const SLASH_TOKEN_START = new RegExp(`${SLASH_BOUNDARY}\\/[^\\s/@]`, "u")
+
+/** Whether the draft holds a started `/name` anywhere — the box then wants the list, to tint it. */
+export function holdsSlashToken(prose: string): boolean {
+  return SLASH_TOKEN_START.test(prose)
+}
 
 /** The `/` token the caret sits in, if any: where its slash is and what was typed after it. Never in a
  *  fenced code block, which the box paints as code and nothing in it runs. */
@@ -54,9 +63,10 @@ export function insertSlashCommand(prose: string, start: number, caret: number, 
 
 export type SlashSegment = { kind: "text"; text: string } | { kind: "command"; text: string }
 
-// A finished token: `/` at a boundary, then a run with no whitespace or second slash. Sentence
-// punctuation after it ("run /ntwine-stack, then…") is not part of the name.
-const SLASH_TOKEN = /(^|\s)(\/[^\s/@]+?)(?=[.,;!?)]*(?:\s|$))/gu
+// A finished token: `/` at a boundary (SLASH_BOUNDARY), then a run with no whitespace or second slash.
+// Sentence punctuation and a closing bracket or quote after it ("run /ntwine-stack, then…") are not
+// part of the name.
+const SLASH_TOKEN = /(^|[\s(\["'])(\/[^\s/@]+?)(?=[.,;!?)\]"']*(?:\s|$))/gu
 
 /** `text` split into plain runs and the `/name` tokens that name something in `items`. `offset` is
  *  where `text` sits in the whole draft and `opensAt` is the draft's first-token index, so a command
