@@ -43,6 +43,7 @@ import type {
   StartTerminalThreadInput,
   TerminalFolder,
   TerminalInput,
+  TerminalControlInput,
   RunTerminalInput,
   StartTerminalResult,
   ThreadWorkingDir,
@@ -448,6 +449,7 @@ export interface Api {
   terminalThreadStart(input: StartTerminalThreadInput): Promise<StartTerminalResult>
   terminalFolders(): Promise<TerminalFolder[]>
   terminalStop(input: TerminalInput): Promise<Record<never, never>>
+  terminalControl(input: TerminalControlInput): Promise<{ moved: boolean }>
   terminalRestart(input: TerminalInput): Promise<Record<never, never>>
   terminalRun(input: RunTerminalInput): Promise<Record<never, never>>
   terminalRemove(input: TerminalInput): Promise<Record<never, never>>
@@ -673,6 +675,7 @@ export const PROCEDURES = {
   terminalThreadStart: "mutation",
   terminalFolders: "query",
   terminalStop: "mutation",
+  terminalControl: "mutation",
   terminalRestart: "mutation",
   terminalRun: "mutation",
   terminalRemove: "mutation",

@@ -24,7 +24,7 @@ import type { Tailer, SessionTelemetry, FenceView } from "./tailer.ts"
 import { firstTextLine } from "./tailer.ts"
 import type { InteractionChange } from "./interaction-store.ts"
 import { ntwineDirExists } from "./ntwine.ts"
-import { githubStatusKey, ownTerminalsByStarter, terminalAwaitKey, type OwnTerminalLive, liveActivityOf, needsInputParkHolds, parkExpiresAt, parkIsHonoured, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
+import { githubStatusKey, terminalLives, terminalAwaitKey, type TerminalLive, liveActivityOf, needsInputParkHolds, parkExpiresAt, parkIsHonoured, parsePrRef, readAwaitingPark, readGithubIssueStatusBook, readGithubStatusBook, GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, type GithubIssueStatusBook, type GithubStatusBook } from "./awaiting.ts"
 import { findByPath } from "./project-registry.ts"
 import { homeWorkspaceSlug, isHomeWorkspace } from "./home-workspace.ts"
 import { parseDeliveryLedger } from "./delivery-ledger.ts"
@@ -491,24 +491,33 @@ export function declaredWaitIds(tele: SessionTelemetry | undefined): string[] {
     .map((i) => i.value)
 }
 
-/** The `terminals:` entries of the fence: terminals this thread started (`ntwinectl terminal start`), by
- *  `@handle`. Checked against the terminals the board layered onto the telemetry (withOwnTerminals). */
+/** The terminals the fence names, by `@handle`: its `terminals:` entries, and the `threads:` entries a
+ *  terminal carries (a terminal is a thread, plans/terminal-threads.md § Control). Checked against the
+ *  terminals the board layered onto the telemetry (withTerminals). */
 function declaredTerminalNames(tele: SessionTelemetry | undefined): string[] {
   if (tele?.lastFence?.kind !== "awaiting") return []
-  return readAwaitingPark(tele.lastFence.hints).items.filter((i) => i.kind === "terminal").map((i) => i.value)
+  return readAwaitingPark(tele.lastFence.hints).items
+    .filter((i) => i.kind === "terminal" || (i.kind === "thread" && terminalNamed(tele, i.value)))
+    .map((i) => i.value)
 }
 
-/** Is `name` a terminal this thread started that is still running (not at a prompt, not over)? */
+/** Does any terminal in the project, in whatever state, answer to `name`? */
+export function terminalNamed(tele: Pick<SessionTelemetry, "terminals"> | undefined, name: string): boolean {
+  const key = terminalAwaitKey(name)
+  return tele?.terminals?.some((t) => [t.id, t.handle].some((h) => h && terminalAwaitKey(h) === key)) === true
+}
+
+/** Is `name` a terminal that is still running (not at a prompt, not over)? */
 function liveTerminalNamed(tele: SessionTelemetry | undefined, name: string): boolean {
   return liveActivityOf(tele, new Set(), new Set()).terminals?.has(terminalAwaitKey(name)) === true
 }
 
-/** The thread's telemetry with the terminals it started layered on (SessionTelemetry.ownTerminals), so
- *  every park reading below — and the scheduler's, which layers the same list — sees them. Untouched when
- *  it started none, so the common row keeps its identity. */
-export function withOwnTerminals(tele: SessionTelemetry | undefined, terminals: readonly OwnTerminalLive[] | undefined): SessionTelemetry | undefined {
-  if (!tele || !terminals?.length) return tele
-  return { ...tele, ownTerminals: [...terminals] }
+/** The thread's telemetry with the project's terminals layered on (SessionTelemetry.terminals), so every
+ *  park reading below — and the scheduler's, which layers the same list — sees them. Only a resting fence
+ *  reads them, so any other row keeps its identity (and a 500-thread build copies nothing). */
+export function withTerminals(tele: SessionTelemetry | undefined, terminals: readonly TerminalLive[] | undefined): SessionTelemetry | undefined {
+  if (!tele || !terminals?.length || tele.lastFence?.kind !== "awaiting") return tele
+  return { ...tele, terminals: [...terminals] }
 }
 
 /** Everything this thread could legitimately claim to be waiting on, by the handle the worker sees: a
@@ -1826,7 +1835,7 @@ export function deriveWaitStatus(
   const namedShell = readAwaitingPark(fence?.hints ?? []).items.some((i) => i.kind === "shell" && resolveLiveWatchTarget(tele, i.value)?.kind === "shell")
   const registeredShell = armedWatches.some((w) => w.kind === "shell" && Date.parse(w.expiresAt) > nowMs && resolveLiveWatchTarget(tele, w.target)?.kind === "shell")
   // A TERMINAL the worker named is moving until it reaches a prompt or ends, exactly like a named shell.
-  const namedTerminal = readAwaitingPark(fence?.hints ?? []).items.some((i) => i.kind === "terminal" && liveTerminalNamed(tele, i.value))
+  const namedTerminal = readAwaitingPark(fence?.hints ?? []).items.some((i) => (i.kind === "terminal" || i.kind === "thread") && liveTerminalNamed(tele, i.value))
   return namedShell || registeredShell || namedTerminal ? "working" : "watching"
 }
 
@@ -2677,6 +2686,8 @@ export interface BoardManagerDeps {
   threadTerminals?: () => Map<string, ThreadTerminal[]>
   // Every terminal thread, as its row (thread-terminals.ts terminalThreadView).
   terminalThreads?: (nowMs: number) => ThreadView[]
+  // Every terminal's process, parented or not: what an awaiting fence naming one is checked against.
+  projectTerminals?: () => ThreadTerminal[]
   // The schedule a row is a run of (schedules.ts threadRef) — the repeat glyph's data, and what parks a
   // schedule's pending next run in Snoozed. Absent ⇒ no row carries one.
   scheduleRef?: (row: SessionRow) => ThreadScheduleRef | undefined
@@ -2858,8 +2869,8 @@ export function createBoard(
     // instead of five per row. On the maintainer's 558-thread board that is 2,794 statements per
     // rebuild down to 9, all of it on the event loop — see ThreadRegistries.
     const registries = readThreadRegistries(storage)
-    // The terminals each agent started, read once per build like the registries (withOwnTerminals).
-    const ownTerminals = ownTerminalsByStarter([...(deps.threadTerminals?.().values() ?? [])].flat())
+    // The project's terminals, read once per build like the registries (withTerminals).
+    const projectTerminals = terminalLives(deps.projectTerminals?.() ?? [])
     const currentInteractionKeys = new Set<string>()
     const out: ThreadView[] = []
     heldByDelivery = new Set()
@@ -2894,12 +2905,12 @@ export function createBoard(
       const tele = tailer.get(row.slug)
       const drawnFrom = boardTelemetry(row, tele, () => tailer.provisional?.(row.slug))
       if (drawnFrom !== tele) standIns.add(row.slug)
-      const withTerminals = withOwnTerminals(drawnFrom, ownTerminals.get(row.slug))
+      const layered = withTerminals(drawnFrom, projectTerminals)
       const base = sessionThreadView(
         project.dir,
         storage,
         row,
-        withTerminals,
+        layered,
         legacyTerminalCache.has(row.slug),
         interactionPresence,
         nowMs,

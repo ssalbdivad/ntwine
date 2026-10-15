@@ -31,7 +31,7 @@
 // accent ref, the corner glyph) with no hierarchy between them.
 import { Fragment, useContext, useId, useRef, useState, type ReactNode } from "react"
 import { AlarmClock, Bell, Bot, Github, Hourglass, MessageCircleOff, RefreshCw, TerminalSquare } from "lucide-react"
-import { isGithubWakeBacklog, isInjectedNoise, isParkCorrection, parseGithubWakeSteer, parseLimitModelSwitchWake, parseLimitResumeWake, parseMergedWake, parseOwnWatchExpiredWake, parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake, parsePrWatchWake, parseQuestionsCancelledWake, parseRecurringPrompt, parseShellDoneWake, parseTerminalWake, parseTerminalWatchExpiredWake, parseTimerWake, stripWakeTrailer, type GithubWakeSteer, type LimitWindow, type MergedWakePart, type ParkWake, type PrWatchStateWake, type PrWatchWake, type ShellDoneWake, type TimerWake } from "@ntwine/shared"
+import { isGithubWakeBacklog, isInjectedNoise, isParkCorrection, parseGithubWakeSteer, parseLimitModelSwitchWake, parseLimitResumeWake, parseMergedWake, parseOwnWatchExpiredWake, parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake, parsePrWatchWake, parseQuestionsCancelledWake, parseRecurringPrompt, parseShellDoneWake, parseTerminalControlWake, parseTerminalWake, parseTerminalWatchExpiredWake, type TerminalControlEvent, parseTimerWake, stripWakeTrailer, type GithubWakeSteer, type LimitWindow, type MergedWakePart, type ParkWake, type PrWatchStateWake, type PrWatchWake, type ShellDoneWake, type TimerWake } from "@ntwine/shared"
 import { useMermaidIslands } from "./CodexRichOutput.tsx"
 import { BLOCK_RADIUS, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 import { RecurringPromptLine } from "./RecurringPromptLine.tsx"
@@ -113,6 +113,8 @@ export function NtwineWake({ steer: served, text, sourceId, at, wrap, agentMessa
   const terminal = parseTerminalWake(text)
   if (terminal) return <TerminalWakeDivider handle={terminal.handle} event={terminal.event} sourceId={sourceId} at={at} />
   if (parseTerminalWatchExpiredWake(text)) return <OwnWatchExpiredDivider kind="terminal" sourceId={sourceId} at={at} />
+  const control = parseTerminalControlWake(text)
+  if (control) return <TerminalControlDivider event={control.event} handle={control.handle} other={control.other} sourceId={sourceId} at={at} />
   // The ONE wake on the registered-question path ntwine writes in its own voice. Its sibling — the human's
   // ANSWER — never reaches this component at all: it is written in the answers wire form, which Message
   // recognizes and draws as the human's own card before it ever asks whether ntwine delivered the turn.
@@ -477,6 +479,22 @@ function OwnWatchExpiredDivider({ kind, sourceId, at }: { kind: "shell" | "agent
 function TerminalWakeDivider({ handle, event, sourceId, at }: { handle: string; event: string; sourceId?: string; at?: string }) {
   const what = event === "is waiting for input" ? "waiting for input" : event.replace(/^FAILED \(exit (-?\d+)\)$/, "exited $1").replace(/^FAILED$/, "failed").replace(/^ended \(exit (-?\d+)\)$/, "exited $1").replace(/^was interrupted$/, "interrupted")
   const label = `Terminal @${handle} ${what}`
+  return (
+    <WakeDivider icon={TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={label} at={at}>
+      <span className="min-w-0 truncate">{label}</span>
+    </WakeDivider>
+  )
+}
+
+// A TERMINAL CHANGED HANDS (plans/terminal-threads.md § Control), drawn in the transcript of a thread the move
+// touched or that waited on it — in the human's words, since the human made the move.
+function TerminalControlDivider({ event, handle, other, sourceId, at }: { event: TerminalControlEvent; handle: string; other?: string; sourceId?: string; at?: string }) {
+  const to = other === undefined || other === "human" ? "you" : `@${other}`
+  const label = event === "taken" ? `You took control of @${handle}`
+    : event === "handed-away" ? (to === "you" ? `You took control of @${handle}` : `Handed @${handle} to ${to}`)
+    : event === "returned" ? `Handed @${handle} back`
+    : event === "given" ? `Handed @${handle} to this thread`
+    : `Control of @${handle} moved to ${to}`
   return (
     <WakeDivider icon={TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={label} at={at}>
       <span className="min-w-0 truncate">{label}</span>

@@ -4315,6 +4315,11 @@ export const ThreadTerminal = z.object({
   startedBy: z.string().optional(),
   // Its `@handle` (`$ nub run dev` → `nub-run-dev`), what `read-thread` and the agents address it by.
   handle: z.string().optional(),
+  // CONTROL (plans/terminal-threads.md § Control): who types into it, `human` or a thread's slug — its starter
+  // until control moves. Only the controller types, stops or restarts it; the human can always take it.
+  controller: z.string().optional(),
+  // The last thread that drove it, which Hand back returns it to.
+  controlAgent: z.string().optional(),
   // The signal that ended the last run, when one did (node-pty reports it beside the code).
   signal: z.number().int().optional(),
 })
@@ -4371,20 +4376,16 @@ export type RunTerminalInput = z.infer<typeof RunTerminalInput>
 export const StartTerminalResult = z.object({ id: ThreadSlug, handle: z.string().optional() }).strict()
 export type StartTerminalResult = z.infer<typeof StartTerminalResult>
 
-// ---- A WORKER'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md § Agents) -----------------------
+// ---- A WORKER'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md § Agents, § Control) ------------
 // The same terminal threads the human starts, started by an agent: a dev server, a log tail, anything the
 // worker works ALONGSIDE rather than waits on. It lives in its own detached host, so it outlives the worker's
-// turn and its daemon, and the thread can hibernate while it runs. `read` reaches any terminal, the human's
-// included; `send`, `stop` and `restart` reach only one this thread started — a human's terminal is
-// read-only to agents (maintainer 2026-10-15). A refusal is an answer (`refused`), not a fault.
-export const OWN_TERMINAL_TAIL_MAX_LINES = 2_000
-export const OWN_TERMINAL_SEND_MAX_CHARS = 16_000
+// turn and its daemon, and the thread can hibernate while it runs. Reading, typing and waiting are the
+// thread verbs (`read-thread`, `message-thread`, `threads:`); only starting, stopping, restarting and
+// releasing are terminal verbs. `stop`, `restart` and `release` reach only a terminal the caller CONTROLS
+// (its `controller`), as typing does. A refusal is an answer (`refused`), not a fault.
 export const OwnTerminalInput = z.discriminatedUnion("action", [
   z.object({ slug: ThreadSlug, action: z.literal("start"), command: TerminalCommand, cwd: z.string().trim().min(1).max(4_096).optional() }).strict(),
-  z.object({ slug: ThreadSlug, action: z.literal("read"), handle: z.string().trim().min(1).max(200), tail: z.number().int().min(1).max(OWN_TERMINAL_TAIL_MAX_LINES).optional() }).strict(),
-  // Typed into the pty as written: a trailing newline is the Enter that submits a line.
-  z.object({ slug: ThreadSlug, action: z.literal("send"), handle: z.string().trim().min(1).max(200), text: z.string().min(1).max(OWN_TERMINAL_SEND_MAX_CHARS) }).strict(),
-  z.object({ slug: ThreadSlug, action: z.enum(["stop", "restart"]), handle: z.string().trim().min(1).max(200) }).strict(),
+  z.object({ slug: ThreadSlug, action: z.enum(["stop", "restart", "release"]), handle: z.string().trim().min(1).max(200) }).strict(),
 ])
 export type OwnTerminalInput = z.infer<typeof OwnTerminalInput>
 export const OwnTerminalResult = z.object({
@@ -4399,8 +4400,10 @@ export const OwnTerminalResult = z.object({
   exitCode: z.number().int().optional(),
   /** `human`, or the handle of the thread that started it. */
   startedBy: z.string().optional(),
-  /** This thread started it, so `send`, `stop` and `restart` reach it. */
-  mine: z.boolean().optional(),
+  /** `human`, or the handle of the thread that drives it now. */
+  controller: z.string().optional(),
+  /** The caller drives it, so typing, `stop`, `restart` and `release` reach it. */
+  driving: z.boolean().optional(),
   /** The screen's tail, escape sequences dropped. */
   screen: z.string().optional(),
   /** When the handle named nothing: the terminal handles that exist. */
@@ -4408,8 +4411,8 @@ export const OwnTerminalResult = z.object({
 }).strict()
 export type OwnTerminalResult = z.infer<typeof OwnTerminalResult>
 
-/** A worker's wait on one of its own terminals (`ntwinectl watch terminal`), stored on the terminal's row:
- *  only the thread that started a terminal may watch it, so a terminal holds at most one. `trw_…` ids. */
+/** A thread's wait on a terminal (`ntwinectl watch terminal`), stored on the terminal's row with the thread
+ *  that armed it: a terminal holds at most one. `trw_…` ids. */
 export const OWN_TERMINAL_WATCH_ID_PREFIX = "trw_"
 export const AddOwnTerminalWatchInput = z.object({
   slug: ThreadSlug,
@@ -4441,17 +4444,21 @@ function terminalWakeClause(t: { outcome: TerminalOutcome; exitCode?: number }):
   }
 }
 
-const TERMINAL_WAKE_HEAD = /^⏰ Your terminal @([a-z0-9-]+) (is waiting for input|FAILED(?: \(exit -?\d+\))?|was interrupted|finished|ended \(exit -?\d+\))/
+// `Your terminal` is how the first build (2026-10-15, before control) spelled it; still read.
+const TERMINAL_WAKE_HEAD = /^⏰ (?:The|Your) terminal @([a-z0-9-]+) (is waiting for input|FAILED(?: \(exit -?\d+\))?|was interrupted|finished|ended \(exit -?\d+\))/
 
-/** The wake a worker gets when a terminal it started and waits on (a `terminals:` fence entry, or
- *  `ntwinectl watch terminal`) reaches a prompt or ends. Minted by the scheduler only. */
-export function terminalWakeMessage(t: { handle: string; command: string; outcome: TerminalOutcome; exitCode?: number; screen: string }): string {
+/** The wake a worker gets when a terminal it waits on (a `threads:` fence entry, or `ntwinectl watch
+ *  terminal`) reaches a prompt or ends. Minted by the scheduler only. `driving`: the worker controls it, so
+ *  it is told how to answer or rerun it; otherwise who does. */
+export function terminalWakeMessage(t: { handle: string; command: string; outcome: TerminalOutcome; exitCode?: number; screen: string; driving?: boolean; controller?: string }): string {
   const tail = t.screen.trim()
-  const next = t.outcome === "prompt"
-    ? `Answer it with \`ntwinectl terminal send @${t.handle} --text-file -\`.`
-    : `\`ntwinectl terminal restart @${t.handle}\` runs it again.`
+  const next = !t.driving
+    ? `${t.controller === undefined || t.controller === "human" ? "The user drives" : `@${t.controller} drives`} it, so only they can answer or rerun it.`
+    : t.outcome === "prompt"
+      ? `Answer it with \`ntwinectl message-thread @${t.handle} --message-file -\`.`
+      : `\`ntwinectl terminal restart @${t.handle}\` runs it again.`
   return [
-    `⏰ Your terminal @${t.handle} ${terminalWakeClause(t)}:`,
+    `⏰ The terminal @${t.handle} ${terminalWakeClause(t)}:`,
     "",
     codeBlock(t.command, "sh"),
     "",
@@ -4475,6 +4482,43 @@ export function terminalWatchExpiredWakeMessage(handle: string): string {
     "`--for` if you still mean to wait."
   )
 }
+
+/** A CONTROL MOVE, as told to a thread it touched (scheduler SOURCE 17): `taken` — the user took it from
+ *  this thread; `handed-away` — the user handed it from this thread to `other`; `returned` — handed back to
+ *  this thread; `given` — handed to this thread for the first time; `moved` — a thread waiting on it hears
+ *  where control went (`other`: `human` or a handle). One sentence each, so the chat can name the event. */
+export type TerminalControlEvent = "taken" | "handed-away" | "returned" | "given" | "moved"
+export function terminalControlWakeMessage(e: { event: TerminalControlEvent; handle: string; other?: string }): string {
+  const h = `@${e.handle}`
+  const to = e.other === undefined || e.other === "human" ? "the user" : `@${e.other}`
+  switch (e.event) {
+    case "taken": return `⏰ The user took control of ${h}. Only the user types into it now; \`ntwinectl read-thread ${h}\` still reads it.`
+    case "handed-away": return `⏰ The user handed ${h} to ${to}. Only ${to} types into it now; \`ntwinectl read-thread ${h}\` still reads it.`
+    case "returned": return `⏰ ${h} is yours again. \`ntwinectl message-thread ${h}\` types into it.`
+    case "given": return `⏰ The user handed you ${h}. \`ntwinectl message-thread ${h}\` types into it; \`ntwinectl terminal release ${h}\` hands it back.`
+    case "moved": return `⏰ Control of ${h} moved to ${to}.`
+  }
+}
+const TERMINAL_CONTROL_HEADS: [TerminalControlEvent, RegExp][] = [
+  ["taken", /^⏰ The user took control of @([a-z0-9-]+)\./],
+  ["handed-away", /^⏰ The user handed @([a-z0-9-]+) to (?:the user|@([a-z0-9-]+))\./],
+  ["returned", /^⏰ @([a-z0-9-]+) is yours again\./],
+  ["given", /^⏰ The user handed you @([a-z0-9-]+)\./],
+  ["moved", /^⏰ Control of @([a-z0-9-]+) moved to (?:the user|@([a-z0-9-]+))\./],
+]
+export function parseTerminalControlWake(text: string): { event: TerminalControlEvent; handle: string; other?: string } | null {
+  const t = text.trim()
+  for (const [event, re] of TERMINAL_CONTROL_HEADS) {
+    const m = re.exec(t)
+    if (m) return { event, handle: m[1], ...(m[2] ? { other: m[2] } : event === "handed-away" || event === "moved" ? { other: "human" } : {}) }
+  }
+  return null
+}
+
+/** Move control of a terminal (the board's Take control, Hand back and Let an agent drive). `to` is
+ *  `human` or a thread slug; `back` marks a hand-back, which tells the thread "yours again". */
+export const TerminalControlInput = z.object({ id: ThreadSlug, to: z.string().trim().min(1).max(200), back: z.boolean().optional() }).strict()
+export type TerminalControlInput = z.infer<typeof TerminalControlInput>
 
 const TERMINAL_WATCH_EXPIRED_HEAD = /^⏰ Your watch on the terminal @([a-z0-9-]+) has expired\b/
 export function parseTerminalWatchExpiredWake(text: string): { handle: string } | null {
@@ -6225,6 +6269,9 @@ export const ReadThreadResult = z.object({
     outcome: z.enum(["running", "prompt", "failed", "interrupted", "finished"]),
     exitCode: z.number().int().optional(),
     startedBy: z.string().optional(),
+    /** Who types into it: `human` or the driving thread's handle; `driving` when that is the caller. */
+    controller: z.string().optional(),
+    driving: z.boolean().optional(),
     parent: z.string().optional(),
     screen: z.string(),
   }).strict().optional(),
@@ -6293,7 +6340,9 @@ export const MessageThreadResult = z.object({
   /** Set when the recipient is in ANOTHER open project than the sender's: that project's name. */
   project: z.string().optional(),
   /** `mailbox`: the recipient is a running SUB-AGENT (`@thread.child`), which reads it after its next tool call. */
-  delivery: z.literal("mailbox").optional(),
+  /** `mailbox`: a sub-agent's, read after its next tool call. `terminal`: typed into a terminal thread's pty,
+   *  followed by Enter; its answer is on its screen. */
+  delivery: z.enum(["mailbox", "terminal"]).optional(),
 }).strict()
 export type MessageThreadResult = z.infer<typeof MessageThreadResult>
 

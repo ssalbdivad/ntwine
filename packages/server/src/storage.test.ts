@@ -1238,7 +1238,11 @@ test("thread_terminal: the day-one command_thread table keeps every row and valu
   old.close()
   const all = (db: Database) => db.prepare("SELECT * FROM thread_terminal ORDER BY project_id, slug").all()
   // 2026-10-15's columns ride along: a thread's terminal is now a terminal thread its parent's human started.
-  const added = { handle: null, pinned_at: null, snoozed_until: null, exit_signal: null }
+  // …and so do the watch's (a terminal wait) and control's (who drives it): none, until something sets them.
+  const added = {
+    handle: null, pinned_at: null, snoozed_until: null, exit_signal: null, watch_id: null, watch_expires_at: null,
+    watch_slug: null, watch_armed_at: null, controller: null, control_notes: null, control_agent: null, control_from: null, control_changed_at: null,
+  }
   const expected = [
     { project_id: "p", slug: "term-a", command: "npm test", created_at: 10, started_at: 12, runs: 3, exited_at: 20, exit_code: 1, stopped: 0, state: "open", parent_slug: "fix-auth", cwd: "/w/fix-auth", shell: 0, ...added, started_by: "human" },
     { project_id: "p", slug: "term-legacy", command: "npm run dev", created_at: 1, started_at: 1, runs: 2, exited_at: 9, exit_code: 130, stopped: 1, state: "archived", parent_slug: null, cwd: null, shell: 0, ...added, started_by: null },

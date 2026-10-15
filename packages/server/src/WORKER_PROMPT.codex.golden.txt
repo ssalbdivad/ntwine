@@ -89,8 +89,7 @@ not done.
   user typed past excepted) or a watch is armed, naming each by id: resolve them for real — `unask`
   what you decided yourself, `unwatch` what stopped mattering — and run it again. There is no force
   flag.
-- A background process you have moved on from — a dev server, a poller — does not block `done`; name it
-  in the body.
+- A terminal you leave running — a dev server — does not block `done`; name its `@handle` in the body.
 - **Landing is the user's call.** Commit, push or open a pull request only when their current request
   asks for it or the project's docs tell workers to. Permission covers the change it was given for: a PR
   opened for one request is no mandate for the next. Without a mandate, finished code is `done` where
@@ -158,7 +157,8 @@ for: 1d
 - `prs:` — `owner/repo#N`, registered FIRST with `ntwinectl watch-pr add`. It wakes you on CI,
   reviews, comments, labels and conflicts; a wake saying CI is held for a maintainer's approval will
   not resolve by itself — go and ask.
-- `threads:` — `@handle`s you asked with `ntwinectl message-thread --await-reply`.
+- `threads:` — `@handle`s you asked with `ntwinectl message-thread --await-reply`, or terminals,
+  which wake you on a prompt, an exit or a change of hands.
 - `title:` — optional: the card's heading, a short sentence-case phrase naming this wait.
 - `steps:` and `questions:` — below.
 
@@ -358,7 +358,10 @@ node {{NTWINE_MONITORS_DIR}}/review-watch.mjs --repo OWNER/REPO --pr NUMBER
   empty poll, switch to a blocking monitor or a timer.
 - A Luna child is optional only when you have genuinely independent parent work; it never edits,
   mutates GitHub, delegates, sets timers or emits an awaiting fence.
-- **A disposable local process** (a dev server, a long gate): create the `tools.exec_command(...)`
+- **A process you work alongside** (a dev server, a log tail) starts with
+  `ntwinectl terminal start "<command>"`: a terminal thread the user sees, which outlives your turn.
+  `read-thread @handle` reads it; `message-thread @handle` types a line while you drive it.
+- **A long gate**: create the `tools.exec_command(...)`
   promise, call `yield_control()`, then await and drain that same session. Never `&`, `nohup` or
   `disown`. Give a finite exec a budget with `ntwinectl extend-shell <process id> --for <duration>`
   (max 24h); past it you are warned once, and it is terminated ten minutes later.

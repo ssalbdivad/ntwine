@@ -345,12 +345,17 @@ test("exit 0 is done, 1 is a failure, and 2 is a gate that held", async () => {
 // `terminal` (2026-10-15): a relative `--cwd` is resolved where the worker stands (the server only takes an
 // absolute one), `send` carries stdin byte for byte, a refusal — a human's terminal — exits 2, and `watch
 // terminal` / `unwatch trw_…` reach the terminal watch rather than the shell registry.
-test("`terminal` resolves --cwd where the worker stands, sends stdin verbatim, exits 2 on a refusal, and watches through its own RPC", async () => {
+test("`terminal` resolves --cwd where the worker stands; a terminal is read, typed into and waited on with the thread verbs, a refusal exits 2", async () => {
   const fake = await fakeNtwine((procedure, body) => {
-    if (procedure === "ownTerminal" && body.action === "send" && body.handle === "@shell") {
-      return { result: { refused: "@shell is the user's terminal. You can read it; only a terminal you started takes `send`, `stop` or `restart`." } }
+    if (procedure === "ownTerminal" && body.action === "release") return { result: { handle: "nub-run-dev", id: "term-1", command: "nub run dev", cwd: "/w/app", outcome: "running", controller: "human", driving: false } }
+    if (procedure === "ownTerminal") return { result: { handle: "nub-run-dev", id: "term-1", command: "nub run dev", cwd: "/w/app", outcome: "running", controller: "the-caller", driving: true, startedBy: "the-caller", screen: "ready on :5173" } }
+    if (procedure === "messageThread" && body.handle === "@shell") {
+      return { result: { sent: false, handle: "shell", refusal: "@shell is driven by the user, so you cannot type into it." } }
     }
-    if (procedure === "ownTerminal") return { result: { handle: "nub-run-dev", id: "term-1", command: "nub run dev", cwd: "/w/app", outcome: "running", mine: true, startedBy: "the-caller", screen: "ready on :5173" } }
+    if (procedure === "messageThread") return { result: { sent: true, handle: "nub-run-dev", from: "the-caller", delivery: "terminal" } }
+    if (procedure === "readThread") {
+      return { result: { found: true, handle: "nub-run-dev", slug: "term-1", state: "running", terminal: { command: "nub run dev", cwd: "/w/app", outcome: "running", startedBy: "human", controller: "human", screen: "ready on :5173" } } }
+    }
     if (procedure === "addOwnTerminalWatch") return { result: { id: "trw_abc", handle: "nub-run-dev", alreadyArmed: false, expiresAt: "2026-10-15T20:00:00.000Z" } }
     if (procedure === "dropOwnTerminalWatch") return { result: { dropped: true } }
     return undefined
@@ -364,24 +369,30 @@ test("`terminal` resolves --cwd where the worker stands, sends stdin verbatim, e
     assert.match(started.stdout, /^Started @nub-run-dev — `nub run dev` in \/w\/app, running\./)
     await run(["terminal", "start", "nub run dev"], { env: worker(fake), cwd })
     assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "start", command: "nub run dev" }, "no --cwd: the server picks the thread's folder")
+    assert.equal((await run(["terminal", "send", "@nub-run-dev", "--text", "y"], { env: worker(fake) })).code, 1, "typing is message-thread's")
 
-    const sent = await run(["terminal", "send", "@nub-run-dev", "--text-file", "-"], { env: worker(fake), stdin: "y\n" })
-    assert.equal(sent.code, 0, sent.stderr)
-    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "send", handle: "@nub-run-dev", text: "y\n" })
-
-    const refused = await run(["terminal", "send", "@shell", "--text", "rm -rf ~\n"], { env: worker(fake) })
+    const typed = await run(["message-thread", "@nub-run-dev", "--message-file", "-"], { env: worker(fake), stdin: "y\n" })
+    assert.equal(typed.code, 0, typed.stderr)
+    assert.match(typed.stdout, /^Typed into the terminal @nub-run-dev and pressed Enter\./)
+    // A real worker's first try (2026-10-15) passed the text bare; it lands as the message.
+    assert.equal((await run(["message-thread", "@nub-run-dev", "y"], { env: worker(fake) })).code, 0)
+    assert.equal(fake.seen.at(-1)?.body?.message, "y")
+    const refused = await run(["message-thread", "@shell", "--message", "rm -rf ~"], { env: worker(fake) })
     assert.equal(refused.code, 2)
-    assert.match(refused.stdout, /^@shell is the user's terminal\./)
+    assert.match(refused.stdout, /^Not sent — @shell is driven by the user/)
 
-    const read = await run(["terminal", "read", "@nub-run-dev", "--tail", "5"], { env: worker(fake) })
-    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "read", handle: "@nub-run-dev", tail: 5 })
-    assert.match(read.stdout, /^@nub-run-dev — `nub run dev` in \/w\/app, running, started by you\.\n\n```\nready on :5173\n```/)
+    const read = await run(["read-thread", "@nub-run-dev"], { env: worker(fake) })
+    assert.match(read.stdout, /^@nub-run-dev — a terminal running `nub run dev` in \/w\/app, running; started by the user, the user drives it\.\n\n```\nready on :5173\n```/)
+
+    const released = await run(["terminal", "release", "@nub-run-dev"], { env: worker(fake) })
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "release", handle: "@nub-run-dev" })
+    assert.match(released.stdout, /^Released @nub-run-dev: the user drives it now/)
 
     const watched = await run(["watch", "terminal", "@nub-run-dev", "--for", "2h"], { env: worker(fake) })
     assert.equal(watched.code, 0, watched.stderr)
     assert.ok(fake.seen.at(-1)?.url.endsWith("/rpc/addOwnTerminalWatch"), fake.seen.at(-1)?.url)
     assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", handle: "@nub-run-dev", for: "2h" })
-    assert.match(watched.stdout, /`terminals: \[@nub-run-dev\]`/)
+    assert.match(watched.stdout, /`threads: \[@nub-run-dev\]`/)
 
     const dropped = await run(["unwatch", "trw_abc"], { env: worker(fake) })
     assert.ok(fake.seen.at(-1)?.url.endsWith("/rpc/dropOwnTerminalWatch"), fake.seen.at(-1)?.url)

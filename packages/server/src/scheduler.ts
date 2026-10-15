@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { createHash, randomUUID } from "node:crypto"
-import { AGENT_PARK_FOR_MAX_MS, awaitingNeedsInput, awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_NEEDS_INPUT_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, terminalOutcome, terminalWakeMessage, terminalWatchExpiredWakeMessage, type ThreadTerminal, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@ntwine/shared"
-import { GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, ownTerminalsByStarter, terminalAwaitKey, type OwnTerminalLive, liveActivityOf, parkExpiresAt, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems, type LiveActivity } from "./awaiting.ts"
-import { isHeldRow, type CommandWatchRow, type PrWatchRow, type SessionRow, type Storage, type ThreadQuestionRow } from "./storage.ts"
+import { AGENT_PARK_FOR_MAX_MS, awaitingNeedsInput, awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_NEEDS_INPUT_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, terminalOutcome, terminalWakeMessage, terminalWatchExpiredWakeMessage, terminalControlWakeMessage, type ThreadTerminal, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@ntwine/shared"
+import { GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, terminalLives, terminalAwaitKey, type TerminalLive, liveActivityOf, parkExpiresAt, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems, type LiveActivity } from "./awaiting.ts"
+import { isHeldRow, terminalNotesOf, type ThreadTerminalRow, type CommandWatchRow, type PrWatchRow, type SessionRow, type Storage, type ThreadQuestionRow } from "./storage.ts"
 import type { CommandRunResult, CommandWatchService } from "./command-watch.ts"
 import type { Tailer } from "./tailer.ts"
 import type { SessionTelemetry } from "./tailer.ts"
@@ -15,7 +15,7 @@ import { createWakeDeliveryStore, WAKE_QUIET_WINDOW_MS, type WakeDelivery } from
 import { armedTimerKeys, replyWaitOf, threadAwaitKey } from "./thread-mentions.ts"
 // The board owns the registered-done lifetime rule, and the waker must read it by exactly the same rule
 // or the two disagree about whether a thread is finished.
-import { withOwnTerminals, answersInFlight, carriedQuestionRows, childJustReturned, heldQuestionRows, registeredDoneFence, rowPassedOver, safeQuestionAnswer, safeQuestionSpec, SIGNOFF_NUDGE_SETTING, signoffNudgeVerdict } from "./board.ts"
+import { withTerminals, answersInFlight, carriedQuestionRows, childJustReturned, heldQuestionRows, registeredDoneFence, rowPassedOver, safeQuestionAnswer, safeQuestionSpec, SIGNOFF_NUDGE_SETTING, signoffNudgeVerdict } from "./board.ts"
 import { ProducerStoppedError } from "./shutdown.ts"
 import { liveShellBudget, SHELL_BUDGET_GRACE_MS, shellBudgetWarningMessage, type ShellStopReason } from "./shell-budget.ts"
 import { deadlineCheckInMessage, deadlineStageToSend, rowDeadline } from "./deadline.ts"
@@ -970,6 +970,8 @@ function isShellFenceId(fenceId: string): boolean {
  *  waits on reached a prompt or ended, `terminal-watch-expired:<trw_…>` when the watch lapsed first. */
 const TERMINAL_FENCE_PREFIX = "terminal"
 const TERMINAL_WATCH_EXPIRED_FENCE_PREFIX = "terminal-watch-expired"
+/** `terminal:<id>:control-note:<at>` — a control move told to a thread mid-turn, rather than a wake. */
+const TERMINAL_NOTE_MARK = ":control-note:"
 function isTerminalWaitFenceId(fenceId: string): boolean {
   return fenceId.startsWith(`${TERMINAL_FENCE_PREFIX}:`) || fenceId.startsWith(`${TERMINAL_WATCH_EXPIRED_FENCE_PREFIX}:`)
 }
@@ -1422,9 +1424,11 @@ export interface SchedulerDeps {
   // THE TERMINALS (thread-terminals.ts): every terminal thread with its row — its starter, and the starter's
   // `watch terminal` — and its process. SOURCE 17 wakes a thread when one it started and waits
   // on reaches a prompt or ends; the park check reads them too. Absent ⇒ no terminals (tests not about them).
-  terminals?: () => readonly { row: { slug: string; started_by?: string | null; watch_id?: string | null; watch_expires_at?: number | null; state: string }; terminal: ThreadTerminal }[]
+  terminals?: () => readonly { row: ThreadTerminalRow; terminal: ThreadTerminal }[]
   /** A terminal's screen so far, escape sequences dropped (thread-terminals.ts screenTail). */
   terminalScreen?: (id: string) => string
+  // A thread's `@handle` by slug, for a wake that names who drives a terminal. Absent ⇒ the slug.
+  threadHandle?: (slug: string) => string | undefined
   log?: (msg: string) => void
   // After `resume` has handed a wake to the worker's runtime: is the process that took it still there?
   // A broker daemon now ACKNOWLEDGES the input (input-ack-v1), so `resume` returning means the session
@@ -1630,6 +1634,10 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (isShellFenceId(item.fenceId)) {
       return tele.turn === "idle" ? "current-idle" : "current-busy"
     }
+    // A CONTROL NOTE sent because its thread was WORKING is for that turn: one that has ended since (the
+    // quiet window can hold a row past it) does not get a turn of its own for it — the note is owed again
+    // and rides the next wake (reoweTerminalNote).
+    if (item.fenceId.includes(TERMINAL_NOTE_MARK) && tele.turn === "idle") return "superseded"
     // A TERMINAL'S PROMPT OR EXIT is the same kind of fact (SOURCE 17), and so is its watch lapsing.
     if (isTerminalWaitFenceId(item.fenceId)) {
       return tele.turn === "idle" ? "current-idle" : "current-busy"
@@ -1866,6 +1874,8 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     // Another thread's message joins a running turn the way a human's typed steer does — see
     // THREAD_MESSAGE_FENCE_PREFIX.
     if (isThreadMessageFenceId(item.fenceId)) return true
+    // A terminal changing hands is news to the thread working on it NOW: it may be about to type into it.
+    if (isTerminalWaitFenceId(item.fenceId) && (item.fenceId.includes(":control:") || item.fenceId.includes(TERMINAL_NOTE_MARK))) return true
     // The budget warning is "in the moment" by definition: its grace clock is already running, and a
     // worker mid-turn is the one most likely to still be using the shell — it has ten minutes to say so.
     if (isShellBudgetFenceId(item.fenceId)) return true
@@ -2580,10 +2590,10 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   const checkInAnchors = new Map<string, { atMs: number; agents: ReadonlySet<string> }>()
 
   function evalParkIntegrity(nowMs: number): void {
-    const terminalsOf = ownTerminalsNow()
+    const terminalsOf = terminalsNow()
     for (const row of deps.storage.allSessions()) {
       if (row.state === "archived" || row.archived === 1) continue
-      const tele = withOwnTerminals(deps.tailer.get(row.slug), terminalsOf.get(row.slug))
+      const tele = withTerminals(deps.tailer.get(row.slug), terminalsOf)
       if (!tele || tele.turn !== "idle") continue
       if (tele.lastFence?.kind !== "awaiting") {
         checkInAnchors.delete(row.slug)
@@ -2843,10 +2853,10 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       }
       const replyWaitOfItem = (i: { kind: string; value: string }) => (i.kind === "thread" ? settledReplyWaits.get(threadAwaitKey(i.value)) : undefined)
       const answeredItem = (i: { kind: string; value: string }) => replyWaitOfItem(i)?.state === "cancelled"
-      // A TERMINAL this thread started, by the name the fence gives it — and whether it has stopped moving
-      // (a prompt or an exit), which SOURCE 17 wakes it for.
-      const terminalOf = (i: { kind: string; value: string }): OwnTerminalLive | undefined =>
-        i.kind === "terminal" ? tele.ownTerminals?.find((t) => [t.id, t.handle].some((h) => h && terminalAwaitKey(h) === terminalAwaitKey(i.value))) : undefined
+      // A TERMINAL, by the name the fence gives it under `threads:` (or `terminals:`, its first spelling) —
+      // and whether it has stopped moving (a prompt or an exit), which SOURCE 17 wakes it for.
+      const terminalOf = (i: { kind: string; value: string }): TerminalLive | undefined =>
+        i.kind === "terminal" || i.kind === "thread" ? tele.terminals?.find((t) => [t.id, t.handle].some((h) => h && terminalAwaitKey(h) === terminalAwaitKey(i.value))) : undefined
       const terminalSettled = (i: { kind: string; value: string }) => {
         const t = terminalOf(i)
         return t !== undefined && t.outcome !== "running"
@@ -2889,12 +2899,10 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           ? "already PASSED — its wake was delivered; there is nothing left to wait on"
           : i.kind === "command" && settledCommands.has(i.value)
           ? `no longer armed (${settledCommands.get(i.value)}) — register it again with \`ntwinectl watch-command add\` if you still need the wait`
-          : i.kind === "terminal" && terminalOf(i)?.outcome === "prompt"
-          ? `WAITING FOR INPUT — read it with \`ntwinectl terminal read ${i.value}\` and answer with \`ntwinectl terminal send\``
-          : i.kind === "terminal" && terminalEnded(i)
-          ? `ENDED — read how with \`ntwinectl terminal read ${i.value}\``
-          : i.kind === "terminal"
-          ? "NOT YOURS — only a terminal you started with `ntwinectl terminal start` can be waited on"
+          : terminalOf(i)?.outcome === "prompt"
+          ? `WAITING FOR INPUT — read it with \`ntwinectl read-thread ${i.value}\` and answer with \`ntwinectl message-thread ${i.value}\``
+          : terminalEnded(i)
+          ? `ENDED — read how with \`ntwinectl read-thread ${i.value}\``
           : finishedItem(i)
           ? "FINISHED — its result is waiting for you"
           : silentItem(i)
@@ -2962,7 +2970,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "timers: [tmr_…]               timers from `ntwinectl timer set`",
           "prs:    [owner/repo#123]      PRs registered with `ntwinectl watch-pr add`",
           "commands: [cmw_…]             command watches from `ntwinectl watch-command add`",
-          "terminals: [@handle]          terminals from `ntwinectl terminal start`",
+          "threads: [@handle]            threads asked with `--await-reply`, or terminals",
           "for:    2h                    REQUIRED — a DURATION, never an instant",
           "---",
           "one or two sentences: what is running, and what it gates",
@@ -2988,7 +2996,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "- an outside condition a command can check (a package version, a release run, a URL coming up)",
           "  → `ntwinectl watch-command add` → `commands: [cmw_…]`",
           "- work you already launched → `shells: [<the id your runtime gave you>]` or `agents: [<id>]`",
-          "- a terminal you started with `ntwinectl terminal start` → `terminals: [@handle]`",
+          "- a terminal, yours or the user's → `threads: [@handle]`",
           "",
           "The frontmatter is YAML: PLURAL keys, each taking a list, and your prose below the `---`.",
           "Use `ntwinectl activity` to read it all back as a ready-to-paste fence.",
@@ -3821,74 +3829,140 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     }
   }
 
-  // ---- SOURCE 17: A TERMINAL A THREAD STARTED, AND WAITS ON, STOPPED MOVING (2026-10-15) ----------------
-  // `ntwinectl terminal start` puts a process the worker works ALONGSIDE (a dev server, a log tail) in a
-  // terminal thread of its own, in a detached host that outlives the worker's turn and its daemon. The
-  // runtime does not know it exists, so ntwine is the only thing that can say it reached a prompt or ended,
-  // and it says so to the thread that started it when that thread waits on it: an armed `ntwinectl watch
-  // terminal` (a registration trumps a done, as for a shell), or a resting fence naming it under
-  // `terminals:` for an event after that rest. ONE wake per event, keyed on the run and the instant it
-  // changed state: a prompt answered and reached again is news again, an exit is told once.
-  function ownTerminalsNow(): Map<string, OwnTerminalLive[]> {
-    return ownTerminalsByStarter((deps.terminals?.() ?? []).map(({ terminal }) => terminal))
+  // ---- SOURCE 17: A TERMINAL STOPPED MOVING, OR CHANGED HANDS (2026-10-15) --------------------------------
+  // A terminal thread (a dev server, a log tail, a shell) lives in a detached host the worker's runtime knows
+  // nothing about, so ntwine is the only thing that can say it reached a prompt, ended, or moved between
+  // drivers (plans/terminal-threads.md § Control). Any thread may wait on any terminal, as on any thread:
+  // an armed `ntwinectl watch terminal` fires on the first event after it was armed (a registration trumps a
+  // done, as for a shell), and a resting fence naming it under `threads:` (or `terminals:`, its first
+  // spelling) is woken for an event after that rest. ONE wake per event, keyed on the terminal and the event
+  // — a prompt answered and reached again is news again, an exit and a control move are told once.
+  //
+  // A CONTROL MOVE is also owed to the threads it touched (control_notes, written by the router): the one
+  // that lost the terminal and the one that got it. Each is told at once when it is working (mid-turn, as a
+  // steer: it may be about to type) or waiting on the terminal; otherwise the note stays owed and rides the
+  // next wake ntwine delivers to it (deliverDue), so a control move never costs an idle thread a turn.
+  function terminalsNow(): TerminalLive[] {
+    return terminalLives((deps.terminals?.() ?? []).map(({ terminal }) => terminal))
+  }
+
+  /** Does this resting telemetry's fence name the terminal (by handle or slug, under threads: or terminals:)? */
+  function fenceNamesTerminal(tele: SessionTelemetry | undefined, terminal: Pick<ThreadTerminal, "id" | "handle">): boolean {
+    if (tele?.turn !== "idle" || tele.lastFence?.kind !== "awaiting") return false
+    const keys = [terminal.id, terminal.handle].flatMap((h) => (h ? [terminalAwaitKey(h)] : []))
+    return readAwaitingPark(tele.lastFence.hints).items.some((i) => (i.kind === "terminal" || i.kind === "thread") && keys.includes(terminalAwaitKey(i.value)))
+  }
+
+  /** Queue one terminal wake; false when this very wake was queued before and superseded (nothing new went). */
+  function enqueueTerminalWake(slug: string, fenceId: string, message: string, reason: string, nowMs: number): boolean {
+    const session = deps.storage.getSession(slug)
+    if (!session || session.state === "archived" || session.archived === 1) return true
+    const deliveryId = wakeDeliveryId(slug, session.session_id, fenceId)
+    const prior = outbox.get(deliveryId)
+    if (prior) return prior.state !== "superseded"
+    const item = outbox.enqueue({
+      id: deliveryId, slug, sessionId: session.session_id, fenceId, hintKey: fenceId,
+      message: withClock(message, deps.tailer.get(slug)?.lastAssistantAt), reason,
+    }, nowMs).delivery
+    log(`waker: queued ${slug} — ${item.reason}`)
+    checkpoint("after-enqueue", item)
+    return true
   }
 
   function evalTerminalWaits(nowMs: number): void {
+    const handleOf = (slug: string) => deps.threadHandle?.(slug) ?? slug
     for (const { row: held, terminal } of deps.terminals?.() ?? []) {
-      const starter = held.started_by
-      if (!starter || starter === "human") continue
-      const session = deps.storage.getSession(starter)
-      const open = session !== undefined && session.state !== "archived" && session.archived !== 1
-      const outcome = terminalOutcome(terminal)
       const handle = terminal.handle ?? terminal.id
-      if (outcome === "running") {
-        // Still moving, so only a lapsed watch is news: it is cancelled and the worker re-decides.
-        if (!held.watch_id || (held.watch_expires_at ?? Infinity) > nowMs) continue
-        deps.storage.setThreadTerminalWatch(held.slug, null, null)
-        log(`waker: settled ${starter} — terminal watch ${held.watch_id} expired (@${handle})`)
-        if (!open) continue
-        const fenceId = `${TERMINAL_WATCH_EXPIRED_FENCE_PREFIX}:${held.watch_id}`
-        const deliveryId = wakeDeliveryId(starter, session.session_id, fenceId)
-        if (outbox.get(deliveryId)) continue
-        const item = outbox.enqueue({
-          id: deliveryId, slug: starter, sessionId: session.session_id, fenceId, hintKey: fenceId,
-          message: withClock(terminalWatchExpiredWakeMessage(handle), deps.tailer.get(starter)?.lastAssistantAt),
-          reason: `terminal watch ${held.watch_id} expired (@${handle})`,
-        }, nowMs).delivery
-        log(`waker: queued ${starter} — ${item.reason}`)
-        checkpoint("after-enqueue", item)
-        continue
+      const outcome = terminalOutcome(terminal)
+      const controller = terminal.controller ?? "human"
+      const controlFenceId = `${TERMINAL_FENCE_PREFIX}:${terminal.id}:control:${held.control_changed_at ?? 0}`
+      // 1. What a control move owes the threads it touched: now, when they are working or waiting on it.
+      const notes = terminalNotesOf(held)
+      const owed = notes.filter((note) => {
+        const session = deps.storage.getSession(note.to)
+        if (!session || session.state === "archived" || session.archived === 1) return false
+        const tele = deps.tailer.get(note.to)
+        const busy = tele !== undefined && tele.turn !== "idle"
+        const watching = held.watch_id && held.watch_slug === note.to
+        if (!busy && !watching && !fenceNamesTerminal(tele, terminal)) return true
+        if (watching) deps.storage.setThreadTerminalWatch(held.slug, null)
+        // Working and not waiting on it: told in this turn, or owed again if the turn ends first.
+        const fenceId = busy && !watching && !fenceNamesTerminal(tele, terminal) ? controlFenceId.replace(":control:", TERMINAL_NOTE_MARK) : controlFenceId
+        // A note that already went out mid-turn once and was handed back (reoweTerminalNote) stays owed: it
+        // now rides the next wake rather than another turn's steer.
+        return !enqueueTerminalWake(note.to, fenceId, note.text, `control of @${handle} moved`, nowMs)
+      })
+      if (owed.length !== notes.length) deps.storage.setThreadTerminalNotes(held.slug, owed)
+      // 2. Its events, each with when it happened.
+      const events: { key: string; atMs: number; reason: string; message: (slug: string) => string }[] = []
+      if (outcome !== "running") {
+        const changedAt = terminal.awaitingSince ?? terminal.exitedAt ?? terminal.startedAt
+        events.push({
+          key: `${TERMINAL_FENCE_PREFIX}:${terminal.id}:${terminal.runId}:${outcome === "prompt" ? `prompt:${changedAt}` : "end"}`,
+          atMs: Date.parse(changedAt),
+          reason: `terminal @${handle} ${outcome === "prompt" ? "is waiting for input" : "ended"}`,
+          message: (slug) => terminalWakeMessage({
+            handle, command: terminal.command, outcome,
+            ...(terminal.exitCode !== undefined ? { exitCode: terminal.exitCode } : {}),
+            screen: (deps.terminalScreen?.(terminal.id) ?? "").split("\n").slice(-30).join("\n"),
+            driving: controller === slug, controller: controller === "human" ? "human" : handleOf(controller),
+          }),
+        })
       }
-      // At a prompt, or over. A watch fires and settles whatever the fence says.
-      const changedAt = terminal.awaitingSince ?? terminal.exitedAt ?? terminal.startedAt
-      let waited = false
-      if (held.watch_id) {
-        deps.storage.setThreadTerminalWatch(held.slug, null, null)
-        waited = true
+      if (held.control_changed_at) {
+        events.push({
+          key: controlFenceId, atMs: held.control_changed_at, reason: `control of @${handle} moved`,
+          message: () => terminalControlWakeMessage({ event: "moved", handle, other: controller === "human" ? "human" : handleOf(controller) }),
+        })
       }
-      if (!open) continue
-      const tele = deps.tailer.get(starter)
-      if (!waited && tele?.turn === "idle" && tele.lastFence?.kind === "awaiting") {
-        const named = readAwaitingPark(tele.lastFence.hints).items.some((i) => i.kind === "terminal" && [terminal.id, terminal.handle].some((h) => h && terminalAwaitKey(h) === terminalAwaitKey(i.value)))
-        waited = named && Date.parse(changedAt) > Date.parse(tele.lastAssistantAt ?? "")
+      // 3. A lapsed watch on a terminal still running quietly: cancelled, and the watcher re-decides.
+      const watcher = held.watch_id ? held.watch_slug ?? held.started_by ?? undefined : undefined
+      const due = watcher ? events.filter((e) => e.atMs >= (held.watch_armed_at ?? 0)) : []
+      if (watcher && due.length === 0 && (held.watch_expires_at ?? Infinity) <= nowMs) {
+        deps.storage.setThreadTerminalWatch(held.slug, null)
+        log(`waker: settled ${watcher} — terminal watch ${held.watch_id} expired (@${handle})`)
+        enqueueTerminalWake(watcher, `${TERMINAL_WATCH_EXPIRED_FENCE_PREFIX}:${held.watch_id}`, terminalWatchExpiredWakeMessage(handle), `terminal watch ${held.watch_id} expired (@${handle})`, nowMs)
       }
-      if (!waited) continue
-      const fenceId = `${TERMINAL_FENCE_PREFIX}:${terminal.id}:${terminal.runId}:${outcome === "prompt" ? `prompt:${changedAt}` : "end"}`
-      const deliveryId = wakeDeliveryId(starter, session.session_id, fenceId)
-      if (outbox.get(deliveryId)) continue
-      const item = outbox.enqueue({
-        id: deliveryId, slug: starter, sessionId: session.session_id, fenceId, hintKey: fenceId,
-        message: withClock(terminalWakeMessage({
-          handle,
-          command: terminal.command,
-          outcome,
-          ...(terminal.exitCode !== undefined ? { exitCode: terminal.exitCode } : {}),
-          screen: (deps.terminalScreen?.(terminal.id) ?? "").split("\n").slice(-30).join("\n"),
-        }), tele?.lastAssistantAt),
-        reason: `terminal @${handle} ${outcome === "prompt" ? "is waiting for input" : "ended"}`,
-      }, nowMs).delivery
-      log(`waker: queued ${starter} — ${item.reason}`)
-      checkpoint("after-enqueue", item)
+      // 4. An armed watch fires on the first events after it was armed, whatever the fence says.
+      if (watcher && due.length > 0) {
+        deps.storage.setThreadTerminalWatch(held.slug, null)
+        for (const e of due) enqueueTerminalWake(watcher, e.key, e.message(watcher), e.reason, nowMs)
+      }
+      // 5. Every resting thread whose fence names it, for each event after its rest.
+      if (events.length === 0) continue
+      for (const row of deps.storage.allSessions()) {
+        if (row.state === "archived" || row.archived === 1 || row.slug === watcher) continue
+        const tele = deps.tailer.get(row.slug)
+        if (!fenceNamesTerminal(tele, terminal)) continue
+        const restedAt = Date.parse(tele?.lastAssistantAt ?? "")
+        for (const e of events) if (e.atMs > restedAt) enqueueTerminalWake(row.slug, e.key, e.message(row.slug), e.reason, nowMs)
+      }
+    }
+  }
+
+  /** A mid-turn control note whose turn ended before it went out is owed again, unless a newer note for the
+   *  same thread already replaced it, or the thread is gone. */
+  function reoweTerminalNote(item: WakeDelivery): void {
+    const m = /^terminal:(.+):control-note:\d+$/.exec(item.fenceId)
+    if (!m) return
+    const session = deps.storage.getSession(item.slug)
+    if (!session || session.session_id !== item.sessionId || session.state === "archived" || session.archived === 1) return
+    const row = (deps.terminals?.() ?? []).find(({ row }) => row.slug === m[1])?.row
+    if (!row) return
+    const notes = terminalNotesOf(row)
+    if (notes.some((n) => n.to === item.slug)) return
+    deps.storage.setThreadTerminalNotes(row.slug, [...notes, { to: item.slug, text: stripWakeTimeHeader(item.message).trim() }])
+  }
+
+  /** The control notes still owed to `slug`, to ride a wake going out to it now (deliverDue). */
+  function owedTerminalNotes(slug: string): { terminal: string; text: string }[] {
+    return (deps.terminals?.() ?? []).flatMap(({ row }) => terminalNotesOf(row).filter((n) => n.to === slug).map((n) => ({ terminal: row.slug, text: n.text })))
+  }
+
+  function settleTerminalNotes(slug: string, notes: readonly { terminal: string }[]): void {
+    for (const id of new Set(notes.map((n) => n.terminal))) {
+      const row = (deps.terminals?.() ?? []).find(({ row }) => row.slug === id)?.row
+      if (row) deps.storage.setThreadTerminalNotes(id, terminalNotesOf(row).filter((n) => n.to !== slug))
     }
   }
 
@@ -4922,6 +4996,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       }
       if (context === "superseded") {
         outbox.supersede(item.id, nowMs, CONTEXT_SUPERSEDED)
+        reoweTerminalNote(item)
         settleSnooze(item)
         continue
       }
@@ -5056,6 +5131,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       }
       if (context === "superseded") {
         outbox.supersede(sibling.id, now(), `${CONTEXT_SUPERSEDED} before delivery`)
+        reoweTerminalNote(sibling)
         settleSnooze(sibling)
         continue
       }
@@ -5116,6 +5192,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       }
       if (context === "superseded") {
         outbox.supersede(item.id, now(), `${CONTEXT_SUPERSEDED} before delivery`)
+        reoweTerminalNote(item)
         settleSnooze(item)
         continue
       }
@@ -5134,9 +5211,14 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // The frame: the carrier plus everything else waiting for this thread that may go out now, in
       // creation order. One `resume`, one turn; see adoptCompanions.
       const companions = adoptCompanions(item, claimedAt)
+      // A TERMINAL'S CONTROL MOVE still owed to this thread rides along (SOURCE 17): never with the human's
+      // own answers, which fold into one form and go on their own.
+      const riders = isQuestionAnswerFenceId(item.fenceId) ? [] : owedTerminalNotes(item.slug)
       const frame = [...companions, item].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
       const spokeAt = deps.tailer.get(item.slug)?.lastAssistantAt
-      const message = companions.length === 0
+      const message = riders.length > 0
+        ? mergedWakeMessage([...frame, ...riders.map((r) => ({ reason: "a terminal changed hands", message: r.text }))], now(), spokeAt, rowDeadline(deps.storage.getSession(item.slug))?.atMs)
+        : companions.length === 0
         ? restampedWakeMessage(item.message, spokeAt, item.slug)
         : isQuestionAnswerFenceId(item.fenceId)
           ? withClock(mergeAnswerMessages(frame.map((d) => d.message))!, spokeAt)
@@ -5151,6 +5233,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         // judge how long its own parks actually last — which is why `for:` values are guesses. This is
         // the one place every ntwine wake passes through, so one line here reaches all of them.
         await deps.resume(item.slug, message, item.id)
+        if (riders.length > 0) settleTerminalNotes(item.slug, riders)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         const failedAt = now()

@@ -87,7 +87,7 @@ export interface LiveActivity {
    *  command watches existed still type-checks: absent reads as "none armed", which makes a `commands:`
    *  entry unaccounted — the safe direction. */
   commands?: ReadonlySet<string>
-  /** The `terminalAwaitKey`s of the RUNNING terminals this thread started (`ntwinectl terminal start`,
+  /** The `terminalAwaitKey`s of the project's RUNNING terminals (`ntwinectl terminal start`,
    *  2026-10-15) — running and not at a prompt, since a prompt or an exit is the event a `terminals:` wait
    *  is for. Optional for the reason `commands` is: absent reads as none, the safe direction. */
   terminals?: ReadonlySet<string>
@@ -97,27 +97,20 @@ const LIVE_SET: Record<AwaitingItemKind, keyof LiveActivity> = {
   shell: "shells", agent: "agents", timer: "timers", pr: "prs", thread: "timers", command: "commands", terminal: "terminals",
 }
 
-/** A terminal this thread started, as the board and the scheduler layer it onto the thread's telemetry
- *  (`ownTerminals`): the tailer knows nothing of terminals, and both readers must judge a `terminals:`
- *  entry against the same reading. `at` is when it last changed state (a prompt, an exit, its start). */
-export interface OwnTerminalLive {
+/** A terminal, as the board and the scheduler layer the project's terminals onto every thread's telemetry
+ *  (`terminals`): the tailer knows nothing of terminals, and both readers must judge a fence entry naming
+ *  one against the same reading. Any thread may wait on any terminal (plans/terminal-threads.md § Control:
+ *  waiting is a thread verb). `at` is when it last changed state (a prompt, an exit, its start). */
+export interface TerminalLive {
   id: string
   handle?: string
   outcome: "running" | "prompt" | "failed" | "interrupted" | "finished"
   at?: string
 }
 
-/** The terminals each AGENT started, by the starting thread's slug, as a `terminals:` wait reads them
- *  (awaiting.ts OwnTerminalLive). A human's terminal is nobody's to wait on. */
-export function ownTerminalsByStarter(terminals: readonly Pick<ThreadTerminal, "id" | "handle" | "startedBy" | "state" | "awaitingInput" | "awaitingSince" | "exitedAt" | "startedAt" | "exitCode" | "stopped" | "shell" | "signal">[]): Map<string, OwnTerminalLive[]> {
-  const out = new Map<string, OwnTerminalLive[]>()
-  for (const t of terminals) {
-    if (!t.startedBy || t.startedBy === "human") continue
-    const list = out.get(t.startedBy) ?? []
-    list.push({ id: t.id, ...(t.handle ? { handle: t.handle } : {}), outcome: terminalOutcome(t), at: t.awaitingSince ?? t.exitedAt ?? t.startedAt })
-    out.set(t.startedBy, list)
-  }
-  return out
+/** The project's terminals as a fence reads them (TerminalLive). */
+export function terminalLives(terminals: readonly Pick<ThreadTerminal, "id" | "handle" | "state" | "awaitingInput" | "awaitingSince" | "exitedAt" | "startedAt" | "exitCode" | "stopped" | "shell" | "signal">[]): TerminalLive[] {
+  return terminals.map((t) => ({ id: t.id, ...(t.handle ? { handle: t.handle } : {}), outcome: terminalOutcome(t), at: t.awaitingSince ?? t.exitedAt ?? t.startedAt }))
 }
 
 /** The key a `terminals:` entry is checked by: the handle or the slug, folded as a thread handle is. */
@@ -147,7 +140,7 @@ interface LiveHandleRow {
  *  the correction printed and asked why there were two. Refusing a
  *  correct-but-label-shaped name would make the fence unusable for the case it exists for. */
 export function liveActivityOf(
-  tele: { bgShells?: readonly LiveHandleRow[]; subAgents?: readonly LiveHandleRow[]; ownTerminals?: readonly OwnTerminalLive[] } | undefined,
+  tele: { bgShells?: readonly LiveHandleRow[]; subAgents?: readonly LiveHandleRow[]; terminals?: readonly TerminalLive[] } | undefined,
   registeredPrWatches: ReadonlySet<string>,
   armedTimerIds: ReadonlySet<string>,
   armedCommandWatches: ReadonlySet<string> = new Set(),
@@ -163,7 +156,7 @@ export function liveActivityOf(
     for (const h of [a.taskId, a.id, a.label]) if (h) agents.add(h)
   }
   const terminals = new Set<string>()
-  for (const t of tele?.ownTerminals ?? []) {
+  for (const t of tele?.terminals ?? []) {
     if (t.outcome !== "running") continue
     for (const h of [t.id, t.handle]) if (h) terminals.add(terminalAwaitKey(h))
   }
@@ -177,7 +170,9 @@ export function liveActivityOf(
  *  parked. Three separate stalls in one day came from the old grammar having no equivalent (see the
  *  AwaitingHint doc block in @ntwine/shared). */
 export function unaccountedItems(items: readonly AwaitingItem[], live: LiveActivity): AwaitingItem[] {
-  return items.filter((i) => !live[LIVE_SET[i.kind]]?.has(liveKey(i)))
+  // `threads:` names a terminal too (a terminal is a thread): a name no reply wait holds is accounted for
+  // when a running terminal carries it.
+  return items.filter((i) => !live[LIVE_SET[i.kind]]?.has(liveKey(i)) && !(i.kind === "thread" && live.terminals?.has(terminalAwaitKey(i.value))))
 }
 
 /** The value to test against the live set. A PR is a kind whose registry key is NORMALIZED

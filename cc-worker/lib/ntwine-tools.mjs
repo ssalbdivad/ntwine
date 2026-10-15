@@ -383,8 +383,8 @@ const WATCH = {
     "already armed, and leaves the original expiry alone — so re-registering after a compaction is safe " +
     "and is the right instinct. Use `ntwinectl unwatch <id>` to withdraw one. A PULL REQUEST is `ntwinectl watch-pr`, not this: " +
     "that one polls GitHub and reports repeatedly.\n\n" +
-    "A TERMINAL you started with `ntwinectl terminal start` is watched by its `@handle`: you are woken when it " +
-    "reaches a prompt or ends.\n\n" +
+    "A TERMINAL, yours or the user's, is watched by its `@handle`: you are woken when it reaches a prompt, " +
+    "ends or changes hands.\n\n" +
     "You can only ever watch work on your OWN thread.",
   inputSchema: {
     type: "object",
@@ -869,7 +869,8 @@ const READ_THREAD = {
     "A thread's SUB-AGENTS answer to its handle, a dot, then theirs: `port-the-parser.cache-keys`, and a " +
     "Workflow's agents one segment further (`port-the-parser.wave-2.impl-w3`). Reading one prints its own " +
     "request and its newest messages — its report, once it has returned. It reaches sub-agents that have " +
-    "already returned too; a name used twice means the running one, else the latest.",
+    "already returned too; a name used twice means the running one, else the latest.\n\n" +
+    "A TERMINAL is a thread too: its handle prints what it runs, how it stands, who drives it and its screen.",
   inputSchema: {
     type: "object",
     properties: {
@@ -903,7 +904,10 @@ const MESSAGE_THREAD = {
     "the other thread has none of your context. Never reply just to acknowledge. A finished thread cannot " +
     "be messaged (read it instead). A RUNNING sub-agent can, by its address (`@thread.child`, your own " +
     "children included): it reads the message after its next tool call, and answers only in its report to " +
-    "its own thread, so `--await-reply` does not apply. Messages between two threads are capped per hour.",
+    "its own thread, so `--await-reply` does not apply. Messages between two threads are capped per hour.\n\n" +
+    "A TERMINAL takes the message as a typed line and Enter, and only from the thread that drives it: anyone " +
+    "else is refused (exit 2) with who does. `--await-reply` then wakes you at its next prompt, its exit, or a " +
+    "change of hands.",
   inputSchema: {
     type: "object",
     properties: {
@@ -1152,23 +1156,26 @@ const WATCH_COMMAND = {
 const TERMINAL = {
   name: "terminal",
   description:
-    "START, READ, TYPE INTO OR STOP A TERMINAL. A terminal is a thread of its own on the board, running one " +
-    "command in its own process. It keeps running after your turn ends and after ntwine restarts.\n\n" +
+    "START, STOP, RESTART OR RELEASE A TERMINAL. A terminal is a thread of its own on the board, running one " +
+    "command in its own process; the user sees it, types into it and cycles to it like one they started. It " +
+    "keeps running after your turn ends and after ntwine restarts.\n\n" +
     "Start a process you work ALONGSIDE here — a dev server, a log tail, a watcher. A slow gate you wait " +
     "for (a test suite, a build) stays a `run_in_background` shell.\n\n" +
-    "`start` prints the terminal's `@handle`; every other action takes it. `read` works on any terminal, the " +
-    "user's included. `send`, `stop` and `restart` work only on a terminal you started, and are refused " +
-    "(exit 2) on anyone else's.\n\n" +
-    "To be woken when it reaches a prompt or ends: `ntwinectl watch terminal @handle --for <d>`, and name it " +
-    "in your ```awaiting fence as `terminals: [@handle]`. A terminal still running when you sign off keeps " +
-    "running; the user's Done dialog offers to stop it.",
+    "A terminal is reached with the thread verbs: `ntwinectl read-thread @handle` reads its screen, " +
+    "`ntwinectl message-thread @handle --message-file -` types a line into it and presses Enter, and " +
+    "`threads: [@handle]` in your ```awaiting fence (or `ntwinectl watch terminal @handle --for <d>`) wakes " +
+    "you when it reaches a prompt, ends or changes hands.\n\n" +
+    "ONE DRIVER AT A TIME. Typing, `stop`, `restart` and `release` work only while you drive it, and are " +
+    "refused (exit 2) otherwise. You drive a terminal you start until the user takes control or you " +
+    "`release` it; the user can hand one to you. A terminal still running when you sign off keeps running; " +
+    "the user's Done dialog offers to stop it.",
   inputSchema: {
     type: "object",
     properties: {
       action: {
         type: "string",
-        enum: ["start", "read", "send", "stop", "restart"],
-        description: "`start` a command; `read` a terminal's screen; `send` text to it; `stop` it; `restart` its command.",
+        enum: ["start", "stop", "restart", "release"],
+        description: "`start` a command; `stop` it; `restart` its command; `release` control of it to the user.",
       },
       command: {
         type: "string",
@@ -1181,14 +1188,6 @@ const TERMINAL = {
       handle: {
         type: "string",
         description: "Required for every action but `start`. The terminal's `@handle`, as `start` printed it.",
-      },
-      tail: {
-        type: "integer",
-        description: "For `read`. How many of the screen's last lines to print (default 80, max 2000).",
-      },
-      text: {
-        type: "string",
-        description: "Required for `send`. Typed into the terminal as written; a trailing newline is Enter.",
       },
     },
     required: ["action"],
@@ -1297,6 +1296,16 @@ async function readThread(args) {
   const state = r.subAgentOf
     ? r.state === "done" ? `returned${r.outcome && r.outcome !== "completed" ? ` (${r.outcome})` : ""}` : r.state === "resting" ? "resting, with its own sub-agents still running" : "running"
     : r.state === "done" ? "done" : r.state === "resting" ? "resting (not working right now)" : "running (mid-turn)"
+  // A TERMINAL THREAD: what it runs, how it stands, who drives it, and its screen.
+  if (r.terminal) {
+    const t = r.terminal
+    const drives = t.driving ? "you drive it" : t.controller === "human" || !t.controller ? "the user drives it" : `@${t.controller} drives it`
+    const by = t.startedBy === "human" || !t.startedBy ? "the user" : `@${t.startedBy}`
+    return (
+      `@${r.handle} — a terminal running \`${t.command}\` in ${t.cwd}, ${terminalStands(t)}${r.state === "done" ? ", marked done" : ""}; started by ${by}, ${drives}.` +
+      (t.screen.trim() ? `\n\n${codeFence(t.screen, "")}` : "\n\nIts screen is empty.")
+    )
+  }
   return [
     `@${r.handle} — ${r.project ? `a thread in the ${r.project} project, ` : ""}${r.subAgentOf ? `a sub-agent of @${r.subAgentOf}, ` : ""}${state}${r.status ? `\nStatus: ${r.status}` : ""}`,
     r.request ? `\n## Its request\n\n${r.request}` : "",
@@ -1306,9 +1315,9 @@ async function readThread(args) {
   ].filter(Boolean).join("\n")
 }
 
-/** The `message_thread` handler: deliver a message into another open thread's conversation, optionally
- * registering a wait on its answer.
- * @param {Record<string, unknown>} args @returns {Promise<string>} */
+/** The `message_thread` handler: deliver a message into another open thread's conversation (or type it into
+ * a terminal the caller drives), optionally registering a wait on its answer. A refusal exits 2.
+ * @param {Record<string, unknown>} args @returns {Promise<string | Refused>} */
 async function messageThread(args) {
   const handle = typeof args.handle === "string" ? args.handle.trim() : typeof args.to === "string" ? args.to.trim() : ""
   const message = typeof args.message === "string" ? args.message.trim() : ""
@@ -1317,7 +1326,13 @@ async function messageThread(args) {
   const awaitReply = args.await_reply === true || args.await_reply === "true"
   const body = { slug: threadSlug(), handle, message, ...(awaitReply ? { awaitReply: true } : {}) }
   const r = (await callRpc("messageThread", body))?.result
-  if (!r?.sent) return `Not sent — ${r?.refusal ?? "ntwine did not accept it."}${knownLine(r?.known)}`
+  if (!r?.sent) return new Refused(`Not sent — ${r?.refusal ?? "ntwine did not accept it."}${knownLine(r?.known)}`)
+  if (r.delivery === "terminal") {
+    const wait = r.timerId
+      ? ` Your wait on it is registered (${r.timerId}): you are woken when it next reaches a prompt, ends or changes hands. Name it in your fence as \`threads: [@${r.handle}]\`.`
+      : r.refusal ? ` No wait was registered: ${r.refusal}` : ""
+    return `Typed into the terminal @${r.handle} and pressed Enter. \`ntwinectl read-thread @${r.handle}\` shows what it answered.${wait}`
+  }
   if (r.delivery === "mailbox") {
     return `Sent to the sub-agent @${r.handle}, signed @${r.from}. It reads it after its next tool call; its answer, if any, is in its report to its own thread.`
   }
@@ -1474,7 +1489,7 @@ async function activity() {
   // an id, so printing the retired one-line-per-item form would teach the very grammar ntwine refuses.
   const byKind = { shell: [], agent: [], timer: [], pr: [], thread: [], command: [], terminal: [] }
   for (const i of items) if (byKind[i.kind] && i.id) byKind[i.kind].push(i.id)
-  const block = Object.entries({ shells: byKind.shell, agents: byKind.agent, timers: byKind.timer, prs: byKind.pr, threads: byKind.thread, commands: byKind.command, terminals: byKind.terminal })
+  const block = Object.entries({ shells: byKind.shell, agents: byKind.agent, timers: byKind.timer, prs: byKind.pr, threads: [...byKind.thread, ...byKind.terminal], commands: byKind.command })
     .filter(([, ids]) => ids.length > 0)
     .map(([key, ids]) => `  ${key}: [${ids.join(", ")}]`)
   // Every open question rides the fence too: a fence that leaves one out is refused, and a fence on
@@ -2475,7 +2490,7 @@ async function watch(args) {
   )
 }
 
-/** `watch terminal`: wake this thread when a terminal it started reaches a prompt or ends.
+/** `watch terminal`: wake this thread when a terminal reaches a prompt, ends or changes hands.
  * @param {string} slug @param {string} target @param {string} forValue @returns {Promise<string | Refused>} */
 async function watchTerminal(slug, target, forValue) {
   const r = (await callRpc("addOwnTerminalWatch", { slug, handle: target, for: forValue }))?.result
@@ -2484,7 +2499,7 @@ async function watchTerminal(slug, target, forValue) {
   const clamped = r?.clampedFrom ? ` Your \`--for ${r.clampedFrom}\` was CAPPED at 24h.` : ""
   const head = r?.alreadyArmed ? `Already watching ${handle} as ${r.id}; its expiry stands (${r.expiresAt}).` : `Watching ${handle} as ${r?.id} until ${r?.expiresAt}.${clamped}`
   return (
-    `${head} You are woken when it reaches a prompt or ends. Name it in your fence as \`terminals: [${handle}]\`. ` +
+    `${head} You are woken when it reaches a prompt, ends or changes hands. Name it in your fence as \`threads: [${handle}]\`. ` +
     `When \`--for\` runs out the watch is cancelled and you are woken to re-decide. \`ntwinectl unwatch ${r?.id}\` drops it.`
   )
 }
@@ -2506,7 +2521,9 @@ function terminalStands(r) {
 async function terminal(args) {
   const slug = threadSlug()
   const action = typeof args.action === "string" ? args.action.trim() : ""
-  if (!["start", "read", "send", "stop", "restart"].includes(action)) throw new Error("`action` must be one of start, read, send, stop, restart")
+  if (!["start", "stop", "restart", "release"].includes(action)) {
+    throw new Error("`action` must be one of start, stop, restart, release. Read a terminal with `ntwinectl read-thread @handle`; type into it with `ntwinectl message-thread @handle`.")
+  }
   /** @type {Record<string, unknown>} */
   let body
   if (action === "start") {
@@ -2517,15 +2534,7 @@ async function terminal(args) {
   } else {
     const handle = typeof args.handle === "string" ? args.handle.trim() : ""
     if (!handle) throw new Error(`\`${action}\` needs the terminal's @handle: ntwinectl terminal ${action} @nub-run-dev`)
-    if (action === "send") {
-      const text = typeof args.text === "string" ? args.text : ""
-      if (!text) throw new Error("`send` needs the text: --text-file - (stdin) or --text \"…\"; a trailing newline is Enter")
-      body = { slug, action, handle, text }
-    } else if (action === "read") {
-      body = { slug, action, handle, ...(typeof args.tail === "number" ? { tail: args.tail } : {}) }
-    } else {
-      body = { slug, action, handle }
-    }
+    body = { slug, action, handle }
   }
   const r = (await callRpc("ownTerminal", body))?.result
   if (r?.refused) return new Refused(`${r.refused}${r.known?.length ? `\n\nTerminals: ${r.known.join(", ")}` : ""}`)
@@ -2533,15 +2542,14 @@ async function terminal(args) {
   const screen = typeof r?.screen === "string" && r.screen.trim() ? `\n\n${codeFence(r.screen, "")}` : ""
   if (action === "start") {
     return (
-      `Started ${at} — \`${r?.command}\` in ${r?.cwd}, ${terminalStands(r)}. It is a thread of its own on the board and keeps ` +
-      `running after your turn. \`ntwinectl terminal read ${at}\` reads it; \`ntwinectl terminal stop ${at}\` stops it.${screen}`
+      `Started ${at} — \`${r?.command}\` in ${r?.cwd}, ${terminalStands(r)}. It is a thread of its own on the board, ` +
+      `keeps running after your turn, and you drive it until the user takes control. \`ntwinectl read-thread ${at}\` reads ` +
+      `it; \`ntwinectl message-thread ${at}\` types a line into it; \`ntwinectl terminal stop ${at}\` stops it.${screen}`
     )
   }
-  if (action === "send") return `Typed ${String(body.text).length} characters into ${at}. \`ntwinectl terminal read ${at}\` shows what it answered.`
   if (action === "stop") return `Stopped ${at} (${terminalStands(r)}).${screen}`
-  if (action === "restart") return `Restarted ${at} — \`${r?.command}\`, ${terminalStands(r)}.${screen}`
-  const who = r?.mine ? "you" : r?.startedBy === "human" || !r?.startedBy ? "the user" : `@${r.startedBy}`
-  return `${at} — \`${r?.command}\` in ${r?.cwd}, ${terminalStands(r)}, started by ${who}.${screen || "\n\nIts screen is empty."}`
+  if (action === "release") return `Released ${at}: the user drives it now, and you can no longer type into it. It keeps running.`
+  return `Restarted ${at} — \`${r?.command}\`, ${terminalStands(r)}.${screen}`
 }
 
 /** The `unwatch` handler: withdraw one registered watch by id.
@@ -3004,7 +3012,7 @@ const CLI = {
   },
   watch: {
     group: "Waiting",
-    summary: "Register a wait on a background shell, a sub-agent or a terminal you started",
+    summary: "Register a wait on a background shell, a sub-agent or a terminal",
     positional: ["kind", "target"],
     examples: ["ntwinectl watch shell bzvtnt3ig --for 2h", "ntwinectl watch agent a01b2d20b32feab11 --for 1h", "ntwinectl watch terminal @nub-run-dev --for 2h"],
   },
@@ -3061,14 +3069,15 @@ const CLI = {
   },
   terminal: {
     group: "This thread",
-    summary: "Start, read, type into or stop a terminal (a dev server, a log tail)",
+    summary: "Start, stop, restart or release a terminal (a dev server, a log tail)",
     positional: ["action"],
-    then: { start: ["command"], read: ["handle"], send: ["handle"], stop: ["handle"], restart: ["handle"] },
+    then: { start: ["command"], stop: ["handle"], restart: ["handle"], release: ["handle"] },
     examples: [
       'ntwinectl terminal start "nub run dev"',
-      "ntwinectl terminal read @nub-run-dev --tail 40",
-      "ntwinectl terminal send @nub-run-dev --text-file - <<'EOF'\ny\nEOF",
+      "ntwinectl read-thread @nub-run-dev",
+      "ntwinectl message-thread @nub-run-dev --message y",
       "ntwinectl terminal stop @nub-run-dev",
+      "ntwinectl terminal release @nub-run-dev",
     ],
   },
   title: {
@@ -3109,7 +3118,7 @@ const CLI = {
   message_thread: {
     group: "Other threads",
     summary: "Send a message into another open thread, or a running sub-agent, by its @handle",
-    positional: ["handle"],
+    positional: ["handle", "message"],
     examples: [
       "ntwinectl message-thread @shell-budgets --await-reply --message-file - <<'EOF'\n" +
       "Is `budgetFor` still the one place a shell's default is chosen? I am about to change it in `src/shell-budget.ts`.\n" +

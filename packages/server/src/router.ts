@@ -149,6 +149,8 @@ import {
   DropOwnTerminalWatchInput,
   OwnTerminalInput,
   OwnTerminalResult,
+  TerminalControlInput,
+  terminalControlWakeMessage,
   OWN_TERMINAL_WATCH_ID_PREFIX,
   ExtendOwnShellInput,
   ExtendOwnShellResult,
@@ -234,7 +236,7 @@ import {
   threadTranscriptSource,
 } from "./transcript.ts"
 import { readThreadStats, unrecordedStats } from "./thread-stats.ts"
-import { terminalThreadView } from "./thread-terminals.ts"
+import { terminalControllerOf, terminalNotesOf, terminalThreadView } from "./thread-terminals.ts"
 import { liftCheckout, resolveThreadWorkingDir, subAgentFolders, terminalFolder, terminalFolders } from "./thread-cwd.ts"
 import { isDirectory } from "./path-probe.ts"
 import { reviewTargetOf } from "./review-target.ts"
@@ -1503,8 +1505,9 @@ export function createRouter(ctx: AppContext) {
     return hits.find((t) => t.state !== "archived") ?? hits.sort((a, b) => (b.spawnedAt ?? "").localeCompare(a.spawnedAt ?? ""))[0]
   }
 
-  function readTerminal(t: ThreadView): ReadThreadResult {
+  function readTerminal(t: ThreadView, caller?: string): ReadThreadResult {
     const terminal = t.terminal!
+    const controller = terminal.controller ?? "human"
     const outcome = terminalOutcome(terminal)
     return {
       found: true,
@@ -1516,7 +1519,9 @@ export function createRouter(ctx: AppContext) {
         cwd: terminal.cwd,
         outcome,
         ...(terminal.exitCode !== undefined ? { exitCode: terminal.exitCode } : {}),
-        ...(terminal.startedBy ? { startedBy: terminal.startedBy } : {}),
+        ...(terminal.startedBy ? { startedBy: terminal.startedBy === "human" ? "human" : threadHandleOf(terminal.startedBy) } : {}),
+        controller: controller === "human" ? "human" : threadHandleOf(controller),
+        ...(caller !== undefined && controller === caller ? { driving: true } : {}),
         ...(terminal.parent ? { parent: terminal.parent } : {}),
         screen: ctx.terminalRunner.screenTail(t.id, 8_000),
       },
@@ -1527,6 +1532,95 @@ export function createRouter(ctx: AppContext) {
   function threadHandleOf(slug: string): string {
     const named = threadNamer().threads().find((t) => t.slug === slug)
     return named ? handleOf(named) : slug
+  }
+
+  /** Who drives a terminal, as a worker reads it: `the user`, `you`, or `@thread`. */
+  function controllerPhrase(controller: string, caller?: string): string {
+    return controller === "human" ? "the user" : controller === caller ? "you" : `@${threadHandleOf(controller)}`
+  }
+
+  /** The refusal every control-gated call gives a thread that does not drive the terminal. */
+  function notDrivingRefusal(handle: string, controller: string, verb: string): string {
+    const who = controller === "human" ? "the user" : `@${threadHandleOf(controller)}`
+    return `@${handle} is driven by ${who}, so you cannot ${verb} it. \`ntwinectl read-thread @${handle}\` still reads it; ask ${controller === "human" ? "the user" : who} to hand it to you.`
+  }
+
+  // MOVING CONTROL (plans/terminal-threads.md § Control). The one writer: the board's Take control, Hand back
+  // and Let an agent drive; an agent's `ntwinectl terminal release`; and the human's own Stop and Mark as done,
+  // which take control first. Each thread the move touched is owed one sentence (control_notes), which SOURCE
+  // 17 delivers: at once when it is working, or waiting on the terminal, else riding its next wake. `how`:
+  // `back` is a hand-back ("yours again"); `release` is the driver letting go, so it is told nothing.
+  function moveTerminalControl(id: string, to: string, how: "take" | "back" | "give" | "release" = to === "human" ? "take" : "give"): boolean {
+    const held = ctx.terminalRunner.terminals().find(({ row }) => row.slug === id)
+    if (!held) throw new Error(`no terminal ${id}`)
+    const from = terminalControllerOf(held.row)
+    if (from === to) return false
+    if (to !== "human" && !ctx.storage.getSession(to)) throw new Error(`no thread ${to} to hand it to`)
+    if (!ctx.storage.setThreadTerminalController(id, to, Date.now())) return false
+    const handle = held.row.handle ?? id
+    const notes = terminalNotesOf(held.row).filter((n) => n.to !== from && n.to !== to)
+    if (from !== "human" && how !== "release") {
+      notes.push({ to: from, text: terminalControlWakeMessage(to === "human" ? { event: "taken", handle } : { event: "handed-away", handle, other: threadHandleOf(to) }) })
+    }
+    if (to !== "human") notes.push({ to, text: terminalControlWakeMessage({ event: how === "back" ? "returned" : "given", handle }) })
+    ctx.storage.setThreadTerminalNotes(id, notes)
+    ctx.board.refresh()
+    ctx.scheduler?.kick?.()
+    return true
+  }
+
+  /** The board's Stop, Restart and `$` line act as the human, who must drive the terminal to use them. */
+  function requireHumanDrives(id: string): void {
+    const held = ctx.terminalRunner.terminals().find(({ row }) => row.slug === id)?.row
+    const controller = terminalControllerOf(held)
+    if (held && controller !== "human") throw new Error(`@${threadHandleOf(controller)} is driving this terminal. Take control first.`)
+  }
+
+  /** The human marks a terminal done (which stops a running one) or reopens it. Stopping is theirs to do
+   *  whoever drives it, so a running one is taken first and its driver told. */
+  async function humanFiles(id: string, state: "open" | "archived"): Promise<void> {
+    const running = ctx.terminalRunner.terminals().find(({ row }) => row.slug === id)?.terminal.state === "running"
+    if (state === "archived" && running) moveTerminalControl(id, "human")
+    await ctx.terminalRunner.setState(id, state)
+  }
+
+  /** The human stops terminals (Stop, Mark as done, the Done dialog's boxes): they outrank any driver. */
+  async function humanStops(ids: readonly string[]): Promise<void> {
+    for (const id of ids) if (ctx.terminalRunner.terminals().find(({ row }) => row.slug === id)?.terminal.state === "running") moveTerminalControl(id, "human")
+    await ctx.terminalRunner.stopMany(ids)
+  }
+
+  /** Arm `slug`'s watch on a terminal (`ntwinectl watch terminal`, or `message-thread --await-reply` to one). */
+  function armTerminalWatch(slug: string, handleIn: string, forValue: string, opts: { atPrompt?: boolean } = {}): AddOwnTerminalWatchResult {
+    const row = ctx.storage.getSession(slug)
+    if (!row) throw new Error(`thread ${slug} is not registered`)
+    if (row.state === "archived" || row.archived === 1) throw new Error("Reopen this thread before registering a watch on it")
+    const t = terminalByHandle(handleIn)
+    if (!t?.terminal) return { refused: `No terminal is called ${handleIn}. \`ntwinectl activity\` lists the terminals you started or drive.` }
+    const handle = t.terminal.handle ?? t.id
+    const terminalRow = ctx.terminalRunner.terminals().find(({ row }) => row.slug === t.id)?.row
+    const armed = terminalRow?.watch_id && (terminalRow.watch_expires_at ?? 0) > Date.now() ? terminalRow : undefined
+    if (armed && armed.watch_slug === slug) {
+      return { id: armed.watch_id!, handle, alreadyArmed: true, expiresAt: new Date(armed.watch_expires_at!).toISOString() }
+    }
+    if (armed) return { refused: `@${threadHandleOf(armed.watch_slug ?? "")} already watches @${handle}. Name it under \`threads:\` in your fence instead; that wakes you on the same events.`, handle }
+    const outcome = terminalOutcome(t.terminal)
+    // A line just typed at a prompt is answered by the NEXT prompt or the exit, which the watch counts from
+    // its own arming (SOURCE 17), so `message-thread --await-reply` may arm one there.
+    if (outcome !== "running" && !(outcome === "prompt" && opts.atPrompt)) {
+      const now = outcome === "prompt" ? "is already waiting for input" : "is no longer running"
+      return { refused: `@${handle} ${now}, so there is nothing to wait for. Read it with \`ntwinectl read-thread @${handle}\`.`, handle }
+    }
+    const asked = parseAwaitingDurationRaw(forValue)
+    if (asked === null) throw new Error(`\`for: ${forValue}\` is not a duration — give one like \`30m\`, \`2h\` or \`3d\` (max 24h)`)
+    const forMs = Math.min(asked, AWAITING_FOR_MAX_MS)
+    const now = Date.now()
+    const id = `${OWN_TERMINAL_WATCH_ID_PREFIX}${randomUUID().replace(/-/g, "").slice(0, 12)}`
+    // A registration trumps a done — see setOwnThreadTimer.
+    ctx.storage.clearThreadDone(slug)
+    ctx.storage.setThreadTerminalWatch(t.id, { id, by: slug, armedAtMs: now, expiresAtMs: now + forMs })
+    ctx.board.refresh()
+    return { id, handle, alreadyArmed: false, expiresAt: new Date(now + forMs).toISOString(), ...(asked > AWAITING_FOR_MAX_MS ? { clampedFrom: forValue } : {}) }
   }
 
   /** `ntwinectl terminal`'s answer: the terminal and its last `tailLines` lines, escape sequences dropped. */
@@ -1542,7 +1636,8 @@ export function createRouter(ctx: AppContext) {
       outcome: terminalOutcome(terminal),
       ...(terminal.exitCode !== undefined ? { exitCode: terminal.exitCode } : {}),
       ...(terminal.startedBy ? { startedBy: terminal.startedBy === "human" ? "human" : threadHandleOf(terminal.startedBy) } : {}),
-      mine: terminal.startedBy === caller,
+      controller: (terminal.controller ?? "human") === "human" ? "human" : threadHandleOf(terminal.controller!),
+      driving: terminal.controller === caller,
       screen: lines.slice(-tailLines).join("\n"),
     }
   }
@@ -4092,7 +4187,7 @@ export function createRouter(ctx: AppContext) {
         // answered success while the card stayed exactly where it was. Caught 2026-08-08 archiving a
         // thread over the RPC: `archived = 1` in SQLite, `archived: false` on the board, forever.
         if (ctx.terminalRunner.has(input.slug)) {
-          await ctx.terminalRunner.setState(input.slug, "archived")
+          await humanFiles(input.slug, "archived")
           return
         }
         ctx.storage.setState(input.slug, "archived")
@@ -4134,7 +4229,7 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         // A TERMINAL THREAD's Done: a running one is stopped first, so nothing live is filed under Done.
         if (ctx.terminalRunner.has(input.slug)) {
-          await ctx.terminalRunner.setState(input.slug, input.state)
+          await humanFiles(input.slug, input.state)
           return
         }
         if (!ctx.storage.getSession(input.slug)) throw new Error(`no session registered for ${input.slug}`)
@@ -4158,7 +4253,7 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         // A TERMINAL THREAD's Mark as done is its own: stop the process if it runs, then file it.
         if (ctx.terminalRunner.has(input.slug)) {
-          await ctx.terminalRunner.setState(input.slug, "archived")
+          await humanFiles(input.slug, "archived")
           return { needsConfirmation: false }
         }
         const row = currentOwnedSession(input.slug, input.sessionId)
@@ -4174,7 +4269,7 @@ export function createRouter(ctx: AppContext) {
             // Only this thread's own terminals: an id from a stale dialog naming another thread's is ignored.
             stop: () => {
               const mine = new Set(ctx.terminalRunner.live(input.slug).map((terminal) => terminal.id))
-              return ctx.terminalRunner.stopMany((input.stopTerminals ?? []).filter((id) => mine.has(id)))
+              return humanStops((input.stopTerminals ?? []).filter((id) => mine.has(id)))
             },
           },
         )
@@ -4502,16 +4597,18 @@ export function createRouter(ctx: AppContext) {
             since: new Date(w.created_at).toISOString(), until: new Date(w.expires_at).toISOString(),
           })
         }
-        // The TERMINALS this thread started and has not seen marked done, by the `@handle` a `terminals:`
-        // entry names, with how each stands — a fence may name only the running ones.
+        // The TERMINALS this thread started, drives or watches and has not seen marked done, by the `@handle` a
+        // `threads:` entry names, with how each stands and who drives it — a fence may name only running ones.
         for (const { row: t, terminal } of ctx.terminalRunner?.terminals?.() ?? []) {
-          if (t.started_by !== input.slug || t.state === "archived") continue
+          const watching = t.watch_id && t.watch_slug === input.slug
+          if (t.state === "archived" || (t.started_by !== input.slug && terminal.controller !== input.slug && !watching)) continue
           const outcome = terminalOutcome(terminal)
           if (outcome === "finished") continue
           const stands = outcome === "running" ? "running" : outcome === "prompt" ? "waiting for input" : outcome === "failed" ? `exited ${terminal.exitCode ?? "?"}` : "interrupted"
+          const drives = controllerPhrase(terminal.controller ?? "human", input.slug)
           activity.push({
-            kind: "terminal", id: `@${terminal.handle ?? terminal.id}`, label: `${terminal.command.replace(/\s+/g, " ").slice(0, 120)} (${stands})`,
-            since: terminal.startedAt, ...(t.watch_id ? { watchId: t.watch_id } : {}),
+            kind: "terminal", id: `@${terminal.handle ?? terminal.id}`, label: `${terminal.command.replace(/\s+/g, " ").slice(0, 120)} (${stands}; ${drives === "you" ? "you drive it" : `${drives} drives it`})`,
+            since: terminal.startedAt, ...(watching ? { watchId: t.watch_id! } : {}),
           })
         }
         // The WATCHES are already readable: each armed one rides its live item as `watchId`, and the
@@ -5785,7 +5882,7 @@ export function createRouter(ctx: AppContext) {
         // A TERMINAL THREAD (thread-terminals.ts): what it runs and the tail of its screen. An open thread of
         // the same name wins (it was named first; a terminal's handle is minted around the names in use).
         const terminal = childPath.length === 0 && !(hit && row && hit.open) ? terminalByHandle(threadPart) : undefined
-        if (terminal) return readTerminal(terminal)
+        if (terminal) return readTerminal(terminal, input.slug)
         if (!hit || !row) {
           // Another open project's thread is read by that project's own router, and says whose it is.
           const elsewhere = resolveElsewhere(threadPart)
@@ -5839,6 +5936,27 @@ export function createRouter(ctx: AppContext) {
           const threads = threadNamer().threads()
           const [threadPart = input.handle, ...childPath] = addressSegments(input.handle)
           const local = resolveThreadHandle(threadPart, threads)
+          // A TERMINAL THREAD takes the message as a typed line plus Enter, from the thread that DRIVES it only
+          // (plans/terminal-threads.md § Control) — the user included, so its pane is read-only while a thread
+          // drives. An open thread of the same name wins, as in readThread.
+          const typedInto = childPath.length === 0 && !(local && ctx.storage.getSession(local.slug) && local.open) ? terminalByHandle(threadPart) : undefined
+          if (typedInto?.terminal) {
+            const terminal = typedInto.terminal
+            const handle = terminal.handle ?? typedInto.id
+            const controller = terminal.controller ?? "human"
+            if (controller !== input.slug) return { sent: false, handle, refusal: notDrivingRefusal(handle, controller, "type into") }
+            if (terminal.state !== "running" || !ctx.terminalRunner.write(typedInto.id, `${input.message}\r`)) {
+              return { sent: false, handle, refusal: `@${handle} is not running, so there is nothing to type into. \`ntwinectl terminal restart @${handle}\` runs it again.` }
+            }
+            const self = threads.find((t) => t.slug === input.slug)
+            const from = self ? handleOf(self) : input.slug
+            const wait = input.awaitReply ? armTerminalWatch(input.slug, handle, `${AWAITING_FOR_MAX_MS / 3_600_000}h`, { atPrompt: true }) : undefined
+            return {
+              sent: true, handle, from, delivery: "terminal" as const,
+              ...(wait?.id && wait.expiresAt ? { timerId: wait.id, waitUntil: wait.expiresAt } : {}),
+              ...(wait?.refused ? { refusal: wait.refused } : {}),
+            }
+          }
           // A handle no thread here carries may name one in another open project; `home` is the
           // RECIPIENT's project from here on, and `ctx` stays the sender's.
           const elsewhere = local && ctx.storage.getSession(local.slug) ? undefined : resolveElsewhere(threadPart)
@@ -6100,6 +6218,7 @@ export function createRouter(ctx: AppContext) {
       output: z.object({}),
       handler: async ({ input }) => {
         if (!ctx.terminalRunner.has(input.id)) throw new Error(`no terminal ${input.id}`)
+        requireHumanDrives(input.id)
         await ctx.terminalRunner.stop(input.id)
         return {}
       },
@@ -6109,6 +6228,7 @@ export function createRouter(ctx: AppContext) {
       input: TerminalInput,
       output: z.object({}),
       handler: async ({ input }) => {
+        requireHumanDrives(input.id)
         await ctx.terminalRunner.restart(input.id)
         return {}
       },
@@ -6119,6 +6239,7 @@ export function createRouter(ctx: AppContext) {
       input: RunTerminalInput,
       output: z.object({}),
       handler: async ({ input }) => {
+        requireHumanDrives(input.id)
         await ctx.terminalRunner.run(input.id, input.command)
         return {}
       },
@@ -6133,12 +6254,12 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // ---- A WORKER'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md § Agents) --------------
+    // ---- A WORKER'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md § Agents, § Control) --------
     // The same terminal threads the human starts, through the same `startTerminalThread`, with the calling
-    // thread as parent and starter. READ reaches any terminal, the human's included, so "why did my dev
-    // server die?" is answerable. SEND, STOP and RESTART reach only a terminal THIS thread started: an agent
-    // typing into the human's shell is the one asymmetry, and it holds without a bypass (maintainer
-    // 2026-10-15; reversing it needs their say-so). Refusals are answers, so `ntwinectl` exits 2 on them.
+    // thread as parent, starter and first CONTROLLER. Reading, typing and waiting are the thread verbs
+    // (readThread, messageThread, `threads:`); these are the rest. STOP, RESTART and RELEASE reach only a
+    // terminal the caller drives, as typing does — whoever started it. Refusals are answers, so `ntwinectl`
+    // exits 2 on them.
     ownTerminal: mutation({
       input: OwnTerminalInput,
       output: OwnTerminalResult,
@@ -6157,17 +6278,11 @@ export function createRouter(ctx: AppContext) {
           const known = (ctx.terminalRunner?.terminals?.() ?? []).filter(({ row }) => row.state === "open" && row.handle).map(({ row }) => `@${row.handle}`)
           return { refused: `No terminal is called ${input.handle}.`, known: known.slice(0, 20) }
         }
-        if (input.action === "read") return ownTerminalReading(t, input.slug, input.tail ?? 80)
         const handle = t.terminal.handle ?? t.id
-        if (t.terminal.startedBy !== input.slug) {
-          const by = t.terminal.startedBy
-          const whose = !by || by === "human" ? "the user's" : `@${threadHandleOf(by)}'s`
-          return { refused: `@${handle} is ${whose} terminal. You can read it; only a terminal you started takes \`send\`, \`stop\` or \`restart\`.`, handle, id: t.id }
-        }
-        if (input.action === "send") {
-          if (!ctx.terminalRunner.write(t.id, input.text)) {
-            return { refused: `@${handle} is not running, so there is nothing to type into. \`ntwinectl terminal restart @${handle}\` runs it again.`, handle, id: t.id }
-          }
+        const controller = t.terminal.controller ?? "human"
+        if (controller !== input.slug) return { refused: notDrivingRefusal(handle, controller, input.action), handle, id: t.id }
+        if (input.action === "release") {
+          moveTerminalControl(t.id, "human", "release")
         } else if (input.action === "stop") {
           await ctx.terminalRunner.stop(t.id)
         } else {
@@ -6178,50 +6293,35 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // `ntwinectl watch terminal @handle --for <d>`: wake this thread when a terminal it started reaches a
-    // prompt or ends (scheduler evalTerminalWaits). One per terminal, on its row, because only its starter
-    // may hold it. Checked against the live process: a terminal already at a prompt or over has nothing
-    // left to wait for, and the worker is told so rather than parked on a wake that cannot come.
+    // CONTROL FROM THE BOARD: Take control (`to: "human"`), Hand back to @thread (`back`), Let an agent drive
+    // (a thread slug). The human outranks every driver, so this is never refused for who holds it now.
+    terminalControl: mutation({
+      input: TerminalControlInput,
+      output: z.object({ moved: z.boolean() }),
+      handler: async ({ input }) => {
+        if (!ctx.terminalRunner.has(input.id)) throw new Error(`no terminal ${input.id}`)
+        return { moved: moveTerminalControl(input.id, input.to, input.to === "human" ? "take" : input.back ? "back" : "give") }
+      },
+    }),
+
+    // `ntwinectl watch terminal @handle --for <d>`: wake this thread when a terminal reaches a prompt, ends or
+    // changes hands (scheduler evalTerminalWaits). Any thread may wait on any terminal; the watch lives on the
+    // terminal's row, so a terminal holds one at a time. Checked against the live process: a terminal already
+    // at a prompt or over has nothing left to wait for, and the worker is told so rather than parked on a wake
+    // that cannot come.
     addOwnTerminalWatch: mutation({
       input: AddOwnTerminalWatchInput,
       output: AddOwnTerminalWatchResult,
-      handler: async ({ input }) => {
-        const row = ctx.storage.getSession(input.slug)
-        if (!row) throw new Error(`thread ${input.slug} is not registered`)
-        if (row.state === "archived" || row.archived === 1) throw new Error("Reopen this thread before registering a watch on it")
-        const t = terminalByHandle(input.handle)
-        if (!t?.terminal) return { refused: `No terminal is called ${input.handle}. \`ntwinectl activity\` lists the terminals you started.` }
-        const handle = t.terminal.handle ?? t.id
-        if (t.terminal.startedBy !== input.slug) return { refused: `@${handle} is not a terminal you started, so it cannot wake you. Start your own with \`ntwinectl terminal start\`.`, handle }
-        const terminalRow = ctx.terminalRunner.terminals().find(({ row }) => row.slug === t.id)?.row
-        if (terminalRow?.watch_id && (terminalRow.watch_expires_at ?? 0) > Date.now()) {
-          return { id: terminalRow.watch_id, handle, alreadyArmed: true, expiresAt: new Date(terminalRow.watch_expires_at!).toISOString() }
-        }
-        const outcome = terminalOutcome(t.terminal)
-        if (outcome !== "running") {
-          const now = outcome === "prompt" ? "is already waiting for input" : "is no longer running"
-          return { refused: `@${handle} ${now}, so there is nothing to wait for. Read it with \`ntwinectl terminal read @${handle}\`.`, handle }
-        }
-        const asked = parseAwaitingDurationRaw(input.for)
-        if (asked === null) throw new Error(`\`for: ${input.for}\` is not a duration — give one like \`30m\`, \`2h\` or \`3d\` (max 24h)`)
-        const forMs = Math.min(asked, AWAITING_FOR_MAX_MS)
-        const now = Date.now()
-        const id = `${OWN_TERMINAL_WATCH_ID_PREFIX}${randomUUID().replace(/-/g, "").slice(0, 12)}`
-        // A registration trumps a done — see setOwnThreadTimer.
-        ctx.storage.clearThreadDone(input.slug)
-        ctx.storage.setThreadTerminalWatch(t.id, id, now + forMs)
-        ctx.board.refresh()
-        return { id, handle, alreadyArmed: false, expiresAt: new Date(now + forMs).toISOString(), ...(asked > AWAITING_FOR_MAX_MS ? { clampedFrom: input.for } : {}) }
-      },
+      handler: async ({ input }) => armTerminalWatch(input.slug, input.handle, input.for),
     }),
 
     dropOwnTerminalWatch: mutation({
       input: DropOwnTerminalWatchInput,
       output: z.object({ dropped: z.boolean() }),
       handler: async ({ input }) => {
-        const hit = ctx.terminalRunner.terminals().find(({ row }) => row.watch_id === input.id && row.started_by === input.slug)
+        const hit = ctx.terminalRunner.terminals().find(({ row }) => row.watch_id === input.id && row.watch_slug === input.slug)
         if (!hit) return { dropped: false }
-        ctx.storage.setThreadTerminalWatch(hit.row.slug, null, null)
+        ctx.storage.setThreadTerminalWatch(hit.row.slug, null)
         ctx.board.refresh()
         return { dropped: true }
       },

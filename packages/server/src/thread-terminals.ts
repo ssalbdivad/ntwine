@@ -90,7 +90,7 @@ export interface TerminalRunner {
   live(parent: string): ThreadTerminal[]
   /** The run's screen so far, escape sequences dropped — `read-thread`'s answer for a terminal. */
   screenTail(id: string, maxChars?: number): string
-  /** Type into the live run's pty (`ntwinectl terminal send`). False when nothing is running to take it. */
+  /** Type into the live run's pty (`ntwinectl message-thread` from the thread that drives it). False when nothing is running to take it. */
   write(id: string, data: string): boolean
   /** The /term transport's gate: non-null iff this id is one of this project's terminals. */
   attach(id: string): TerminalAttachment | null
@@ -257,6 +257,13 @@ export function plainScreen(screen: string): string {
  * the human marked it so or it finished cleanly. A human snooze to a time parks a Ready one; a running one
  * cannot be snoozed (router), and a snooze ends at its next exit (storage recordTerminalExit).
  */
+/** Who types into a terminal: its controller, else its starter (control has not moved), else the human. */
+export { terminalNotesOf } from "./storage.ts"
+
+export function terminalControllerOf(row: Pick<ThreadTerminalRow, "controller" | "started_by"> | undefined): string {
+  return row?.controller ?? row?.started_by ?? "human"
+}
+
 export function terminalThreadView(row: Pick<ThreadTerminalRow, "slug" | "state" | "created_at" | "pinned_at" | "snoozed_until">, terminal: ThreadTerminal, nowMs = Date.now()): ThreadView {
   const outcome = terminalOutcome(terminal)
   const archived = row.state === "archived" || outcome === "finished"
@@ -508,6 +515,9 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       ...(row.parent_slug ? { parent: row.parent_slug } : {}),
       ...(row.started_by ? { startedBy: row.started_by } : {}),
       ...(row.handle ? { handle: row.handle } : {}),
+      // Its starter drives it until control moves (storage setThreadTerminalController).
+      controller: terminalControllerOf(row),
+      ...(row.control_agent ? { controlAgent: row.control_agent } : {}),
     }
   }
 
@@ -632,7 +642,10 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       return {
         replay: () => proc.replay(),
         onData: (listener) => proc.onData(listener),
-        write: (data) => proc.write(data),
+        // ONLY THE CONTROLLER TYPES (plans/terminal-threads.md § Control), the human included: while a thread
+        // drives it, a viewer's keystrokes are dropped here, whatever the pane draws. Read per keystroke, so a
+        // Take control lands on the very next key.
+        write: (data) => { if (terminalControllerOf(rows().get(id)) === "human") proc.write(data) },
         resize: (cols, rows) => proc.resize(cols, rows),
         onExit: (listener) => {
           // DEFERRED for a finished run: the transport delivers the replay in a microtask queued when

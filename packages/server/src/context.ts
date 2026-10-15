@@ -1,3 +1,4 @@
+import { handleOf } from "./thread-mentions.ts"
 import { mcpOnRequestSection, threadMcpGrants } from "./mcp-requests.ts"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
@@ -1156,6 +1157,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     scheduleRef: (row) => schedules?.threadRef(row),
     threadTerminals: () => terminalRunner.byThread(),
     terminalThreads: (nowMs) => terminalRunner.terminals().map(({ row, terminal }) => terminalThreadView(row, terminal, nowMs)),
+    projectTerminals: () => terminalRunner.terminals().map(({ terminal }) => terminal),
     codexTurnLiveness: (slug, sessionId) => codexAppServer?.turnLiveness(slug, sessionId),
     // Headless-stall signal for a broker row: the ownerless daemon's record. Absent bridge ⇒ default
     // "alive" so a bridge-less server never falsely crash-cards a broker row (there are none anyway).
@@ -1293,6 +1295,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     commandWatches,
     terminals: () => terminalRunner.terminals(),
     terminalScreen: (id) => terminalRunner.screenTail(id, 16_000),
+    threadHandle: (slug) => { const named = threadNamer.threads().find((t) => t.slug === slug); return named ? handleOf(named) : undefined },
     // Second wake source: every thread a subscription window cut off mid-turn gets its own "continue"
     // once that window rolls, over this same delivery path. The quota reader supplies the fallback
     // instant for a weekly limit, whose message text carries a clock but no date; readQuota memoizes,
