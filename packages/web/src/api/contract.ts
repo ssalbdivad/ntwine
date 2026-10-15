@@ -258,7 +258,7 @@ export interface Api {
   // Held threads (ThreadView.held): a thread written down without an agent — a schedule's next run —
   // its opening prompt edited, and its agent started.
   updateHeldPrompt(input: UpdateHeldPromptInput): Promise<void>
-  // `/todo <task>` in the new-thread box: a held thread that waits in Ready until it is started.
+  // `/todo <task>` in any prompt box: a held thread that waits in Ready until it is started.
   createTodo(input: CreateHeldThreadInput): Promise<{ slug: string; sessionId: string }>
   startHeldThread(input: StartHeldThreadInput): Promise<{ slug: string; sessionId: string }>
   unqueueFollowUp(input: UnqueueFollowUpInput): Promise<UnqueueFollowUpResult>

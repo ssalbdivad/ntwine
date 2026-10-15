@@ -646,6 +646,27 @@ a[href] {
   color: inherit;
 }
 
+/* Done today's count rolls up as it rises (BandLabel.tsx BandCount): the new number slides in from below. */
+@keyframes band-count-roll {
+  from {
+    transform: translateY(70%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.band-count-roll {
+  display: inline-block;
+  animation: band-count-roll 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .band-count-roll {
+    animation: none;
+  }
+}
+
 /* Radix popover/dropdown/dialog enter animations. Kept subtle — a short fade + tiny rise. */
 @keyframes pop-in {
   from {

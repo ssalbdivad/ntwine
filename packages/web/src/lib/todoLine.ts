@@ -1,7 +1,7 @@
 import type { ThreadSkill } from "@ntwine/shared"
 
-// THE `/todo` LINE (2026-10-15): `/todo <task>` in the new-thread box writes the task down as a TO-DO — a
-// thread with no agent behind it, waiting in Ready until it is started — instead of starting one. Like `$`,
+// THE `/todo` LINE (2026-10-15): `/todo <task>` in any prompt box writes the task down as a TO-DO — a
+// thread with no agent behind it, waiting in Ready until it is started — instead of starting or messaging one. Like `$`,
 // it is ntwine's own and is read only where it OPENS the draft; unlike `$` the task may run to several lines,
 // because it is the prompt the agent will start on. Undefined ⇒ the words are a prompt. A bare `/todo` is a
 // to-do with nothing in it yet: the box is in to-do mode, and Enter does nothing.

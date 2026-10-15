@@ -77,7 +77,7 @@ A browser tab opens on **All projects**, with acme picked in the prompt box beca
 
 - If the agent marks a question as safe to default and you haven't answered it 10m after its thread rests, it takes the agent's recommended option. That never applies to an option that posts, merges, publishes or spends, and every other question waits for you. The × under the card turns it off.
 - A parent waiting on its sub-agents is asked for a progress note every 30m, so a long fan-out never shows one stale line for hours.
-- Thread names, status lines, Auto effort, reading a schedule out of a prompt and a to-do's first steps use your Claude sign-in. `NTWINE_THREAD_NAMER=0`, `NTWINE_AUTO_EFFORT=0` and `NTWINE_TODO_STEPS=0` turn them off.
+- Thread names, status lines, Auto effort, reading a schedule out of a prompt and a to-do's starters use your Claude sign-in. `NTWINE_THREAD_NAMER=0`, `NTWINE_AUTO_EFFORT=0` and `NTWINE_TODO_STEPS=0` turn them off.
 - A clean worktree in `.ntwine/worktrees` idle for 7d is removed; its branch is kept. **Settings → Remove idle worktrees after** turns it off.
 - Single-key shortcuts (`j`/`k`, `r`, `d`, `s`) are on. `?` lists them and rebinds any of them.
 
@@ -110,7 +110,7 @@ Here's what ntwine has added so far:
 - **First-run tour.** A new browser opens on All projects with a short tour of the page. **Take the tour** in ⌘K replays it.
 - **Schedules.** Type "every weekday at 9am triage new issues" and the prompt box reads the schedule as you type. Each run starts a fresh thread.
 - **Time limits.** Give a thread `2h` or `15:30`. The agent plans the best result it can deliver by then, its sub-agents get a share, and the card counts down. Running out never interrupts a turn.
-- **To-dos.** Start a prompt with `/todo` to write the task down instead of starting an agent: it waits in Ready with a few first steps (a draft message, the page to open, where to look), and sending it starts the agent.
+- **To-dos.** Start a prompt with `/todo` to write the task down instead of starting an agent, in the new-thread box or inside a thread (the thread's agent never sees it): it waits in Ready with up to three starters, first jobs an agent can do right away (draft the message, find the options, find where the fix goes). Click one to start the agent on it, or send the box as written.
 - **Terminals.** Start a prompt with `$ npm run dev` to run it as a thread of its own, in the project or one of its worktrees. Press `t` on a thread for one in the folder its agent works in. It sits in Working while it runs, comes to Ready when it waits for input or fails, and keeps running through an ntwine restart.
 - **Home.** A board for work that doesn't belong to a project yet, like cloning a repo or asking about your machine. It's the switcher's last choice.
 - **A VS Code, Cursor and Windsurf extension.** ntwine lives in the editor's sidebar. Your selection goes along with your message (⌘L), agents can read what you have open, and a thread's changes open as a multi-file diff.
@@ -212,7 +212,7 @@ In the terminal running ntwine, **R** sets up remote access and **L** shows a fr
 <details>
 <summary><b>Does ntwine run its own agent or model?</b></summary>
 
-> No. It drives Claude Code, Codex or an ACP agent under the account you're signed in to. ntwine does make a few short calls of its own on that same Claude sign-in: naming a thread, writing its status line, choosing an effort for Auto, reading a schedule from a prompt, and writing a to-do's first steps. `NTWINE_THREAD_NAMER=0`, `NTWINE_AUTO_EFFORT=0` and `NTWINE_TODO_STEPS=0` turn them off, and each one falls back to doing without. ntwine runs its own pinned copy of each CLI. Set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another.
+> No. It drives Claude Code, Codex or an ACP agent under the account you're signed in to. ntwine does make a few short calls of its own on that same Claude sign-in: naming a thread, writing its status line, choosing an effort for Auto, reading a schedule from a prompt, and proposing a to-do's starters. `NTWINE_THREAD_NAMER=0`, `NTWINE_AUTO_EFFORT=0` and `NTWINE_TODO_STEPS=0` turn them off, and each one falls back to doing without. ntwine runs its own pinned copy of each CLI. Set `NTWINE_CLAUDE_BIN` or `NTWINE_CODEX_BIN` to point it at another.
 
 </details>
 

@@ -215,6 +215,8 @@ export function TierList({
     return out
   }
 
+  const doneRose = useDoneArrivals(listRef, slots("done"))
+
   const pinned = slots("pinned")
   const ready = slots("ready")
   const readyShown = ready.slice(0, budget.readyShown)
@@ -322,6 +324,7 @@ export function TierList({
             band="done"
             label="Done today"
             count={done.length}
+            roll={doneRose}
             tail={
               <button type="button" data-xq-open-history onClick={() => setCenterTab("history")} className="relative -mx-1 rounded px-1 outline-none transition-colors hover:bg-hover-strong hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
                 History
@@ -547,4 +550,39 @@ function MoreRow({ count, label, detail, onClick }: { count: number; label: stri
       </button>
     </div>
   )
+}
+
+// A row that lands in Done today while the list is on screen settles in: a brief rise and a wash that fades.
+// The first paint records what is already there, so only a thread finishing in front of the human plays it.
+// Driven through the Web Animations API on the row's own element, because the rows are the run's direct
+// children (the cord reads them by place) and a wrapper would cut it.
+// Returns whether the count has risen since the first paint, which rolls the header's number (BandCount):
+// the section unmounts at zero, so the count's own component cannot see a first finish of the day.
+function useDoneArrivals(listRef: RefObject<HTMLDivElement | null>, done: readonly HeldSlot<Entry>[]): boolean {
+  const seen = useRef<Set<string> | null>(null)
+  const first = useRef<number | null>(null)
+  first.current ??= done.length
+  const ids = done.map((slot) => slot.item.t.id).join(" ")
+  useLayoutEffect(() => {
+    const now = new Set(ids ? ids.split(" ") : [])
+    const before = seen.current
+    seen.current = now
+    if (!before || matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    for (const id of now) {
+      if (before.has(id)) continue
+      const el = listRef.current?.querySelector<HTMLElement>(`[data-xq-tier="done"] [data-sidebar-item="${CSS.escape(id)}"]`)
+      if (!el) continue
+      // To the row's own resting opacity: Done rows are dimmed, and a fade to 1 would snap down at the end.
+      const rest = getComputedStyle(el).opacity
+      el.animate(
+        [
+          { opacity: 0, transform: "translateY(-3px)", backgroundColor: "color-mix(in srgb, var(--color-accent) 12%, transparent)" },
+          { opacity: rest, transform: "translateY(0)", offset: 0.35 },
+          { opacity: rest, backgroundColor: "transparent" },
+        ],
+        { duration: 700, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
+      )
+    }
+  }, [ids, listRef])
+  return done.length > first.current
 }

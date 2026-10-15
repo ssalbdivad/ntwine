@@ -148,7 +148,7 @@ export function RailRow({ t, active, open = false, restedAge = false, scope, car
 // touching the titles and 19px (a row's line) read as an empty row. It is also what lets the board carry
 // a header over each band and still show upstream's 22 rows at 1440x900 (capacityParity.e2e.test.ts):
 // upstream's headers were 24.5px, and the board has no room for that.
-export function SectionHeader({ band, count, collapsed, onToggle, attention = false, label: named, tail }: {
+export function SectionHeader({ band, count, collapsed, onToggle, attention = false, label: named, tail, roll = false }: {
   band: BandKey | "schedules"
   count: number
   collapsed?: boolean
@@ -159,6 +159,8 @@ export function SectionHeader({ band, count, collapsed, onToggle, attention = fa
   label?: string
   /** Right-aligned beside the header, outside its fold button: a reading or a link (TierList.tsx). */
   tail?: ReactNode
+  /** The count rolls up as it rises (BandCount). */
+  roll?: boolean
 }) {
   const { Icon, label: own } = band === "schedules" ? SCHEDULES_BAND : BANDS[band]
   const label = named ?? own
@@ -179,7 +181,7 @@ export function SectionHeader({ band, count, collapsed, onToggle, attention = fa
           and the count's own `ml-1.5`, 10px, where the line's `gap-2` would have stood it 14px off. */}
       <span className="flex min-w-0 items-baseline gap-1">
         <span>{label}</span>
-        {attention ? <span className="ml-1.5 tabular-nums text-attention-soft">{count}</span> : <BandCount count={count} />}
+        {attention ? <span className="ml-1.5 tabular-nums text-attention-soft">{count}</span> : <BandCount count={count} roll={roll} />}
       </span>
     </>
   )

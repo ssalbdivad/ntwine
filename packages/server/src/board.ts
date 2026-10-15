@@ -7,6 +7,7 @@ import {
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import watcher from "@parcel/watcher"
+import { parseTodoStarters, type TodoStarter } from "./todo-steps.ts"
 import type { BoardSnapshot, ClaudeModel, ThreadScheduleRef, ThreadTerminal, ThreadView, RuntimeState, ThreadRecurringPrompt, ProviderError } from "@ntwine/shared"
 import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingNeedsInput, awaitingStatus, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionPassedOver, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
@@ -2537,6 +2538,8 @@ function sessionThreadView(
 // A SCHEDULE'S NEXT RUN (`view.schedule.pending`, ARCHITECTURE.md § Scheduled threads) is parked: it keeps its
 // wake time even once that has passed — the scheduler, not the clock, starts it, and the seconds between
 // its time and the tick that starts it must not drop it into Active.
+const optionalStarters = (starters: TodoStarter[] | undefined) => (starters ? { todoStarters: starters } : {})
+
 export function heldThreadView(view: ThreadView, row: SessionRow): ThreadView {
   const pending = view.schedule?.pending === true && !view.archived
   const parkedUntil = pending && SnoozeUntil.safeParse(row.snoozed_until).success ? row.snoozed_until ?? undefined : undefined
@@ -2544,7 +2547,7 @@ export function heldThreadView(view: ThreadView, row: SessionRow): ThreadView {
     ...view,
     held: row.held_by ?? undefined,
     heldPrompt: row.lazy_prompt ?? "",
-    ...(isTodoRow(row) && row.todo_steps ? { todoSteps: row.todo_steps } : {}),
+    ...(isTodoRow(row) && row.todo_steps ? optionalStarters(parseTodoStarters(row.todo_steps)) : {}),
     runtime: "turn-idle",
     ...(parkedUntil ? { snoozedUntil: parkedUntil } : {}),
     needsYou: isTodoRow(row) && !view.archived && view.snoozedUntil === undefined,

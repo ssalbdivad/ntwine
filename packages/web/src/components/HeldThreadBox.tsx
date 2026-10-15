@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, type ReactElement } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { Footprints } from "lucide-react"
 import type { ThreadView } from "@ntwine/shared"
+
+type TodoStarter = NonNullable<ThreadView["todoStarters"]>[number]
 import { showToast } from "../store.ts"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { Composer } from "./Composer.tsx"
-import { LinkedHtml } from "./LinkedHtml.tsx"
-import { QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
-import { useMarkdownHtml } from "../lib/useMarkdown.ts"
+import { TranscriptCard } from "./TranscriptCard.tsx"
 
 // A HELD THREAD's prompt box (ThreadView.held): a thread written down with no agent behind it. Its text IS
 // the box's text — there is no separate note view to keep in step with a draft — so the queue card and the
@@ -25,13 +25,43 @@ import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 // other surface, another tab).
 const SAVE_DELAY_MS = 500
 
-/** A TO-DO's first steps (ThreadView.todoSteps): what a model wrote from the task to help start it — a
- *  draft, a page, where to look. Drawn over the box on the queue card and in the drawer. */
-export function TodoSteps({ steps }: { steps: string }): ReactElement {
-  const html = useMarkdownHtml(steps)
+/** What a starter launches: the to-do itself, then the first job picked. */
+export function starterPrompt(task: string, starter: TodoStarter): string {
+  return `${task.trim()}\n\nStart here: ${starter.prompt}`
+}
+
+function useLaunch(thread: ThreadView) {
+  const api = useThreadApi()
+  const sessionId = thread.sessionId ?? ""
+  return useMutation({
+    mutationFn: (prompt: string) => api.startHeldThread({ slug: thread.id, sessionId, prompt }),
+    onError: (cause) => showToast(`Could not start the agent: ${(cause instanceof Error ? cause.message : String(cause)).slice(0, 80)}`),
+  })
+}
+
+/** A TO-DO's starters (ThreadView.todoStarters): up to three first jobs a model proposed from the task,
+ *  each a button that starts the agent on it. Drawn over the box on the queue card and in the drawer. */
+export function TodoStarters({ thread }: { thread: ThreadView }): ReactElement | null {
+  const launch = useLaunch(thread)
+  const starters = thread.todoStarters
+  if (!starters?.length) return null
+  const task = thread.heldPrompt ?? ""
   return (
-    <TranscriptCard icon={Footprints} label="First steps" data-todo-steps="">
-      <LinkedHtml className={`md-body ${QUEUE_WRAP}`} html={html} />
+    <TranscriptCard icon={Footprints} label="Start with" data-todo-starters="">
+      <div className="flex flex-col gap-1.5">
+        {starters.map((starter) => (
+          <button
+            key={starter.label}
+            type="button"
+            title={starter.prompt}
+            disabled={launch.isPending || !thread.sessionId}
+            onClick={() => launch.mutate(starterPrompt(task, starter))}
+            className="rounded-md border border-border/70 px-3 py-2 text-left text-sm text-fg hover:border-accent hover:bg-accent/10 disabled:opacity-50"
+          >
+            {starter.label}
+          </button>
+        ))}
+      </div>
     </TranscriptCard>
   )
 }
@@ -69,10 +99,7 @@ export function HeldThreadComposer({ thread, surface, className, id }: HeldCompo
     return () => clearTimeout(timer)
   }, [text, thread.id])
 
-  const launch = useMutation({
-    mutationFn: (prompt: string) => api.startHeldThread({ slug: thread.id, sessionId, prompt }),
-    onError: (cause) => showToast(`Could not start the agent: ${(cause instanceof Error ? cause.message : String(cause)).slice(0, 80)}`),
-  })
+  const launch = useLaunch(thread)
 
   const submit = () => {
     const prompt = text.trim()

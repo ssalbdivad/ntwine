@@ -3680,14 +3680,14 @@ export function createRouter(ctx: AppContext) {
     //
     // Rewrite a held thread's opening prompt — a schedule's next run's, edited for that run alone, or the text
     // base would start a thread whose holder is gone on. Refused once it has started: it was the first message.
-    // Write down a TO-DO: `/todo <task>` in the new-thread box. A held row, no agent, waiting in Ready
+    // Write down a TO-DO: `/todo <task>` in any prompt box. A held row, no agent, waiting in Ready
     // (heldThreadView) until the human starts it. The profile is the box's pick, what the agent starts on.
     createTodo: mutation({
       input: CreateHeldThreadInput,
       output: z.object({ slug: ThreadSlug, sessionId: z.string() }),
       handler: async ({ input }) => {
         const made = ctx.dispatcher.createHeldThread(input, { holder: TODO_HOLDER })
-        // Its first steps follow in the background (todo-steps.ts); the to-do is in Ready without them.
+        // Its starters follow in the background (todo-steps.ts); the to-do is in Ready without them.
         void ctx.todoSteps?.write({ slug: made.slug, sessionId: made.sessionId, task: input.prompt })
         return made
       },

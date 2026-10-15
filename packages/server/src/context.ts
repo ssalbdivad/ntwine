@@ -189,7 +189,7 @@ export interface AppContext {
   // project-wide uniqueness check every title writer runs. Optional so a hand-built test context need
   // not supply one; the router then checks uniqueness against storage alone.
   threadNamer?: ThreadNamer
-  // A to-do's first steps (todo-steps.ts), written in the background when one is added. Optional like the
+  // A to-do's starters (todo-steps.ts), written in the background when one is added. Optional like the
   // namer: a hand-built test context adds to-dos without steps.
   todoSteps?: TodoStepsWriter
   // Per-session agent-backend resolver behind the spawn/resume/transcript seam (Codex-support epic).

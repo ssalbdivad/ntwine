@@ -1,26 +1,31 @@
 import type { ClaudeOneShot, ClaudeOneShotRequest } from "./backend/claude-oneshot.ts"
 
-// A TO-DO'S FIRST STEPS (2026-10-15, maintainer-confirmed as one of ntwine's own model calls). A to-do is a
-// task written down mid-flow to come back to (`/todo`, heldThreadView) — a coding task an agent will start
-// on ("fix the flaky resume test"), or one only the human can do ("message Mateusz about the bug", "apply
-// for the grant"). When one is added, ONE short completion reads the task and writes how to get started:
-// for a human task the draft message, the page to open, the first thing to do; for a coding task where to
-// look first. It runs in the background on the operator's Claude sign-in, through the same one-shot
-// completer as the namer, and is off with NTWINE_TODO_STEPS=0 (or NTWINE_THREAD_NAMER=0, which silences
-// every call ntwine makes itself). Nothing waits on it: the to-do is in Ready before the answer lands, and a
-// failure leaves it without steps.
+// A TO-DO'S STARTERS (2026-10-15, maintainer-confirmed as one of ntwine's own model calls). A to-do is a
+// task written down mid-flow to come back to (`/todo`, heldThreadView). When one is added, ONE short
+// completion reads it and proposes up to three ways to START it, each a job an agent can do right now —
+// draft the message, find the candidates, read the code and say where the fix goes. The card draws them as
+// buttons, and one click starts the agent on that starter. The point is that opening a to-do never hands
+// the human homework: the first act is picking, and thirty seconds later something is running. Acts only
+// the human can do (send, sign in, apply) surface later, when the agent is actually blocked on one.
 //
-// The model has no tools, so it cannot browse, search or read the repo. A link is offered only when it is
-// the well-known official page; anything else says where to find it.
+// It runs in the background on the operator's Claude sign-in, through the same one-shot completer as the
+// namer, and is off with NTWINE_TODO_STEPS=0 (or NTWINE_THREAD_NAMER=0). Nothing waits on it: the to-do is
+// in Ready before the answer lands, and a failure leaves it with the plain prompt box.
+//
+// Stored as JSON in session.todo_steps. A row written by the earlier Markdown "first steps" does not parse
+// and draws no starters.
 
 /** Background and judgement-heavy, like the status line: more than the smallest model. */
 export const TODO_STEPS_MODEL = "sonnet"
 
 const TASK_CHARS = 4000
-/** What the card shows at most. A longer answer is cut at a line rather than dropped. */
-export const TODO_STEPS_MAX_CHARS = 1200
+export const TODO_STARTERS_MAX = 3
+const LABEL_CHARS = 60
+const PROMPT_CHARS = 600
 
-const SYSTEM = "You help a developer get started on a to-do they wrote down while busy with something else. You reply with the first steps alone, in Markdown, or with NONE."
+export interface TodoStarter { label: string; prompt: string }
+
+const SYSTEM = "You help a developer start a to-do they wrote down while busy with something else. You reply with JSON alone."
 
 export function todoStepsRequest(task: string, project?: string): ClaudeOneShotRequest {
   const body = task.length > TASK_CHARS ? `${task.slice(0, TASK_CHARS)}…` : task
@@ -31,31 +36,46 @@ export function todoStepsRequest(task: string, project?: string): ClaudeOneShotR
     body,
     "</todo>",
     "",
-    "Write what would help them START it when they come back to it, with nothing else in front of them.",
+    "Propose up to 3 ways for an AI agent to START on it right now. The agent can read and write files, run commands, search the web and draft text, but cannot send messages, sign in, pay or apply on the developer's behalf. Each starter is a job the AGENT does, never homework for the developer.",
     "",
-    "Decide first whether it is a task for a coding agent (change, fix, investigate code) or one only the developer can do (write to someone, apply, buy, book, decide). Then:",
-    "- For a human task, do the first step for them where you can: a ready-to-send draft of the message (in a blockquote, short, in their voice, no placeholders beyond a name you do not know), the official page to open, or the first concrete action.",
-    "- For a coding task, give the one or two places to look first or the question to answer first. Never restate the task as a plan.",
-    "- At most 3 short bullets, or one draft and one line. Plain, direct, no headings, no preamble, no sign-off. Never say which kind of task it is.",
+    "- Each is one small, concrete first job that finishes in one sitting and stands alone: no starter assumes another was done.",
+    "- Prefer different angles (e.g. draft the thing, gather the options, figure out the current state), not three slices of one plan.",
+    "- For a task only the developer can finish (write to someone, apply, buy), the agent prepares it: a draft, a shortlist, the exact page and what to enter.",
+    "- `label`: what the agent will do, imperative, sentence case, at most 8 words, no trailing period.",
+    "- `prompt`: the instruction the agent starts on, one or two sentences, specific to this to-do.",
     "- Refer to a person by name, never by a guessed pronoun.",
-    "- A link only when you are certain it is the real, official, long-lived page (a provider's own sign-up or settings page). Never guess a URL; say where to find it instead.",
-    "- If the to-do is already a complete instruction with nothing to add, reply exactly NONE.",
+    "- If the to-do is already one complete instruction with nothing to choose between, reply [].",
+    "",
+    'Reply with a JSON array only, e.g. [{"label": "Draft the reply to Mateusz", "prompt": "Draft a short reply to Mateusz about the resume bug, ready to paste."}]',
   ]
   return { system: SYSTEM, prompt: lines.join("\n"), model: TODO_STEPS_MODEL }
 }
 
-/** The steps to show, or undefined when there are none worth showing. */
-export function cleanTodoSteps(raw: string): string | undefined {
+/** The starters in a model's answer or a stored row, or undefined when there are none worth showing. */
+export function parseTodoStarters(raw: string): TodoStarter[] | undefined {
   const text = raw.trim()
-  if (!text || /^none\.?$/iu.test(text)) return undefined
-  if (text.length <= TODO_STEPS_MAX_CHARS) return text
-  const cut = text.slice(0, TODO_STEPS_MAX_CHARS)
-  const line = cut.lastIndexOf("\n")
-  return `${(line > 0 ? cut.slice(0, line) : cut).trimEnd()}\n…`
+  const open = text.indexOf("[")
+  const close = text.lastIndexOf("]")
+  if (open < 0 || close < open) return undefined
+  let value: unknown
+  try { value = JSON.parse(text.slice(open, close + 1)) } catch { return undefined }
+  if (!Array.isArray(value)) return undefined
+  const starters: TodoStarter[] = []
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) continue
+    const { label, prompt } = item as Record<string, unknown>
+    if (typeof label !== "string" || typeof prompt !== "string") continue
+    const l = label.trim().replace(/\.$/u, "")
+    const p = prompt.trim()
+    if (!l || !p) continue
+    starters.push({ label: l.slice(0, LABEL_CHARS), prompt: p.slice(0, PROMPT_CHARS) })
+    if (starters.length === TODO_STARTERS_MAX) break
+  }
+  return starters.length ? starters : undefined
 }
 
 export interface TodoStepsWriter {
-  /** Write the steps for a to-do just added. Never throws; resolves once recorded, or given up on. */
+  /** Write the starters for a to-do just added. Never throws; resolves once recorded, or given up on. */
   write(input: { slug: string; sessionId: string; task: string }): Promise<void>
 }
 
@@ -70,10 +90,10 @@ export function createTodoStepsWriter(deps: {
       const complete = deps.complete
       if (!complete) return
       try {
-        const steps = cleanTodoSteps(await complete(todoStepsRequest(task, deps.project)))
-        if (steps) deps.record(slug, sessionId, steps)
+        const starters = parseTodoStarters(await complete(todoStepsRequest(task, deps.project)))
+        if (starters) deps.record(slug, sessionId, JSON.stringify(starters))
       } catch (error) {
-        deps.log?.(`first steps for ${slug} failed: ${error instanceof Error ? error.message : String(error)}`)
+        deps.log?.(`starters for ${slug} failed: ${error instanceof Error ? error.message : String(error)}`)
       }
     },
   }

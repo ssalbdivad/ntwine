@@ -55,8 +55,13 @@ export function BandGlyph({ band }: { band: BandKey }) {
 }
 
 /** A band's count, riding right beside its label: it is meaningful data, not a margin ornament. */
-export function BandCount({ count }: { count: number }) {
-  return <span className="ml-1.5 tabular-nums text-muted-60">{count}</span>
+export function BandCount({ count, roll = false }: { count: number; /** The count just rose: roll the new number in (Done today). */ roll?: boolean }) {
+  if (!roll) return <span className="ml-1.5 tabular-nums text-muted-60">{count}</span>
+  return (
+    <span className="ml-1.5 inline-flex overflow-hidden tabular-nums text-muted-60">
+      <span key={count} className="band-count-roll">{count}</span>
+    </span>
+  )
 }
 
 /**

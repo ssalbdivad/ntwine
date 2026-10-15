@@ -22,6 +22,8 @@ import { useQueryClient } from "@tanstack/react-query"
 import type { TranscriptData } from "../hooks.ts"
 import { RegisteredAnsweringContext } from "./RegisteredQuestionCards.tsx"
 import { composerTerminalLine } from "../lib/threadTerminals.ts"
+import { composerTodoLine, TODO_SLASH_ITEM } from "../lib/todoLine.ts"
+import { useThreadApi } from "../api/threadApi.tsx"
 import { startComposerTerminal } from "./ThreadTerminals.tsx"
 import { HeldThreadComposer } from "./HeldThreadBox.tsx"
 import { useIsMobile } from "../lib/mobile.ts"
@@ -123,13 +125,14 @@ export function ThreadComposerBox({
   const userCommands = userCommandsQuery.data?.commands
   // The thread's harness skills and the operator's own user commands, as one menu (useUserCommands.ts).
   const slashSuggest = useMemo(
-    () => () => Promise.all([fetchThreadSkills(slug), fetchUserCommands(qc, projectDir)]).then(([skills, commands]) => mergeSlashItems(skills, commands)),
+    () => () => Promise.all([fetchThreadSkills(slug), fetchUserCommands(qc, projectDir)]).then(([skills, commands]) => [TODO_SLASH_ITEM, ...mergeSlashItems(skills, commands).filter((item) => item.name !== TODO_SLASH_ITEM.name)]),
     [slug, qc, projectDir],
   )
   // `@` mentions offer every OTHER thread on the board — this one cannot usefully point at itself.
   const mentions = useMentionCandidates(slug)
   const ownMention = useOwnMention(slug)
   const [logoutFor, setLogoutFor] = useState<AccountBackend | null>(null)
+  const api = useThreadApi()
 
   // The staged selections' tokens, painted as chips; deleting a token's text drops its item
   // (lib/stagedContext.ts). Keyed by this draft, so the queue card's copy of the box shows the same.
@@ -186,6 +189,22 @@ export function ThreadComposerBox({
       const backend: AccountBackend = thread?.backend === "codex" ? "codex" : "claude"
       if (alias === "login") setSignInFor(backend)
       else setLogoutFor(backend)
+      return
+    }
+    // NTWINE'S OWN COMMANDS MEAN THE SAME IN EVERY BOX. `/todo <task>` here writes a to-do in this thread's
+    // project exactly as the new-thread box does, and never reaches this thread's agent or interrupts its
+    // turn. The to-do names the thread it was noted from, so the agent it later starts can read that one.
+    const todo = composerTodoLine(text)
+    if (todo) {
+      if (!todo.task) return
+      clearMessage()
+      api.createTodo({ prompt: `${todo.task}\n\n(Noted from @${slug}.)` }).then(
+        (made) => showToast("To-do added", { link: { label: "Open to-do", slug: made.slug } }),
+        (error: unknown) => {
+          if (!draftStore.get(key)) setMessage(message)
+          showToast(`Could not add the to-do: ${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`)
+        },
+      )
       return
     }
     // `$ npm test` is not a message: it opens a terminal on this thread, in the folder its agent is working
