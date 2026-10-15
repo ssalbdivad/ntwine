@@ -44,9 +44,11 @@ import { useThreadApi } from "../api/threadApi.tsx"
 import { stopBackgroundShells } from "../lib/dismissChildOp.ts"
 import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
 import { ICON_LABEL_NUDGE } from "../lib/iconAlign.ts"
+import { offersKeepWorking } from "../lib/keepWorking.ts"
 import { PRIMER, PRIMER_DANGER_LINK } from "../lib/primer.ts"
 import { LinkedHtml } from "./LinkedHtml.tsx"
 import { StepsDone, StepsList } from "./AwaitingSteps.tsx"
+import { KeepWorkingButton } from "./KeepWorking.tsx"
 import { useShellFolderHint } from "./ThreadTerminals.tsx"
 import { CARD_ACTION_EXPLAINER, CARD_ACTION_RADIUS, CardActions, CARD_BODY, CARD_LINK, CARD_PRIMARY_ACTION, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 
@@ -1271,7 +1273,7 @@ function AwaitingAskUpdate({ thread }: { thread: Pick<ThreadView, "id" | "sessio
   )
 }
 
-export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed, replySteps }: {
+export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed, reply }: {
   // `id` joins the Pick because the rows OPEN things now: a shell's output drawer and a sub-agent's
   // transcript are both addressed by the parent thread's slug. `lastFence` joined on 2026-08-24: the
   // fence's prose is this card's opening stratum, so the card reads it directly off the thread.
@@ -1297,13 +1299,14 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
    *  any more — the tailer clears `lastFence` on the very user record that bumps it — so the caller that
    *  parsed it out of the message hands it in here instead of a second renderer growing around it. */
   fence?: { body: string; hints: readonly AwaitingHint[] }
-  // The optimistic exit for the STEPS verb: replying "Done" takes the thread out of the queue, and puts
-  // it back if the send fails. Only a surface with a card to fade passes it.
+  // The optimistic exit for the verbs that REPLY (the steps' Done, Keep working): the reply takes the
+  // thread out of the queue, and puts it back if the send fails. Only a surface with a card to fade
+  // passes it.
   onReplied?: () => void
   onReplyFailed?: () => void
-  /** How the steps' Done is delivered, when not by the page's eager follow-up (StepsDone `send`): the
-   *  queue card sends into its own project. */
-  replySteps?: (message: string) => Promise<void>
+  /** How those replies are delivered, when not by the page's eager follow-up (StepsDone / KeepWorkingButton
+   *  `send`): the queue card sends into its own project. */
+  reply?: (message: string) => Promise<void>
 }) {
   // The thread's live work, as the rows and the heading read it. A card with no owning thread has none
   // of it — no rows, no shell-only heading — rather than a branch at every use below.
@@ -1353,6 +1356,10 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // a fence the thread has moved past has no park left to check in on. A `watching` rest is the very
   // orchestration whose sub-agents report only at the check-in, so it is where asking early matters most.
   const askable = restOwned && fence === undefined && thread!.lastFence?.kind === "awaiting"
+  // KEEP WORKING: the same parked rest, when the worker parked it `needs_input` on work still running
+  // (lib/keepWorking.ts). It is the card's one white verb, and the first: it is the answer to what the
+  // card is asking, where the two beside it are about the work.
+  const keepWorking = askable && offersKeepWorking(thread!)
   const footer = askable || stopIds.length > 0
   return (
     // The SAME shell as every transcript card (TranscriptCard). This card stacks directly under an
@@ -1451,11 +1458,13 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
       )}
       <WaitGrid groups={groups} divider={!!prose} />
       {/* THE FOOTER BAND — the card's verbs, in the family's shared action footer (CardActions), so they
-          read as chrome under the content rather than as one more row of it: Ask for update, then Stop. */}
+          read as chrome under the content rather than as one more row of it: Keep working, Ask for update,
+          then Stop. */}
       {stepsLive ? (
-        <StepsDone slug={thread.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={replySteps} />
+        <StepsDone slug={thread.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />
       ) : footer ? (
         <CardActions data-awaiting-actions>
+          {keepWorking && <KeepWorkingButton key={thread!.lastAssistantAt ?? ""} slug={thread!.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />}
           {askable && <AwaitingAskUpdate key={thread!.lastAssistantAt ?? ""} thread={thread!} />}
           {stopIds.length > 0 && <AwaitingStopShells key={stopIds.join(" ")} slug={thread!.id} ids={stopIds} />}
         </CardActions>

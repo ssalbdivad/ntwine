@@ -1109,7 +1109,7 @@ function CardSettledStack({ questions, className }: { questions: readonly Settle
  * absent, the card stating a fence the thread is no longer at rest on when it is given — wired to THIS
  * card's project and exits, because everything it does would otherwise reach the page's:
  *
- *   • the steps' Done is an ordinary reply, sent into the card's project (lib/projectFollowUp.ts, the
+ *   • the steps' Done and Keep working are ordinary replies, sent into the card's project (lib/projectFollowUp.ts, the
  *     reply box's own send). The card LEAVES on the click — upstream's optimistic exit (TodosView
  *     AwaitingBackgroundBanner) — stays gone while the reply is on the wire, and comes back if it fails;
  *   • its Stop and Ask for update read the card's client through the ThreadProjectScope here;
@@ -1132,7 +1132,7 @@ function CardAwaiting({ project, thread, fence, onLeave, onSent, onLanded, onRet
     openInPlace(project, thread.id, displayTitle(thread))
     if (here) push()
   }, [openInPlace, project, thread])
-  const replySteps = useCallback((message: string) => deliverFollowUp(project, thread, message).then(
+  const reply = useCallback((message: string) => deliverFollowUp(project, thread, message).then(
     () => {
       onLanded()
       void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
@@ -1150,7 +1150,7 @@ function CardAwaiting({ project, thread, fence, onLeave, onSent, onLanded, onRet
           fence={fence}
           onReplied={onSent}
           onReplyFailed={onReturn}
-          replySteps={replySteps}
+          reply={reply}
         />
       </WaitRowOpenContext.Provider>
     </ThreadProjectScope>

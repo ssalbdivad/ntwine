@@ -2474,6 +2474,31 @@ export function parseSpinoffRequest(text: string): { id: string; instructions: s
   return { id: m[2], instructions: m[3] }
 }
 
+// KEEP WORKING — the human's "nothing needed, carry on" to a worker parked `status: needs_input` on work
+// still running (the resting card's Keep working, web AwaitingBackgroundCard). A worker that offers the
+// human something to look at while its shells or sub-agents run ("try the dev server now") rightly parks
+// `needs_input`, which queues it; once the human has looked and needs nothing, the honest place for the
+// thread is Working again. ntwine never moves it there itself (the worker's last word decides its state),
+// so the button SENDS THIS MESSAGE through the ordinary follow-up path and the worker re-parks.
+//
+// The envelope is for the transcript, not the worker: it is what lets every projection draw the turn as
+// the human's one-line marker rather than a bubble of agent-facing instructions (server transcript.ts
+// userProjection, acp-transcript.ts, and the browser's own read of an optimistic or held send). The body
+// is the instruction. The parser accepts any body, so a later rewording still renders old transcripts.
+export const KEEP_WORKING_MESSAGE = [
+  "<keep-working>",
+  "I've seen your update and need nothing from you right now. Re-park on what is still running with `status: working` and no write-up. If none of it is still running, carry on.",
+  "</keep-working>",
+].join("\n")
+
+const KEEP_WORKING = /^<keep-working>\n[\s\S]*?\n<\/keep-working>\s*$/
+
+/** Is this user turn the resting card's Keep working? Anchored at both ends, so a human who pastes the
+ *  envelope inside a message of their own is still just talking. */
+export function isKeepWorkingMessage(text: string): boolean {
+  return KEEP_WORKING.test(text.trimStart())
+}
+
 /** The new thread's first prompt when it does not fork the parent: the human's words and where they came
  *  from, then the context ntwine assembled from the parent (spinoffContext). Written by the SERVER, so the
  *  human's instructions reach the child verbatim, and the child can find its way back.
@@ -7730,6 +7755,10 @@ export const TranscriptMessage = z.object({
   // one user bubble, since the context is not the human's words. `displayText` carries the instructions alone, so everything that quotes a thread's request
   // (the queue card, `read_thread`) quotes what the human asked. Additive + optional.
   spinoffOrigin: z.object({ instructions: z.string(), brief: z.string() }).optional(),
+  // THE HUMAN'S KEEP WORKING (KEEP_WORKING_MESSAGE): their own send, but its words are an instruction to
+  // the worker, so the chat draws a one-line marker instead of their bubble, and the readers that look for
+  // what the human last ASKED skip it the way they skip a spinoff request. Additive + optional.
+  keepWorking: z.literal(true).optional(),
 })
 export type TranscriptMessage = z.infer<typeof TranscriptMessage>
 
