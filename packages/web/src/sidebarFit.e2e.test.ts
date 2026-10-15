@@ -56,8 +56,9 @@ const VIEWPORTS: { key: Viewport; width: number; height: number }[] = [
 
 // ── The loads ────────────────────────────────────────────────────────────────────────────────────────
 
-type Band = "pinned" | "ready" | "working" | "snoozed" | "done"
-const LOUD: ReadonlySet<Band> = new Set(["pinned", "ready", "working"])
+type Band = "pinned" | "ready" | "working" | "waiting" | "snoozed" | "done"
+// Waiting never folds either (2026-10-14): it gives rows up to a "N more waiting" line, never to a fold.
+const LOUD: ReadonlySet<Band> = new Set(["pinned", "ready", "working", "waiting"])
 type SeedThread = { slug: string; title: string; band: Band }
 type Load = { name: string; projects: { name: string; threads: SeedThread[] }[] }
 
@@ -89,8 +90,8 @@ const TITLES = [
   "Backfill missing invoice line items for September",
   "Review the dependency bump PR from renovate",
 ]
-// Every ten open threads: 4 queue, 3 running, 2 snoozed, 1 pinned. 70 of them is 28 / 21 / 14 / 7.
-const BAND_CYCLE: Band[] = ["ready", "working", "snoozed", "ready", "working", "ready", "pinned", "ready", "working", "snoozed"]
+// Every ten open threads: 4 queue, 3 running, 1 waiting, 1 snoozed, 1 pinned. 70 of them is 28 / 21 / 7 / 7 / 7.
+const BAND_CYCLE: Band[] = ["ready", "working", "snoozed", "ready", "working", "ready", "pinned", "ready", "working", "waiting"]
 const PROJECT_NAMES = [
   "acme-api", "marketing-site", "billing-service", "design-system", "mobile-app", "data-pipeline",
   "auth-gateway", "docs-portal", "search-indexer", "notifications", "admin-console", "analytics-dash",
@@ -256,8 +257,17 @@ function seedStack(stack: Stack): ChildProcess {
         const rest = 5 + n++ * 3
         const inFlight = t.band === "working"
         const done = t.band === "done"
-        const records = [
-          { type: "user", sessionId, cwd: project.dir, timestamp: ago(rest + 12), message: { role: "user", content: [{ type: "text", text: `TASK:\n${t.title}` }] } },
+        const task = { type: "user", sessionId, cwd: project.dir, timestamp: ago(rest + 12), message: { role: "user", content: [{ type: "text", text: `TASK:\n${t.title}` }] } }
+        // WAITING is a `status: watching` rest on something still live: here a background shell, launched
+        // with the path-less ack so it stays running for as long as the daemon does (seed-resting-thread.mjs).
+        const shellId = `toolu_watch_${t.slug.replace(/-/g, "_")}`
+        const records = t.band === "waiting" ? [
+          task,
+          { type: "assistant", sessionId, cwd: project.dir, timestamp: ago(rest + 1), message: { role: "assistant", id: `m-${t.slug}-launch`, stop_reason: "tool_use", content: [{ type: "tool_use", id: shellId, name: "Bash", input: { command: "gh run watch --exit-status", description: "Watching the deploy run", run_in_background: true } }] } },
+          { type: "user", sessionId, cwd: project.dir, timestamp: ago(rest + 1), message: { role: "user", content: [{ type: "tool_result", tool_use_id: shellId, content: "Command running in background" }] } },
+          { type: "assistant", sessionId, cwd: project.dir, timestamp: ago(rest), message: { role: "assistant", id: `m-${t.slug}`, stop_reason: "end_turn", content: [{ type: "text", text: `\`\`\`awaiting\nshells: [${shellId}]\nstatus: watching\nfor: 1d\n\`\`\`` }], usage: { input_tokens: 2, output_tokens: 40 } } },
+        ] : [
+          task,
           inFlight
             ? { type: "assistant", sessionId, cwd: project.dir, timestamp: ago(1), message: { role: "assistant", id: `m-${t.slug}`, stop_reason: "tool_use", content: [{ type: "tool_use", id: `b-${t.slug}`, name: "Bash", input: { command: "pnpm test", description: "Running the test suite" } }] } }
             : { type: "assistant", sessionId, cwd: project.dir, timestamp: ago(rest), message: { role: "assistant", id: `m-${t.slug}`, stop_reason: "end_turn", content: [{ type: "text", text: "Done — the change is on main and the suite is green." }], usage: { input_tokens: 2, output_tokens: 40 } } },
@@ -412,7 +422,7 @@ function report(load: string, view: string, measured: Measurement[]): string {
   return lines.join("\n")
 }
 
-const LOUD_TIERS = new Set(["pinned", "ready", "working"])
+const LOUD_TIERS = new Set(["pinned", "ready", "working", "waiting"])
 
 /** The bar: nothing overflows, the tiers count every open thread, and each loud tier lists or counts all of its. */
 function assertFits(measured: Measurement[], open: number, table: string, where: string) {

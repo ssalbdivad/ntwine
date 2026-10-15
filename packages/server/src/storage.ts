@@ -31,8 +31,9 @@ export interface SessionRow {
   // turn that ended while ntwine was not watching, off the prime that folds it (tailer.onPrimedAtRest).
   // It does NOT drive nav order (this line said so until 2026-09-05): the board sorts on telemetry
   // (`lastAssistantAt`) and this column is not even on ThreadView. Its two readers are both the
-  // awaiting-background snooze — router.snoozeAwaitingBackground refuses a null, and board.bgSnoozeArmed
-  // holds only while `bg_snooze_rested_at` still equals it.
+  // done card's Watch — router.watchDoneRef refuses a null, and board.bgSnoozeArmed holds only while
+  // `bg_snooze_rested_at` still equals it — and the human's snooze, which ends at the next rest
+  // (board.snoozeStillHolds).
   rested_at: string | null
   // 0 | 1 — the stored `title` is a machine GUESS (the prompt chop), not a real name. Display-only:
   // it is what makes the UI show "Spinning up…"/"Untitled thread" instead of an internal-looking slug.
@@ -97,18 +98,15 @@ export interface SessionRow {
   // re-surfaces, which is all a snooze ever did before). Non-NULL = the scheduler owns the expiry: it
   // bumps the thread with exactly this text, so the board must NOT clear such a row on elapse.
   snooze_prompt?: string | null
-  // Event-snooze for the awaiting-background card: the `rested_at` value captured when the human snoozed
-  // a "resting while its own sub-agents/shells run" card. The board hides that card while this equals the
-  // CURRENT rested_at (the same rest), and re-surfaces it the moment rested_at advances — i.e. the parent
-  // came to a new rest because a sub-agent/shell returned. NULL = no event-snooze armed. Distinct from
-  // snoozed_until (a wall-clock park owned by the scheduler); this one clears itself on the next rest.
+  // When the HUMAN set the current snooze (router.setThreadSnooze; NULL for a schedule's run, which the
+  // scheduler parks). A plain snooze ends at the agent's next rest after this instant — a `rested_at`
+  // past it — so a thread that starts working again is back in view (board.futureSnooze, 2026-10-14).
+  snooze_set_at?: string | null
+  // The done card's Watch (router.watchDoneRef): the `rested_at` value captured when the human clicked
+  // it. The board treats that done as watched while this equals the CURRENT rested_at, and lets go the
+  // moment rested_at advances — the watch's wake came and the worker rested again. NULL = not watched.
+  // (Also the resting card's "Snooze until new activity" until 2026-10-14, when that snooze was removed.)
   bg_snooze_rested_at?: string | null
-  // "Snooze until all sub-agents return": the instant the human armed it (NULL = not armed). Unlike
-  // `bg_snooze_rested_at` it is NOT scoped to one rest — a child's return wakes the parent, which rests
-  // again, and this still holds. board.subAgentsSnoozeHolds decides when it has let go (no direct
-  // sub-agent running at some instant since this one, or the human spoke since), so nothing ever has to
-  // clear it: a stale value is inert, because the gap that released it lies between it and now forever.
-  subagents_snoozed_at?: string | null
   // The instant the human PINNED this thread out of the rail's band system (null/absent = not pinned).
   // Like Archive and the snooze it is lifecycle metadata the human owns — never inferred from a fence —
   // and the instant doubles as the pinned band's order. It survives every state change (a pinned thread
@@ -771,7 +769,9 @@ export interface Storage extends ScheduleStore {
   // `prompt` arms the deadline as a scheduled BUMP: the waker resumes the thread with exactly this
   // text when the instant crosses. Omitted/null keeps the historical reminder behavior (the card
   // simply re-surfaces). Clearing the instant always clears the prompt with it.
-  setSnoozedUntil(slug: string, until: string | null, prompt?: string | null): void
+  // `setAt`: the human's snooze stamps the instant (SessionRow.snooze_set_at); every other writer leaves
+  // it null.
+  setSnoozedUntil(slug: string, until: string | null, prompt?: string | null, setAt?: string | null): void
   // Session-guarded park: writes only while the row is still this session+generation, so a stale card
   // cannot re-park a thread that has since been re-dispatched.
   setSnoozedUntilIfCurrent(slug: string, sessionId: string, generation: number, until: string | null): boolean
@@ -781,11 +781,9 @@ export interface Storage extends ScheduleStore {
   // The queue clock's write (queue-clock.ts): when the thread entered the queue, null once it has left.
   // Unguarded — the board writes it for the row it just read, on the edge it just observed.
   setQueuedAt(slug: string, at: string | null): void
-  // Arm/clear the awaiting-background event-snooze. Session-guarded like the park above. `restedAt` is
-  // the rest instant the card is snoozed FOR; the board re-surfaces it once rested_at moves past this.
+  // Arm/clear the done card's Watch. Session-guarded like the park above. `restedAt` is the rest instant
+  // it watches FROM; the board re-surfaces the thread once rested_at moves past this.
   setBgSnoozeRestedAtIfCurrent(slug: string, sessionId: string, generation: number, restedAt: string | null): boolean
-  // Arm (an ISO instant) or clear (null) the "until all sub-agents return" snooze. Session-guarded the same way.
-  setSubAgentsSnoozedAtIfCurrent(slug: string, sessionId: string, generation: number, at: string | null): boolean
   // Arm / edit / clear the thread's RECURRING PROMPT in ONE write, because the popover's textarea, its
   // two trigger toggles and its minutes field are all views of one row — split into separate writes, a
   // tab holding a stale copy of one of them would clobber the rest.
@@ -1687,6 +1685,8 @@ export function ensureStorageSchema(db: Database): void {
   // additive ALTER here, exactly the stack the schema comment above says the unified file was born
   // without. Keep the list append-only; the try/catch is the "already there" case.
   for (const column of [
+    // `subagents_snoozed_at` was "snooze until all sub-agents return", removed 2026-10-14; the column
+    // stays (append-only) and nothing reads it.
     "pinned_at TEXT", "acp_agent TEXT", "queued_at TEXT", "subagents_snoozed_at TEXT",
     // 2026-09-29: a thread's NAME split from its live STATUS (thread-names.ts).
     "title_worker_renamed INTEGER NOT NULL DEFAULT 0", "status TEXT",
@@ -1712,6 +1712,8 @@ export function ensureStorageSchema(db: Database): void {
     "deadline_at TEXT", "deadline_set_at TEXT", "deadline_set_by TEXT", "deadline_stage TEXT",
     // 2026-10-11 (upstream): which worker surface a thread's contract taught it (SessionRow.worker_surface).
     "worker_surface TEXT",
+    // 2026-10-14: when the human set the current snooze (SessionRow.snooze_set_at).
+    "snooze_set_at TEXT",
   ]) {
     try {
       db.exec(`ALTER TABLE session ADD COLUMN ${column}`)
@@ -2078,7 +2080,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
       snooze_prompt = CASE WHEN ? = 1 THEN NULL ELSE snooze_prompt END
     WHERE project_id = @project_id AND slug = ? AND session_id = ? AND runtime_generation = ?
   `)
-  const snoozedUntilStmt = scope.prepare("UPDATE session SET snoozed_until = ?, snooze_prompt = ? WHERE project_id = @project_id AND slug = ?")
+  const snoozedUntilStmt = scope.prepare("UPDATE session SET snoozed_until = ?, snooze_prompt = ?, snooze_set_at = ? WHERE project_id = @project_id AND slug = ?")
   const pinnedAtStmt = scope.prepare("UPDATE session SET pinned_at = ? WHERE project_id = @project_id AND slug = ?")
   const queuedAtStmt = scope.prepare("UPDATE session SET queued_at = ? WHERE project_id = @project_id AND slug = ?")
   // The session-guarded park. Deliberately leaves snooze_prompt alone: it parks an instant without
@@ -2089,10 +2091,6 @@ export function createStorage(source: string | Database, projectId: string): Sto
   `)
   const bgSnoozeRestedAtIfCurrentStmt = scope.prepare(`
     UPDATE session SET bg_snooze_rested_at = ?
-    WHERE project_id = @project_id AND slug = ? AND session_id = ? AND runtime_generation = ?
-  `)
-  const subAgentsSnoozedAtIfCurrentStmt = scope.prepare(`
-    UPDATE session SET subagents_snoozed_at = ?
     WHERE project_id = @project_id AND slug = ? AND session_id = ? AND runtime_generation = ?
   `)
   // Every SET expression here reads the ORIGINAL row (SQLite evaluates the whole SET list against the
@@ -3007,16 +3005,14 @@ export function createStorage(source: string | Database, projectId: string): Sto
     // The instant and its follow-up are ONE fact: clearing the snooze (wake-now, archive, and a human
     // follow-up — see resume.wakeParkedThreadForFollowUp) always disarms the prompt, and a prompt can
     // never be written without a deadline to fire it.
-    setSnoozedUntil: (slug, until, prompt = null) =>
-      void snoozedUntilStmt.run(until, until === null ? null : prompt, slug),
+    setSnoozedUntil: (slug, until, prompt = null, setAt = null) =>
+      void snoozedUntilStmt.run(until, until === null ? null : prompt, until === null ? null : setAt, slug),
     setSnoozedUntilIfCurrent: (slug, sessionId, generation, until) =>
       snoozedUntilIfCurrentStmt.run(until, slug, sessionId, generation).changes === 1,
     setPinnedAt: (slug, at) => void pinnedAtStmt.run(at, slug),
     setQueuedAt: (slug, at) => void queuedAtStmt.run(at, slug),
     setBgSnoozeRestedAtIfCurrent: (slug, sessionId, generation, restedAt) =>
       bgSnoozeRestedAtIfCurrentStmt.run(restedAt, slug, sessionId, generation).changes === 1,
-    setSubAgentsSnoozedAtIfCurrent: (slug, sessionId, generation, at) =>
-      subAgentsSnoozedAtIfCurrentStmt.run(at, slug, sessionId, generation).changes === 1,
     setRecurringPromptIfCurrent: (slug, sessionId, generation, write) =>
       guardedRecurringWrite(slug, write, () => recurringStmt.run(...recurringArgs(write), slug, sessionId, generation).changes),
     setRecurringPromptBySlug: (slug, write) =>

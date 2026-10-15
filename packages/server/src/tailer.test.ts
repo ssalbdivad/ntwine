@@ -2895,9 +2895,8 @@ test("tailer: in-flight → idle fires exactly one turn-done + sets unread", () 
 // per session per process. A worker is a detached broker daemon that keeps working across an ntwine
 // restart by design, so this is the ordinary case on every bounce, not an edge.
 //
-// The column being wrong is not cosmetic: `snoozeAwaitingBackground` (router.ts) refuses a row with a
-// null `rested_at` — "This thread is not at rest; nothing to snooze" — and `bgSnoozeArmed` (board.ts)
-// can never arm one. Found 2026-08-25 on the maintainer's own board: a thread that ended its turn with
+// The column being wrong is not cosmetic: the resting card's snooze (router.ts, until 2026-10-14) refused
+// a row with a null `rested_at`, and `bgSnoozeArmed` (board.ts) can never arm one. Found 2026-08-25 on the maintainer's own board: a thread that ended its turn with
 // a ```question fence carried `turn: "idle"` and `rested_at: NULL` after a restart, alone among eleven
 // live threads.
 test("tailer: a prime that lands on a finished turn stamps rested_at (the rest is a FACT, not an event)", () => {

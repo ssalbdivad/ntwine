@@ -11,7 +11,7 @@
 // the working indicator) — a snooze on a running thread has not taken effect yet, and a snoozed thread
 // holding an answerable question should show the question. It WINS the slot over the resting card: once
 // the human has parked the thread, "awaiting background work" is not the state the park is about
-// (same rule showsRestingCard already applies to the event-snooze).
+// (the same rule showsRestingCard applied to the event-snooze until 2026-10-14).
 import { useEffect, useState } from "react"
 import { AlarmClock } from "lucide-react"
 import type { ThreadView } from "@ntwine/shared"

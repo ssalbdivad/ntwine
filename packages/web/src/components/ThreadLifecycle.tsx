@@ -45,7 +45,6 @@ export function ThreadLifecycleActions({
   onSnoozed,
   onUnsnoozed,
   projectName,
-  snoozeEventItems,
   leading,
   className = "",
 }: {
@@ -62,8 +61,6 @@ export function ThreadLifecycleActions({
   onUnsnoozed?: () => void
   // A cross-project card names its own project in the snooze toast (SnoozeMenu `projectName`).
   projectName?: string
-  // Event snoozes offered above the presets (SnoozeMenu `eventItems`).
-  snoozeEventItems?: ReactNode
   // A surface's own whole-thread verb, after the rule and before the clock — the cross-project queue
   // card's Mark as read (AllQueuesCard), a verb that, like these two, takes the card off the queue.
   leading?: ReactNode
@@ -82,7 +79,7 @@ export function ThreadLifecycleActions({
         <DoneReadout />
       ) : (
         <>
-          {available.snooze && <SnoozeMenu thread={thread} projectName={projectName} onSnoozed={onSnoozed} onUndone={onUnsnoozed} eventItems={snoozeEventItems} />}
+          {available.snooze && <SnoozeMenu thread={thread} projectName={projectName} onSnoozed={onSnoozed} onUndone={onUnsnoozed} />}
           {/* `command`: THE copy the `d` shortcut presses (lib/keyboardRuntime.ts) — the header's, not the
               in-chat done card's second one. */}
           <StateButton thread={thread} onArchived={onArchived} onDismissCancel={onDismissCancel} onCompleted={onCompleted} iconOnly command />

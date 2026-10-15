@@ -64,8 +64,8 @@ import { CARD_ACTION_EXPLAINER, CARD_ACTION_RADIUS, CardActions, CARD_BODY, CARD
 // the child, not by this thread's worker. Counting them would make the sentence false.
 // PR WATCHERS ARE THE THIRD KIND (2026-08-13), and they are listed exactly like the other two rather
 // than getting a card of their own: the awaiting fence no longer offers a park action for a PR wait
-// (lib/awaitingPresentation), so this card and its event-snooze are the one place a parked watcher is
-// stated in words and the one control for hiding it.
+// (lib/awaitingPresentation), so this card is the one place a parked watcher is stated in words (its
+// event-snooze was the one control for hiding it until 2026-10-14).
 export function prWatcherCount(thread: Pick<ThreadView, "watches">): number {
   return (thread.watches ?? []).filter((w) => w.kind === "github" && w.state === "armed").length
 }
@@ -1158,7 +1158,9 @@ export function AwaitingWaitTable({ thread, divider, hints }: {
  *  - NOT EVENT-SNOOZED. This one reverses a dated decision rather than extending it: the snooze was
  *    deliberately confined to the queue, because the drawer showing NOTHING at rest reads as "the agent
  *    died". That argument is about a thread nobody has parked. Once the human has parked THIS rest, the
- *    same card with the same button one surface over is not information.
+ *    same card with the same button one surface over is not information. (The event-snooze was removed
+ *    2026-10-14; `bgSnoozed` is now only a done card's Watch, and a done never draws this card, so the
+ *    clause no longer fires.)
  *  - NOT A FENCE THAT NAMES QUESTIONS (2026-10-08, lib/awaitingPresentation awaitingDefersToQuestions):
  *    the question cards at this rest are the ending, and the live work is in the ops summary. */
 export function showsRestingCard(
@@ -1166,80 +1168,6 @@ export function showsRestingCard(
 ): boolean {
   if (thread?.lastFence?.kind === "awaiting" && awaitingDefersToQuestions(thread.lastFence.hints)) return false
   return thread?.awaitingBackground === true && thread.runtime === "turn-idle" && thread.bgSnoozed !== true
-}
-
-/** IT HAS TO FIT ON ONE LINE beside the button, and that is a hard constraint rather than a preference:
- *  the pair reads as one control with its caption, and a caption that wraps stops being one (maintainer
- *  2026-08-13: "I hate that the 'removes this from the queue…' label is breaking onto two lines here").
- *  The wording is theirs, verbatim. */
-export const BG_SNOOZE_EXPLAINER = "Hides card until new activity is detected"
-
-/** THE CARD'S OWN SNOOZE, ON EVERY SURFACE IT DRAWS — the drawer and the full-screen page included as
- *  of 2026-08-31.
- *
- *  It was injected by the QUEUE alone until then, as an `actions` node: parking was reasoned about as a
- *  queue verb, so "you opened the thread deliberately and have nothing to dismiss" kept it off the other
- *  two surfaces (maintainer 2026-07-25). What that reasoning missed is WHICH THREADS REACH THE QUEUE. A
- *  worker that writes a good ```awaiting fence — every name still resolving to something live — is
- *  EXCUSED from the queue outright (server/board.deriveNeedsYou → hasDeclaredBackgroundPark), so the one
- *  surface carrying the control was the one surface that thread never appeared on. The better the fence,
- *  the more certainly the human lost the button, which is exactly backwards (maintainer 2026-08-31:
- *  "Why is there no fucking snooze button?!?!?! There are very few cases where an awaiting block should
- *  lock a snooze button").
- *
- *  So the card carries its own verb instead of waiting to be handed one, and the fence can no longer
- *  take it away. The drawer does not blank on the click, which is what the original ruling was protecting
- *  (found 2026-07-29, "reads as if the agent died"): `showsRestingCard` goes false, and the awaiting
- *  FENCE card — suppressed only while this card shows — takes the slot and states the same wait compactly.
- *
- *  In the drawer there is no card to fade, so the click only re-renders the slot. ON THE QUEUE CARD there
- *  is (upstream TodosView AwaitingBackgroundBanner; the card drew this one inline again from 2026-10-06):
- *  `onSnoozed` fades it the instant the human parks it and `onSnoozeFailed` puts it back if the server
- *  declines — the optimistic exit every other dismissal on that card takes.
- *
- *  THE THREAD'S OWN PROJECT'S CLIENT (useThreadApi), as the Stop and Ask for update beside it use: `rpc`
- *  names the address bar's project, and the queue card of another project wraps itself in that project's
- *  ThreadProjectScope. Absent a scope it IS `rpc`, so the drawer is unchanged. */
-function AwaitingSnooze({ thread, onSnoozed, onSnoozeFailed }: { thread: Pick<ThreadView, "id" | "sessionId">; onSnoozed?: () => void; onSnoozeFailed?: () => void }) {
-  const api = useThreadApi()
-  const [pending, setPending] = useState(false)
-  const snooze = () => {
-    setPending(true)
-    onSnoozed?.()
-    api
-      .snoozeAwaitingBackground({ slug: thread.id, sessionId: thread.sessionId ?? "" })
-      .then(() => showToast("Snoozed until the background work returns"))
-      .catch((error) => {
-        onSnoozeFailed?.()
-        showToast(`Couldn’t snooze: ${(error as Error).message.slice(0, 80)}`)
-        setPending(false)
-      })
-  }
-  return (
-    // Button FIRST, explainer immediately to its right and centered against it (maintainer 2026-07-29):
-    // the pair reads as one control with its caption. The explainer is not decoration — a snooze whose
-    // wake condition is an EVENT rather than a clock is unguessable from the verb alone, and the
-    // maintainer asked for it in as many words (2026-08-04: "the snooze button should indicate that this
-    // will remove the item from the queue until one of the background shells completes").
-    <>
-      <button
-        type="button"
-        onClick={snooze}
-        disabled={pending}
-        onMouseDown={(e) => e.preventDefault()}
-        title={BG_SNOOZE_EXPLAINER}
-        // The shared card-action chrome. Taking CARD_PRIMARY_ACTION rather than restating it is what
-        // keeps this from drifting off the other card actions on a corner or a fill.
-        className={`disabled:opacity-45 ${CARD_PRIMARY_ACTION}`}
-      >
-        {/* Measured, not guessed: the icon read 1.58px LOW here. See lib/iconAlign.ts for why box
-            centering leaves a descender-free label's ink high, and why leading-none is not the fix. */}
-        <Hourglass size={12} className={ICON_LABEL_NUDGE} />
-        Snooze
-      </button>
-      <span className={CARD_ACTION_EXPLAINER}>{BG_SNOOZE_EXPLAINER}</span>
-    </>
-  )
 }
 
 /** THE SHELLS THE FOOTER'S STOP ENDS — every shell the card ROWS that is running and that the server
@@ -1343,7 +1271,7 @@ function AwaitingAskUpdate({ thread }: { thread: Pick<ThreadView, "id" | "sessio
   )
 }
 
-export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed, replySteps, onSnoozed, onSnoozeFailed }: {
+export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed, replySteps }: {
   // `id` joins the Pick because the rows OPEN things now: a shell's output drawer and a sub-agent's
   // transcript are both addressed by the parent thread's slug. `lastFence` joined on 2026-08-24: the
   // fence's prose is this card's opening stratum, so the card reads it directly off the thread.
@@ -1376,9 +1304,6 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   /** How the steps' Done is delivered, when not by the page's eager follow-up (StepsDone `send`): the
    *  queue card sends into its own project. */
   replySteps?: (message: string) => Promise<void>
-  /** The queue card's optimistic exit for the event-snooze (AwaitingSnooze). */
-  onSnoozed?: () => void
-  onSnoozeFailed?: () => void
 }) {
   // The thread's live work, as the rows and the heading read it. A card with no owning thread has none
   // of it — no rows, no shell-only heading — rather than a branch at every use below.
@@ -1408,39 +1333,27 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // bg-snoozed thread, see AwaitingWaitOptions).
   const groups = awaitingWaitGroups(work, now, { hints })
   const unrowed = unrowedWatchRefs(work, hints)
-  // THE SNOOZE IS THE ONE THING THAT VARIES WITH THE RUNTIME, and the maintainer ruled it the only
-  // thing that may (2026-09-04: "you can remove the snooze button and stuff because the interactive
+  // THE FOOTER'S VERBS ARE THE ONE THING THAT VARIES WITH THE RUNTIME, and the maintainer ruled them the
+  // only thing that may (2026-09-04: "you can remove the snooze button and stuff because the interactive
   // elements obviously are no longer interactive, you should not be changing whether or not you
   // truncate or don't truncate, or changing the rendering of the title or the description").
   //
-  // It renders exactly when the thread is PARKED ON THIS REST — the same predicate the queue and the
-  // transcript tail already gate the card on, so nothing changes for them. What it excludes is the two
-  // shape that still reaches this card through ChatView's fence block — a thread the human has already
-  // bg-snoozed — which would offer a park the mutation refuses (router.snoozeAwaitingBackground guards
-  // on the rest instant). A thread running past its rest draws no awaiting card at all since 2026-09-24.
+  // The card carried its own "Snooze until new activity" here from 2026-08-31 to 2026-10-14, when it was
+  // removed: a snooze is a time the human picks in the header, and a thread with its own work out is
+  // working, which no snooze may hide (maintainer: "ensure active threads cant be hidden under snooze").
   //
-  // NOT ON A STEPS CARD. The thread is waiting on the reader, so the footer carries the steps' own verbs;
-  // an event-snooze ("until new activity") would hide a card whose only new activity is the reader's own
-  // reply. The header's wall-clock snooze (the alarm clock) still parks it for anyone who means "not now".
-  //
-  // NOT ON A `watching` REST EITHER (2026-10-05): its worker already parked it in Snoozed until the watch
-  // wakes it, which is the very park this button would make.
-  //
-  // `restOwned` is that gate without the `watching` exclusion: a parked rest the human owns, which the
-  // "Ask for update" below shares (the runtime is read ONCE in this card, here).
+  // `restOwned`: a parked rest the human owns, on which "Ask for update" can wake it early.
   const restOwned = thread !== undefined && steps.length === 0 && showsRestingCard(thread) && threadLifecycleAvailability(thread).snooze
-  const snoozable = restOwned && thread!.waitStatus !== "watching"
   // THE STOP IS NOT GATED ON THE REST. Ending a shell is valid whenever one is running and the server can
-  // reach it — a bg-snoozed thread drawn through ChatView's fence block still has live shells worth
-  // stopping, even though it has no rest left to park. Owned and not archived, though: a foreign thread
+  // reach it — a thread drawn through ChatView's fence block (an event-snoozed one, until 2026-10-14)
+  // still has live shells worth stopping, even though it has no rest left to park. Owned and not archived, though: a foreign thread
   // is another tool's session, and an archived one has no verbs at all (threadLifecycleAvailability).
   const stopIds = thread !== undefined && threadLifecycleAvailability(thread).archive ? stoppableShellIds(thread, hints) : []
   // ASK FOR UPDATE needs a parked rest the human owns on the board's own awaiting fence: a card drawn from
-  // a fence the thread has moved past has no park left to check in on. It is NOT gated on the snooze: a
-  // `watching` rest (Snoozed, no event snooze to offer) is the very orchestration whose sub-agents report
-  // only at the check-in, so it is where asking early matters most.
+  // a fence the thread has moved past has no park left to check in on. A `watching` rest is the very
+  // orchestration whose sub-agents report only at the check-in, so it is where asking early matters most.
   const askable = restOwned && fence === undefined && thread!.lastFence?.kind === "awaiting"
-  const footer = snoozable || askable || stopIds.length > 0
+  const footer = askable || stopIds.length > 0
   return (
     // The SAME shell as every transcript card (TranscriptCard). This card stacks directly under an
     // awaiting fence card on a queue card, and it used to be a visibly different object there —
@@ -1537,30 +1450,12 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
         </p>
       )}
       <WaitGrid groups={groups} divider={!!prose} />
-      {/* THE FOOTER BAND — the card's snooze, in the family's shared action footer (CardActions), so
-          the control reads as chrome under the content rather than as one more row of it. This card
-          introduced the band on 2026-08-31; every card with a verb wears it since 2026-09-30. It draws
-          on EVERY surface the card is live on; a thread with no snooze verb draws the card without it.
-          Since 2026-09-29 it also carries the Stop, and draws for EITHER verb. Stop TRAILS: the caption
-          belongs to Snooze and must stay one line directly beside it, and the caption's flex-grow then
-          carries the Stop to the band's right edge, apart from the pair. Stop-first (the sign-in card's
-          Retry-before-Sign-in order) was drawn and rejected: at 780px it forced the caption onto two
-          lines at widths where it fits one today. Alone, the Stop sits at the band's left edge. */}
+      {/* THE FOOTER BAND — the card's verbs, in the family's shared action footer (CardActions), so they
+          read as chrome under the content rather than as one more row of it: Ask for update, then Stop. */}
       {stepsLive ? (
         <StepsDone slug={thread.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={replySteps} />
       ) : footer ? (
-        <CardActions data-awaiting-snooze>
-          {/* Snooze and its caption as ONE flex item, sized to their content. The caption alone has a
-              flex-basis of 0, so beside a Stop the row would fit all three on one line by folding the
-              caption instead of wrapping the Stop. As a unit the PAIR yields a line: the Stop wraps
-              below it, and the caption behaves exactly as it did with no Stop at all — one line where
-              it fits, and at a 390px drawer the same two it already took (221px of caption beside a
-              76px button in 301px). */}
-          {snoozable && (
-            <div className="flex min-w-0 flex-1 basis-auto items-center gap-x-2.5">
-              <AwaitingSnooze thread={thread!} onSnoozed={onSnoozed} onSnoozeFailed={onSnoozeFailed} />
-            </div>
-          )}
+        <CardActions data-awaiting-actions>
           {askable && <AwaitingAskUpdate key={thread!.lastAssistantAt ?? ""} thread={thread!} />}
           {stopIds.length > 0 && <AwaitingStopShells key={stopIds.join(" ")} slug={thread!.id} ids={stopIds} />}
         </CardActions>

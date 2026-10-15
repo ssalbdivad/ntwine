@@ -71,13 +71,13 @@ test("a link to the ntwine machine is recognised as unreachable from a phone", (
 })
 
 test("every row the board files in Snoozed says Snoozed, not Rested", () => {
-  // A done the human parked on "Watch #N": the server reads it as a `watching` rest over the event-snooze.
+  // Only a time snooze is Snoozed (2026-10-14). A done the human parked on "Watch #N" is a `watching` rest
+  // and waits in view, as a worker's own `status: watching` rest does; a stale event-snooze flag is nothing.
   const watchedDone = thread({ waitStatus: "watching", bgSnoozed: true, lastFence: { kind: "done" } as ThreadView["lastFence"] })
-  assert.equal(mobileThreadState(watchedDone), "snoozed")
-  // The resting card's event-snooze parks the same way. A worker's own `status: watching` rest does not:
-  // Snoozed is the human's band (2026-10-14), so it sits in Working and says so.
-  assert.equal(mobileThreadState(thread({ bgSnoozed: true })), "snoozed")
-  assert.equal(mobileThreadState(thread({ waitStatus: "watching" })), "working")
+  assert.equal(mobileThreadState(watchedDone), "waiting")
+  assert.equal(mobileThreadState(thread({ waitStatus: "watching" })), "waiting")
+  assert.notEqual(mobileThreadState(thread({ bgSnoozed: true })), "snoozed")
+  assert.equal(mobileThreadState(thread({ snoozedUntil: "2099-07-15T17:00:00.000Z" })), "snoozed")
   // Negative control: the same done with no park is an ordinary rest.
   assert.equal(mobileThreadState(thread({ lastFence: { kind: "done" } as ThreadView["lastFence"] })), "rested")
   // A running turn still says Working, whatever its last rest was.

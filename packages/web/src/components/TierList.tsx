@@ -4,13 +4,14 @@
 // thread's sub-agents as rows under it, and a lens (lib/lens.ts) is this list over the projects in it.
 //
 // TOP TO BOTTOM: Pinned, Ready (in the queue's own order, so a row faces its card), Working (each project's
-// threads together, the project's square on the first of them and the cord tying the rest), Snoozed (the
-// human's own snoozes, folded), and Done today (a short tail, with History one click away). The project is
+// threads together, the project's square on the first of them and the cord tying the rest), Waiting (an
+// agent's park on something outside the thread — a review, CI, a reply — always in view, 2026-10-14),
+// Snoozed (the human's own snoozes, folded), and Done today (a short tail, with History one click away). The project is
 // an ATTRIBUTE of a row — its square in the gutter — never a heading: at the heavy load (17 projects, 70 open
 // threads) the headings alone cost a third of the column.
 //
 // THE LIST NEVER SCROLLS. It measures itself and gives things up in a fixed order until it fits
-// (lib/sidebarBudget.ts): the Done tail first, then Working rolls its biggest projects into a line each,
+// (lib/sidebarBudget.ts): the Done tail first, then Waiting down to its first rows, then Working rolls its biggest projects into a line each,
 // then Ready and Working list their first rows and count the rest (Ready's are all in the queue beside it
 // anyway), and last Pinned does the same.
 // What the human opened by hand is never taken back. While the pointer is over the list nothing is
@@ -35,7 +36,7 @@ import { listOverlay, loudBands } from "../lib/listBands.ts"
 import { useListHold } from "../lib/listHold.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { useArchivingAt } from "../lib/optimisticArchive.ts"
-import { budgetAt, maxLevel, TAIL_MAX, type Budget, type BudgetInput } from "../lib/sidebarBudget.ts"
+import { budgetAt, maxLevel, TAIL_MAX, WAITING_FLOOR, type Budget, type BudgetInput } from "../lib/sidebarBudget.ts"
 import { prefs } from "../lib/prefs.ts"
 import { recentOf } from "../lib/recentThreads.ts"
 import { useSteeredAt } from "../lib/steering.ts"
@@ -54,7 +55,7 @@ interface Entry {
   t: ThreadView
 }
 
-type Tier = "pinned" | "ready" | "working" | "snoozed" | "done"
+type Tier = "pinned" | "ready" | "working" | "waiting" | "snoozed" | "done"
 
 /** Where Done today starts: the local midnight before `now`. */
 function startOfToday(now: number): number {
@@ -109,6 +110,7 @@ export function TierList({
     const pinned: Entry[] = []
     const ready: Entry[] = []
     const working: Entry[] = []
+    const waiting: Entry[] = []
     const snoozed: Entry[] = []
     const done: Entry[] = []
     const today = startOfToday(now)
@@ -120,6 +122,7 @@ export function TierList({
       ready.push(...loud.ready.map(entry))
       // Each project's Working rows together, in the project order: the run the cord ties.
       working.push(...loud.working.map(entry))
+      waiting.push(...loud.waiting.map(entry))
       snoozed.push(...project.snoozed.filter((t) => !isPinned(t) && isSnoozed(t)).map(entry))
       done.push(...project.recentDone.filter((t) => !isPinned(t) && restedAt(t) >= today).map(entry))
     }
@@ -127,7 +130,7 @@ export function TierList({
     const at = new Map(queueOrder.map((key, index) => [key, index]))
     ready.sort((a, b) => (at.get(a.key) ?? Infinity) - (at.get(b.key) ?? Infinity))
     done.sort((a, b) => restedAt(b.t) - restedAt(a.t))
-    return { pinned, ready, working, snoozed, done }
+    return { pinned, ready, working, waiting, snoozed, done }
     // `now` moves every 30s; Done today needs no finer clock than that.
   }, [projects, focus, boardSlug, hidden, steeredAt, archivingAt, queueOrder, now])
 
@@ -136,7 +139,7 @@ export function TierList({
   const drawn = useRef<HeldSection<Entry>[]>([])
   const sections = holdLayout({
     prev: drawn.current,
-    target: (["pinned", "ready", "working", "snoozed", "done"] as const).map((id) => ({ id, items: live[id] })),
+    target: (["pinned", "ready", "working", "waiting", "snoozed", "done"] as const).map((id) => ({ id, items: live[id] })),
     keyOf: (entry) => entry.key,
     frozen: held,
     moved: (key) => {
@@ -159,7 +162,7 @@ export function TierList({
   }
 
   // ---- The budget -------------------------------------------------------------------------------------
-  const open = (tier: "snoozed" | "done" | "working" | "pinned" | "schedules") => folds.has(tier)
+  const open = (tier: "snoozed" | "done" | "working" | "waiting" | "pinned" | "schedules") => folds.has(tier)
   const expanded = useMemo(() => new Set([...folds].filter((key) => key.startsWith("run:")).map((key) => key.slice(4))), [folds])
   const input: BudgetInput = {
     tail: slots("done").length,
@@ -170,6 +173,8 @@ export function TierList({
     workingOpen: open("working"),
     pinned: slots("pinned").length,
     pinnedOpen: open("pinned"),
+    waiting: slots("waiting").length,
+    waitingOpen: open("waiting"),
   }
   const listRef = useRef<HTMLDivElement>(null)
   const childRows = subAgentRows ? Object.values(live).flat().map((entry) => entry.t.subAgents?.length ?? 0).join(",") : ""
@@ -192,7 +197,7 @@ export function TierList({
           restedAge={tier === "ready"}
           scope={scopes(project)}
           cardKey={queued(t) && (tier === "ready" || tier === "pinned") ? key : undefined}
-          band={band === "pinned" || band === "ready" || band === "working" ? band : undefined}
+          band={band === "pinned" || band === "ready" || band === "working" || band === "waiting" ? band : undefined}
           held={slot.held}
           leadProject={lead ? (project.card ?? squareCard(project)) : undefined}
           statusAlways
@@ -233,7 +238,10 @@ export function TierList({
   const recentSnoozed = showRecentThreads ? recentOf(snoozed, (slot) => slot.item.t.id, now) : []
   const done = slots("done")
   const working = runs.reduce((sum, r) => sum + r.slots.length, 0)
-  const nothing = pinned.length + ready.length + working === 0
+  const waiting = slots("waiting")
+  const waitingShown = waiting.slice(0, budget.waitingShown)
+  const waitingRest = waiting.slice(budget.waitingShown)
+  const nothing = pinned.length + ready.length + working + waiting.length === 0
   // Every schedule of the projects in view, one band: a project's own page and a lens keep theirs too.
   const scheduled = projects.filter((project) => (project.schedules?.count ?? 0) > 0)
   const schedules = scheduled.reduce((sum, project) => sum + project.schedules!.count, 0)
@@ -291,6 +299,23 @@ export function TierList({
             />
           )}
           {open("working") && working > 0 && <ShowFewer onClick={() => setTierFold("working", false)} />}
+        </section>
+      )}
+      {/* WAITING never folds: its header and its first rows are always in view, and the budget counts the
+          rest (lib/sidebarBudget.ts). Rows run by project, as Ready's do. */}
+      {waiting.length > 0 && (
+        <section aria-label="Waiting" data-xq-tier="waiting" data-xq-tier-count={waiting.length} className={pinned.length + ready.length + working > 0 ? TIER_GAP : ""}>
+          <SectionHeader band="waiting" count={waiting.length} />
+          {runsOf(waitingShown, "waiting")}
+          {waitingRest.length > 0 && (
+            <MoreRow
+              count={waitingRest.length}
+              label={`${waitingRest.length} more waiting`}
+              detail={[...new Set(waitingRest.map((slot) => slot.item.project.name))].join(", ")}
+              onClick={() => setTierFold("waiting", true)}
+            />
+          )}
+          {open("waiting") && waiting.length > WAITING_FLOOR && <ShowFewer onClick={() => setTierFold("waiting", false)} />}
         </section>
       )}
       {nothing && (
@@ -389,7 +414,7 @@ const TIER_GAP = "mt-2"
 function useBudgetLevel(listRef: RefObject<HTMLDivElement | null>, input: BudgetInput, held: boolean, extra: string): number {
   const [level, setLevel] = useState(0)
   const [room, setRoom] = useState(0)
-  const signature = `${input.tail}|${input.tailOpen}|${input.ready}|${input.workingOpen}|${input.pinned}|${input.pinnedOpen}|${input.runs.map((r) => `${r.id}:${r.size}`).join(",")}|${[...input.expanded].join(",")}|${room}|${extra}`
+  const signature = `${input.tail}|${input.tailOpen}|${input.ready}|${input.workingOpen}|${input.pinned}|${input.pinnedOpen}|${input.waiting}|${input.waitingOpen}|${input.runs.map((r) => `${r.id}:${r.size}`).join(",")}|${[...input.expanded].join(",")}|${room}|${extra}`
   const settled = useRef<string | null>(null)
   const max = maxLevel(input)
   // The scroll box's height moves with the window and with the prompt box above the list growing a line.

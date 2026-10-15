@@ -356,16 +356,8 @@ export interface Api {
   cancelOwnThreadTimer(input: CancelOwnThreadTimerInput): Promise<CancelOwnThreadTimerResult>
   listOwnThreadTimers(input: ListOwnThreadTimersInput): Promise<OwnThreadTimersResult>
   listOwnThreadActivity(input: ListOwnThreadActivityInput): Promise<OwnThreadActivityResult>
-  // Event-snooze the awaiting-background card: hide it until the thread's own background work returns
-  // (the parent comes to a NEW rest). No deadline and no scheduler — the board re-surfaces it the moment
-  // rested_at advances. `sessionId` binds the click to the session the tab was looking at.
-  // `clear` undoes it (the queue card's toast).
-  snoozeAwaitingBackground(input: { slug: string; sessionId: string; clear?: boolean }): Promise<void>
-  // The done card's Watch button: watch a PR or issue the finished thread names, and snooze it until it reports.
+  // The done card's Watch button: watch a PR or issue the finished thread names; it waits in Waiting until it reports.
   watchDoneRef(input: WatchDoneRefInput): Promise<WatchDoneRefResult>
-  // Hide the thread until ALL its running sub-agents have returned: each return still wakes the parent,
-  // but only the last one (or a question, a crash, a done) re-queues it. Refused with none running.
-  snoozeUntilSubAgentsReturn(input: { slug: string; sessionId: string; clear?: boolean }): Promise<void>
   // Wake a parked thread now with its check-in, as the hourly expiry would, asking it to report.
   requestParkCheckIn(input: { slug: string; sessionId: string }): Promise<void>
   // Hard-delete any thread (a live worker is stopped first): its rows, its terminals, its scratch
@@ -622,9 +614,7 @@ export const PROCEDURES = {
   cancelOwnThreadTimer: "mutation",
   listOwnThreadTimers: "mutation",
   listOwnThreadActivity: "mutation",
-  snoozeAwaitingBackground: "mutation",
   watchDoneRef: "mutation",
-  snoozeUntilSubAgentsReturn: "mutation",
   requestParkCheckIn: "mutation",
   deleteThread: "mutation",
   openExternal: "mutation",

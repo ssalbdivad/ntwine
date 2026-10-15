@@ -788,8 +788,7 @@ export interface SessionTelemetry extends NormalizedTail {
   // Sub-agents that have ENDED, same ring. Off the wire as a whole: interrupt-ended.ts reads it to name a
   // child the interrupt KILLED and never one that simply finished in the same 30s — so the outcome rides
   // along with the id — and the board reads the slice a queued parent's card needs (the returns inside
-  // the wait still open, board.returnedSubAgentsView) plus the intervals its "until all sub-agents
-  // return" snooze is measured against (board.subAgentsSnoozeHolds).
+  // the wait still open, board.returnedSubAgentsView).
   retiredSubAgents?: RetiredSubAgentView[]
   // WHERE THE AGENT IS WORKING (FoldState.cwd, lifted to its checkout). `workingDir` is that checkout —
   // the project root included — and its presence means "the fold has a reading"; `checkout` only when it
@@ -950,10 +949,8 @@ export interface RetiredSubAgentView {
   label: string
   status: "completed" | "failed" | "killed"
   finishedAt?: string
-  // The DISPATCH instant and the profile, for the queued parent's card and the snooze that waits out
-  // its batch (board.returnedSubAgentsView, board.subAgentsSnoozeHolds): together with `finishedAt` they
-  // are the interval this child was out, which is what "has something been running ever since" is
-  // measured against.
+  // The DISPATCH instant and the profile, for the queued parent's card (board.returnedSubAgentsView):
+  // together with `finishedAt` they are the interval this child was out.
   startedAt?: string
   subagentType?: string
 }
@@ -6565,9 +6562,9 @@ export function createTailer(deps: TailerDeps): Tailer {
   // while ntwine was down" the ordinary case every time the server bounces, not an edge.
   //
   // The consequences are all downstream of the column simply being WRONG:
-  //   • `snoozeAwaitingBackground` refuses the thread outright — "This thread is not at rest; nothing
-  //     to snooze" (router.ts) — on a thread that is plainly at rest, so the card's own Snooze throws;
-  //   • `bgSnoozeArmed` (board.ts) requires a non-null `rested_at`, so that snooze can never arm;
+  //   • the resting card's own Snooze (removed 2026-10-14) refused the thread outright — "This thread
+  //     is not at rest; nothing to snooze" — on a thread that is plainly at rest;
+  //   • `bgSnoozeArmed` (board.ts) requires a non-null `rested_at`, so a done card's Watch can never arm;
   //   • the stored answer to "when did this agent last come to rest" is null for a thread whose
   //     transcript answers it precisely.
   // Measured 2026-08-25 on the maintainer's own board: `examine-the-tickets-in-this-issue` ended its
@@ -6591,8 +6588,9 @@ export function createTailer(deps: TailerDeps): Tailer {
   // so any trailing activity-advancing record would be baked into the stamp. That is not a cosmetic
   // drift — the monotonic guard below only blocks writes BACKWARDS, so a spuriously later value would
   // overwrite a stamp that was already correct, and `bgSnoozeArmed` (board.ts) holds only while
-  // `bg_snooze_rested_at === rested_at`. A restart could then silently un-arm a snooze the operator
-  // set on an awaiting-background card, re-surfacing it for a condition that has not occurred.
+  // `bg_snooze_rested_at === rested_at`. A restart could then silently un-arm a done card's Watch the
+  // operator set (an awaiting-background card's snooze, until 2026-10-14), re-surfacing it for a
+  // condition that has not occurred.
   //
   // Reading the turn-ending record instead makes a bounce IDEMPOTENT, and by CONSTRUCTION rather than
   // by luck. `lastAssistantAt` moves on a strict SUBSET of the records `lastActivityAt` moves on, so a

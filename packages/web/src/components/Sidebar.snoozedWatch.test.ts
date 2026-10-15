@@ -4,7 +4,7 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ThreadView } from "@ntwine/shared"
-import { ThreadRow, sessionIndicatorFor, type RowScope } from "./Sidebar.tsx"
+import { ThreadRow, type RowScope } from "./Sidebar.tsx"
 import { TooltipProvider } from "./Tooltip.tsx"
 
 // Where a click would lead. Nothing here clicks; the prop is required because every real row has one.
@@ -141,38 +141,6 @@ test("a usage-limit kill wears the YELLOW hourglass even when the fence carries 
   assert.match(html, /lucide-hourglass[^>]*text-accent/, "the hourglass wears the accent yellow")
   assert.doesNotMatch(html, /opacity-65/, "a limit kill is not dimmed like a snoozed row")
   assert.match(html, /data-sidebar-retry/, "the hover Retry rides the row")
-})
-
-// THE RESTING CARD'S EVENT-SNOOZE reaches Snoozed too (groups.ts isSnoozed, 2026-08-28), and it has no
-// instant to name: the popover says what ends the park instead, in the words the card's own toast used.
-// The tooltip body is not in static markup (Radix mounts it on hover), so the tip is read off
-// sessionIndicatorFor, which is the same derivation the row renders.
-test("a PR-watching thread event-snoozed off its resting card wears GitHub's mark and names its wake", () => {
-  const t = {
-    bgSnoozed: true,
-    awaitingBackground: true,
-    lastFence: { kind: "awaiting", body: "Approved, CI green.", hints: [watch("acme/app#391")] },
-  } as Partial<ThreadView>
-  const html = row(t)
-  assert.match(html, GITHUB)
-  assert.doesNotMatch(html, HOURGLASS)
-  assert.equal(sessionIndicatorFor({ ...base, id: "watching-thread", ...t } as ThreadView).tip, "Snoozed until the background work returns — waiting on acme/app#391\n\nApproved, CI green.")
-})
-
-// The snoozed twin of the Active band's `background` row: same live vite dev server, same blue dot, and
-// the ONLY differences are the dimmed band and a tooltip that names the park. Nothing here is on a
-// clock, so the hourglass would be a lie about the wake, and the dashed circle it drew until 2026-08-31
-// said merely "waiting on something" about the one state the rail already had a specific mark for.
-test("a shell-only rest event-snoozed off its resting card keeps the shell's blue dot, not the hourglass", () => {
-  const t = {
-    bgSnoozed: true,
-    awaitingBackground: true,
-    bgShells: [{ label: "vite dev", startedAt: "2026-08-28T00:00:00.000Z", state: "running", id: "s1" }],
-  } as Partial<ThreadView>
-  const html = row(t)
-  assert.match(html, SHELL_DOT)
-  assert.doesNotMatch(html, HOURGLASS)
-  assert.equal(sessionIndicatorFor({ ...base, id: "watching-thread", ...t } as ThreadView).tip, "Snoozed until the background work returns")
 })
 
 // ── the 2026-09-04 widening: the octocat belongs to the WAIT, not to the Snoozed band ───────────────

@@ -187,7 +187,7 @@ setBoard({
 function comparable(root: HTMLElement | null): string {
   if (!root) return ""
   const copy = root.cloneNode(true) as HTMLElement
-  copy.querySelector("[data-awaiting-snooze]")?.remove()
+  copy.querySelector("[data-awaiting-actions]")?.remove()
   // The shell yields its bottom padding to that band, so the class rides with it.
   const card = copy.querySelector("[data-awaiting-background]")
   if (card) card.className = card.className.replace(/\s*\bpb-0\b/, "")

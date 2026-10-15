@@ -63,33 +63,14 @@ test("awaitingBackgroundSubject names exactly the work that is RUNNING", () => {
   assert.equal(awaitingBackgroundSubject(thread([agent("running"), nested(2), nested(3)], [])), "1 sub-agent")
 })
 
-// THE SNOOZE IS THE CARD'S OWN VERB, ON EVERY SURFACE (2026-08-31). It was injected by the QUEUE alone
-// as an `actions` node until then — "you opened the thread deliberately and have nothing to dismiss"
-// (maintainer 2026-07-25) — and the hole that opened is the reason this reversed: a thread whose
-// ```awaiting fence still resolves live is EXCUSED from the queue outright (board.deriveNeedsYou →
-// hasDeclaredBackgroundPark), so the one surface carrying the control was the one surface that thread
-// never reached. The better the fence, the more certainly the human lost the button (maintainer
-// 2026-08-31: "There are very few cases where an awaiting block should lock a snooze button").
-test("the card carries its own snooze, and no surface has to hand it one", () => {
+// NO SNOOZE ON THE RESTING CARD (2026-10-14). It carried "until new activity" from 2026-08-31, and that
+// park hid threads that were still working; Snoozed is a time the human picks from the header now.
+test("the resting card states the wait and offers no snooze", () => {
   const bare = render(thread([agent("running")], []))
-  assert.match(bare, /Snooze/, "the drawer and the full-screen page draw the verb too")
-  assert.match(bare, /Hides card until new activity is detected/, "…with its caption, since an event wake is unguessable from the verb")
-  // …while still saying the same thing, on the same card chrome, with the same kind header.
+  assert.doesNotMatch(bare, /Snooze/)
+  assert.doesNotMatch(bare, /data-card-actions/, "no verb, no footer band")
   assert.match(bare, /Awaiting/)
-  assert.match(bare, /data-awaiting-background/)
   assert.match(bare, /data-wait-kind="agent"/)
-})
-
-// The exclusions are about the THREAD rather than about the surface it drew on.
-test("a thread nobody can park draws no snooze — foreign or archived", () => {
-  const rows = [agent("running")]
-  // A FOREIGN session is read-only; router.snoozeAwaitingBackground refuses it, so offering the verb
-  // would be an affordance that cannot work.
-  const foreign = { ...thread(rows, []), foreign: true } as Parameters<typeof AwaitingBackgroundCard>[0]["thread"]
-  assert.doesNotMatch(render(foreign), /Snooze/)
-  // An ARCHIVED thread has no lifecycle verbs at all — the same rule the header's lifecycle strip applies.
-  const archived = { ...thread(rows, []), state: "archived" } as Parameters<typeof AwaitingBackgroundCard>[0]["thread"]
-  assert.doesNotMatch(render(archived), /Snooze/)
 })
 
 // THE TITLE NAMES THE SHAPE, and there are two of them (maintainer 2026-08-04: 'the card that says
@@ -383,28 +364,6 @@ test("no prose, no divider — and non-prose fences contribute nothing", () => {
   assert.doesNotMatch(text(done), /All landed/)
 })
 
-// The band is the family's shared action footer (TranscriptCard's CardActions, 2026-09-30), so the done
-// card's Mark as done and every other card's verb sit in this same shape.
-test("the snooze renders in the shared footer band, flush with the card's bottom", () => {
-  const t = thread([agent("running")], [])
-  const withBand = render(t)
-  assert.match(withBand, /data-awaiting-snooze="true" data-card-actions="true"/, "the snooze rides the shared action footer")
-  assert.match(withBand, /-mx-4 -mb-4 mt-3 flex[^"]*border-t border-border bg-fg/, "the band runs edge to edge under a rule, through the shell's bottom padding")
-  assert.doesNotMatch(withBand, /pb-0/, "the band pulls itself flush; the shell keeps its padding")
-  // No verb => no band (an archived thread has no lifecycle verbs).
-  const past = renderToStaticMarkup(
-    createElement(AwaitingBackgroundCard, { thread: { ...t, state: "archived" } as typeof t }),
-  )
-  assert.doesNotMatch(past, /data-card-actions/)
-  // A `watching` rest is already parked in Snoozed by its worker (2026-10-05): the button would make the
-  // park it is in, so the card draws without it — and still states the wait. A `working` rest keeps it:
-  // that row is in the Running band, and the click is what moves it to Snoozed.
-  const watching = render({ ...t, waitStatus: "watching" } as typeof t)
-  assert.doesNotMatch(watching, /data-awaiting-snooze/)
-  assert.match(watching, /data-awaiting-background/, "the card itself still renders")
-  assert.match(render({ ...t, waitStatus: "working" } as typeof t), /data-awaiting-snooze="true"/)
-})
-
 // THE TABLE AS A PIECE (2026-08-28). The awaiting FENCE card draws it whenever the thread is NOT at rest
 // on its fence — mid-turn on a follow-up, or woken by the shell it named — where it used to print the
 // fence's machinery as one muted line of runtime ids ("shell b7w140a81   for 45m"; maintainer 2026-08-27,
@@ -492,14 +451,10 @@ const liveShell = (id: string, taskId: string, label: string, stoppable?: boolea
 const shellRest = (shells: ReturnType<typeof liveShell>[], declared: string[]) =>
   ({ ...thread([], shells), watches: declared.map(shellWatch) }) as T
 
-test("a running, stoppable, declared shell puts Stop terminal in the footer beside Snooze", () => {
+test("a running, stoppable, declared shell puts Stop terminal in the footer", () => {
   const t = shellRest([liveShell("toolu_s", "bzvtnt3ig", "vite dev", true)], ["bzvtnt3ig"])
-  const html = render(t)
-  assert.match(html, /data-awaiting-stop-shells="1"/)
+  assert.match(render(t), /data-awaiting-stop-shells="1"/)
   assert.match(text(t), /Stop terminal/)
-  assert.match(html, /Snooze/, "Stop joins the footer; it does not replace the park")
-  // Stop TRAILS, so Snooze keeps its caption directly beside it.
-  assert.ok(html.indexOf("Hides card until new activity is detected") < html.indexOf("data-awaiting-stop-shells"))
 })
 
 test("the count follows the shells the card rows, and says so", () => {
@@ -526,15 +481,14 @@ test("no stoppable running shell ⇒ no Stop, never a control that cannot delive
   assert.doesNotMatch(render({ ...t, state: "archived" } as T), /data-awaiting-stop-shells/)
 })
 
-test("Stop draws the footer on its own where there is no rest to park", () => {
-  // A bg-snoozed thread still reaches this card through ChatView's fence block: Snooze is gone, the
-  // shells are still running, and ending them is still valid.
-  const t = { ...shellRest([liveShell("toolu_s", "bzvtnt3ig", "vite dev", true)], ["bzvtnt3ig"]), bgSnoozed: true } as T
+// The band is the family's shared action footer (TranscriptCard's CardActions, 2026-09-30), so the done
+// card's Mark as done and every other card's verb sit in this same shape.
+test("Stop rides the shared footer band, flush with the card's bottom", () => {
+  const t = shellRest([liveShell("toolu_s", "bzvtnt3ig", "vite dev", true)], ["bzvtnt3ig"])
   const html = render(t)
-  assert.doesNotMatch(html, /Snooze/)
-  assert.match(html, /data-awaiting-stop-shells="1"/)
-  assert.match(html, /data-awaiting-snooze="true" data-card-actions="true"/, "the Stop rides the shared action footer")
-  assert.match(html, /-mx-4 -mb-4 mt-3 flex/, "the band still sits flush with the card's bottom")
+  assert.doesNotMatch(html, /pb-0/, "the band pulls itself flush; the shell keeps its padding")
+  assert.match(html, /data-awaiting-actions="true" data-card-actions="true"/, "the Stop rides the shared action footer")
+  assert.match(html, /-mx-4 -mb-4 mt-3 flex[^"]*border-t border-border bg-fg/, "the band runs edge to edge under a rule")
 })
 
 // ---- STEPS FOR THE HUMAN (2026-10-03) --------------------------------------------------------------

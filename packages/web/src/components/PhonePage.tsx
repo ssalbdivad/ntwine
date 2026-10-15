@@ -137,8 +137,8 @@ function HourglassMark({ size = 18 }: { size?: number }) {
 }
 
 /** The human's own wall-clock park: the rail's muted alarm clock, at the hourglass's 10/15 ratio — the two
- *  are one weight family on the rail. Only a `userSnoozed` row takes it; a worker's own park and the
- *  resting card's event-snooze stay on the hourglass and the dim. */
+ *  are one weight family on the rail. Only a `userSnoozed` row takes it; a worker's own park stays on the
+ *  hourglass (as the resting card's event-snooze did until 2026-10-14). */
 function AlarmMark({ size = 18 }: { size?: number }) {
   return (
     <StatusBox size={size}>
@@ -170,8 +170,8 @@ function ThreadMark({ kind, userSnoozed, moving }: { kind: SessionIndicatorKind;
     )
   }
   if (kind === "snoozed" && userSnoozed) return <AlarmMark />
-  // Parked — the human's event-snooze, a worker's own declared wait, or a wait on a TIMER. The row's dim,
-  // not the mark, is what separates the human's park from the worker's.
+  // Parked — a worker's own declared wait, or a wait on a TIMER (and, until 2026-10-14, the human's
+  // event-snooze). The row's dim, not the mark, is what separates the human's park from the worker's.
   if (kind === "snoozed" || kind === "parked" || kind === "timer") return <HourglassMark />
   if (kind === "done" || kind === "archived") return <DoneMark />
   // Awaiting a PR: the rail draws GitHub's octocat; the phone has no mark for it yet and stays at rest.
@@ -188,7 +188,7 @@ function ThreadMark({ kind, userSnoozed, moving }: { kind: SessionIndicatorKind;
  * THE RIGHT-HAND READING depends on the tab. In Queue it is how long a Ready thread has waited — the
  * queue clock the desktop's cards and rows print, which is also the order the tab lists them in — and
  * nothing for one still in motion; in Done the rest age; in Snoozed when the thread wakes (`wakes 3h`),
- * and nothing for a park with no clock behind it (a PR watch, the resting card's event-snooze).
+ * and nothing for a park with no clock behind it (a PR watch, a done the human is watching).
  *
  * In All projects the second line opens with the row's PROJECT, since the list mixes them.
  */
