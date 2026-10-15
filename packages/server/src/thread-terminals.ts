@@ -1,10 +1,13 @@
 import { randomBytes } from "node:crypto"
 import { basename } from "node:path"
-import type { IPty, IPtyForkOptions } from "node-pty"
 import type { ThreadTerminal } from "@ntwine/shared"
 import type { ThreadTerminalRow, Storage } from "./storage.ts"
 import type { TerminalAttachment } from "./terminal.ts"
 import { launchEnvironment } from "./backend/worker-env.ts"
+import { classifyUnownedTerminalHosts, type TerminalExitRecord, type TerminalHost } from "./backend/terminal-host.ts"
+import { createPtySession, finishedProcess, loadNodePty, type SpawnPty, type TerminalExit, type TerminalProcess } from "./terminal-session.ts"
+
+export { endsOnPrompt, loadNodePty } from "./terminal-session.ts"
 
 // THREAD TERMINALS — a live pty that belongs to one thread. The human opens it from the thread's drawer
 // (or types `$ cmd` into the thread's prompt box), and it runs in the folder that thread's agent is
@@ -34,38 +37,29 @@ import { launchEnvironment } from "./backend/worker-env.ts"
 // screen says why, which is where the human who pressed "Open terminal" is already looking.
 //
 // WHAT IS DURABLE AND WHAT IS NOT. The row — its thread, the command, the folder, how its last run ended —
-// lives in SQLite, so the thread keeps it across a restart. The process does not: a pty is a child of this
-// server, and replacing the control plane (Restart ntwine, an update) closes the pty master and hangs the
-// process up. Boot records every run that never reported an exit as interrupted, so the strip says
-// "interrupted" and offers Restart rather than showing a process that is not there.
+// lives in SQLite, so the thread keeps it across a restart. The PROCESS lives in a detached terminal
+// daemon (backend/terminal-daemon.ts, forked by backend/terminal-host.ts), one per run, in its own
+// process group: replacing the control plane (Restart ntwine, an update, a crash) only detaches it, and
+// the next server adopts it at boot with its screen and prompt state intact. A run that ended while no
+// server was listening left an exit record beside the daemon's, and boot files it with its real code.
+// Only a run with NEITHER a live daemon nor an exit record — its daemon was killed outright, or the run
+// was a server child (below) — reads as interrupted, and the strip offers Restart.
+//
+// The pty is a child of THIS process instead when there is no host (Windows, where the detached daemon
+// is unverified; tests that do not pass one) or the daemon could not be forked. That path is the
+// pre-2026-10-15 behaviour, kept whole: a restart hangs those up and boot marks them interrupted.
+// Both paths run the same terminal-session.ts, so the board cannot tell them apart while they run.
 //
 // ONE WAY A TERMINAL REACHES THE QUEUE: A RUN SITTING AT A PROMPT. `npm publish` stopping at "Enter
 // one-time password:", an ssh passphrase, a `[y/N]` — the process is alive and will stay alive forever,
 // and the human is the only one who can move it. See `awaitingInput`; the board queues the PARENT thread
 // on it (board.ts withThreadTerminals), since the terminal has no card of its own to queue.
 
-// How long a run must be silent, sitting on an unterminated line, before it reads as waiting for input.
-// Long enough that a program between two writes of one line (a spinner frame, a slow `printf`) is not
-// mistaken for a prompt; short enough that the card is up before the human has looked elsewhere.
-const INPUT_QUIET_MS = 3_000
-// How soon after the human's keystroke a write still counts as that keystroke's ECHO. A pty echoes typed
-// characters within a millisecond or two; this only has to be generous enough for a loaded machine.
-const ECHO_WINDOW_MS = 1_000
-// How much of the screen's tail the prompt test reads. A prompt is one line; this only has to reach
-// past whatever escape sequences a program paints after it.
-const PROMPT_TAIL_CHARS = 2_048
-const ANSI_RE = /\x1b(?:\][^\x07\x1b]*(?:\x07|\x1b\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g
-
-// A dev server's log is long-lived and chatty; a late viewer needs the recent screen, not the banner.
-// Trimmed from the FRONT, at a line boundary where one is near, so the replay starts on a clean line.
-const REPLAY_CAP_BYTES = 1024 * 1024
-// How long Stop waits after SIGTERM before it SIGKILLs the process group.
-const STOP_GRACE_MS = 5_000
 // The code a run that never got a process records — a shell's own "command not found" code, so the
 // strip reads it as a failure rather than a success or an interruption.
 const START_FAILED_EXIT = 127
-
-type SpawnPty = (file: string, args: string[], options: IPtyForkOptions) => IPty
+// How often the host audit looks for daemons the board no longer has a row for.
+const HOST_AUDIT_INTERVAL_MS = 60_000
 
 export interface StartTerminalInput {
   /** The thread the terminal belongs to. */
@@ -101,38 +95,20 @@ export interface TerminalRunner {
   has(id: string): boolean
   /** Every open terminal, grouped by the thread it belongs to — what the board attaches to its rows. */
   byThread(): Map<string, ThreadTerminal[]>
-  /** Server shutdown: hang up every live run. */
+  /** Server shutdown: detach every hosted run (it keeps running) and hang up every in-process one. */
   shutdown(): void
 }
 
 interface Run {
-  /** Absent for a run that never got a process (node-pty would not load, the shell would not spawn):
-   *  its screen is the reason, and it is exited from birth. */
-  term?: IPty
-  exited: boolean
-  exitCode?: number
-  stopRequested: boolean
-  buffer: string
-  bufferBytes: number
-  dataListeners: Set<(chunk: string) => void>
-  exitListeners: Set<(exitCode?: number) => void>
-  exitedPromise: Promise<void>
+  /** The run's pty wherever it lives — in its daemon, or in this process — or a finished stand-in. */
+  proc: TerminalProcess
   /** The replay already opens with this run's own `$ command` line — a follow-up run, whose screen
    *  carries its predecessors' (followUpScreen). A first run's command is the drawer's title instead. */
   echoed: boolean
-  /** When the process last wrote. The prompt test's clock. */
-  lastOutputAt: number
-  /** What the board was last told about the prompt, so a change is announced once, not per chunk. */
-  promptShown: boolean
-  /** When the prompt the board is showing was first announced — the terminal's `awaitingSince`. */
-  promptSince?: number
-  /** When the human last typed into it — to tell the echo of an answer from the program moving on. */
-  lastInputAt?: number
-  promptTimer?: NodeJS.Timeout
   /** An interactive shell sits at its own prompt by design; the input heuristic must never read it. */
   interactive: boolean
-  /** An interactive shell's own foreground-process name, read at spawn — see `shellIdle`. */
-  shellProcess?: string
+  /** Its pty lives in a daemon, whose exit record the runner drops once it filed the exit. */
+  hosted: boolean
 }
 
 /** An interactive shell with nothing running in it: the pty's FOREGROUND process is still the shell it
@@ -140,39 +116,9 @@ interface Run {
  *  "/bin/bash" at the prompt, "sleep" / "vim" while one runs, back to "/bin/bash" after), so a `npm run dev`
  *  typed into the shell reads busy and a bare prompt reads idle. Mark as done still stops an idle shell —
  *  it just is not work worth a confirmation. On Windows node-pty reports the spawned file whatever runs,
- *  so a shell there always reads idle. */
+ *  so a shell there always reads idle. (terminal-session.ts reads it; a daemon reports each change.) */
 function shellIdle(run: Run | undefined): boolean {
-  if (!run?.interactive || !run.term || run.exited || run.shellProcess === undefined) return false
-  try {
-    return run.term.process === run.shellProcess
-  } catch {
-    return false
-  }
-}
-
-/** True when a screen ENDS ON AN UNTERMINATED LINE with something printed on it — the shape of every
- *  interactive prompt ("Password: ", "Enter OTP: ", "Continue? [y/N] "). A program that has merely gone
- *  quiet — a dev server after "ready on :3000", a watcher after its last rebuild — ends on a newline, and
- *  that is the whole distinction: silence alone cannot tell a prompt from an idle server, and the line the
- *  cursor was left on can. Escape sequences are dropped first (a prompt library repaints and hides the
- *  cursor after the text), and so is anything a carriage return overwrote. */
-export function endsOnPrompt(screen: string): boolean {
-  const tail = screen.slice(-PROMPT_TAIL_CHARS).replace(ANSI_RE, "")
-  const line = tail.slice(tail.lastIndexOf("\n") + 1)
-  // After a carriage return the cursor is back at column 0: a spinner frame, not a question.
-  return line.slice(line.lastIndexOf("\r") + 1).trim().length > 0
-}
-
-/**
- * node-pty, loaded on first use — see the header for why never at module load. Not memoised on
- * failure: a missing module can be installed while the server runs, and a retry costs one resolve.
- * Handles both module shapes an `import()` of a CommonJS addon can produce.
- */
-export async function loadNodePty(): Promise<SpawnPty> {
-  const mod = (await import("node-pty")) as { spawn?: SpawnPty; default?: { spawn?: SpawnPty } }
-  const spawn = mod.spawn ?? mod.default?.spawn
-  if (typeof spawn !== "function") throw new Error("node-pty loaded but exports no spawn()")
-  return spawn
+  return run !== undefined && run.interactive && run.proc.shellIdle()
 }
 
 /** The screen a run that never got a process shows instead of output: what failed, in the terminal's
@@ -200,6 +146,11 @@ export interface TerminalRunnerDeps {
   now?: () => number
   stopGraceMs?: number
   inputQuietMs?: number
+  /** Where each run's pty lives. Absent ⇒ in this process (see the header). Production passes the
+   *  project's detached terminal host on every platform it is verified on. */
+  host?: TerminalHost
+  /** Where the host audit and a host fallback are reported. */
+  log?: (message: string) => void
 }
 
 /** The shell a terminal runs under, and how it is handed the line. A LOGIN shell on POSIX so the human's
@@ -254,28 +205,18 @@ export function followUpScreen(previous: { command: string; buffer: string; echo
   return screen + "\x1b[0m\x1b[?25h" + (screen.endsWith("\n") ? "" : "\r\n") + echoLine(command)
 }
 
-function trimReplay(run: Run): void {
-  if (run.bufferBytes <= REPLAY_CAP_BYTES) return
-  // Cut roughly a quarter, then advance to the next newline so the replay opens on a whole line.
-  let cut = Math.ceil(run.buffer.length / 4)
-  const newline = run.buffer.indexOf("\n", cut)
-  if (newline !== -1 && newline - cut < 4096) cut = newline + 1
-  const drop = run.buffer.slice(0, cut)
-  run.buffer = run.buffer.slice(cut)
-  run.bufferBytes -= Buffer.byteLength(drop)
+/** The screen an exit record leaves: the run's last screen, or why it never got a process. */
+function exitScreen(exit: TerminalExitRecord): string {
+  return exit.startFailure ? exit.screen + startFailureScreen(exit.startFailure.what, exit.startFailure.message) : exit.screen
 }
 
 export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
   const loadPty = deps.loadPty ?? loadNodePty
   const env = deps.env ?? process.env
   const now = deps.now ?? Date.now
-  const stopGraceMs = deps.stopGraceMs ?? STOP_GRACE_MS
-  const inputQuietMs = deps.inputQuietMs ?? INPUT_QUIET_MS
+  const host = deps.host
   const runs = new Map<string, Run>()
   let shuttingDown = false
-
-  // Whatever was running when the last server went away went with it.
-  deps.storage.interruptRunningTerminals(now())
 
   // A thread's terminals only: a row with no parent is a pre-2026-09-29 command thread (see the header),
   // which nothing addresses any more.
@@ -287,168 +228,160 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
     return out
   }
 
-  function newRun(screen: string | undefined, interactive: boolean): { run: Run; settle: () => void } {
-    let settle!: () => void
-    const run: Run = {
-      exited: false,
-      stopRequested: false,
-      buffer: screen ?? "",
-      bufferBytes: screen ? Buffer.byteLength(screen) : 0,
-      echoed: screen !== undefined,
-      lastOutputAt: now(),
-      promptShown: false,
-      interactive,
-      dataListeners: new Set(),
-      exitListeners: new Set(),
-      exitedPromise: new Promise<void>((resolve) => { settle = resolve }),
+  function recordExit(id: string, exit: TerminalExit, exitedAtMs = now()): void {
+    deps.storage.recordTerminalExit(id, { exitedAtMs, exitCode: exit.exitCode ?? null, ...(exit.signal ? { signal: exit.signal } : {}), stopped: exit.stopped })
+  }
+
+  /** Hold a run and file its end. An exit is filed only while this run is still the terminal's current
+   *  one (a run replaced by restart() is history) and the server is not going away; a hosted run's exit
+   *  record is dropped once filed, or once nothing will ever file it — never before, so a server that
+   *  dies in between still finds it at boot. */
+  function hold(id: string, run: Run): void {
+    runs.set(id, run)
+    run.proc.onChange(() => { if (runs.get(id) === run) deps.onChange() })
+    const filed = (exit: TerminalExit): void => {
+      const current = runs.get(id) === run
+      if (current && shuttingDown) return
+      if (current) {
+        recordExit(id, exit)
+        deps.onChange()
+      }
+      if (run.hosted) host?.consumeExit(id)
     }
-    return { run, settle }
+    if (run.proc.exit) filed(run.proc.exit)
+    else run.proc.onExit(filed)
   }
 
   // A run that never got a process: exited from birth, its screen the reason, its row a failure.
-  function failRun(id: string, run: Run, settle: () => void, screen: string): void {
-    run.buffer += screen
-    run.bufferBytes += Buffer.byteLength(screen)
-    run.exited = true
-    run.exitCode = START_FAILED_EXIT
-    runs.set(id, run)
-    deps.storage.recordTerminalExit(id, { exitedAtMs: now(), exitCode: START_FAILED_EXIT, stopped: false })
-    settle()
+  function failRun(id: string, screen: string, interactive: boolean): void {
+    const exit = { exitCode: START_FAILED_EXIT, stopped: false }
+    runs.set(id, { proc: finishedProcess(screen, exit), echoed: false, interactive, hosted: false })
+    recordExit(id, exit)
   }
 
   async function spawn(id: string, row: { command: string | undefined; cwd: string }, screen?: string): Promise<void> {
     const interactive = row.command === undefined
-    const { run, settle } = newRun(screen, interactive)
+    const echoed = screen !== undefined
+    const { file, args } = commandShell(row.command, env)
+    const ptyEnv = commandEnvironment(env)
+    if (host) {
+      const runId = rows().get(id)?.runs ?? 1
+      try {
+        const outcome = await host.start({ id, runId, file, args, cwd: row.cwd, env: ptyEnv, interactive, echoed, ...(screen === undefined ? {} : { screen }), cols: 120, rows: 30 })
+        if ("finished" in outcome) {
+          // Over before the handshake: a start failure, or a command quicker than it.
+          const exit = outcome.finished
+          if (exit.startFailure) {
+            failRun(id, exitScreen(exit), interactive)
+            host.consumeExit(id)
+          } else {
+            hold(id, { proc: finishedProcess(exit.screen, exit), echoed, interactive, hosted: true })
+          }
+          return
+        }
+        hold(id, { proc: outcome.process, echoed, interactive, hosted: true })
+        return
+      } catch (cause) {
+        // LAST RESORT, and deliberately not a failure: the daemon buys restart survival, and a daemon
+        // that cannot start must cost that property, never the terminal itself.
+        deps.log?.(`terminal ${id}: the terminal daemon did not start (${(cause as Error).message}); running it in the server, where a restart will hang it up`)
+      }
+    }
     let spawnPty: SpawnPty
     try {
       spawnPty = await loadPty()
     } catch (cause) {
-      failRun(id, run, settle, startFailureScreen("load", cause))
+      failRun(id, (screen ?? "") + startFailureScreen("load", cause), interactive)
       return
     }
-    const { file, args } = commandShell(row.command, env)
-    let term: IPty
+    let session
     try {
-      term = spawnPty(file, args, {
-        name: "xterm-256color",
-        cwd: row.cwd,
-        env: commandEnvironment(env),
-        cols: 120,
-        rows: 30,
+      const term = spawnPty(file, args, { name: "xterm-256color", cwd: row.cwd, env: ptyEnv, cols: 120, rows: 30 })
+      session = createPtySession(term, {
+        interactive,
+        ...(screen === undefined ? {} : { screen }),
+        now,
+        ...(deps.inputQuietMs === undefined ? {} : { inputQuietMs: deps.inputQuietMs }),
+        ...(deps.stopGraceMs === undefined ? {} : { stopGraceMs: deps.stopGraceMs }),
       })
     } catch (cause) {
-      failRun(id, run, settle, startFailureScreen("spawn", cause))
+      failRun(id, (screen ?? "") + startFailureScreen("spawn", cause), interactive)
       return
     }
-    run.term = term
-    if (interactive) run.shellProcess = term.process
-    runs.set(id, run)
-    trimReplay(run)
-    term.onData((chunk) => {
-      run.buffer += chunk
-      run.bufferBytes += Buffer.byteLength(chunk)
-      trimReplay(run)
-      run.lastOutputAt = now()
-      watchForPrompt(id, run, chunk)
-      for (const listener of run.dataListeners) { try { listener(chunk) } catch { /* one bad viewer must not stall the others */ } }
-    })
-    term.onExit(({ exitCode }) => {
-      run.exited = true
-      run.exitCode = exitCode
-      clearTimeout(run.promptTimer)
-      // A run replaced by restart() has already been swapped out of the map; its outcome is history.
-      if (runs.get(id) === run && !shuttingDown) {
-        deps.storage.recordTerminalExit(id, { exitedAtMs: now(), exitCode, stopped: run.stopRequested })
-        deps.onChange()
+    hold(id, { proc: session, echoed, interactive, hosted: false })
+  }
+
+  // ── Boot: what was running when the last server went away ──────────────────────────────────────
+  // With a host, each run that the last server saw start and never saw end is one of three things: its
+  // daemon is alive (adopt it — the process never noticed the restart), its daemon recorded the end
+  // (file that, code and all), or neither (interrupted). Without one, every such run was a child of the
+  // last server and went with it.
+  if (!host) {
+    deps.storage.interruptRunningTerminals(now())
+  } else {
+    const open = new Set<string>()
+    for (const row of rows().values()) {
+      if (row.exited_at !== null) continue
+      const interactive = row.shell === 1
+      const exit = host.exitOf(row.slug, row.runs)
+      if (exit) {
+        const at = Date.parse(exit.at)
+        runs.set(row.slug, { proc: finishedProcess(exitScreen(exit), exit), echoed: false, interactive, hosted: true })
+        recordExit(row.slug, exit, Number.isFinite(at) ? at : now())
+        host.consumeExit(row.slug)
+        continue
       }
-      for (const listener of run.exitListeners) { try { listener(exitCode) } catch { /* ignore */ } }
-      run.exitListeners.clear()
-      settle()
-    })
+      const proc = host.adopt(row.slug, row.runs)
+      if (proc) {
+        hold(row.slug, { proc, echoed: proc.echoed, interactive, hosted: true })
+        open.add(row.slug)
+        continue
+      }
+      recordExit(row.slug, { stopped: false })
+    }
+    // An exit record no open run will ever claim (its row was forgotten, or already filed).
+    for (const id of host.exitIds()) if (!open.has(id)) host.consumeExit(id)
   }
 
-  // Output moves the prompt clock: a write clears a prompt the board is showing (the human answered, or
-  // the program carried on), and a write that leaves the cursor on an unterminated line re-arms the quiet
-  // timer. Only a CHANGE reaches the board, so a chatty dev server costs a clearTimeout per chunk.
-  //
-  // EXCEPT THE ECHO OF AN ANSWER BEING TYPED. The human typing `123456` into "Enter one-time password: "
-  // makes the pty echo each digit onto the same line — output, but not the program moving on. Clearing on
-  // it (as this did at first) took the prompt away at the first keystroke: the card's live screen, which
-  // is drawn only while the terminal waits, unmounted under the human's cursor and ate the rest of the
-  // answer (seen on the real stack, 2026-09-29: the pty received "12"). So a write that follows a
-  // keystroke, stays on the prompt's line and still ends on it keeps the prompt up; the Enter that ends
-  // the answer puts a newline on the screen, and that clears it.
-  //
-  // Never for an interactive shell: it sits at its own prompt by design, and would queue its thread the
-  // moment it opened.
-  function watchForPrompt(id: string, run: Run, chunk: string): void {
-    if (run.interactive) return
-    clearTimeout(run.promptTimer)
-    if (run.promptShown) {
-      const echo = run.lastInputAt !== undefined && now() - run.lastInputAt <= ECHO_WINDOW_MS && !chunk.includes("\n") && endsOnPrompt(run.buffer)
-      if (echo) return
-      run.promptShown = false
-      run.promptSince = undefined
-      if (runs.get(id) === run) deps.onChange()
-    }
-    if (!endsOnPrompt(run.buffer)) return
-    run.promptTimer = setTimeout(() => {
-      if (run.exited || runs.get(id) !== run || !endsOnPrompt(run.buffer)) return
-      run.promptShown = true
-      run.promptSince = now()
-      deps.onChange()
-    }, inputQuietMs)
-    run.promptTimer.unref?.()
-  }
-
-  // The pty's child leads its own session (node-pty setsid()s it), so its pid is also its process
-  // GROUP: signalling -pid reaches `npm` AND the node it forked, which signalling the shell alone would
-  // orphan still holding the port.
-  function signalGroup(run: Run, signal: NodeJS.Signals): void {
-    const term = run.term
-    if (!term) return
-    if (process.platform === "win32") {
-      try { term.kill() } catch { /* already gone */ }
-      return
-    }
+  // ── The host audit: a daemon the board no longer expects is ended (terminal-host.ts) ──────────────
+  function auditHosts(): void {
+    if (!host || shuttingDown) return
+    let expected: Map<string, { runId: number; running: boolean }>
     try {
-      process.kill(-term.pid, signal)
+      expected = new Map([...rows().values()].map((row) => [row.slug, { runId: row.runs, running: row.exited_at === null }]))
     } catch {
-      try { term.kill(signal) } catch { /* already gone */ }
+      return // no board to compare against ⇒ end nothing
     }
+    for (const entry of classifyUnownedTerminalHosts({ daemons: host.live(), rows: expected, nowMs: now() })) {
+      if (runs.get(entry.id)?.hosted && !runs.get(entry.id)?.proc.exit) continue // ours and live: never
+      if (host.end(entry.id)) deps.log?.(`terminal ${entry.id}: ended its daemon (pid ${entry.daemonPid}): ${entry.reason === "no-row" ? "no terminal row claims it" : entry.reason === "other-run" ? "its row is on another run" : "its row's run is over"}`)
+    }
+  }
+  let auditTimer: NodeJS.Timeout | undefined
+  if (host) {
+    auditHosts()
+    auditTimer = setInterval(auditHosts, HOST_AUDIT_INTERVAL_MS)
+    auditTimer.unref?.()
   }
 
   async function stopRun(run: Run | undefined): Promise<void> {
-    if (!run || run.exited) return
-    run.stopRequested = true
-    signalGroup(run, "SIGTERM")
-    let timer: NodeJS.Timeout | undefined
-    const killed = new Promise<void>((resolve) => {
-      timer = setTimeout(() => {
-        if (!run.exited) signalGroup(run, "SIGKILL")
-        resolve()
-      }, stopGraceMs)
-      timer.unref?.()
-    })
-    await Promise.race([run.exitedPromise, killed])
-    clearTimeout(timer)
-    await run.exitedPromise
+    await run?.proc.stop()
   }
 
   function view(row: ThreadTerminalRow): ThreadTerminal {
     const run = runs.get(row.slug)
-    const running = run !== undefined && !run.exited && row.exited_at === null
-    // The flag is kept exact by watchForPrompt — set only after the quiet window, cleared synchronously by
-    // any write that moves past the prompt — and the screen is checked too, so a view built at any moment
-    // shows a prompt only while the screen still ends on one.
-    const awaitingInput = running && !run.interactive && run.promptShown && endsOnPrompt(run.buffer)
+    const running = run !== undefined && !run.proc.exit && row.exited_at === null
+    // Exact by construction (terminal-session.ts): set only after the quiet window, cleared by any write
+    // that moves past the prompt, and checked against the screen, so a view built at any moment shows a
+    // prompt only while the screen still ends on one.
+    const awaitingSince = running && !run.interactive ? run.proc.awaitingSince() : undefined
     return {
       id: row.slug,
       command: row.command,
       ...(row.shell === 1 ? { shell: true } : {}),
       cwd: row.cwd ?? "",
       state: running ? "running" : "exited",
-      ...(awaitingInput ? { awaitingInput: true, awaitingSince: new Date(run.promptSince ?? run.lastOutputAt).toISOString() } : {}),
+      ...(awaitingSince !== undefined ? { awaitingInput: true, awaitingSince: new Date(awaitingSince).toISOString() } : {}),
       runId: row.runs,
       startedAt: new Date(row.started_at).toISOString(),
       ...(running || row.exited_at === null ? {} : { exitedAt: new Date(row.exited_at).toISOString() }),
@@ -501,7 +434,7 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       const previous = runs.get(id)
       runs.delete(id) // before the stop, for the same reason as restart
       await stopRun(previous)
-      const screen = followUpScreen(previous && { command: row.command, buffer: previous.buffer, echoed: previous.echoed, interactive: previous.interactive }, command)
+      const screen = followUpScreen(previous && { command: row.command, buffer: previous.proc.replay(), echoed: previous.echoed, interactive: previous.interactive }, command)
       deps.storage.restartThreadTerminal(id, now(), command)
       try {
         await spawn(id, { command, cwd: row.cwd! }, screen)
@@ -549,26 +482,20 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
           close: () => {},
         }
       }
+      const { proc } = run
       return {
-        replay: () => run.buffer,
-        onData: (listener) => {
-          run.dataListeners.add(listener)
-          return () => run.dataListeners.delete(listener)
-        },
-        write: (data) => {
-          if (run.exited || !run.term) return
-          run.lastInputAt = now()
-          try { run.term.write(data) } catch { /* died mid-write */ }
-        },
-        resize: (cols, rows) => { if (!run.exited && run.term) { try { run.term.resize(cols, rows) } catch { /* ignore */ } } },
+        replay: () => proc.replay(),
+        onData: (listener) => proc.onData(listener),
+        write: (data) => proc.write(data),
+        resize: (cols, rows) => proc.resize(cols, rows),
         onExit: (listener) => {
           // DEFERRED for a finished run: the transport delivers the replay in a microtask queued when
           // it subscribed to data, and an exit reported synchronously here would close the viewer
           // before that replay went out — the last screen of a failed build (or of a terminal that
           // could not load node-pty) is exactly what the human opened it to read.
-          if (run.exited) { queueMicrotask(() => listener(run.exitCode)); return () => {} }
-          run.exitListeners.add(listener)
-          return () => run.exitListeners.delete(listener)
+          const exit = proc.exit
+          if (exit) { queueMicrotask(() => listener(exit.exitCode)); return () => {} }
+          return proc.onExit((ended) => listener(ended.exitCode))
         },
         close: () => { /* detaching a viewer never touches the process — another tab may be watching */ },
       }
@@ -588,11 +515,11 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       return out
     },
     shutdown() {
+      // The server is going away. A hosted run is only DETACHED — it keeps running, and the next server
+      // adopts it — while an in-process one is hung up with this process.
       shuttingDown = true
-      for (const run of runs.values()) {
-        clearTimeout(run.promptTimer)
-        if (!run.exited) signalGroup(run, "SIGHUP")
-      }
+      clearInterval(auditTimer)
+      for (const run of runs.values()) run.proc.release()
       runs.clear()
     },
   }
