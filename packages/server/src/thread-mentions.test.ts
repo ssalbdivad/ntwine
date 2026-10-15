@@ -119,7 +119,7 @@ test("readThread reads a terminal by its handle, an open thread of the same name
     h.storage.insertThreadTerminal({ slug: "term-a", startedBy: "human", handle: "nub-test", command: "nub test", cwd: h.dir, shell: false, createdAtMs: at })
     h.storage.recordTerminalExit("term-a", { exitedAtMs: at + 1, exitCode: 1, stopped: false })
     const read = await router.readThread.handler({ input: { slug: "me", handle: "@nub-test" } })
-    assert.deepEqual(read, { found: true, handle: "nub-test", slug: "term-a", state: "resting", terminal: { command: "nub test", cwd: h.dir, outcome: "failed", exitCode: 1, startedBy: "human", screen: "" } })
+    assert.deepEqual(read, { found: true, handle: "nub-test", slug: "term-a", state: "resting", terminal: { command: "nub test", cwd: h.dir, outcome: "failed", exitCode: 1, startedBy: "human", controller: "human", screen: "" } })
     // A thread already called "Nub test" was named first; the terminal is reached by its slug.
     h.storage.upsertSession(row("nt", "Nub test"))
     assert.equal((await router.readThread.handler({ input: { slug: "me", handle: "@nub-test" } })).slug, "nt")
@@ -129,45 +129,73 @@ test("readThread reads a terminal by its handle, an open thread of the same name
   } finally { terminals.shutdown(); h.close() }
 })
 
-// AN AGENT'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md): it may READ any terminal, and type
-// into, stop, restart or wait on only one it started — a human's terminal refuses all four, and stays up.
-// Real ptys (`sh`, in this process) over the real router and SQLite.
-test("ownTerminal: read reaches the user's terminal; send, stop and watch refuse it and reach the thread's own", { skip: process.platform === "win32" }, async () => {
+// CONTROL (plans/terminal-threads.md § Control): one driver types into a terminal — the human or a thread —
+// and the thread verbs reach it. A thread drives what it starts; the user's terminal refuses its typing,
+// stop, restart and release until the user hands it over; Take control turns the thread away AND drops the
+// user's own keystrokes while a thread drives; Hand back restores it, and each move is owed to the thread it
+// touched. Real ptys (`sh`, in this process) over the real router and SQLite.
+test("terminal control: only the driver types, stops or restarts; take control and hand back move it, and the pty enforces it", { skip: process.platform === "win32" }, async () => {
   const h = harness()
   const terminals = createTerminalRunner({ storage: h.storage, onChange: () => {}, env: { ...process.env, SHELL: "/bin/sh" }, stopGraceMs: 500 })
   ;(h.ctx as { terminalRunner: unknown }).terminalRunner = terminals
   const router = createRouter(h.ctx)
+  const screenOf = async (id: string, re: RegExp) => {
+    const deadline = Date.now() + 5_000
+    while (!re.test(terminals.screenTail(id)) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
+    return terminals.screenTail(id)
+  }
+  const type = (handle: string, message: string) => router.messageThread.handler({ input: { slug: "me", handle, message } })
+  const notesFor = (id: string) => JSON.parse(h.storage.listThreadTerminals().find((t) => t.slug === id)?.control_notes ?? "[]") as { to: string; text: string }[]
   try {
     h.storage.upsertSession(row("me", "Mentions"))
-    await terminals.start({ startedBy: "human", command: "sleep 30", cwd: h.dir })
+    const theirs = await terminals.start({ startedBy: "human", command: "sleep 30", cwd: h.dir })
     const mine = await router.ownTerminal.handler({ input: { slug: "me", action: "start", command: "cat", cwd: h.dir } })
-    assert.equal(mine.handle, "cat")
-    assert.equal(mine.mine, true)
-    assert.equal(mine.outcome, "running")
+    assert.deepEqual([mine.handle, mine.driving, mine.controller, mine.outcome], ["cat", true, "mentions", "running"])
 
-    const theirs = await router.ownTerminal.handler({ input: { slug: "me", action: "read", handle: "@sleep-30" } })
-    assert.deepEqual([theirs.outcome, theirs.mine, theirs.startedBy, theirs.refused], ["running", false, "human", undefined])
-    for (const action of ["send", "stop", "restart"] as const) {
-      const refused = await router.ownTerminal.handler({ input: action === "send" ? { slug: "me", action, handle: "@sleep-30", text: "exit\n" } : { slug: "me", action, handle: "@sleep-30" } })
-      assert.match(refused.refused ?? "", /^@sleep-30 is the user's terminal\. You can read it/, action)
+    // The user's terminal: readable, and nothing else.
+    const read = await router.readThread.handler({ input: { slug: "me", handle: "@sleep-30" } })
+    assert.deepEqual([read.terminal?.controller, read.terminal?.driving], ["human", undefined])
+    const refusedType = await type("@sleep-30", "exit")
+    assert.equal(refusedType.sent, false)
+    assert.match(refusedType.refusal ?? "", /^@sleep-30 is driven by the user, so you cannot type into it\./)
+    for (const action of ["stop", "restart", "release"] as const) {
+      assert.match((await router.ownTerminal.handler({ input: { slug: "me", action, handle: "@sleep-30" } })).refused ?? "", new RegExp(`^@sleep-30 is driven by the user, so you cannot ${action} it\\.`), action)
     }
-    assert.equal((await router.ownTerminal.handler({ input: { slug: "me", action: "read", handle: "sleep-30" } })).outcome, "running", "still up")
-    assert.match((await router.addOwnTerminalWatch.handler({ input: { slug: "me", handle: "@sleep-30", for: "1h" } })).refused ?? "", /not a terminal you started/)
 
-    // Its own: typed into, and echoed back by `cat`.
-    assert.equal((await router.ownTerminal.handler({ input: { slug: "me", action: "send", handle: "@cat", text: "hello there\n" } })).refused, undefined)
-    const deadline = Date.now() + 5_000
-    while (!/hello there/.test(terminals.screenTail(mine.id!)) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
-    assert.match((await router.ownTerminal.handler({ input: { slug: "me", action: "read", handle: "@cat", tail: 5 } })).screen ?? "", /hello there/)
+    // Its own: a line and Enter, echoed back by `cat`. A viewer's keystrokes meanwhile go nowhere.
+    assert.deepEqual(await type("@cat", "hello there"), { sent: true, handle: "cat", from: "mentions", delivery: "terminal" })
+    assert.match(await screenOf(mine.id!, /hello there/), /hello there/)
+    terminals.attach(mine.id!)!.write("from the viewer\r")
+    await new Promise((r) => setTimeout(r, 300))
+    assert.doesNotMatch(terminals.screenTail(mine.id!), /from the viewer/, "the user types only once they take control")
+
+    // Take control: the thread is turned away, the user's keys reach the pty, and the thread is owed the move.
+    assert.deepEqual(await router.terminalControl.handler({ input: { id: mine.id!, to: "human" } }), { moved: true })
+    assert.match((await type("@cat", "again")).refusal ?? "", /^@cat is driven by the user/)
+    terminals.attach(mine.id!)!.write("from the viewer\r")
+    assert.match(await screenOf(mine.id!, /from the viewer/), /from the viewer/)
+    assert.deepEqual(notesFor(mine.id!).map((n) => [n.to, n.text.split(".")[0]]), [["me", "⏰ The user took control of @cat"]])
+
+    // Hand back: the thread types again, and is owed "yours again" in place of the older note.
+    await router.terminalControl.handler({ input: { id: mine.id!, to: "me", back: true } })
+    assert.equal((await type("@cat", "back again")).sent, true)
+    assert.deepEqual(notesFor(mine.id!).map((n) => n.text), ["⏰ @cat is yours again. `ntwinectl message-thread @cat` types into it."])
+
+    // Let an agent drive the user's own terminal: now the thread may stop it.
+    await router.terminalControl.handler({ input: { id: theirs.id, to: "me" } })
+    assert.equal((await router.ownTerminal.handler({ input: { slug: "me", action: "stop", handle: "@sleep-30" } })).refused, undefined)
+
+    // Waiting: any thread may watch; one watch per terminal; a terminal that ended has nothing to wait for.
     const watched = await router.addOwnTerminalWatch.handler({ input: { slug: "me", handle: "@cat", for: "1h" } })
     assert.match(watched.id ?? "", /^trw_[0-9a-f]{12}$/)
-    assert.equal(h.storage.listThreadTerminals().find((t) => t.slug === mine.id)?.watch_id, watched.id)
     assert.equal((await router.addOwnTerminalWatch.handler({ input: { slug: "me", handle: "@cat", for: "2h" } })).alreadyArmed, true)
-
-    // Over: nothing left to wait for.
-    await router.ownTerminal.handler({ input: { slug: "me", action: "stop", handle: "@cat" } })
-    await router.dropOwnTerminalWatch.handler({ input: { slug: "me", id: watched.id! } })
-    assert.match((await router.addOwnTerminalWatch.handler({ input: { slug: "me", handle: "@cat", for: "1h" } })).refused ?? "", /is no longer running, so there is nothing to wait for/)
+    h.storage.upsertSession(row("other", "Other"))
+    assert.match((await router.addOwnTerminalWatch.handler({ input: { slug: "other", handle: "@cat", for: "1h" } })).refused ?? "", /^@mentions already watches @cat\. Name it under `threads:`/)
+    // Release: the user drives it, and the thread may no longer stop it.
+    assert.equal((await router.ownTerminal.handler({ input: { slug: "me", action: "release", handle: "@cat" } })).controller, "human")
+    assert.match((await router.ownTerminal.handler({ input: { slug: "me", action: "stop", handle: "@cat" } })).refused ?? "", /driven by the user/)
+    assert.equal((await router.dropOwnTerminalWatch.handler({ input: { slug: "me", id: watched.id! } })).dropped, true)
+    assert.match((await router.addOwnTerminalWatch.handler({ input: { slug: "me", handle: "@sleep-30", for: "1h" } })).refused ?? "", /is no longer running, so there is nothing to wait for/)
   } finally { terminals.shutdown(); h.close() }
 })
 

@@ -12,6 +12,7 @@ import { showToast } from "../store.ts"
 import { crossProjectThreadHref, ProjectChip, ProjectMark, useOpenThreadInPlace, type AllQueuesCardProps } from "./AllQueuesCard.tsx"
 import { LastActive } from "./LastActive.tsx"
 import { TerminalFollowUp } from "./TerminalFollowUp.tsx"
+import { TerminalControlBar, terminalDriver } from "./TerminalControlBar.tsx"
 import { FACTS_LINE_CLASS, Fact, FactSep } from "./ThreadHeaderFacts.tsx"
 import { ThreadLifecycleActions } from "./ThreadLifecycle.tsx"
 import { Tooltip } from "./Tooltip.tsx"
@@ -39,6 +40,11 @@ export function TerminalCardArticle({ project, thread, onLeave, onReturn, onSent
   const tone = outcome === "prompt" || outcome === "interrupted" ? "text-attention" : outcome === "failed" ? "text-danger-soft" : ""
   // The folder only off the project root, as its row names it: at the root it would repeat the project chip.
   const folder = terminal.cwd && !terminal.atRoot ? abbreviateHome(terminal.cwd, project.homeDir) : undefined
+  // A thread drives it (plans/terminal-threads.md § Control): its screen and `$` line are read-only until the
+  // human takes control, from the bar over the screen.
+  const driver = terminalDriver(terminal)
+  const threads = [...project.queued, ...project.running, ...project.snoozed, ...project.pinnedDone, ...project.recentDone]
+  const move = (to: string, back?: boolean) => projectRpc(project.id).terminalControl({ id: thread.id, to, ...(back ? { back: true } : {}) })
   return (
     <article
       data-xq-card-root
@@ -64,7 +70,7 @@ export function TerminalCardArticle({ project, thread, onLeave, onReturn, onSent
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          {terminal.state === "exited" && <RestartButton projectId={project.id} id={thread.id} onSent={onSent} onLanded={onLanded} onFailed={onReturn} />}
+          {terminal.state === "exited" && !driver && <RestartButton projectId={project.id} id={thread.id} onSent={onSent} onLanded={onLanded} onFailed={onReturn} />}
           <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
             <ThreadLifecycleActions
               thread={thread}
@@ -81,9 +87,12 @@ export function TerminalCardArticle({ project, thread, onLeave, onReturn, onSent
       </header>
       <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
         <div className="px-5 pb-4 pt-4">
-          <CardScreen id={thread.id} runId={terminal.runId} prompt={outcome === "prompt"} />
+          <div className={`overflow-hidden rounded-md border ${outcome === "prompt" ? "border-attention/40" : "border-border"}`}>
+            <TerminalControlBar terminal={terminal} threads={threads} move={move} />
+            <CardScreen id={thread.id} runId={terminal.runId} readOnly={Boolean(driver)} />
+          </div>
         </div>
-        {terminal.state === "exited" && (
+        {terminal.state === "exited" && !driver && (
           <div className="border-t border-border/60 px-5 pb-3 pt-3">
             <TerminalFollowUp key={terminal.runId} id={thread.id} lastCommand={terminal.shell ? "" : terminal.command} onRan={() => { onSent(); onLanded() }} />
           </div>
@@ -95,12 +104,12 @@ export function TerminalCardArticle({ project, thread, onLeave, onReturn, onSent
 
 /** The screen: live at a prompt, the last one after an exit. Keyed on the run, so a restart is a fresh screen;
  *  no focus grab, because a card is one of many. A prompt's border is the attention colour of its band. */
-function CardScreen({ id, runId, prompt }: { id: string; runId: number; prompt: boolean }) {
+function CardScreen({ id, runId, readOnly }: { id: string; runId: number; readOnly: boolean }) {
   const base = useThreadApiBase()
   return (
-    <div data-terminal-card-screen={id} className={`flex h-[220px] min-w-0 overflow-hidden rounded-md border ${prompt ? "border-attention/40" : "border-border"}`}>
+    <div data-terminal-card-screen={id} className="flex h-[220px] min-w-0 overflow-hidden">
       <Suspense fallback={<div className="flex-1 bg-bg" />}>
-        <TerminalPane key={`${id}:${runId}`} id={id} base={base} focusOnMount={false} exitedStatus={() => null} />
+        <TerminalPane key={`${id}:${runId}`} id={id} base={base} focusOnMount={false} readOnly={readOnly} exitedStatus={() => null} />
       </Suspense>
     </div>
   )

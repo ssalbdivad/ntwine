@@ -34,9 +34,19 @@ import { mountXterm } from "../lib/xtermSetup.ts"
 // `base` names the project whose pty this is. It defaults to the page's (`apiBase()`), which is right in
 // a terminal's own drawer; a queue card on the cross-project page draws another project's terminal and
 // passes that project's, since the page's base there names the FOCUSED project's terminal server.
-export function TerminalPane({ id, exitedStatus, base, focusOnMount = true }: { id: string; exitedStatus?: (exitCode: number | null) => ReactNode; base?: string; focusOnMount?: boolean }) {
+//
+// `readOnly`: a thread drives this terminal (plans/terminal-threads.md § Control), so keystrokes go nowhere —
+// the server drops them too (thread-terminals.ts attach). Read through a ref, so Take control flips it on the
+// live pane without a remount (which would blank the screen and reconnect).
+export function TerminalPane({ id, exitedStatus, base, focusOnMount = true, readOnly = false }: { id: string; exitedStatus?: (exitCode: number | null) => ReactNode; base?: string; focusOnMount?: boolean; readOnly?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
+  useEffect(() => {
+    const term = termRef.current
+    if (term) term.options.disableStdin = readOnly
+  }, [readOnly])
   const [connection, setConnection] = useState<"connecting" | "open" | "reconnecting" | "exited">("connecting")
   const [exitCode, setExitCode] = useState<number | null>(null)
   const [inputOverflow, setInputOverflow] = useState(false)
@@ -53,6 +63,7 @@ export function TerminalPane({ id, exitedStatus, base, focusOnMount = true }: { 
     })
     const term = mounted.term
     termRef.current = term
+    term.options.disableStdin = readOnlyRef.current
     // Mounting TerminalPane is explicit user intent (or a persisted explicit choice after a server
     // reload). Focus immediately; input typed before the socket opens is queued below, never dropped.
     if (focusOnMount) term.focus()
@@ -137,6 +148,7 @@ export function TerminalPane({ id, exitedStatus, base, focusOnMount = true }: { 
     connect()
 
     const dataSub = term.onData((d) => {
+      if (readOnlyRef.current) return
       if (send({ t: "input", d })) return
       const nextBytes = queuedTerminalInputBytes(pendingInputBytes, d)
       if (nextBytes === null) {

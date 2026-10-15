@@ -15,6 +15,7 @@ import { terminalFailed, terminalOf, terminalStateLabel } from "../lib/threadTer
 import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 import { TerminalFollowUp } from "./TerminalFollowUp.tsx"
+import { TerminalControlBar, TerminalMoreMenu, terminalDriver } from "./TerminalControlBar.tsx"
 
 // LAZY for the same reason as every xterm consumer: @xterm/xterm is browser-only, and node (tests)
 // imports the drawer stack transitively.
@@ -161,6 +162,11 @@ function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: n
   const seen = useRef(false)
   if (terminal) seen.current = true
   const [pending, setPending] = useState<TerminalAct | null>(null)
+  const threads = board?.threads ?? []
+  // A thread drives it (plans/terminal-threads.md § Control): the screen and the `$` line are read-only, and
+  // Stop and Restart wait for Take control; Mark as done and Remove stay, as the human outranks any driver.
+  const driver = terminalDriver(terminal)
+  const move = (to: string, back?: boolean) => rpc.terminalControl({ id: terminalId, to, ...(back ? { back: true } : {}) })
 
   function act(kind: TerminalAct, close: () => void) {
     if (pending) return
@@ -189,15 +195,18 @@ function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: n
             done={filed}
             onAct={(kind) => act(kind, close)}
             onClose={close}
+            driven={Boolean(driver)}
+            more={terminal ? <TerminalMoreMenu terminal={terminal} threads={threads} move={move} triggerClass={actionClass} /> : undefined}
           />
           {terminal ? (
             <>
+              <TerminalControlBar terminal={terminal} threads={threads} move={move} />
               <Suspense fallback={<div className="flex-1 bg-bg" />}>
                 {/* No exited bar: the header states how the run ended and carries Restart, and the foot
                     below is where the next command goes. */}
-                <TerminalPane key={`${terminalId}:${terminal.runId}`} id={terminalId} focusOnMount={terminal.state === "running"} exitedStatus={() => null} />
+                <TerminalPane key={`${terminalId}:${terminal.runId}`} id={terminalId} focusOnMount={terminal.state === "running" && !driver} readOnly={Boolean(driver)} exitedStatus={() => null} />
               </Suspense>
-              {terminal.state === "exited" ? (
+              {terminal.state === "exited" && !driver ? (
                 <div className="shrink-0 border-t border-border/70 bg-panel px-3 py-2.5">
                   {/* Keyed on the run, so each finished run takes focus afresh — straight from the terminal
                       the human was just typing into, or on opening a finished one. */}
@@ -218,7 +227,7 @@ function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: n
  *  the terminals fixture draws the very header the drawer does (terminals-unified-fixture `?mode=header`). */
 export type TerminalAct = "stop" | "restart" | "remove" | "done"
 
-export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pending, done = true, onAct, onClose }: {
+export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pending, done = true, onAct, onClose, driven = false, more }: {
   terminal: ThreadTerminal | undefined
   /** The thread's title, for a terminal with no folder (or none yet). */
   fallbackSubtitle?: string
@@ -228,6 +237,10 @@ export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pendi
   done?: boolean
   onAct: (kind: TerminalAct) => void
   onClose: () => void
+  /** A thread drives it: Stop and Restart wait until the human takes control. */
+  driven?: boolean
+  /** The ⋯ menu (Let an agent drive), last in the row. */
+  more?: ReactNode
 }) {
   // A size container, so the header's secondary actions fold to glyphs when the drawer is narrow.
   return (
@@ -243,7 +256,7 @@ export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pendi
         meta={terminal ? <TerminalStateMeta terminal={terminal} /> : undefined}
         actions={terminal ? (
           <div className="flex shrink-0 items-center gap-1.5">
-            {terminal.state === "running" ? (
+            {terminal.state === "running" && !driven ? (
               <button type="button" data-terminal-stop disabled={pending !== null} onClick={() => onAct("stop")} className={stopClass}>
                 {pending === "stop" ? "Stopping…" : "Stop"}
               </button>
@@ -254,12 +267,13 @@ export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pendi
                 <NarrowGlyph icon={Check} text={pending === "done" ? "Marking…" : "Mark as done"} />
               </button>
             ) : null}
-            <button type="button" data-terminal-restart disabled={pending !== null} onClick={() => onAct("restart")} title="Restart" aria-label="Restart" className={actionClass}>
+            {!driven ? <button type="button" data-terminal-restart disabled={pending !== null} onClick={() => onAct("restart")} title="Restart" aria-label="Restart" className={actionClass}>
               <NarrowGlyph icon={RotateCcw} text={pending === "restart" ? "Restarting…" : "Restart"} />
-            </button>
+            </button> : null}
             <button type="button" data-terminal-remove disabled={pending !== null} onClick={() => onAct("remove")} title="Remove" aria-label="Remove" className={actionClass}>
               <NarrowGlyph icon={Trash2} text={pending === "remove" ? "Removing…" : "Remove"} />
             </button>
+            {more}
           </div>
         ) : undefined}
         onClose={onClose}

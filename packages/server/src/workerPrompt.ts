@@ -269,9 +269,8 @@ for: 1d
 - \`prs:\` — \`owner/repo#N\`, registered FIRST with \`ntwinectl watch-pr add\`. It wakes you on CI,
   reviews, comments, labels and conflicts; a wake saying CI is held for a maintainer's approval will
   not resolve by itself — go and ask.
-- \`threads:\` — \`@handle\`s you asked with \`ntwinectl message-thread --await-reply\`.
-- \`terminals:\` — \`@handle\`s from \`ntwinectl terminal start\`; you are woken when one reaches a prompt
-  or ends.{{NTWINE_COMMANDS_KEY}}
+- \`threads:\` — \`@handle\`s you asked with \`ntwinectl message-thread --await-reply\`, or terminals,
+  which wake you on a prompt, an exit or a change of hands.{{NTWINE_COMMANDS_KEY}}
 - \`title:\` — optional: the card's heading, a short sentence-case phrase naming this wait.
 - \`steps:\` and \`questions:\` — below.
 
@@ -471,8 +470,9 @@ const BACKEND: Record<BackendKind, string> = {
   \`&\`, \`nohup\` or \`disown\` — a hook rejects escaping jobs. Stop every shell that no longer serves
   the work, and never write one that polls for a sub-agent or Workflow: those notify you.
 - **A process you work alongside** (a dev server, a log tail) starts with
-  \`ntwinectl terminal start "<command>"\`, not a background shell. It outlives your turn;
-  \`ntwinectl terminal read @handle\` reads it, and \`ntwinectl terminal stop @handle\` ends it.
+  \`ntwinectl terminal start "<command>"\`, not a background shell: a terminal thread the user sees and
+  can take over, which outlives your turn. Reach it with the thread verbs — \`read-thread @handle\`,
+  \`message-thread @handle\` to type a line while you drive it — and end it with \`terminal stop\`.
 - \`Monitor\` streams events into an active turn (\`persistent: true\` runs until \`TaskStop\`); you cannot
   rest on it. \`TaskOutput\` is deprecated: \`Read\` the output path. \`TaskStop\` is for your own monitors
   and shells, never a sub-agent.
@@ -558,8 +558,8 @@ node {{NTWINE_MONITORS_DIR}}/review-watch.mjs --repo OWNER/REPO --pr NUMBER
 - A Luna child is optional only when you have genuinely independent parent work; it never edits,
   mutates GitHub, delegates, sets timers or emits an awaiting fence.
 - **A process you work alongside** (a dev server, a log tail) starts with
-  \`ntwinectl terminal start "<command>"\`; it outlives your turn, and \`ntwinectl terminal read @handle\`
-  reads it.
+  \`ntwinectl terminal start "<command>"\`: a terminal thread the user sees, which outlives your turn.
+  \`read-thread @handle\` reads it; \`message-thread @handle\` types a line while you drive it.
 - **A long gate**: create the \`tools.exec_command(...)\`
   promise, call \`yield_control()\`, then await and drain that same session. Never \`&\`, \`nohup\` or
   \`disown\`. Give a finite exec a budget with \`ntwinectl extend-shell <process id> --for <duration>\`
@@ -584,7 +584,8 @@ commands are \`ntwinectl\`, on your shell's PATH. \`SendMessage\` and the \`Agen
 contract are Claude Code's — use your harness's equivalent, or none. ntwine cannot see sub-agents your
 harness runs, so prefer working inline; when you fan out, let each child finish, and fold every result
 into your own write-up before you rest. A process you work alongside (a dev server, a log tail) starts
-with \`ntwinectl terminal start "<command>"\`, not a background job of your shell.
+with \`ntwinectl terminal start "<command>"\`, not a background job of your shell; \`ntwinectl read-thread\`
+and \`ntwinectl message-thread\` read and type into it.
 
 A message the user sends while you work is queued and arrives as your next turn: rest promptly when
 the work is done, and read the newest user message first.`,

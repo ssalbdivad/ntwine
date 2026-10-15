@@ -519,6 +519,17 @@ export interface PrWatchRow {
   registered_by?: "worker" | "human"
 }
 
+/** What the threads a control move touched are still owed (`control_notes`), or [] when nothing or garbage. */
+export function terminalNotesOf(row: Pick<ThreadTerminalRow, "control_notes"> | undefined): { to: string; text: string }[] {
+  if (!row?.control_notes) return []
+  try {
+    const parsed: unknown = JSON.parse(row.control_notes)
+    return Array.isArray(parsed) ? parsed.filter((n): n is { to: string; text: string } => typeof n?.to === "string" && typeof n?.text === "string") : []
+  } catch {
+    return []
+  }
+}
+
 /** A TERMINAL THREAD's definition and its latest run (thread-terminals.ts), a row of `thread_terminal`.
  *  Every row is a thread of its own since 2026-10-15; `parent_slug` names the thread it was started from,
  *  when it was. A row with neither a parent nor `started_by` is a 2026-09-23 command thread, kept archived. */
@@ -536,9 +547,20 @@ export interface ThreadTerminalRow {
   snoozed_until?: string | null
   /** The signal that ended the last run, when one did. */
   exit_signal?: number | null
-  /** The starting thread's armed `ntwinectl watch terminal` (`trw_…`), and when it lapses (epoch ms). */
+  /** An armed `ntwinectl watch terminal` (`trw_…`), the thread that armed it, and when it lapses (epoch ms). */
   watch_id?: string | null
+  watch_slug?: string | null
+  watch_armed_at?: number | null
   watch_expires_at?: number | null
+  /** Who types into it: `human` or a thread's slug. NULL ⇒ its starter (`started_by`), which holds control
+   *  until it moves. `control_agent` is the last thread that held it (Hand back's target); `control_from`
+   *  and `control_changed_at` (epoch ms) are the last move, which SOURCE 17 tells the threads it touched. */
+  controller?: string | null
+  /** JSON `[{ to, text }]`: what each thread a control move touched is still owed (SOURCE 17 tells it). */
+  control_notes?: string | null
+  control_agent?: string | null
+  control_from?: string | null
+  control_changed_at?: number | null
   /** The line it runs; for an interactive shell (`shell` = 1), the shell's name. */
   command: string
   /** The folder it runs in. NULL only on a pre-2026-09-29 row, which ran in the project root. */
@@ -929,8 +951,13 @@ export interface Storage extends ScheduleStore {
   setThreadTerminalSnooze(slug: string, until: string | null): boolean
   /** A row from before handles (migrated at boot) gets its minted handle. */
   setThreadTerminalHandle(slug: string, handle: string): void
-  /** Arm (an id and its lapse, epoch ms) or clear (nulls) the starting thread's watch on a terminal. */
-  setThreadTerminalWatch(slug: string, id: string | null, expiresAtMs: number | null): boolean
+  /** Arm (an id, the arming thread and its lapse, epoch ms) or clear (nulls) the watch on a terminal. */
+  setThreadTerminalWatch(slug: string, watch: { id: string; by: string; armedAtMs: number; expiresAtMs: number } | null): boolean
+  /** Move control of a terminal to `to` ('human' | a thread slug), recording the move at `atMs`. A thread
+   *  taking it becomes `control_agent`. Returns false when it is already there (nothing moved). */
+  setThreadTerminalController(slug: string, to: string, atMs: number): boolean
+  /** Replace what the threads a control move touched are still owed (`control_notes`); [] clears it. */
+  setThreadTerminalNotes(slug: string, notes: readonly { to: string; text: string }[]): void
   /** Register a watch, or return the armed one already covering this (thread, kind, target). Idempotent
    *  by that triple, so a worker re-registering the same wait after a wake gets one row, not two. */
   armThreadWatch(watch: { id: string; slug: string; kind: "shell" | "agent"; target: string; createdAtMs: number; expiresAtMs: number }): ThreadWatchRow
@@ -1650,10 +1677,19 @@ export const STORAGE_SCHEMA = `
       pinned_at     TEXT,
       snoozed_until TEXT,
       exit_signal   INTEGER,
-      -- The starting thread's wait on it (ntwinectl watch terminal, 2026-10-15): one per terminal, since
-      -- only its starter may watch it. Cleared when it fires or lapses. Also ALTERed below.
+      -- A thread's wait on it (ntwinectl watch terminal, 2026-10-15): one per terminal, held by the thread
+      -- that armed it. Cleared when it fires or lapses. Also ALTERed below.
       watch_id         TEXT,
+      watch_slug       TEXT,
+      watch_armed_at   INTEGER,
       watch_expires_at INTEGER,
+      -- CONTROL (2026-10-15, plans/terminal-threads.md § Control): who types into it ('human' | a thread
+      -- slug; NULL ⇒ started_by), the last thread that held it, and the last move. Also ALTERed below.
+      controller         TEXT,
+      control_notes      TEXT,
+      control_agent      TEXT,
+      control_from       TEXT,
+      control_changed_at INTEGER,
       PRIMARY KEY (project_id, slug)
     );
     -- SCHEDULED THREADS (ARCHITECTURE.md § Scheduled threads): a saved prompt plus a recurrence that starts a
@@ -1818,6 +1854,15 @@ export function ensureStorageSchema(db: Database): void {
     // `thread_terminal.watch_id` / `watch_expires_at` (2026-10-15): `ntwinectl watch terminal`.
     ["thread_terminal", "watch_id TEXT"],
     ["thread_terminal", "watch_expires_at INTEGER"],
+    ["thread_terminal", "watch_slug TEXT"],
+    ["thread_terminal", "watch_armed_at INTEGER"],
+    // `thread_terminal.controller` / `control_agent` / `control_from` / `control_changed_at` (2026-10-15):
+    // who drives a terminal, human or a thread (plans/terminal-threads.md § Control).
+    ["thread_terminal", "controller TEXT"],
+    ["thread_terminal", "control_notes TEXT"],
+    ["thread_terminal", "control_agent TEXT"],
+    ["thread_terminal", "control_from TEXT"],
+    ["thread_terminal", "control_changed_at INTEGER"],
     // `thread_spinoff.child_project_id` (2026-09-30): a spinoff can start its thread in another project.
     // The row stays filed under the parent's project; this names the child's when it is not that one.
     ["thread_spinoff", "child_project_id TEXT"],
@@ -2482,7 +2527,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     VALUES (@project_id, @slug, @parentSlug, @startedBy, @handle, @command, @cwd, @shell, @createdAtMs, @createdAtMs)
   `)
   const listThreadTerminalsStmt = scope.prepare<[], ThreadTerminalRow>(
-    "SELECT slug, parent_slug, started_by, handle, pinned_at, snoozed_until, exit_signal, watch_id, watch_expires_at, command, cwd, shell, created_at, started_at, runs, exited_at, exit_code, stopped, state FROM thread_terminal WHERE project_id = @project_id ORDER BY created_at, slug",
+    "SELECT slug, parent_slug, started_by, handle, pinned_at, snoozed_until, exit_signal, watch_id, watch_slug, watch_armed_at, watch_expires_at, controller, control_notes, control_agent, control_from, control_changed_at, command, cwd, shell, created_at, started_at, runs, exited_at, exit_code, stopped, state FROM thread_terminal WHERE project_id = @project_id ORDER BY created_at, slug",
   )
   // A follow-up line makes a shell terminal a command one: the shell ended, and the line is what runs now.
   const restartThreadTerminalStmt = scope.prepare<{ command: string | null; startedAtMs: number; slug: string }>(`
@@ -2506,7 +2551,15 @@ export function createStorage(source: string | Database, projectId: string): Sto
   const setThreadTerminalPinStmt = scope.prepare("UPDATE thread_terminal SET pinned_at = ? WHERE project_id = @project_id AND slug = ?")
   const setThreadTerminalSnoozeStmt = scope.prepare("UPDATE thread_terminal SET snoozed_until = ? WHERE project_id = @project_id AND slug = ?")
   const setThreadTerminalHandleStmt = scope.prepare("UPDATE thread_terminal SET handle = ? WHERE project_id = @project_id AND slug = ?")
-  const setThreadTerminalWatchStmt = scope.prepare("UPDATE thread_terminal SET watch_id = ?, watch_expires_at = ? WHERE project_id = @project_id AND slug = ?")
+  const setThreadTerminalWatchStmt = scope.prepare("UPDATE thread_terminal SET watch_id = ?, watch_slug = ?, watch_armed_at = ?, watch_expires_at = ? WHERE project_id = @project_id AND slug = ?")
+  const setThreadTerminalNotesStmt = scope.prepare("UPDATE thread_terminal SET control_notes = ? WHERE project_id = @project_id AND slug = ?")
+  const setThreadTerminalControllerStmt = scope.prepare<{ slug: string; to: string; atMs: number }>(`
+    UPDATE thread_terminal SET control_from = COALESCE(controller, started_by, 'human'), controller = @to,
+      control_agent = CASE WHEN @to <> 'human' THEN @to
+        WHEN COALESCE(controller, started_by, 'human') <> 'human' THEN COALESCE(controller, started_by) ELSE control_agent END,
+      control_changed_at = @atMs
+    WHERE project_id = @project_id AND slug = @slug AND COALESCE(controller, started_by, 'human') <> @to
+  `)
   const armThreadWatchStmt = scope.prepare(`
     INSERT INTO thread_watch (project_id, id, thread_slug, kind, target, state, created_at, expires_at, settled_at)
     VALUES (@project_id, @id, @slug, @kind, @target, 'armed', @createdAtMs, @expiresAtMs, NULL)
@@ -3161,7 +3214,9 @@ export function createStorage(source: string | Database, projectId: string): Sto
     setThreadTerminalPin: (slug, at) => setThreadTerminalPinStmt.run(at, slug).changes === 1,
     setThreadTerminalSnooze: (slug, until) => setThreadTerminalSnoozeStmt.run(until, slug).changes === 1,
     setThreadTerminalHandle: (slug, handle) => void setThreadTerminalHandleStmt.run(handle, slug),
-    setThreadTerminalWatch: (slug, id, expiresAtMs) => setThreadTerminalWatchStmt.run(id, expiresAtMs, slug).changes === 1,
+    setThreadTerminalWatch: (slug, watch) => setThreadTerminalWatchStmt.run(watch?.id ?? null, watch?.by ?? null, watch?.armedAtMs ?? null, watch?.expiresAtMs ?? null, slug).changes === 1,
+    setThreadTerminalNotes: (slug, notes) => { setThreadTerminalNotesStmt.run(notes.length ? JSON.stringify(notes) : null, slug) },
+    setThreadTerminalController: (slug, to, atMs) => setThreadTerminalControllerStmt.run({ slug, to, atMs }).changes === 1,
     // IDEMPOTENT BY (thread, kind, target), which is what the partial unique index enforces. A worker
     // woken by an expiry re-registers the same wait, and a worker that simply calls twice must not end
     // up with two rows to drop — so an existing armed row is RETURNED rather than replaced. Replacing

@@ -89,8 +89,7 @@ not done.
   user typed past excepted) or a watch is armed, naming each by id: resolve them for real — `unask`
   what you decided yourself, `unwatch` what stopped mattering — and run it again. There is no force
   flag.
-- A background process you have moved on from — a dev server, a poller — does not block `done`; name it
-  in the body.
+- A terminal you leave running — a dev server — does not block `done`; name its `@handle` in the body.
 - **Landing is the user's call.** Commit, push or open a pull request only when their current request
   asks for it or the project's docs tell workers to. Permission covers the change it was given for: a PR
   opened for one request is no mandate for the next. Without a mandate, finished code is `done` where
@@ -158,7 +157,8 @@ for: 1d
 - `prs:` — `owner/repo#N`, registered FIRST with `ntwinectl watch-pr add`. It wakes you on CI,
   reviews, comments, labels and conflicts; a wake saying CI is held for a maintainer's approval will
   not resolve by itself — go and ask.
-- `threads:` — `@handle`s you asked with `ntwinectl message-thread --await-reply`.
+- `threads:` — `@handle`s you asked with `ntwinectl message-thread --await-reply`, or terminals,
+  which wake you on a prompt, an exit or a change of hands.
 - `commands:` — `cmw_…` ids from `ntwinectl watch-command add`: a check the server re-runs on a
   cadence until it exits 0, then wakes you with its output. Refused unless this thread runs in
   `bypassPermissions` with Claude Code's sandbox off.
@@ -328,11 +328,13 @@ which way you went.
   holding one can never be hibernated. Only when ntwine REFUSES the command watch does the loop go in a
   background shell; a wait no command can judge goes to a sub-agent that blocks until the verdict.
 - **A slow gate** — a full suite, a build — runs with `run_in_background: true` and a `timeout` sized
-  to it; its exit wakes you.
-- **A process you work alongside** (a dev server, a log tail) runs with `run_in_background: true`,
-  never `&`, `nohup` or `disown` — a hook rejects escaping jobs. Give a finite one a `timeout`;
-  `ntwinectl extend-shell <id> --for <duration>` extends a budget. Stop every shell that no longer
-  serves the work, and never write one that polls for a sub-agent or Workflow: those notify you.
+  to it; its exit wakes you. `ntwinectl extend-shell <id> --for <duration>` extends a budget. Never
+  `&`, `nohup` or `disown` — a hook rejects escaping jobs. Stop every shell that no longer serves
+  the work, and never write one that polls for a sub-agent or Workflow: those notify you.
+- **A process you work alongside** (a dev server, a log tail) starts with
+  `ntwinectl terminal start "<command>"`, not a background shell: a terminal thread the user sees and
+  can take over, which outlives your turn. Reach it with the thread verbs — `read-thread @handle`,
+  `message-thread @handle` to type a line while you drive it — and end it with `terminal stop`.
 - `Monitor` streams events into an active turn (`persistent: true` runs until `TaskStop`); you cannot
   rest on it. `TaskOutput` is deprecated: `Read` the output path. `TaskStop` is for your own monitors
   and shells, never a sub-agent.
