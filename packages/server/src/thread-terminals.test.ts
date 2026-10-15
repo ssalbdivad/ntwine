@@ -1,11 +1,12 @@
 import { after, test } from "node:test"
 import assert from "node:assert/strict"
-import { mkdtempSync, readdirSync, readFileSync, realpathSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { ThreadSlug, terminalOutcome } from "@ntwine/shared"
 import { createStorage, type Storage } from "./storage.ts"
+import { createTerminalHost, type TerminalHost } from "./backend/terminal-host.ts"
 import { commandEnvironment, createTerminalRunner, endsOnPrompt, followUpScreen, plainScreen, terminalHandle, terminalThreadView, type TerminalRunner, type TerminalRunnerDeps } from "./thread-terminals.ts"
 
 // REAL ptys and a real SQLite file: the runner's whole job is the seam between a shell, its process
@@ -18,12 +19,33 @@ const PARENT = "fix-auth"
 // Every runner a test made, hung up once the file is done — so a failed assertion cannot leave a live
 // pty holding the test process open (the runner's own shutdown SIGHUPs every process group it owns).
 const runners: TerminalRunner[] = []
-after(() => { for (const runner of runners) runner.shutdown() })
+// A HOSTED run outlives its runner's shutdown by design, so a hosted test's daemons are ended here too.
+const hosts: TerminalHost[] = []
+after(() => {
+  for (const runner of runners) runner.shutdown()
+  for (const host of hosts) for (const record of host.live()) host.end(record.id)
+})
 
-function harness(opts: { storage?: Storage; dir?: string; inputQuietMs?: number; loadPty?: TerminalRunnerDeps["loadPty"] } = {}) {
+// Every behaviour below runs twice: with the pty in this process (Windows, and the fallback) and with
+// it in a REAL detached terminal daemon (production on POSIX). The board must not tell them apart.
+type Mode = "in-process" | "hosted"
+let mode: Mode = "in-process"
+function both(name: string, fn: () => Promise<void>): void {
+  for (const each of ["in-process", "hosted"] as const) {
+    test(`${name} [${each}]`, { skip: !posix }, async () => {
+      mode = each
+      try { await fn() } finally { mode = "in-process" }
+    })
+  }
+}
+
+function harness(opts: { storage?: Storage; dir?: string; inputQuietMs?: number; loadPty?: TerminalRunnerDeps["loadPty"]; hosted?: boolean } = {}) {
   const dir = opts.dir ?? realpathSync(mkdtempSync(join(tmpdir(), "ntwine-term-")))
   const store = opts.storage ?? createStorage(join(dir, "ui.db"), "p")
   let changes = 0
+  const hosted = opts.hosted ?? mode === "hosted"
+  const host = hosted ? createTerminalHost({ stateDir: dir, stopGraceMs: 1_000, ...(opts.inputQuietMs === undefined ? {} : { inputQuietMs: opts.inputQuietMs }) }) : undefined
+  if (host) hosts.push(host)
   const runner = createTerminalRunner({
     storage: store,
     onChange: () => { changes++ },
@@ -32,10 +54,12 @@ function harness(opts: { storage?: Storage; dir?: string; inputQuietMs?: number;
     stopGraceMs: 1_000,
     ...(opts.inputQuietMs === undefined ? {} : { inputQuietMs: opts.inputQuietMs }),
     ...(opts.loadPty ? { loadPty: opts.loadPty } : {}),
+    // A hosted run that quietly fell back to an in-process pty would pass every test for the wrong reason.
+    ...(host ? { host, log: (m: string) => { if (/did not start/.test(m)) throw new Error(m) } } : {}),
   })
   runners.push(runner)
   const start = (command: string | undefined, parent: string | undefined = PARENT, cwd = dir) => runner.start({ parent, startedBy: "human", command, cwd })
-  return { runner, storage: store, dir, start, changes: () => changes }
+  return { runner, storage: store, dir, host, start, changes: () => changes }
 }
 
 async function until<T>(read: () => T | undefined, what: string, timeoutMs = 10_000): Promise<T> {
@@ -72,7 +96,7 @@ function alive(pid: number): boolean {
   }
 }
 
-test("a finished command keeps its output and exit code on its thread, and a late viewer still sees both", { skip: !posix }, async () => {
+both("a finished command keeps its output and exit code on its thread, and a late viewer still sees both", async () => {
   const { runner, dir, start } = harness()
   const { id } = await start("printf 'hello from %s\\n' \"$PWD\"; printf 'leak=%s\\n' \"${NTWINE_LOG_FILE:-none}\"; exit 3")
   assert.ok(ThreadSlug.safeParse(id).success)
@@ -97,7 +121,7 @@ test("a finished command keeps its output and exit code on its thread, and a lat
   runner.shutdown()
 })
 
-test("an empty command opens the human's shell there, named for it, and its own prompt never queues the thread", { skip: !posix }, async () => {
+both("an empty command opens the human's shell there, named for it, and its own prompt never queues the thread", async () => {
   const { runner, dir, start } = harness({ inputQuietMs: 150 })
   const { id } = await start(undefined)
   const shell = term(runner, id)!
@@ -122,7 +146,7 @@ test("an empty command opens the human's shell there, named for it, and its own 
   runner.shutdown()
 })
 
-test("stop ends the whole process group — the shell's children too — and records it as stopped", { skip: !posix }, async () => {
+both("stop ends the whole process group — the shell's children too — and records it as stopped", async () => {
   const { runner, start } = harness()
   // The shell forks a child and waits on it, the shape of `npm run dev` forking node.
   const { id } = await start("sleep 60 & echo child=$!; wait")
@@ -143,7 +167,7 @@ test("stop ends the whole process group — the shell's children too — and rec
   runner.shutdown()
 })
 
-test("each way a run ends lands in its band: a failure and a prompt queue, a clean exit and Ctrl-C are Done", { skip: !posix }, async () => {
+both("each way a run ends lands in its band: a failure and a prompt queue, a clean exit and Ctrl-C are Done", async () => {
   const { runner, start } = harness({ inputQuietMs: 150 })
   const failed = await start("exit 1", undefined)
   const clean = await start("exit 0", undefined)
@@ -167,7 +191,7 @@ test("each way a run ends lands in its band: a failure and a prompt queue, a cle
   runner.shutdown()
 })
 
-test("Mark as done on a running terminal stops it before filing it; a restart reopens it", { skip: !posix }, async () => {
+both("Mark as done on a running terminal stops it before filing it; a restart reopens it", async () => {
   const { runner, start } = harness()
   const { id } = await start("sleep 60 & echo child=$!; wait", undefined)
   const attachment = runner.attach(id)!
@@ -181,7 +205,7 @@ test("Mark as done on a running terminal stops it before filing it; a restart re
   runner.shutdown()
 })
 
-test("a parent's strip lists the terminals it started until each is Done, and its Done stops none of them", { skip: !posix }, async () => {
+both("a parent's strip lists the terminals it started until each is Done, and its Done stops none of them", async () => {
   const { runner, start } = harness()
   const server = await start("sleep 60")
   const build = await start("exit 0")
@@ -215,7 +239,7 @@ test("a terminal's screen reads as text: escapes dropped, a carriage-returned li
   assert.equal(plainScreen("\x1b[32mok\x1b[0m\r\n[1/3]\r[2/3]\r[3/3]\r\ndone"), "ok\n[3/3]\ndone")
 })
 
-test("restart is a fresh run of the same command; remove forgets the terminal", { skip: !posix }, async () => {
+both("restart is a fresh run of the same command; remove forgets the terminal", async () => {
   const { runner, start } = harness()
   const { id } = await start("sleep 60")
   assert.equal(term(runner, id)!.runId, 1)
@@ -231,7 +255,7 @@ test("restart is a fresh run of the same command; remove forgets the terminal", 
   runner.shutdown()
 })
 
-test("a follow-up run is the terminal's next command, on a screen that carries the last one's output", { skip: !posix }, async () => {
+both("a follow-up run is the terminal's next command, on a screen that carries the last one's output", async () => {
   const { runner, start } = harness()
   const { id } = await start("printf 'first-out\\n'")
   await exitedTerm(runner, id)
@@ -267,7 +291,7 @@ test("a follow-up after the server lost the last run's screen opens on just its 
   assert.equal(followUpScreen({ command: "sh", buffer: "$ ls\r\na\r\n", echoed: false, interactive: true }, "b"), "$ ls\r\na\r\n\x1b[0m\x1b[?25h\x1b[2m$\x1b[22m b\r\n")
 })
 
-test("a run the previous server never saw finish reads as interrupted after a restart", { skip: !posix }, async () => {
+test("a run the previous server never saw finish reads as interrupted after a restart, when its pty was the server's child", { skip: !posix }, async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-term-")))
   const storage = createStorage(join(dir, "ui.db"), "p")
   const before = harness({ storage, dir })
@@ -336,7 +360,10 @@ test("a terminal whose pty cannot load fails in its own pane, with the reason, a
 test("no server module imports node-pty at load — only the terminal start path, by dynamic import", () => {
   const src = dirname(fileURLToPath(import.meta.url))
   const offenders: string[] = []
-  for (const name of readdirSync(src)) {
+  // The server's own modules AND the backend/, where the terminal daemon lives: a daemon that imported
+  // the addon at load would die on a box without it instead of saying why on the terminal's screen.
+  const files = [...readdirSync(src).map((name) => name), ...readdirSync(join(src, "backend")).map((name) => join("backend", name))]
+  for (const name of files) {
     if (!name.endsWith(".ts") || name.endsWith(".test.ts")) continue
     const text = readFileSync(join(src, name), "utf8")
     // A value import (or a bare side-effect import) evaluates the addon at module load. `import type` is
@@ -346,14 +373,14 @@ test("no server module imports node-pty at load — only the terminal start path
     if (loads || /require\(\s*["']node-pty["']\s*\)/.test(text)) offenders.push(name)
   }
   assert.deepEqual(offenders, [])
-  // And the one dynamic import is where the runner says it is.
-  assert.match(readFileSync(join(src, "thread-terminals.ts"), "utf8"), /await import\("node-pty"\)/)
+  // And the one dynamic import is where the runner and the daemon both load it from.
+  assert.match(readFileSync(join(src, "terminal-session.ts"), "utf8"), /await import\("node-pty"\)/)
   assert.equal(basename(fileURLToPath(import.meta.url)), "thread-terminals.test.ts")
 })
 
 // THE 2FA CASE (2026-09-24). `npm publish` stopping at its OTP prompt left a live process the board had
 // no word for. It now marks the TERMINAL as waiting, which queues its thread (board.withThreadTerminals).
-test("a run sitting at a prompt reads as waiting for input, and answering it clears that", { skip: !posix }, async () => {
+both("a run sitting at a prompt reads as waiting for input, and answering it clears that", async () => {
   const { runner, start, changes } = harness({ inputQuietMs: 300 })
   const { id } = await start("printf 'Enter one-time password: '; read otp; echo \"got $otp\"; sleep 30")
   const waiting = await until(() => (term(runner, id)?.awaitingInput ? term(runner, id) : undefined), "the prompt")
@@ -385,7 +412,7 @@ test("a run sitting at a prompt reads as waiting for input, and answering it cle
   runner.shutdown()
 })
 
-test("a quiet run that ended its last line — a dev server after its banner — is not waiting for input", { skip: !posix }, async () => {
+both("a quiet run that ended its last line — a dev server after its banner — is not waiting for input", async () => {
   const { runner, start } = harness({ inputQuietMs: 200 })
   const { id } = await start("printf 'ready on http://localhost:3000\\n'; sleep 30")
   await until(() => (/ready on/.test(runner.attach(id)!.replay()) ? true : undefined), "the banner")
@@ -406,4 +433,97 @@ test("a prompt is text left on an unterminated line, past any escapes painted af
   // A cursor returned to column 0 is a spinner between frames, not a question.
   assert.equal(endsOnPrompt("⠹ fetching\r"), false)
   assert.equal(endsOnPrompt(""), false)
+})
+
+// ── A restart under a hosted run (2026-10-15) ─────────────────────────────────────────────────────────
+// "Restart" here is the server side of one: the runner is shut down (which only detaches) and a new one
+// is built on the same database and state dir, exactly what the next server's context does. The full
+// control-plane replacement, with a real server process, is scripts/verify-terminal-host-restart.ts.
+
+function daemonPidOf(dir: string, id: string): number {
+  return (JSON.parse(readFileSync(join(dir, "terminal-host", `${id}.json`), "utf8")) as { daemonPid: number }).daemonPid
+}
+
+test("a hosted run outlives its server: the next one adopts the same process, its screen, and a prompt it reached unwatched", { skip: !posix }, async () => {
+  const before = harness({ hosted: true, inputQuietMs: 200 })
+  const { id } = await before.start("echo pid=$$; sleep 0.4; printf 'Enter code: '; read x; echo \"got $x\"; sleep 600")
+  const pid = Number(await until(() => /pid=(\d+)/.exec(before.runner.attach(id)!.replay())?.[1], "the shell's pid"))
+  before.runner.shutdown()
+  // The prompt arrives, and goes quiet past the window, while no server is attached.
+  await new Promise((resolve) => setTimeout(resolve, 900))
+  assert.ok(alive(pid), "the run survived its server")
+
+  const after = harness({ hosted: true, storage: before.storage, dir: before.dir, inputQuietMs: 200 })
+  const adopted = await until(() => (term(after.runner, id)?.awaitingInput ? term(after.runner, id) : undefined), "the adopted prompt")
+  assert.equal(adopted.state, "running")
+  assert.equal(adopted.runId, 1)
+  const attachment = after.runner.attach(id)!
+  assert.match(attachment.replay(), new RegExp(`pid=${pid}[\\s\\S]*Enter code: $`))
+  attachment.write("42\r")
+  await until(() => (/got 42/.test(attachment.replay()) ? true : undefined), "the answer to reach the same process")
+  await after.runner.stop(id)
+  assert.equal(term(after.runner, id)?.stopped, true)
+  await until(() => (alive(pid) ? undefined : true), "the shell to die")
+})
+
+test("a hosted run that ended while no server listened is filed with its own code and screen", { skip: !posix }, async () => {
+  const before = harness({ hosted: true })
+  const { id } = await before.start("echo last words; sleep 0.5; exit 7")
+  before.runner.shutdown()
+  await until(() => (existsSync(join(before.dir, "terminal-host", `${id}.exit.json`)) ? true : undefined), "the daemon's exit record")
+  const after = harness({ hosted: true, storage: before.storage, dir: before.dir })
+  const filed = term(after.runner, id)!
+  assert.equal(filed.state, "exited")
+  assert.equal(filed.exitCode, 7)
+  assert.equal(filed.stopped, undefined)
+  assert.match(after.runner.attach(id)!.replay(), /last words/)
+  assert.equal(existsSync(join(before.dir, "terminal-host", `${id}.exit.json`)), false, "filed once, then dropped")
+})
+
+test("a hosted run whose daemon was killed outright, leaving no record of the end, reads as interrupted", { skip: !posix }, async () => {
+  const before = harness({ hosted: true })
+  const { id } = await before.start("sleep 600")
+  const daemon = daemonPidOf(before.dir, id)
+  before.runner.shutdown()
+  process.kill(daemon, "SIGKILL")
+  await until(() => (alive(daemon) ? undefined : true), "the daemon to die")
+  const after = harness({ hosted: true, storage: before.storage, dir: before.dir })
+  const interrupted = term(after.runner, id)!
+  assert.equal(interrupted.state, "exited")
+  assert.equal(interrupted.exitCode, undefined)
+})
+
+test("a daemon whose terminal the board forgot is ended at boot; one the board still has is adopted, untouched", { skip: !posix }, async () => {
+  const before = harness({ hosted: true })
+  const forgotten = await before.start("sleep 600 & wait")
+  const kept = await before.start("sleep 600")
+  const forgottenDaemon = daemonPidOf(before.dir, forgotten.id)
+  const keptDaemon = daemonPidOf(before.dir, kept.id)
+  before.runner.shutdown()
+  before.storage.dropThreadTerminal(forgotten.id)
+  // Past the audit's age guard, which covers a start between its row and its fork.
+  const runner = createTerminalRunner({
+    storage: before.storage, onChange: () => {}, env: { ...process.env, SHELL: "/bin/sh" }, stopGraceMs: 1_000,
+    host: createTerminalHost({ stateDir: before.dir, stopGraceMs: 1_000 }), now: () => Date.now() + 120_000,
+  })
+  runners.push(runner)
+  await until(() => (alive(forgottenDaemon) ? undefined : true), "the forgotten terminal's daemon to end")
+  assert.ok(alive(keptDaemon), "the kept one is never touched")
+  assert.equal(term(runner, kept.id)?.state, "running")
+})
+
+test("a server replaced while it still runs (an update's overlap) gives its terminals up to the new one, and never takes them back", { skip: !posix }, async () => {
+  const old = harness({ hosted: true })
+  const { id } = await old.start("cat")
+  const next = harness({ hosted: true, storage: old.storage, dir: old.dir })
+  await until(() => (term(next.runner, id)?.state === "running" ? true : undefined), "the new server to adopt it")
+  // Each attach the daemon greets is a change on the new server; a fight over the run would be a stream of them.
+  await new Promise((resolve) => setTimeout(resolve, 600))
+  const settled = next.changes()
+  await new Promise((resolve) => setTimeout(resolve, 1_500))
+  assert.equal(next.changes(), settled, "the new server is not being re-attached over and over")
+  const attachment = next.runner.attach(id)!
+  attachment.write("still-mine\r")
+  await until(() => (/still-mine\r?\n.*still-mine/s.test(attachment.replay()) ? true : undefined), "the echo through the new server")
+  await next.runner.stop(id)
 })

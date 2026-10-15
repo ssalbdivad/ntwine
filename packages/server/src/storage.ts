@@ -1600,9 +1600,9 @@ export const STORAGE_SCHEMA = `
     -- from the prompt box's Terminal tab, in a table named command_thread; it was re-parented onto
     -- threads on 2026-09-29 (parent_slug, cwd, shell, all in the ALTER list below) and the table renamed
     -- to what it holds on 2026-10-06 (renameCommandThreadTable). Only the DEFINITION and the last run's
-    -- outcome are durable — the pty is a child of the server and dies with it, so a row whose run never
-    -- recorded an exit is one a restart interrupted, and boot says so rather than showing a process that
-    -- is not there. RUNS counts starts, so a restart is a new terminal to the browser.
+    -- outcome are durable. The pty lives in a detached terminal daemon (backend/terminal-daemon.ts) that a
+    -- restart does not reach; a row whose run never recorded an exit, and whose daemon is neither alive nor
+    -- left an exit record, is one a restart interrupted, and boot says so. RUNS counts starts, so a restart is a new terminal to the browser.
     CREATE TABLE IF NOT EXISTS thread_terminal (
       project_id  TEXT NOT NULL,
       slug        TEXT NOT NULL,

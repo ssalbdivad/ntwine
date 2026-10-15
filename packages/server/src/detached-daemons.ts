@@ -28,6 +28,9 @@ export const DETACHED_DAEMON_ENTRIES = [
   // The ACP agent daemon: owns one ACP agent child per thread and serves its JSON-RPC over a socket,
   // so the agent and its running turn survive an ntwine restart. Forked by acp-host.ts.
   "packages/server/src/backend/acp-daemon.ts",
+  // The terminal daemon: owns one thread terminal's pty and serves it over a socket, so a dev server
+  // started in a terminal survives an ntwine restart. Forked by terminal-host.ts.
+  "packages/server/src/backend/terminal-daemon.ts",
   // Deliberately SHORT beyond these. One thing is pointedly absent:
   //
   //   dev-bootstrap.ts — see the exemption in dev-supervisor.ts. Emitting it woke a control-plane
