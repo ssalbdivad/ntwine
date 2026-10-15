@@ -5250,7 +5250,7 @@ export function needsAction(t: ThreadView): boolean {
  */
 export function boardAskThread(t: ThreadView): boolean {
   if (t.kind === "session" && t.foreign === true) return false
-  const pinned = t.kind === "session" && typeof t.pinnedAt === "string"
+  const pinned = (t.kind === "session" || t.kind === "terminal") && typeof t.pinnedAt === "string"
   return (pinned || sectionOf(t) === "active") && needsAction(t)
 }
 
