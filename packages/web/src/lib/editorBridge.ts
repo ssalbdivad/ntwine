@@ -22,7 +22,6 @@ import { basename } from "./paths.ts"
 import { projectsQueuesQuery, readProjectsQueues } from "./projectsQueuesRead.ts"
 import { spaNavigate } from "./router.ts"
 import { addContextItem, stagedItems } from "./stagedContext.ts"
-import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 
 // THE PAGE'S HALF OF THE EDITOR BRIDGE (packages/vscode; ARCHITECTURE.md § VS Code extension). Three jobs, all
 // machine-wide, so this module is set up once per page (main.tsx) rather than per project:
@@ -376,8 +375,7 @@ async function composeIntoBox(item: EditorComposeInput, box: ContextBox, request
  * By address alone, a thread of the page's own project often opened nothing: closed a moment before, its
  * drawer address was the one the router had just written, and the router took the host's navigation for
  * its own earlier write coming back (lib/router.ts `stale`) — 19 of 38 navigations at a load average of
- * 40-80, 0 of 16 when they alternated between two threads (sweep 2026-10-01). On /full the page holds no
- * drawer stack of its own to push onto, so the address goes there too.
+ * 40-80, 0 of 16 when they alternated between two threads (sweep 2026-10-01).
  */
 export function openNamedThread(slug: string, project: string, surface: "open" | "chat"): void {
   if (!holdsBoardOf(project)) {
@@ -388,15 +386,15 @@ export function openNamedThread(slug: string, project: string, surface: "open" |
   else pushDrawer("thread", slug)
 }
 
-/** Whether this page shows `project`'s board with a drawer stack of its own — the page, not /full. */
+/** Whether this page shows `project`'s board with a drawer stack of its own. */
 export function holdsBoardOf(project: string): boolean {
-  return projectSlug() === project && store.board?.projectSlug === project && parseStandaloneThreadPath(innerPath()) === null
+  return projectSlug() === project && store.board?.projectSlug === project
 }
 
 /**
  * Does `project` have a thread `slug`? Asked before opening one an editor named: a drawer address for a
  * thread its project lacks is not an empty drawer but a DOCUMENT load (store.ts resolveRoutedThread
- * hands it to the /full page's locator), which in a sidebar would reload the frame and drop the answer
+ * relocates it to the project that has it), which in a sidebar would reload the frame and drop the answer
  * the extension is waiting for. A server that cannot say is taken at its word.
  */
 export async function threadIsThere(slug: string, project: string): Promise<boolean> {
@@ -409,14 +407,10 @@ export async function threadIsThere(slug: string, project: string): Promise<bool
 }
 
 /**
- * The thread the human is reading: the topmost thread drawer, or the /full page's thread — which the
- * ADDRESS names, at any width. It was read off `store.splitFileViewer` until review C4, a layout flag the
- * /full page sets only at 1200px and wider, so in a window tiled half-width beside the editor an insert
- * went to a new-thread draft that page never shows, or navigated the human off the thread they were
- * reading. Exported for its test.
+ * The thread the human is reading: the topmost thread drawer. Exported for its test.
  */
 export function threadInFront(): { slug: string; sessionId?: string } | undefined {
-  const slug = topThreadSlug() ?? parseStandaloneThreadPath(innerPath())
+  const slug = topThreadSlug()
   if (!slug) return undefined
   const thread = store.board?.threads.find((candidate) => candidate.id === slug)
   return thread ? { slug, sessionId: thread.sessionId } : undefined

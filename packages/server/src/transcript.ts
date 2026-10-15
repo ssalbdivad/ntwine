@@ -4811,10 +4811,9 @@ export function readLatestThreadTranscriptPage(
   storage: Storage,
   slug: string,
   backendFor?: (kind?: string) => AgentBackend,
-  // `editedFiles: false` leaves the rail's edited-files reading out of the page. The /ws push producer
-  // asks for that: it re-reads on every byte-advance of every subscribed thread, and the reading is a
-  // scan of the whole projection plus two git spawns (repo-files.ts) — a price the RPC pays once per
-  // open, not one the push should pay per keystroke of the worker. The reader keeps its HTTP copy.
+  // `editedFiles: true` adds what the worker wrote — a scan of the whole projection plus two git spawns
+  // (repo-files.ts). Only "Review changes" asks for it (router.ts reviewTarget); the fullscreen page's
+  // rail, which every transcript read paid it for, was removed on 2026-10-15.
   opts: { editedFiles?: boolean } = {},
 ): TranscriptPage {
   let source = sourceForThread(project, storage, slug, backendFor)
@@ -4864,10 +4863,9 @@ export function readLatestThreadTranscriptPage(
     transcriptKey: snapshot.transcriptKey,
     // Over the WHOLE projection, not the window — see EditedFile in @ntwine/shared. The project dir is
     // what scopes the SHELL-write reading: a redirect names any path the worker felt like, and only the
-    // ones inside this checkout belong on the rail (edited-files.ts). Then git drops whatever the
-    // repository would not carry — scratch, build output — leaving the rail an account of repo work
-    // (repo-files.ts).
-    ...(opts.editedFiles === false
+    // ones inside this checkout count (edited-files.ts). Then git drops whatever the repository would
+    // not carry — scratch, build output — leaving an account of repo work (repo-files.ts).
+    ...(opts.editedFiles !== true
       ? {}
       : { editedFiles: repoCarriedEditedFiles(workDirOf(project), editedFilesOf(projected, workDirOf(project))) }),
   }

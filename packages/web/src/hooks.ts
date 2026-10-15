@@ -44,12 +44,6 @@ export function useProjectDir(): string | undefined {
   return useSnapshot(store).board?.projectDir
 }
 
-// The server's home directory — what /full's rail and file viewer write as `~` (see editedFileSegments).
-// Narrow for the same reason as useProjectDir.
-export function useHomeDir(): string | undefined {
-  return useSnapshot(store).board?.homeDir
-}
-
 export function asThreads(threads: readonly unknown[]): ThreadView[] {
   return threads as ThreadView[]
 }

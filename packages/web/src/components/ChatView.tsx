@@ -117,7 +117,6 @@ import { PROVIDER_LABEL } from "../lib/signIn.ts"
 import { ThreadMenu, ThreadTerminalButton } from "./ThreadMenu.tsx"
 import { ThreadProcessStrip } from "./ThreadTerminals.tsx"
 import { threadProcesses } from "../lib/threadProcesses.ts"
-import { takeFullscreenEnterAnchor } from "../lib/fullscreenHandoff.ts"
 import { prependEarlierPage } from "../lib/transcriptPagination.ts"
 import { buildVirtualTranscriptMessageRows, earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
 import { withoutRedundantRestDividers } from "../lib/restDividers.ts"
@@ -219,39 +218,33 @@ export function withoutLiveTranscriptBackgroundTools(messages: readonly ChatMess
 // ON A PHONE (below 700px, in the drawer — the only way a phone opens a thread) the chrome is the phone's
 // own (mockup v2 §2): a 56px MobileThreadHeader in place of the two-row header and its icon strip —
 // Snooze, Goal, the context reading and Restart worker live in the header's ⋯ sheet, and the one
-// lifecycle verb that matters at rest belongs to the bottom bar. The /full page (no `onClose`) keeps the
-// desktop chrome on every width; a phone never links to it. (Desktop had a lifecycle footer under the
+// lifecycle verb that matters at rest belongs to the bottom bar. (Desktop had a lifecycle footer under the
 // prompt box until 2026-10-05; its verbs and the context reading moved into ThreadHeader, and the Goal
 // into the prompt box's rail.)
-export function ThreadView({ slug, onStatusApplied, onClose, virtualized = false, showReturnToQueue = false }: { slug: string; onStatusApplied?: () => void; onClose?: () => void; virtualized?: boolean; showReturnToQueue?: boolean }) {
+export function ThreadView({ slug, onStatusApplied, onClose, virtualized = false }: { slug: string; onStatusApplied?: () => void; onClose?: () => void; virtualized?: boolean }) {
   const board = useBoard()
   const thread = threadBySlug(board, slug)
   const phone = useIsMobile() && onClose !== undefined
-  // THE RAIL IS BESIDE THIS THREAD — the /full page's own column (`showReturnToQueue` is passed by
-  // StandaloneThreadPage alone), at a width that draws its side pane. `splitFileViewer` is that width:
-  // the page sets it off the same SPLIT_MIN_PX the `split:` variant shows the pane at. A thread opened
-  // in a drawer over /full is not the rail's thread, so it keeps its own ops strip.
-  const { splitFileViewer } = useSnapshot(store)
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       {phone ? (
         <MobileThreadHeader slug={slug} onClose={onClose} />
       ) : (
-        <ThreadHeader slug={slug} onStatusApplied={onStatusApplied} onClose={onClose} showReturnToQueue={showReturnToQueue} />
+        <ThreadHeader slug={slug} onStatusApplied={onStatusApplied} onClose={onClose} />
       )}
       {/* `@handle` mentions in the human's messages link to the threads they name (MentionLinks.tsx). A
           thread working in a worktree has its relative file links resolved there (lib/useMarkdown.ts
           CheckoutBaseContext). */}
       <MentionIndexProvider>
         <CheckoutBaseContext.Provider value={thread?.checkout?.dir ?? null}>
-          <ChatView slug={slug} virtualized={virtualized} phone={phone} railBeside={showReturnToQueue && splitFileViewer} />
+          <ChatView slug={slug} virtualized={virtualized} phone={phone} />
         </CheckoutBaseContext.Provider>
       </MentionIndexProvider>
     </div>
   )
 }
 
-function ChatView({ slug, virtualized, phone = false, railBeside = false }: { slug: string; virtualized: boolean; phone?: boolean; railBeside?: boolean }) {
+function ChatView({ slug, virtualized, phone = false }: { slug: string; virtualized: boolean; phone?: boolean }) {
   const board = useBoard()
   // The same just-sent overlay the rail rows wear (lib/steering.ts): a reply sets the thread to work the
   // instant it is committed, so the tail's rest card (a registered done, the rested card, a resting
@@ -674,17 +667,13 @@ function ChatView({ slug, virtualized, phone = false, railBeside = false }: { sl
           // queue card's line (QueueOpsSummary), so a thread reads the same in its drawer as on its card
           // (maintainer 2026-10-09). The rows hung under the prompt box until then (2026-07-09).
           // The phone draws no ops at all (mockup v2 §2): a sub-agent is already a row in the transcript
-          // and on the board, and the registered files and links are the ⋯ sheet's. Nor does /full while
-          // its rail stands beside the column (maintainer 2026-10-02: "in the full screen view we don't
-          // need to show … the active shells and subagents and all of that beneath the prompt box anymore
-          // 'cause it's already showing up in the sidebar to the right"). The rail (FocusRail) lists every
-          // row the line counts, its saved links and Codex shells included.
-          above={phone || railBeside || !thread ? undefined : <QueueOpsSummary thread={thread} transcriptShells={liveTranscriptShells} />}
+          // and on the board, and the registered files and links are the ⋯ sheet's.
+          above={phone || !thread ? undefined : <QueueOpsSummary thread={thread} transcriptShells={liveTranscriptShells} />}
           phoneBarOverride={phone && heldOpenQuestions.length > 0
             ? (api) => <PhoneAnswerBar count={heldOpenQuestions.length} onAnswer={() => setAnswerSheetOpen(true)} onReply={api.editReply} />
             : undefined}
           // The box matches the header above it: the phone bar under the phone's chrome, the desktop box
-          // (and its rail's Goal) under the desktop header — which /full keeps at every width.
+          // (and its rail's Goal) under the desktop header.
           phoneChrome={phone}
         />
       </div>}
@@ -714,12 +703,6 @@ const TRANSCRIPT_CONTROL = "button, a[href], input, textarea, select, summary, l
 function onTranscriptControl(event: Event): boolean {
   return event.target instanceof Element && event.target.closest(TRANSCRIPT_CONTROL) !== null
 }
-
-// How long an anchor restore (a pin move, a head trim) owns the scroller while the rows it disturbed
-// settle. The settling lands on a ResizeObserver pass one or more frames after the commit, so the restore
-// has to outlive the commit — but it must stay far under READER_GESTURE_MS, since a reader who scrolls
-// during it should win the moment it ends.
-const ANCHOR_RESTORE_MS = 250
 
 // The eager history pager's pace: a short beat between pages so each prepend's rows mount and measure
 // before the next lands, and a re-check while the reader or a restore holds the scroller.
@@ -1251,60 +1234,30 @@ function VirtualizedThreadTranscript({
     loadEarlier()
   }, [loadEarlier, transcriptRef])
 
-  // Put a message back at a given HEIGHT ON SCREEN — window coordinates, not an offset within the
-  // scroller, because the hand-off measured the reader's place in a surface whose scroller starts
-  // somewhere else entirely.
-  //
-  // Deliberately NOT clamped into the pane. The anchor is the topmost message the reader could see, so
-  // it is usually running off the top of their view with the thing they are actually reading below it;
-  // pinning its top edge to the pane instead pushed the whole screen down by however much of it was
-  // already scrolled past — measured at 226px on a 900px window, which is the layout shift this is
-  // here to remove. Landing it exactly where it was leaves every line at the height it already had,
-  // and the part above the pane is clipped here exactly as it was clipped there.
-  const alignToScreenTop = useCallback((sourceId: string, screenTop: number) => {
-    const scroller = transcriptRef.current
-    if (!scroller) return
-    const node = Array.from(scroller.querySelectorAll<HTMLElement>("[data-transcript-source-id]"))
-      .find((element) => element.dataset.transcriptSourceId === sourceId)
-    if (!node) return
-    scroller.scrollTop += node.getBoundingClientRect().top - screenTop
-  }, [transcriptRef])
-
   useLayoutEffect(() => {
     if (!transcriptKey || rows.length === 0 || initialTranscriptKeyRef.current === transcriptKey) return
     initialTranscriptKeyRef.current = transcriptKey
     tailReadyRef.current = false
     readerMovedRef.current = false
     nearTopLoadArmedRef.current = true
-    // THE FULLSCREEN HAND-OFF. The door records which message the reader had at the top of the card or
-    // drawer it was pressed in (lib/fullscreenHandoff); land on THAT instead of the tail, so expanding a
-    // thread reads as the same page getting bigger rather than a jump to the end of a conversation the
-    // reader was deliberately not at. Absent, stale, or aimed at a message this window does not hold,
-    // the tail is still the answer — and it always is when the reader could already see the end, which
-    // the capture side refuses to anchor on.
-    const handoff = takeFullscreenEnterAnchor(slug)
-    // The topmost message the reader had that THIS window can place. Anything above it is a row the
-    // surface the door was pressed in drew and this one does not.
-    const anchor = handoff?.candidates
-      .map((candidate) => ({ candidate, index: rows.findIndex((row) => row.kind === "message" && row.message.sourceId === candidate.sourceId) }))
-      .find((hit) => hit.index >= 0)
     // THE PHONE OPENS A RESTED THREAD AT THE TOP OF ITS LAST MESSAGE (mockup v2, "Behaviour a still frame
     // cannot show"). A handoff is written verdict-first, and on a 390pt screen a 40-line one opened at the
     // tail puts the reader on its last bullet with the verdict 30 lines up. So at rest the phone lands the
     // top of the newest thing the agent SAID at the top of the pane; a running thread still opens on the
     // tail, where the live line is. `lastAgentIdx` is that message (lastAssistantIndex skips ntwine's own
     // event rows); if it draws no row of its own — a fence-only rest the resting card states — the last
-    // assistant row before it stands in, and with none the tail is still the answer. The fullscreen
-    // hand-off above outranks this: it is the reader's own place, carried over.
-    const lastMessageRow = !anchor && openAtLastMessage && lastAgentIdx >= 0
+    // assistant row before it stands in, and with none the tail is still the answer.
+    const lastMessageRow = openAtLastMessage && lastAgentIdx >= 0
       ? rows.reduce((found, row, index) => (row.kind === "message" && row.messageIndex <= lastAgentIdx && row.message.role === "assistant" && row.message.kind !== "event" ? index : found), -1)
       : -1
-    let frame = requestAnimationFrame(() => {
-      if (!anchor && lastMessageRow >= 0) {
-        // The fullscreen hand-off's two steps and its hold, aimed at a row's top instead of a remembered
-        // screen height: mount the row, release tail-follow, then re-align every frame while the rows
-        // around it correct from their estimates. The hold is longer than the hand-off's because nothing
-        // above this row has ever been measured on a cold open; a touch on the scroller ends it at once.
+    const frame = requestAnimationFrame(() => {
+      if (lastMessageRow >= 0) {
+        // Two steps, because the row is VIRTUAL: `scrollToIndex` gets it mounted (it may be thousands of
+        // estimated pixels away), then release tail-follow — `nextTailFollow` starts attached, so the
+        // settling growth would otherwise read as content arriving under a reader at the bottom and haul
+        // the page back there — and re-align every frame while the rows around it correct from their
+        // estimates. Nothing above this row has ever been measured on a cold open; a touch on the
+        // scroller ends the hold at once.
         const rowKey = rows[lastMessageRow].key
         virtualizer.scrollToIndex(lastMessageRow, { align: "start", behavior: "instant" })
         followingTailRef.current = false
@@ -1336,37 +1289,12 @@ function VirtualizedThreadTranscript({
         hold()
         return
       }
-      if (!anchor) {
-        virtualizer.scrollToEnd({ behavior: "instant" })
-        setAtEnd(true)
-        tailReadyRef.current = true
-        return
-      }
-      // Two steps, because the row is VIRTUAL: `scrollToIndex` gets it mounted (it may be thousands of
-      // estimated pixels away), then the align puts it at the exact height it had in the drawer. Release
-      // tail-follow first — `nextTailFollow` starts attached, so the settling growth below would
-      // otherwise read as content arriving under a reader at the bottom and haul the page back there.
-      virtualizer.scrollToIndex(anchor.index, { align: "start", behavior: "instant" })
-      followingTailRef.current = false
-      setAtEnd(false)
+      virtualizer.scrollToEnd({ behavior: "instant" })
+      setAtEnd(true)
       tailReadyRef.current = true
-      // HOLD IT THERE WHILE THE TRANSCRIPT MEASURES. Every row above the anchor mounts at its 108px
-      // estimate and corrects to its real height — routinely 300-750px on this transcript — and each
-      // correction moves the anchor under the reader's eye. One align lands on estimates; re-aligning
-      // every frame through the restore window lands on the truth. Claim the scroller for the same
-      // span so syncTailFollow reconciles against a settled height rather than one in transit, and
-      // stop the moment the reader touches it — their gesture outranks the restore.
-      const until = performance.now() + ANCHOR_RESTORE_MS
-      anchorRestoreUntilRef.current = until
-      const hold = () => {
-        if (performance.now() >= until || performance.now() < readerScrollUntilRef.current) return
-        alignToScreenTop(anchor.candidate.sourceId, anchor.candidate.screenTop)
-        frame = requestAnimationFrame(hold)
-      }
-      hold()
     })
     return () => cancelAnimationFrame(frame)
-  }, [alignToScreenTop, rows.length, slug, transcriptKey, virtualizer])
+  }, [rows.length, slug, transcriptKey, virtualizer])
   useEffect(() => () => cancelAnimationFrame(openHoldFrameRef.current), [])
 
   useLayoutEffect(() => {
@@ -1826,7 +1754,7 @@ function JumpToLatest({ overlay, hidden, onJump }: { overlay: HTMLElement | null
 // shared HeaderActions closed by the two lifecycle verbs, snooze and mark as done (ThreadLifecycleActions)
 // — the same strip the queue card's header draws. It carried a Chat|Doc tab strip until 2026-08-06; see
 // ThreadView for why that went.
-export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue = false }: { slug: string; onStatusApplied?: () => void; onClose?: () => void; showReturnToQueue?: boolean }) {
+export function ThreadHeader({ slug, onStatusApplied, onClose }: { slug: string; onStatusApplied?: () => void; onClose?: () => void }) {
   const board = useBoard()
   const thread = threadBySlug(board, slug)
   const markComplete = useMutation({ mutationFn: () => rpc.markComplete({ slug }) })
@@ -1847,11 +1775,7 @@ export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue
       className={THREAD_HEADER_CLASS}
     >
       <div className={THREAD_HEADER_TITLE_CLASS}>
-        {/* NO THREAD VERB BEFORE THE TITLE. The way out of /full used to be an ArrowLeft standing here,
-            which put a whole-thread verb at the one end of the header no other verb lives at, and said
-            "previous page" about a control whose job is to change how this thread is SHOWN. It is now
-            the closing half of the fullscreen door, in the door's own slot in the action strip below
-            (HeaderActions `collapse`).
+        {/* NO THREAD VERB BEFORE THE TITLE: that end of the header holds no whole-thread verb.
             The drawer's close is the one thing that does stand here, because it is not a thread verb:
             it is the sheet's own chrome, the same SheetClose every drawer's SheetHeader leads with (see
             there for why it leads, and for its spacing). Wired to the SAME animated close() as the
@@ -1889,11 +1813,6 @@ export function ThreadHeader({ slug, onStatusApplied, onClose, showReturnToQueue
           <SpinoffButton thread={thread} className={HEADER_ICON_CLASS} />
           <HeaderActions
             thread={thread}
-            // The /full page is the one surface with a fullscreen to LEAVE, and it leaves through the
-            // same slot it was entered by.
-            collapse={showReturnToQueue}
-            // …and the drawer, the one surface with a fullscreen to ENTER, through that same slot.
-            expand={Boolean(onClose)}
             onDone={() => markComplete.mutate(undefined, { onSuccess: onStatusApplied })}
             doneBusy={markComplete.isPending}
             onStatusApplied={onStatusApplied}
@@ -4589,8 +4508,7 @@ export function PermPolicyDenialCard({ policy, denies }: { policy: NonNullable<T
 // Saved links/files follow their own divider; they keep the strip visible without starting that tick.
 // Since 2026-10-09 the thread's own rows live in the hover panels of the op counts over its prompt box
 // (QueueOpsSummary), one panel per kind of row (`only`), on the queue card and in the drawer alike; only
-// the sub-agent drawer still hangs a scoped strip under its box. The /full page draws none of it while
-// its rail is on screen.
+// the sub-agent drawer still hangs a scoped strip under its box.
 export function BackgroundOpsStrip({
   slug,
   className = "px-4 pb-2 pt-1",

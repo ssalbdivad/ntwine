@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { useSnapshot } from "valtio"
-import { closeFilePanel, store, threadBySlug } from "../store.ts"
+import { store, threadBySlug } from "../store.ts"
 import { useBoard } from "../hooks.ts"
 import { displayTitle } from "../groups.ts"
 import { closeDrawerAnimated, closeSettingsAnimated } from "../lib/overlays.ts"
@@ -14,12 +14,8 @@ import { TerminalSheet } from "./TerminalSheet.tsx"
 import { ScheduleDrawer } from "./ScheduleDrawer.tsx"
 import { ErrorBoundary, DrawerErrorSheet } from "./ErrorBoundary.tsx"
 
-// The side-drawer STACK, and the Escape chain that unwinds it. Lives in its own component because
-// BOTH page shells need it: the queue (App) and the standalone `/thread/<slug>/full` page. It used to
-// be inlined in App, which made every drawer affordance a DEAD CLICK on /full — the sub-agent rows,
-// the background-shell rows and the ntwine-doc button all pushed a layer onto `store.drawers` that
-// nothing was mounted to render. The picture viewer is mounted here for the same reason — a picture can
-// be clicked on either page — though it is no layer of the stack: it is modal, and owns its own Escape.
+// The side-drawer STACK, and the Escape chain that unwinds it. The picture viewer is mounted here too,
+// though it is no layer of the stack: it is modal, and owns its own Escape.
 //
 // Two DIFFERENT depths: `depth` = the layer's true stack position (array index) drives z-index — it must
 // stay strictly monotonic so a layer always paints above everything below it, including the ~210ms window
@@ -30,18 +26,13 @@ import { ErrorBoundary, DrawerErrorSheet } from "./ErrorBoundary.tsx"
 // FINAL width and slide in from off-screen with no end-of-animation reflow. z and width are decoupled
 // because ThreadSheet alone is portaled + split-z (overlay/content) while the others are single-z inline
 // — tying z to the non-closing count let a closing ThreadSheet outrank a drawer opened above it.
-//
-// `onEscapeAtRest` is the chain's LAST step, for a shell whose page itself is something Escape can
-// leave: /full passes "exit fullscreen". It runs only when no layer above took the key.
-export function DrawerStack({ onEscapeAtRest }: { onEscapeAtRest?: () => void } = {}) {
+export function DrawerStack() {
   const snap = useSnapshot(store)
   const board = useBoard()
-  const onEscapeAtRestRef = useRef(onEscapeAtRest)
-  onEscapeAtRestRef.current = onEscapeAtRest
 
-  // Esc unwinding, for whichever shell mounted us. Exactly ONE of these is ever live per page, so the
-  // whole overlay precedence chain lives here rather than being split across two window listeners that
-  // would both fire on the same physical Escape. (App keeps the ⌘K/⌘I chords; those are its own.)
+  // Esc unwinding. Exactly ONE of these is ever live per page, so the whole overlay precedence chain
+  // lives here rather than being split across window listeners that would both fire on the same
+  // physical Escape. (App keeps the ⌘K/⌘I chords; those are its own.)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return
@@ -58,8 +49,7 @@ export function DrawerStack({ onEscapeAtRest }: { onEscapeAtRest?: () => void } 
         return
       }
       // Overlays soak up Esc first (outermost wins). A focused composer handles its own Esc (blur)
-      // and stops propagation — except /full's own, which lets it through to the steps below — so
-      // reaching here otherwise means the page is at rest. Settings + the
+      // and stops propagation, so reaching here otherwise means the page is at rest. Settings + the
       // open-thread sheet route through their OWN animated close (fall back to the store write if
       // nothing registered) so Esc slides them out instead of unmounting instantly.
       if (store.showPalette) store.showPalette = false
@@ -70,15 +60,6 @@ export function DrawerStack({ onEscapeAtRest }: { onEscapeAtRest?: () => void } 
         const top = store.drawers[store.drawers.length - 1]
         if (!closeDrawerAnimated(top.id)) store.drawers.pop()
       }
-      // The /full page's split file viewer sits UNDER any drawer (it is part of the page, not an
-      // overlay), so it unwinds last. A no-op on the queue page, where filePanels is empty.
-      else if (store.filePanels.length > 0) closeFilePanel()
-      // Nothing is open over the page, so the page itself goes (maintainer 2026-10-01: "hitting the
-      // escape key should always minimize a session that's in full screen view" — and the layers above
-      // still come first: "respect the hierarchy"). A Radix popover, menu or dialog that dismissed on
-      // this same press marked it defaultPrevented at document capture, before this bubble listener;
-      // an IME's Escape cancels the composition, not the page.
-      else if (!e.defaultPrevented && !e.isComposing) onEscapeAtRestRef.current?.()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)

@@ -187,12 +187,10 @@ export function makeTranscriptReader(
     // (web/lib/transcriptPagination.ts reconcileLiveMessages). The whole transcript grows without bound,
     // so a long-running thread eventually crossed APP_SOCKET_MAX_LOGICAL_FRAME_BYTES, the server
     // answered every subscribe with payload-too-large, and the client parked the thread in a fallback
-    // that refreshed on nothing but the banner's buttons: the /full page sat frozen until a hard reload
+    // that refreshed on nothing but the banner's buttons: the thread sat frozen until a hard reload
     // (maintainer 2026-09-16, a 19.5 MB codex rollout projecting to 4.47 MB against the 4 MB cap; the
-    // window came to 0.5 MB). `editedFiles: false` skips the git-backed scan the page otherwise runs —
-    // this producer fires on every byte-advance of every subscribed thread, and the rail keeps the copy
-    // its last HTTP read delivered.
-    const page = readLatestThreadTranscriptPage(project, storage, slug, backendFor, { editedFiles: false })
+    // window came to 0.5 MB).
+    const page = readLatestThreadTranscriptPage(project, storage, slug, backendFor)
     const named = peerNameFor ? projectTranscriptPeerNames(page.messages, (taskId) => peerNameFor(slug, taskId)) : page.messages
     const sent = sessionPeerThread ? projectTranscriptSessionPeers(named, sessionPeerThread) : named
     const projected = lifecycleFor ? projectTranscriptAgentLifecycles(sent, (id) => lifecycleFor(slug, id)) : sent

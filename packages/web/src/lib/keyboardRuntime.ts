@@ -198,14 +198,12 @@ function focusReplyBox(surface: HTMLElement): boolean {
 /**
  * The element whose controls a thread command presses: the topmost drawer layer if one is open (it is
  * what is in front of you — a sub-agent's sheet included, where `r` steers the sub-agent), else the
- * /full page's thread column, else the queue card the rail marks as being read.
+ * queue card the rail marks as being read.
  */
 export function currentThreadSurface(): HTMLElement | null {
   if (typeof document === "undefined") return null
   const top = [...store.drawers].reverse().find((drawer) => !drawer.closing)
   if (top) return document.querySelector<HTMLElement>(`[data-drawer-layer="${top.id}"]`)
-  const full = document.querySelector<HTMLElement>("[data-standalone-thread]")
-  if (full) return full
   const cursor = activeCursor()
   const key = cursor?.current()
   // A card already on its way out is not "the card you are reading" any more, even for the frame or
@@ -337,7 +335,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 // That includes a NARROW drawer. Below 800px ThreadSheet renders a modal Radix dialog (it covers the
 // screen, so it takes the scroll lock and the focus trap), which wears `aria-modal` AND pins the body's
 // pointer events — both of this test's tells at once. Read literally, every plain key died the moment a
-// half-width laptop window opened a thread (found 2026-09-29: `f` fullscreened a drawer at 1200px and
+// half-width laptop window opened a thread (found 2026-09-29: a key acted in a drawer at 1200px and
 // did nothing at 700px). So a drawer layer is excluded from the selector, and a body lock counts only
 // when no drawer is modal: with one open the lock is the drawer's own, and anything genuinely on top
 // of it — a confirm, the picture viewer, a menu — still matches the selector by itself.

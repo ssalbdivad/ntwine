@@ -7,8 +7,6 @@ import { MarkAsButton } from "./MarkAsButton.tsx"
 import { offersRetry } from "../groups.ts"
 import { retrySession } from "../lib/retrySession.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
-import { CollapseThreadLink } from "./CollapseThreadLink.tsx"
-import { ExpandThreadLink } from "./ExpandThreadLink.tsx"
 
 // The retry message + follow-up now live in lib/retrySession so the sidebar's hover-revealed Retry
 // shares this exact recovery path. Re-exported for existing importers.
@@ -17,7 +15,7 @@ export { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 // THE shared whole-thread action icons, rendered IDENTICALLY by the queue card header and the thread
 // header so the two can never drift. Order left→right runs least→most important, so the primary verb
 // sits at the far RIGHT. The verbs SPLIT on kind:
-//   • SESSION (non-foreign): the fullscreen door, plus Retry on exactly the threads `offersRetry`
+//   • SESSION (non-foreign): Retry on exactly the threads `offersRetry`
 //     picks — the STALLED ones (the rail's yellow [!]) and the ones KILLED by a usage limit ntwine will
 //     auto-resume (the yellow hourglass, offered the same one-click continue). Every surface that renders this
 //     component reads that same derivation, so the verb can never disagree between the card, the header
@@ -32,8 +30,6 @@ export { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 //   • LEGACY (kind !== "session"): the vestigial Mark-as split button, exactly as before.
 export function HeaderActions({
   thread,
-  expand,
-  collapse,
   onDone,
   onCollapse,
   collapsed,
@@ -43,8 +39,6 @@ export function HeaderActions({
   onStatusFailed,
 }: {
   thread: ThreadView
-  expand?: boolean // the drawer → the fullscreen door (ExpandThreadLink)
-  collapse?: boolean // the /full page → the same door, closing (CollapseThreadLink). Never both.
   onDone: () => void // legacy Mark-as "done" path (parent-owned mutation)
   onCollapse?: () => void // queue cards → collapse/expand the card body to just its header
   collapsed?: boolean
@@ -67,15 +61,6 @@ export function HeaderActions({
           onClick={onCollapse}
         />
       )}
-      {/* THE FULLSCREEN DOOR, one slot, both directions — a real anchor that navigates IN PLACE on a
-          plain click and leaves ⌘/middle/right-click to the browser. A surface only ever offers ONE of
-          these: the drawer can be expanded, the /full page can be collapsed, and holding both halves in
-          this one slot is what makes them share a position instead of the reader hunting for the way
-          back (maintainer 2026-09-02: a collapse icon "in the same place where the expand icon is").
-          Restored from 7a20f425; the ⋯ menu's duplicate entry went 2026-09-29. No key since 2026-10-14:
-          fullscreen is too niche to spend a letter on (maintainer). */}
-      {expand && <ExpandThreadLink slug={thread.id} />}
-      {collapse && <CollapseThreadLink slug={thread.id} />}
       {isSession ? (
         // A STALLED session (process gone, work unfinished) or one KILLED by an auto-resume usage limit
         // leads with recovery — Retry is the only exit/wait-state verb here; clearing a finished row is

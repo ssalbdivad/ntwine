@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { InteractionRecord } from "@ntwine/shared"
 import { TerminalSheet } from "./components/TerminalSheet.tsx"
 import { FileReaderDrawer } from "./components/FileReaderDrawer.tsx"
-import { FileViewerPanel } from "./components/FileViewerPanel.tsx"
 import { ProviderErrorCard } from "./components/ProviderErrorCard.tsx"
 import { RestartOverlay } from "./components/RestartOverlay.tsx"
 import { SignInModal } from "./components/SignInModal.tsx"
@@ -57,7 +56,6 @@ createRoot(document.getElementById("root")!).render(
         </div>}
         {mode === "shell" && <TerminalSheet id={1} slug="theme" source={{ owner: "agent", shellId: "shell" }} label="Checking the theme" startedAt={new Date(Date.now() - 95000).toISOString()} depth={0} widthDepth={0} />}
         {mode === "markdown" && <FileReaderDrawer id={1} path="/fixture/review.md" title="Palette verification" depth={0} widthDepth={0} />}
-        {mode === "file" && <div className="h-[calc(100vh-40px)] border border-border"><FileViewerPanel slug="theme" path="/fixture/theme.ts" active /></div>}
         {mode === "signin" && <SignInModal backend="claude" onClose={() => {}} onAuthed={() => {}} />}
         {mode === "restart" && <RestartOverlay open message="Preparing the verified application build…" />}
         {mode === "stalled" && <RestartOverlay open stalled silentFor="3m" />}

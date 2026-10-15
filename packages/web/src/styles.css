@@ -27,20 +27,6 @@
 
 /* Dense orchestration surface; system sans-serif, 13px base. */
 @theme {
-  /* WHERE /full BECOMES TWO COLUMNS — the `split:` variant, used only by StandaloneThreadPage.
-     Below it the page is ONE thread column at the drawer's own width; at and above it the 50/50 rule
-     takes over (the thread column and the file pane are each a pure function of the page width, so
-     opening a file resizes nothing).
-     1200 is the width the maintainer specified the split AT — "600px of content, and then the file
-     takes up 600px" on a 1200px screen (2026-08-30) — and putting the switch exactly there is what
-     keeps that reading while giving every narrower window a readable transcript. It used to switch at
-     `md` (768), where the thread column collapsed from 720px to 384px on a single pixel of resize and
-     sat beside a 340px rail that usually reads "Nothing running, watched or edited yet".
-     `SPLIT_MIN_PX` in components/StandaloneThreadPage.tsx is the same number for the file-click gate —
-     change them together. They were 768 and 1000 and DISAGREED: between them the rail was on screen
-     while a file click still fell back to the overlay drawer. */
-  --breakpoint-split: 1200px;
-
   /* A parked PR watcher's mark. Fitted to the accent teal/shell-blue pair in OKLCH rather than picked
      — see the .ntwine-live-dot--github rule below for the numbers and for why it is violet and not the
      green that fits the same numbers. */
@@ -241,7 +227,7 @@ body {
    19.5px on its right (scripts/ink-gaps.mjs, dsf 4, 2026-10-05). 17.5px is the 10px margin plus the
    7.5px the pill lacks. It reaches across component boundaries (HeaderActions renders the pill as the
    last item of its own row), which is why it is a selector and not a utility. In the drawer header the
-   fullscreen icon sits between the two, so this does not match there, as intended. */
+   ⋯ menu sits between the two, so this does not match there, as intended. */
 :has(> [data-header-pill]:last-child) + [data-thread-lifecycle] > [data-lifecycle-rule] {
   margin-left: 17.5px;
 }
@@ -2521,82 +2507,6 @@ html[data-host-colors] :is(.md-body, .md-inline) :is(a, .local-file-action) {
   .ntwine-card-slot > .ntwine-card-clip > .ntwine-card-body {
     transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
                 filter 200ms cubic-bezier(0.4, 0, 0.2, 1);
-  }
-}
-
-/* THE FULLSCREEN DOOR'S VIEW TRANSITION, both directions. Both halves of the door — the drawer menu's
-   "Open fullscreen" (ThreadMenu.tsx, or `f`) that opens /full and the ⤡ that leaves it
-   (CollapseThreadLink.tsx) — navigate with react-router's `viewTransition`, which wraps the route swap
-   in `document.startViewTransition` — and react-router re-arms the same transition for the
-   browser-Back POP of a pair that transitioned. These rules style the three snapshot groups the swap
-   produces. `thread-chat` is the SHARED element: forward, the drawer panel the door was opened from
-   (tagged at click time, ThreadMenu.tsx openFullscreen) morphs into the /full thread column, which
-   wears the name statically; backward, the column morphs into the drawer the primed return target
-   names (store.primeFullscreenReturn). `thread-rail` exists only on /full, so it always ENTERS or
-   EXITS through its own right edge, the direction it lives in. Everything unnamed — the page, its
-   project list, the drawer scrim — is the root group, which cross-fades.
-   Timings match the sheet family: 200ms, Tailwind's ease-out curve (cubic-bezier(0,0,0.2,1)). */
-::view-transition-group(thread-chat),
-::view-transition-group(thread-rail),
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 200ms;
-  animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
-}
-/* THE FORWARD MORPH STARTS FROM THE VISIBLE PART OF THE SURFACE, not its whole box. The browser's own
-   group keyframes run from the old element's full border box, and a tall surface scrolled to its
-   middle has a box that starts a thousand pixels above the viewport — so the whole screen rushed
-   downward for 200ms while the column faded in over it. (It was measured on the project board's queue
-   card, which the door also stood on until 2026-09-28.) The door measures the part of the surface
-   that is on screen (lib/fullscreenMorph.ts) and hands it here as `--ntwine-vt-from-*`; the `to` side
-   stays the group's own computed geometry, so only the start moves. `data-vt-door` is set by the
-   door and cleared render-phase on the way back, so the reverse leg — whose old element is the
-   /full column, always fully on screen — keeps the browser's keyframes. The old snapshot is still
-   the whole surface: the negative top margin slides the reader's part up to the group's top edge,
-   and it is a percentage of the group's width because the snapshot is sized by that width and scales
-   with it as the surface's width morphs into the column's. */
-html[data-vt-door="expand"]::view-transition-group(thread-chat) {
-  animation-name: ntwine-vt-chat-from-visible;
-}
-@keyframes ntwine-vt-chat-from-visible {
-  from {
-    transform: translate(var(--ntwine-vt-from-x), var(--ntwine-vt-from-y));
-    width: var(--ntwine-vt-from-w);
-    height: var(--ntwine-vt-from-h);
-  }
-}
-html[data-vt-door="expand"]::view-transition-old(thread-chat) {
-  margin-block-start: var(--ntwine-vt-old-shift, 0%);
-}
-@keyframes ntwine-vt-rail-in {
-  from {
-    opacity: 0;
-    translate: 48px 0;
-  }
-}
-/* `:only-child` = no old counterpart (a genuine enter) — the guard matters if a /full → /full
-   navigation ever opts in, where the rail would exist on both sides and should morph, not replay. */
-::view-transition-new(thread-rail):only-child {
-  animation: ntwine-vt-rail-in 200ms cubic-bezier(0, 0, 0.2, 1) both;
-}
-@keyframes ntwine-vt-rail-out {
-  to {
-    opacity: 0;
-    translate: 48px 0;
-  }
-}
-/* The reverse leg (leaving /full for the page): the rail is old-only and exits the way it came in. */
-::view-transition-old(thread-rail):only-child {
-  animation: ntwine-vt-rail-out 200ms cubic-bezier(0, 0, 0.2, 1) both;
-}
-/* The door checks prefers-reduced-motion before opting in at all; this is the backstop for any other
-   caller of startViewTransition. `animation: none` completes every group instantly — a hard cut. */
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-image-pair(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
   }
 }
 

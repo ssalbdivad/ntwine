@@ -5,7 +5,6 @@ import "./styles.css"
 import type { BlockAnswer, ParsedQuestion } from "./lib/questionBlocks.ts"
 import { setThemePreference, type ThemePreference } from "./lib/theme.ts"
 import { FenceCard } from "./components/ChatView.tsx"
-import { FileViewerPanel } from "./components/FileViewerPanel.tsx"
 import { NtwineWake } from "./components/NtwineWake.tsx"
 import { FileReaderDrawer } from "./components/FileReaderDrawer.tsx"
 import { QuestionBlockCard } from "./components/QuestionBlockCard.tsx"
@@ -15,7 +14,7 @@ import { ThreadDrawer } from "./components/ThreadDrawer.tsx"
 // The ```mermaid fence on every surface that renders a worker's Markdown as ONE string of HTML, each
 // through its REAL component: a done card (FenceCard), a question's context and options
 // (QuestionBlockCard), the two transcript asides (SessionMessageLine, NtwineWake) and the readers
-// (FileViewerPanel inline; FileReaderDrawer and ThreadDrawer, which are sheets, under `?mode=`). The
+// (FileReaderDrawer and ThreadDrawer, which are sheets, under `?mode=`). The
 // diagrams are drawn by the real mermaid, loaded the way the app loads it. Driven by
 // components/mermaid.e2e.test.ts.
 //
@@ -103,7 +102,9 @@ const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={client}>
     {mode === "markdown" ? (
-      <FileReaderDrawer id={1} path="/fixture/ask-flow.md" title="ask-flow.md" depth={0} widthDepth={0} />
+      <section data-fixture-reader>
+        <FileReaderDrawer id={1} path="/fixture/ask-flow.md" title="ask-flow.md" depth={0} widthDepth={0} />
+      </section>
     ) : mode === "thread" ? (
       <ThreadDrawer id={1} slug="ask-flow" title="Ask flow" depth={0} widthDepth={0} />
     ) : mode === "plain" ? (
@@ -136,9 +137,6 @@ createRoot(document.getElementById("root")!).render(
         </section>
         <section data-fixture-wake className="mb-8">
           <NtwineWake text={["A review comment landed:", "", FLOW].join("\n")} />
-        </section>
-        <section data-fixture-reader className="mb-8 h-[720px] border border-border">
-          <FileViewerPanel slug="fixture" path="/fixture/ask-flow.md" active />
         </section>
       </main>
     )}

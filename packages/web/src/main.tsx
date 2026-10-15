@@ -24,12 +24,10 @@ import { installThreadLinkInterceptor } from "./lib/thread-links.ts"
 import { setProjectMentions } from "./lib/projectMentions.ts"
 import { rpc } from "./api/rpc.ts"
 import { primeRoute } from "./lib/router.ts"
-import { installViewTransitionRejectionFilter } from "./lib/viewTransitionRejections.ts"
 import { PENDING_SEND_REPLAY_DELAY_MS, replayPendingSends } from "./lib/eagerComposerSubmission.ts"
 import { stepOffStaleLayerEntries } from "./lib/backDismiss.ts"
-import { innerPath } from "./lib/base-path.ts"
 import { projectScopedQueryKeyHash } from "./lib/queryKeyScope.ts"
-import { parseStandaloneThreadPath } from "./lib/standaloneThreadRoute.ts"
+import { RETIRED_FULL_PAGE, withoutFullPage } from "./lib/retiredFullPage.ts"
 
 // DEV ONLY: React 19.2's development build logs its Components/Scheduler performance tracks through
 // `performance.measure`, each entry carrying a `detail` object (a props diff for a re-render), and
@@ -43,14 +41,17 @@ if (import.meta.env.DEV && typeof performance !== "undefined") {
 }
 
 const settingsFixture = typeof window !== "undefined" && window.location.pathname.endsWith("/settings-formatting-fixture.html")
-// innerPath, not location.pathname: under a project prefix the deep link is `/all/nub/thread/x/full`.
-const standaloneThreadSlug = typeof window !== "undefined" ? parseStandaloneThreadPath(innerPath()) : null
+// A thread's fullscreen page (`…/thread/<slug>/full`) is gone; a bookmark or an old link to one opens
+// that thread's drawer instead. Rewritten before the router or the store reads the address.
+if (typeof window !== "undefined" && RETIRED_FULL_PAGE.test(location.pathname)) {
+  history.replaceState(history.state, "", withoutFullPage(location.pathname) + location.search + location.hash)
+}
 
 // A reload with a phone sheet up restores the sheet's same-URL history entry with no sheet to own it.
 // Step off it before anything pushes, so the page sits on the router's own entry (see lib/backDismiss).
 if (!settingsFixture) stepOffStaleLayerEntries()
 
-if (!settingsFixture && !standaloneThreadSlug) {
+if (!settingsFixture) {
   // Adopt a cold/deep URL before React takes its first store snapshot — still SYNCHRONOUS, and still
   // before the first render, which is the whole point: it is what makes a deep-linked drawer painted
   // open on the first frame instead of animating in afterwards. The router resolves the same path a
@@ -103,7 +104,6 @@ if (!settingsFixture) {
     setProjectMentions(result.data)
     setProjectMonograms(result.data)
   })
-  installViewTransitionRejectionFilter()
   // A reply still on the wire when the last page in this tab went away — see lib/pendingSends.ts.
   setTimeout(() => void replayPendingSends(), PENDING_SEND_REPLAY_DELAY_MS)
 }
@@ -113,8 +113,7 @@ if (!settingsFixture) {
   createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       {/* The last-resort catch. App wraps its own surfaces far more finely (sidebar / queue / each
-          drawer), so anything reaching this one broke above all of them — a throw in App's own body,
-          or in the standalone thread page. It still renders a page with the error ON it, which is
+          drawer), so anything reaching this one broke above all of them — a throw in App's own body. It still renders a page with the error ON it, which is
           the whole difference between a bad render and the blank window this replaced. */}
       <RootErrorBoundary>
         <RouterProvider router={router} />

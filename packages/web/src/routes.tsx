@@ -1,9 +1,8 @@
-import { useContext, useEffect, useLayoutEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useState } from "react"
 import { useSnapshot } from "valtio"
-import { Navigate, Outlet, UNSAFE_ViewTransitionContext, createBrowserRouter, useLocation, useNavigate, useParams } from "react-router"
+import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate, useParams } from "react-router"
 import { useQuery } from "@tanstack/react-query"
 import { App } from "./App.tsx"
-import { StandaloneThreadPage } from "./components/StandaloneThreadPage.tsx"
 import { AddProjectHost, Welcome } from "./components/ProjectActions.tsx"
 import { Tour } from "./components/Onboarding.tsx"
 import { startTourOnFirstRun } from "./lib/tour.ts"
@@ -11,7 +10,7 @@ import { TooltipProvider } from "./components/Tooltip.tsx"
 import { GithubHovercards } from "./components/GithubHovercards.tsx"
 import { Toaster } from "./components/Toaster.tsx"
 import { KeyboardLayer } from "./components/KeyboardShortcuts.tsx"
-import { applyLocation, noteRouterTransition, primeReturnFromFullscreen, registerNavigate } from "./lib/router.ts"
+import { applyLocation, registerNavigate } from "./lib/router.ts"
 import { setHomeFocus } from "./lib/base-path.ts"
 import { defaultCrossProjectFocus, lastFocusedProject, rememberLastFocusedProject, useCrossProjectPick } from "./lib/crossProject.ts"
 import { ALL_PROJECTS, ALL_PROJECTS_HREF, legacyViewRedirect, resolveView, viewAt, type PageView } from "./lib/pageView.ts"
@@ -21,7 +20,8 @@ import { rpc } from "./api/rpc.ts"
 import { projectsQueuesQuery } from "./lib/projectsQueuesRead.ts"
 import { LightboxHost } from "./components/Lightbox.tsx"
 import { feedIsBoundTo, rebindProject } from "./api/socket.ts"
-import { noteStandaloneThreadRender, resetProjectState, showToast, store } from "./store.ts"
+import { resetProjectState, showToast, store } from "./store.ts"
+import { withoutFullPage } from "./lib/retiredFullPage.ts"
 import { ownedByThisPage } from "./lib/projectOwnership.ts"
 
 // THE ROUTE TREE — and, more to the point, the LAYOUT that outlives a navigation.
@@ -72,11 +72,10 @@ function RootLayout() {
           than by the gallery, which is a virtualized transcript row that can unmount under it. */}
       <LightboxHost />
       {/* ALSO hosted by the layout, and for the same reason: prose carrying `#123` renders on the
-          page, in a drawer and on the standalone `/thread/<slug>/full` page alike, and one delegated
-          listener at the root covers all three. Inert until a pointer rests on a reference. */}
+          page and in a drawer alike, and one delegated listener at the root covers both. Inert until a pointer rests on a reference. */}
       <GithubHovercards />
       {/* The keyboard shortcuts and their sheet (`?`), for every page under the layout — the page and the
-          welcome alike. /full mounts its own copy, since it sits outside this layout. */}
+          welcome alike. */}
       <KeyboardLayer />
       {/* The first-run tour (components/Onboarding.tsx), over whichever view the page shows. */}
       <Tour />
@@ -200,20 +199,18 @@ function PageSpinner() {
 }
 
 function CrossProjectPage() {
-  const { slug: routeSlug, thread } = useParams()
+  const { slug: routeSlug } = useParams()
   const page = usePageResolution(routeSlug)
   const slug = routeSlug ?? (page.kind === "page" ? page.slug : undefined)
   // Render-phase, before anything below asks base-path which project `/` is.
   if (routeSlug === undefined) setHomeFocus(slug)
-  // The gate useProjectBinding returns is NOT applied here, unlike /full below. Upstream's board is keyed
+  // The gate useProjectBinding returns is NOT applied here. Upstream's board is keyed
   // by its slug and remounts on every switch anyway, so rendering nothing for one commit costs it nothing;
   // this page is keyed by a constant precisely so a switch never remounts it, and the cross-project open
   // keeps its drawer frame (PendingThreadSheet, inside <App/>) on screen through the rebind. Returning
   // null would unmount that frame mid-slide. The layout-effect reset still lands before the first paint.
   useProjectBinding(slug)
   useRouteToStore()
-  useRouterTransition()
-  useState(() => primeReturnFromFullscreen(thread))
   // A browser's first page starts the tour (lib/tour.ts), on All projects or a board alike.
   const pageShown = page.kind === "page"
   useEffect(() => {
@@ -319,19 +316,8 @@ function useRouteToStore() {
   }, [location.pathname])
 }
 
-// Tells lib/router's store → URL writer when react-router's view transition starts and finishes, so it
-// holds its write until the transition is over (router.ts `routerTransitioning`). A LAYOUT effect: the
-// way back from /full runs its page's passive effects a second or more after the page is on screen, and
-// the writer has to know before that. Both shells report it — the transition starts on the page being
-// left, which on the way back is /full.
-function useRouterTransition(): void {
-  const { isTransitioning } = useContext(UNSAFE_ViewTransitionContext)
-  useLayoutEffect(() => noteRouterTransition(isTransitioning), [isTransitioning])
-}
-
 // Hands react-router's navigate to lib/router's module-level `spaNavigate`, for the leaves that must
-// change the URL without router context (see registerNavigate). Both shells call it: each is the root
-// of its own tree, and the fullscreen page has no RootLayout above it.
+// change the URL without router context (see registerNavigate).
 function useRegisterNavigate(): void {
   const navigate = useNavigate()
   useEffect(() => {
@@ -340,55 +326,16 @@ function useRegisterNavigate(): void {
   }, [navigate])
 }
 
-/** The focused single-thread page. Deliberately OUTSIDE the layout: it has no rail, and should not. */
-/** A drawer's fullscreen page on All projects — or, carrying a query-era view (`?project=`), its board's. */
-function FullRoute() {
-  const { pathname, search } = useLocation()
-  const legacy = legacyViewRedirect(pathname, search)
-  if (legacy !== undefined) return <Navigate to={legacy} replace />
-  return <StandaloneRoute />
-}
-
-function StandaloneRoute() {
-  const { thread, slug } = useParams()
-  useRegisterNavigate()
-  useRouterTransition()
-  const ready = useProjectBinding(slug)
-  // Any drawer stack left by the page we came from is cleared HERE, on this route's first render —
-  // deliberately NOT in the fullscreen door's click handler, and deliberately not in an effect. The
-  // door's navigation runs inside a view transition, which snapshots the OLD page two renders after
-  // the click — a click-time clear removed the very sheet the transition slides into place. And the
-  // NEW page is snapshotted at this render's commit, so an effect would be one paint too late: this
-  // page's own DrawerStack would be captured painting the thread's sheet over itself mid-transition.
-  // A render-phase write (the useState initializer runs exactly once, before the children render)
-  // means DrawerStack below already sees the empty stack in the same pass.
-  useState(() => { if (store.drawers.length > 0) store.drawers = [] })
-  // Recorded every render, consumed by CrossProjectPage's mount (primeFullscreenReturn): this is how the
-  // page knows its first render is the return leg of the fullscreen door and should prime the reverse
-  // morph's target.
-  noteStandaloneThreadRender(thread!)
-  // Reached from another project, this page must not read that project's board for its first commit
-  // (useProjectBinding's gate).
-  if (!ready) return null
-  return (
-    <>
-      <StandaloneThreadPage slug={thread!} />
-      {/* Its own, since it is outside the layout. This page renders a full transcript, so it has the
-          copy-a-code-block control — whose only feedback is a toast, which until now had nowhere to
-          go here. Skipping the layout does not mean skipping the feedback. */}
-      <Toaster />
-      {/* Its own for the same reason: `e`, `h`, `r` and `f` (which leaves) work on this thread too. */}
-      <KeyboardLayer />
-      <LightboxHost />
-    </>
-  )
+/** A retired fullscreen address (lib/retiredFullPage.ts), reached inside the app: its thread's drawer. */
+function RetiredFullRedirect() {
+  const { pathname, search, hash } = useLocation()
+  return <Navigate to={`${withoutFullPage(pathname)}${search}${hash}`} replace />
 }
 
 export const router = createBrowserRouter([
-  // The focused single-thread pages sit OUTSIDE the layout — they have no rail, and should not.
-  { path: "/thread/:thread/full", element: <StandaloneRoute /> },
-  { path: `${CROSS_PROJECT_PATH}/thread/:thread/full`, element: <FullRoute /> },
-  { path: `${PROJECT_PATH}/thread/:thread/full`, element: <StandaloneRoute /> },
+  { path: "/thread/:thread/full", element: <RetiredFullRedirect /> },
+  { path: `${CROSS_PROJECT_PATH}/thread/:thread/full`, element: <RetiredFullRedirect /> },
+  { path: `${PROJECT_PATH}/thread/:thread/full`, element: <RetiredFullRedirect /> },
   {
     element: <RootLayout />,
     children: [

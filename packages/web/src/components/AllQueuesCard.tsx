@@ -10,7 +10,7 @@
 // (useOpenThreadInPlace) — and it is what makes a page of
 // every project's queue readable at all. The ↗ into a project's view went on 2026-09-28 (maintainer: "too
 // many places in the ui where it is easy to navigate to a ui which is not the primary home ui"); the ⤢
-// into /full went with it and came back on 2026-09-29 (ExpandThreadLink), restoring upstream's card.
+// into the fullscreen page followed on 2026-10-15, with the page itself.
 // The header's collapse (upstream's per-card fold, 2026-10-06) folds the card to its header.
 //
 // THE CARD NEVER ASKS THE PAGE WHICH PROJECT IT IS. Everything that could — the RPC client, the query
@@ -21,7 +21,7 @@
 import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, CheckCheck, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react"
-import { useLocation, useNavigate } from "react-router"
+import { useNavigate } from "react-router"
 import { expandUserCommandDraft, heldQuestionViews, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
@@ -34,14 +34,13 @@ import { answerProse, handoffParts, projectMarkdownScope, sameProjectAddress, sq
 import { draftKey, draftStore, useDraftValues } from "../lib/drafts.ts"
 import { buildMessageWithContext, type ComposerContextItem } from "../lib/composerContext.ts"
 import { restoreContextItems, takeContextItems, useStagedContextSources, useStagedContextTokens } from "../lib/stagedContext.ts"
-import { rememberFullscreenOrigin } from "../lib/fullscreenHandoff.ts"
 import { openLocalPath } from "../lib/local-file-links.ts"
 import { pageUnloading } from "../lib/pendingSends.ts"
 import { deliverProjectFollowUp } from "../lib/projectFollowUp.ts"
 import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 import { parseAccountAlias } from "../lib/signIn.ts"
 import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/transcriptMetaLabels.ts"
-import { isPlainLeftClick } from "../lib/standaloneThreadRoute.ts"
+import { isPlainLeftClick } from "../lib/plainClick.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { drawnHeight, observeCardSlot, whenCardRendered } from "../lib/cardVisibility.ts"
 import { IN_PLACE_OPEN_STATE, openThread, pushTerminalDrawer, showToast, store } from "../store.ts"
@@ -57,7 +56,6 @@ import { AwaitingSubAgentsCard } from "./AwaitingSubAgentsCard.tsx"
 import { AwaitingBackgroundCard, showsRestingCard, WaitRowOpenContext } from "./AwaitingBackgroundCard.tsx"
 import { drawsSubAgentWaitCard, showsSubAgentWait } from "../lib/subAgentWait.ts"
 import { useThreadComposerControls } from "../hooks/useThreadComposerControls.tsx"
-import { ExpandThreadLink } from "./ExpandThreadLink.tsx"
 import { UpdateRequestedMarker } from "./NtwineWake.tsx"
 import { SpinoffButton, SpinoffOf } from "./Spinoff.tsx"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
@@ -562,26 +560,12 @@ function CardArticle({
               work. In the card's OWN project scope: the header sits outside the body's, and the
               page's api names the focused project. */}
           <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
-            {/* The drawer header's strip, in its order (ChatView ThreadHeader): terminal, spinoff,
-                fullscreen, ⋯. The terminal carries `t` on the card as it does in the drawer. */}
+            {/* The drawer header's strip, in its order (ChatView ThreadHeader): terminal, spinoff, ⋯. The terminal carries `t` on the card as it does in the drawer. */}
             <ThreadTerminalButton slug={thread.id} show={openTerminal} />
             <SpinoffButton thread={thread} className={HEADER_ICON_CLASS} />
           </ThreadProjectScope>
-          {/* THE FULLSCREEN DOOR (ExpandThreadLink), before Retry as on upstream's card (TodosView
-              QueueCard @ 7a20f425). Its address carries the CARD's project — the page's own would
-              name the focused project's thread of the same slug.
-              The header's LAST mark is the ⋯ menu below, which takes the `-mr-2` trim: a glyph's ink
-              sits well inside a 14px box centred in a 28px square, so untrimmed the last mark drew
-              ~29px in from the card's right border against the project mark's 20.75px on the left
-              (the ⤢ measured 21.0px trimmed, 2026-09-29, ink-gaps.mjs dsf 4, sans). */}
-          {/* COLLAPSE — upstream's per-card fold to the header (TodosView HeaderActions `onCollapse`), beside
-              its other view door as on upstream's card: collapse, then fullscreen. */}
+          {/* COLLAPSE — upstream's per-card fold to the header (TodosView HeaderActions `onCollapse`). */}
           <CollapseCardButton collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
-          <ExpandThreadLink
-            slug={thread.id}
-            href={`${placeHref}/full`}
-            className={HEADER_ICON_CLASS}
-          />
           {offersRetry(thread) && <RetryButton project={project} thread={thread} onSent={onSent} onLanded={onLanded} onFailed={onReturn} />}
           {/* The ⋯ menu, as the drawer's (ThreadMenu.tsx) minus Restart worker, which only sends to the
               page's project. Then THE LIFECYCLE VERBS, after a rule, as every thread header closes
@@ -953,7 +937,6 @@ function QueueLimitPause({ project, thread, pause, onSent, onLanded, onFailed }:
 function ProjectLinkScope({ project, children }: { project: QueuesProject; children: ReactNode }) {
   const navigate = useNavigate()
   const openInPlace = useOpenThreadInPlace()
-  const { pathname } = useLocation()
   const onClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
     const target = event.target instanceof Element ? event.target : null
@@ -982,10 +965,6 @@ function ProjectLinkScope({ project, children }: { project: QueuesProject; child
     event.preventDefault()
     event.stopPropagation()
     const inner = innerPath(href)
-    // Keyed by the thread the link OPENS, which is not always this card's: a handoff can link another
-    // thread's /full, and the way out of that page looks its origin up by its own slug.
-    const full = inner.match(/^\/thread\/([^/?#]+)\/full\/?$/)
-    if (full) rememberFullscreenOrigin(decodeURIComponent(full[1]!), pathname)
     // A thread of this card's own project — the card's "Show earlier messages" and title among them, which
     // this capture reaches before their own handlers — opens through the one in-place verb, so its drawer's
     // frame is up at the click rather than seconds later (useOpenThreadInPlace).

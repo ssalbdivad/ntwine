@@ -13,7 +13,6 @@
 import { innerPath } from "./base-path.ts"
 import { embedded, postToHost } from "./embed.ts"
 import { spaNavigate } from "./router.ts"
-import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 
 type AnchorLike = Pick<HTMLAnchorElement, "getAttribute" | "setAttribute" | "hasAttribute">
 
@@ -90,7 +89,6 @@ export type EmbedLinkAction = { kind: "navigate"; path: string } | { kind: "exte
  *
  *   mailto:                                  the mail client, through the editor — its `openExternal`
  *   ⌘/Ctrl/Shift/Alt or middle click, in-app the browser, with the address — the "open in a new tab" it asked for
- *   a thread's /full page                    the browser, as `f` does: the frame is the drawer's width already
  *   any other in-app page (`/`, `/project/…`) here, in the frame — the tab it would have opened
  *
  * A plain click on a thread's address is not here: lib/thread-links.ts opens its drawer. Same-origin
@@ -115,7 +113,6 @@ export function embedLinkAction(
   if (click.button === 1 || (click.button === 0 && (click.metaKey || click.ctrlKey || click.shiftKey || click.altKey))) return { kind: "external", url: url.toString() }
   if (click.button !== 0 || !click.blank) return null
   const inner = innerPath(url.pathname)
-  if (parseStandaloneThreadPath(inner) !== null) return { kind: "external", url: url.toString() }
   if (/^\/thread\//u.test(inner)) return null
   return { kind: "navigate", path: `${url.pathname}${url.search}${url.hash}` }
 }

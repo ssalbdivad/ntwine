@@ -1,4 +1,3 @@
-import type { QueryClient } from "@tanstack/react-query"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { renderCodeBody } from "./codeBody.ts"
 import { isLocalMarkdownFile } from "./markdownTargets.ts"
@@ -67,23 +66,3 @@ export function highlightedSource(path: string, raw: string): string {
   return html
 }
 
-function whenIdle(run: () => void): void {
-  const idle = (globalThis as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
-  if (idle) idle(run, { timeout: 500 })
-  else setTimeout(run, 0)
-}
-
-// Hover on a file row: fetch the body and highlight it, both off the click path. Fire-and-forget by
-// design — a file that has gone away, or a gate that refuses it, must not raise anything on a HOVER;
-// the click that follows renders the same error through the panel's own query, where the reader can
-// see it.
-export function prewarmLocalFile(client: QueryClient, path: string): void {
-  client
-    .prefetchQuery(localFileQuery(path))
-    .then(() => {
-      const cached = client.getQueryData<{ path: string; markdown: string }>(localFileQuery(path).queryKey)
-      if (!cached?.markdown || isLocalMarkdownFile(path)) return
-      whenIdle(() => highlightedSource(cached.path, cached.markdown))
-    })
-    .catch(() => {})
-}

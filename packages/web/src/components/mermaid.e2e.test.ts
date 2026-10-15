@@ -47,10 +47,10 @@ const labels = (page: Page, selector: string) => page.$$eval(`${selector} svg .n
 const loadedMermaid = (requested: string[]) => requested.filter((path) => /\/(?:deps|node_modules)\/.*mermaid/.test(path) || /\/mermaid(?:\.core)?[.-][^/]*\.m?js$/.test(path))
 
 // The cards page: 1 in the done card, 1 refused, 3 in the question (context + two options), 1 narrow,
-// 1 uppercase, 1 in the wake, 1 in the reader. The session message's is behind its toggle.
-const CARDS = 9
+// 1 uppercase, 1 in the wake. The session message's is behind its toggle.
+const CARDS = 8
 
-test("a mermaid fence is a diagram on a done card, in a question's context and options, in a wake and in the file reader", { skip: !baseUrl, timeout: 180_000 }, async () => {
+test("a mermaid fence is a diagram on a done card, in a question's context and options and in a wake", { skip: !baseUrl, timeout: 180_000 }, async () => {
   const { browser, page, errors } = await launch()
   try {
     await settled(page, CARDS)
@@ -81,20 +81,6 @@ test("a mermaid fence is a diagram on a done card, in a question's context and o
     await page.click("[data-fixture-session] [data-session-message-toggle]")
     await settled(page, CARDS + 1)
     assert.deepEqual(await labels(page, "[data-fixture-session] .md-mermaid"), ["Prompt", "Queue", "Card", "Worker"])
-    // The `.md` reader (FileViewerPanel), where the fence sits between a paragraph and a real code block
-    // that is still code.
-    const reader = await labels(page, "[data-fixture-reader] .md-body > .md-mermaid")
-    assert.ok(["Worker", "ntwine", "Human", "ask(question)", "wake"].every((word) => reader.includes(word)), reader.join(" | "))
-    assert.equal(await page.$eval("[data-fixture-reader] code.language-typescript", (el) => el.textContent), "await ask({ question })\n")
-    // Its Rendered ⇄ Source toggle takes the rendered document out of the page and puts it back with the
-    // very same markup, unscanned: the source view shows the fence as text, and the way back draws it again.
-    const view = (name: string) => page.evaluate((label) => { [...document.querySelectorAll<HTMLButtonElement>("[data-fixture-reader] button")].find((b) => b.textContent === label)!.click() }, name)
-    await view("Source")
-    await page.waitForFunction(() => !document.querySelector("[data-fixture-reader] [data-mermaid-state]") && !!document.querySelector("[data-fixture-reader] pre.hljs")?.textContent?.includes("sequenceDiagram"))
-    await view("Rendered")
-    await settled(page, CARDS + 1)
-    assert.ok((await labels(page, "[data-fixture-reader] .md-body > .md-mermaid")).includes("ask(question)"))
-    assert.equal(await page.$$eval("[data-fixture-reader] code.language-mermaid", (els) => els.length), 0)
     assert.deepEqual(errors, [])
   } finally {
     await browser.close()
@@ -133,7 +119,6 @@ test("a source mermaid cannot parse falls back to its code, and a quoted or titl
 
     // A fence being QUOTED — nested in a longer one — is that block's text, under the outer fence's name.
     assert.equal(await page.$eval("[data-fixture-broken] code.language-markdown", (el) => el.textContent), "```mermaid\nflowchart LR\n  Q --> R\n```\n")
-    assert.equal(await page.$eval("[data-fixture-reader] code.language-markdown", (el) => el.textContent), "```mermaid\nflowchart LR\n  Q --> R\n```\n")
     // And an info string that says more than `mermaid` is not this fence.
     assert.equal(await page.$eval("[data-fixture-broken] code.language-plaintext", (el) => el.textContent), "flowchart LR\n  T --> U\n")
     assert.deepEqual(errors, [])
@@ -205,7 +190,7 @@ test("a diagram fits the card it is in, a tall one is capped inside an answer ch
   }
 })
 
-test("a theme change redraws a diagram in place, and a reader's diagram survives a save of the file around it", { skip: !baseUrl, timeout: 180_000 }, async () => {
+test("a theme change redraws a diagram in place", { skip: !baseUrl, timeout: 180_000 }, async () => {
   const { browser, page, errors } = await launch()
   try {
     await settled(page, CARDS)
@@ -237,6 +222,18 @@ test("a theme change redraws a diagram in place, and a reader's diagram survives
     assert.equal(await page.evaluate(() => (window as unknown as { __flickered?: string }).__flickered ?? null), null)
     assert.equal(await page.$$eval('[data-mermaid-state="error"]', (els) => els.length), 1)
 
+    assert.deepEqual(errors, [])
+  } finally {
+    await browser.close()
+  }
+})
+
+test("a reader's diagram survives a save of the file around it, and a quoted fence stays its text", { skip: !baseUrl, timeout: 180_000 }, async () => {
+  const { browser, page, errors } = await launch("?mode=markdown")
+  try {
+    await settled(page, 1)
+    // A fence being QUOTED — nested in a longer one — is that block's text, under the outer fence's name.
+    assert.equal(await page.$eval("[data-fixture-reader] code.language-markdown", (el) => el.textContent), "```mermaid\nflowchart LR\n  Q --> R\n```\n")
     // The reader re-renders its whole document when the file is saved. A fence that did not change keeps
     // its mounted diagram — the very same <svg> — rather than dropping to a placeholder and redrawing.
     await page.evaluate(() => { (window as unknown as { __svg: Element }).__svg = document.querySelector("[data-fixture-reader] .md-mermaid svg")! })

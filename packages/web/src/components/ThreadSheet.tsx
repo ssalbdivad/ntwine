@@ -281,22 +281,15 @@ export function ThreadSheet({ id, slug, depth, widthDepth, initiallyOpen }: { id
             event.preventDefault()
             scrollerRef.current?.focus({ preventScroll: true })
           }}
-          // data-vt-chat: the fullscreen door tags this panel as the view transition's shared element
-          // on the way to /full (see ThreadMenu.tsx openFullscreen) — the panel is what visibly becomes the page's
-          // thread column. On the way BACK the tag is declarative: while this slug is the primed
-          // return target (store.primeFullscreenReturn), the panel wears the name in its first
-          // commit, so the /full column has somewhere to morph back into.
-          data-vt-chat
           // The keyboard runtime's handle on this layer (see ui/Sheet.tsx) — `d` / `s` / `r` / `f`
           // press the controls inside the top one.
           data-drawer-layer={id}
           // `text-sm text-fg`: the app root's type, which a portal to <body> escapes. Without it every line
           // here that sets no leading of its own inherited body's 13px at 1.5 — a one-line user bubble 1px
-          // taller than the same bubble on /full (StandaloneThreadPage's root is text-sm) and in every
-          // non-portaled sheet. It went unseen while a Ready thread opened as an inline card inside the
+          // taller than the same bubble in every non-portaled sheet. It went unseen while a Ready thread opened as an inline card inside the
           // app root; since 2026-09-28 every thread opens here.
           className={`fixed right-0 top-0 overflow-hidden text-sm text-fg outline-none ${SHEET_PANEL_CLASS} ${shown ? "translate-x-0" : "translate-x-full"}`}
-          style={{ zIndex: 51 + depth * 2, width: sheetWidth(widthDepth), viewTransitionName: drawerSnap.vtReturnTarget === slug ? "thread-chat" : undefined }}
+          style={{ zIndex: 51 + depth * 2, width: sheetWidth(widthDepth), }}
         >
           <RadixDialog.Title className="sr-only">
             {route.kind === "found" ? `Thread: ${displayTitle(route.thread)}` : `Thread: ${slug}`}
@@ -304,10 +297,9 @@ export function ThreadSheet({ id, slug, depth, widthDepth, initiallyOpen }: { id
           {bodyReady && route.kind === "found" ? (
             // Mark-as CONFIRMED (any status) → the drawer closes: the thread just left the state the
             // human was looking at it for (maintainer directive).
-            // `virtualized`: the drawer renders the transcript through the windowed renderer (the same
-            // one the standalone page uses) instead of mounting all ~300 messages eagerly. Opening a
-            // long chat used to build 6k+ DOM nodes and burn a ~300ms long task on the main thread
-            // before the sheet was usable.
+            // `virtualized`: the drawer renders the transcript through the windowed renderer instead of
+            // mounting all ~300 messages eagerly. Opening a long chat used to build 6k+ DOM nodes and burn
+            // a ~300ms long task on the main thread before the sheet was usable.
             <ThreadView slug={slug} onStatusApplied={close} onClose={close} virtualized />
           ) : bodyReady && route.kind === "missing" ? (
             <MissingThread slug={slug} onClose={close} />

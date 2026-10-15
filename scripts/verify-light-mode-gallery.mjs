@@ -50,7 +50,7 @@ try {
       results.push({ name, theme, width, file, contrast: await measureTextContrast(page), overflow: await page.evaluate(() => document.documentElement.scrollWidth > innerWidth) })
       console.log('CAPTURE', file)
     }
-    for (const mode of ['cards', 'shell', 'markdown', 'file', 'signin', 'restart', 'stalled', 'render-error']) {
+    for (const mode of ['cards', 'shell', 'markdown', 'signin', 'restart', 'stalled', 'render-error']) {
       await load('light-mode-panels', `mode=${mode}`)
       await page.waitForSelector('[data-panel-fixture]')
       await shot(mode)

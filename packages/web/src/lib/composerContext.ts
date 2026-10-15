@@ -122,48 +122,6 @@ export function splitProseByTokens(prose: string, tokens: readonly string[]): { 
 }
 
 /**
- * Best-effort line range for a selection: find the selection's whitespace-normalized text in the
- * file's source. The rendered view hands us text the markdown pipeline has re-wrapped (soft breaks
- * joined, emphasis markers stripped), so an exact match is hopeless — but a whitespace-insensitive
- * match lands for the common case of selecting plain prose or code. Ambiguous (2+ occurrences) and
- * absent selections return null: a wrong line number is worse than none.
- */
-export function locateInSource(source: string, selected: string): { startLine: number; endLine: number } | null {
-  // Normalize both sides to single-space word runs, keeping a map from each normalized character back
-  // to the source line it came from.
-  const lineOf: number[] = []
-  let normalized = ""
-  let line = 1
-  let pendingSpace = false
-  for (const ch of source) {
-    if (ch === "\n") {
-      line++
-      pendingSpace = true
-      continue
-    }
-    if (/\s/.test(ch)) {
-      pendingSpace = true
-      continue
-    }
-    if (pendingSpace && normalized.length > 0) {
-      normalized += " "
-      lineOf.push(line)
-    }
-    pendingSpace = false
-    normalized += ch
-    lineOf.push(line)
-  }
-  const needle = selected.replace(/\s+/g, " ").trim()
-  if (!needle) return null
-  const first = normalized.indexOf(needle)
-  if (first === -1) return null
-  if (normalized.indexOf(needle, first + 1) !== -1) return null
-  // A space between words carries the FOLLOWING word's line (see the push above), which is exactly
-  // right for a match that starts mid-map; the ends index real characters either way.
-  return { startLine: lineOf[first], endLine: lineOf[first + needle.length - 1] }
-}
-
-/**
  * `packages/web/src/App.tsx` for a file under the project; the absolute path for anything else. The
  * remainder keeps the path's own separators (`packages\web\src\App.tsx` under a `C:\…` project), as
  * the panel's canonical path is the server's spelling and the worker reads the same one.

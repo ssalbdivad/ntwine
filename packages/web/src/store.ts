@@ -5,10 +5,9 @@ import type { EditorWindowSummary } from "@ntwine/shared"
 import type { MarkdownScope } from "./lib/useMarkdown.ts"
 import type { ComposerContextItem } from "./lib/composerContext.ts"
 import type { LightboxImage } from "./lib/lightbox.ts"
-import { disarmFullscreenMorph } from "./lib/fullscreenMorph.ts"
 import { closeDrawerAnimated, focusDrawer } from "./lib/overlays.ts"
 import { resolveThreadRoute } from "./lib/threadRouteState.ts"
-import { standaloneThreadHref } from "./lib/standaloneThreadRoute.ts"
+import { crossProjectHref } from "./lib/base-path.ts"
 import { ownedByThisPage } from "./lib/projectOwnership.ts"
 import { setGithubRepo } from "./lib/githubAutolink.ts"
 import { setMentionIndex } from "./lib/mentionAutolink.ts"
@@ -133,13 +132,6 @@ export const store = proxy({
   // it at once, and resolveRoutedThread hands over to the real drawer, already open, in the same commit.
   // Deliberately NOT reset by resetProjectState: it is set on the way OUT of one project, for the next.
   pendingOpen: null as PendingOpen | null,
-  // The slug whose BOARD surface (thread drawer or queue card) is currently wearing
-  // `view-transition-name: thread-chat`, so the /full page's thread column has somewhere to morph
-  // back into when the fullscreen page is left for the board (browser Back, or the collapse icon).
-  // Set render-phase by primeFullscreenReturn and cleared on a timer just past the animation — a
-  // surface that KEPT the name would collide with the next door click's imperative tag, and duplicate
-  // view-transition-names abort the whole transition.
-  vtReturnTarget: null as string | null,
   // Transient bottom-center toast (e.g. "Steer failed …" when an eager reply is rejected). `id` bumps per call so
   // repeat toasts re-trigger the fade. Rendered by <Toaster>; null when nothing is showing.
   toast: null as { id: number; text: string; detail?: string; spinner?: boolean; sticky?: boolean; duration?: number; link?: ToastLink; actions?: readonly ToastAction[] } | null,
@@ -152,14 +144,6 @@ export const store = proxy({
   // unmounts it once it scrolls out of the window, and a worker still writing below a gallery the
   // human is looking through scrolls it there. Rendered by <LightboxHost>; null when closed.
   lightbox: null as { images: LightboxImage[]; index: number } | null,
-  // The /full page's SPLIT file viewer. True only while StandaloneThreadPage is mounted; while it is,
-  // a file click renders BESIDE the thread (the thread column slides left) instead of as an overlay
-  // drawer — the whole point of /full is seeing the transcript, and a sheet over it defeated that.
-  // The queue page keeps the drawer: its main column is the queue, not the thread being read.
-  splitFileViewer: false,
-  // Keep each reader mounted under the next so following a link preserves its scroll and view mode.
-  // Instance ids (not paths) also let A → B → A unwind through both visits independently.
-  filePanels: [] as { id: number; path: string; closing?: boolean }[],
   // (Selected-context items staged for a prompt box's next message lived here, keyed by thread slug, until
   // 2026-10-01; they are keyed by draft and persisted with it now — lib/stagedContext.ts.)
   //
@@ -410,17 +394,31 @@ export function resolveRoutedThread(): void {
   // A slug THIS project does not have. Since one server started serving every project that is usually
   // a thread another project has — and `/thread/<slug>` is the exact shape every pre-singleton
   // bookmark and every agent-written cross-reference uses, so it is not a rare typo. Pushing the
-  // drawer anyway opened an empty sheet over the page that said nothing and offered nothing.
-  // The `/full` page already knows how to recover: <MissingThread> asks `threadLocate` which project
-  // owns the slug and relocates there. Hand it over rather than growing a second copy of that.
+  // drawer anyway opened an empty sheet over the page that said nothing and offered nothing, so ask
+  // `threadLocate` which project owns the slug and open its drawer there.
   // The frame PendingThreadSheet has been showing for this thread gives way to the real drawer in this
   // same store write, so the real one must paint already open (`routed`) rather than slide in a second time.
   if (opening || route.kind === "missing") store.pendingOpen = null
   if (route.kind === "missing") {
-    if (typeof location !== "undefined") location.replace(standaloneThreadHref(slug))
+    void relocateMissingThread(slug)
     return
   }
   pushDrawer("thread", slug, { routed: opening || !openedInPlace() })
+}
+
+// The recovery the retired /full page's <MissingThread> made: one owner (the overwhelmingly common
+// case) is opened at once; several have nothing to choose between them by, so the first is; none is said.
+// `rpc` is imported lazily because the API layer imports this store.
+async function relocateMissingThread(slug: string): Promise<void> {
+  if (typeof location === "undefined") return
+  const { rpc } = await import("./api/rpc.ts")
+  const owners = await rpc.threadLocate({ slug }).catch(() => [])
+  const owner = owners[0]
+  if (!owner) {
+    showToast(`No thread named ${slug}`, { duration: 7000 })
+    return
+  }
+  location.replace(`${crossProjectHref(encodeURIComponent(owner.projectSlug), "/")}/thread/${encodeURIComponent(slug)}`)
 }
 
 // Navigation state for a thread opened IN PLACE by a click on the page — the cross-project page opening
@@ -435,54 +433,6 @@ function openedInPlace(): boolean {
   return typeof usr === "object" && usr !== null && (usr as { inPlace?: unknown }).inPlace === true
 }
 
-// THE FULLSCREEN DOOR, PLAYED BACKWARDS. react-router re-arms the door's view transition for the POP
-// back out of /full (it remembers which path pairs transitioned), and the collapse icon opts in
-// explicitly — but the transition can only morph the /full thread column into a drawer that EXISTS and
-// IS NAMED in the page's FIRST commit, the one the new-state snapshot reads. Left to the ordinary flow,
-// the drawer arrives two effects later (applyPath parks the slug, resolveRoutedThread settles it) and
-// nothing on the page ever wears the name, so Back played as a bare crossfade (maintainer 2026-09-02:
-// "when I hit the back button on full-screen view, it doesn't undo the animation"). The fullscreen page
-// records its slug on every render; routes.tsx CrossProjectPage consumes it in a render-phase
-// initializer — the mirror of the fullscreen page's own render-phase drawer clear.
-let lastStandaloneSlug: string | null = null
-export function noteStandaloneThreadRender(slug: string): void {
-  lastStandaloneSlug = slug
-}
-
-/** Whether the page now opens on the drawer the address names — the router takes that address as absorbed
- *  (lib/router.ts primeReturnFromFullscreen). */
-export function primeFullscreenReturn(routedSlug: string | undefined): boolean {
-  // The forward door started its morph from the visible part of the drawer; this render is inside the
-  // REVERSE transition's update callback, so dropping that here — before the browser builds the reverse
-  // leg's pseudo-elements — is what hands the return morph back to the browser's own keyframes.
-  // Unconditional: any way back to the page retires it (lib/fullscreenMorph).
-  disarmFullscreenMorph()
-  const slug = lastStandaloneSlug
-  lastStandaloneSlug = null
-  if (!slug) return false
-  // Name the drawer this slug renders as — ThreadSheet checks this.
-  // Cleared well past the 200ms animation: clearing in an effect could beat the new-state capture
-  // and un-name the element mid-transition.
-  store.vtReturnTarget = slug
-  if (typeof window !== "undefined") {
-    window.setTimeout(() => {
-      if (store.vtReturnTarget === slug) store.vtReturnTarget = null
-    }, 600)
-  }
-  // The drawer itself, when the return URL names this thread: the same painted-open push
-  // resolveRoutedThread would make — its chat — just in the commit
-  // the snapshot actually reads; applyPath then finds the layer already present and leaves it be. A
-  // QUEUED thread returns to its drawer too. It was skipped until 2026-09-28, for the project board,
-  // where a queued thread's surface was its card; on the one page the card is a summary and the drawer
-  // the thread, so the skip only sent the return one effect late, after the morph had nothing to land on.
-  if (routedSlug !== slug || !store.board) return false
-  const route = resolveThreadRoute(store.board, slug)
-  if (route.kind !== "found") return false
-  if (store.drawers.some((d) => d.kind === "thread" && d.slug === slug && !d.closing)) return true
-  pushDrawer("thread", slug, { routed: true })
-  return true
-}
-
 // Open a file that lives on disk in ntwine's OWN reader — a `.md` rendered, anything else as source —
 // rather than handing the path to the desktop opener. Every link to one routes here
 // (lib/local-file-links.ts): agent prose citing a repo doc, an inline-code path that resolved to a
@@ -491,12 +441,6 @@ export function primeFullscreenReturn(routedSlug: string | undefined): boolean {
 // clicked on another project's card (AllQueuesCard ProjectLinkScope): the drawer then reads through that
 // project's gate and renders against its repo, as the card itself does.
 export function pushFileReader(path: string, scope?: MarkdownScope | null): void {
-  // On /full the reader is a SPLIT PANEL beside the thread, not a sheet over it — route every
-  // file open there while that page is mounted, stacking links from the transcript AND reader.
-  if (store.splitFileViewer) {
-    openFilePanel(path)
-    return
-  }
   openOrRaiseDrawer({ kind: "file", slug: path, path, label: basename(path), ...(scope ? { scope } : {}) })
 }
 
@@ -520,24 +464,6 @@ export function stepImageViewer(step: 1 | -1): void {
   const viewer = store.imageViewer
   if (!viewer) return
   viewer.index = Math.min(viewer.paths.length - 1, Math.max(0, viewer.index + step))
-}
-
-// ── the /full split file viewer ──────────────────────────────────────────────────────────────────
-let filePanelSeq = 0
-
-export function openFilePanel(path: string): void {
-  store.filePanels.push({ path, id: ++filePanelSeq })
-}
-
-export function closeFilePanel(): void {
-  const top = store.filePanels.at(-1)
-  // A closing layer still owns the top until its slide finishes, like the drawer stack.
-  if (!top || top.closing) return
-  top.closing = true
-  const id = top.id
-  window.setTimeout(() => {
-    store.filePanels = store.filePanels.filter((panel) => panel.id !== id)
-  }, prefersReducedMotion() ? 0 : SHEET_CLOSE_MS)
 }
 
 export function popDrawer(): void {
@@ -639,7 +565,6 @@ export function resetProjectState() {
   store.board = null
   store.connection = "connecting"
   store.drawers = []
-  store.filePanels = []
   store.imageViewer = null
   store.routeThreadSlug = null
   store.socketBoardFallback = null

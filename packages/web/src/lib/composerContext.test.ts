@@ -8,7 +8,6 @@ import {
   contextSourceLabel,
   hasToken,
   insertTokenIntoProse,
-  locateInSource,
   parseSentContext,
   parseSentEditorContext,
   previousEditorQuote,
@@ -25,20 +24,6 @@ import {
 } from "./composerContext.ts"
 
 const item = (over: Partial<ComposerContextItem>): ComposerContextItem => ({ id: 1, token: "@guide.md:3", path: "/repo/docs/guide.md", text: "some text", startLine: 3, endLine: 3, ...over })
-
-test("a unique selection maps to its 1-based line range, whitespace-insensitively", () => {
-  const source = "# Title\n\nFirst paragraph line one\ncontinues on line four.\n\nAnother paragraph.\n"
-  // The rendered view joins the soft-wrapped paragraph into one line; the match must still land.
-  assert.deepEqual(locateInSource(source, "line one continues on"), { startLine: 3, endLine: 4 })
-  assert.deepEqual(locateInSource(source, "Another paragraph."), { startLine: 6, endLine: 6 })
-})
-
-test("an ambiguous or absent selection yields no line range", () => {
-  const source = "alpha beta\ngamma\nalpha beta\n"
-  assert.equal(locateInSource(source, "alpha beta"), null)
-  assert.equal(locateInSource(source, "not present"), null)
-  assert.equal(locateInSource(source, "   "), null)
-})
 
 test("paths under the project display relative; others stay absolute", () => {
   assert.equal(contextDisplayPath("/repo/docs/guide.md", "/repo"), "docs/guide.md")

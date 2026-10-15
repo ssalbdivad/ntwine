@@ -119,7 +119,6 @@ function Fixture() {
                       thread={thread}
                       collapsed={false}
                       onCollapse={() => {}}
-                      expand
                       onDone={() => {}}
                     />
                     <ThreadLifecycleActions thread={thread} />

@@ -1,15 +1,13 @@
 import { subscribe } from "valtio"
-import { store, topRoutedSlug, closeDrawersById, closeLayersDisplacedBy, primeFullscreenReturn } from "../store.ts"
+import { store, topRoutedSlug, closeDrawersById, closeLayersDisplacedBy } from "../store.ts"
 import { ownedByThisPage } from "./projectOwnership.ts"
 import { innerPath, outerPath } from "./base-path.ts"
-import { parseStandaloneThreadPath } from "./standaloneThreadRoute.ts"
 import { homeHref } from "./pageView.ts"
 
 // URL ⇄ state sync, SPA-style. Inner paths: `/` (the page), `/thread/<slug>` (the page with that
 // thread open in the drawer STACK's topmost thread layer — or, from a cold link on a project's board, a
 // queued thread landed on its card: store.resolveRoutedThread). In the address bar they sit under the page's prefix — `/project/<slug>/…`
-// on a board, `/all/<project>/…` for a drawer on All projects (base-path.ts). The fullscreen page,
-// `/thread/<slug>/full`, is its own route.
+// on a board, `/all/<project>/…` for a drawer on All projects (base-path.ts).
 //
 // History contract (standard SPA): opening a thread layer PUSHES an entry so the browser Back
 // button unwinds it; other transitions REPLACE so transient state never buries the back stack.
@@ -117,44 +115,13 @@ let activeWriter: (() => void) | null = null
 // Stale until that write has run, not for one application: each commit applies its address TWICE — App
 // re-registering this writer (its `navigate` changes on the same commit, and startRouter primes again)
 // and the route's own effect — and the second was enough to re-open the drawer on its own. Everywhere
-// else the writer's address is applied like any other, which is what resets a parked slug on the way
-// back from /full; skipping it there too left the address on a drawer the reader had closed.
+// else the writer's address is applied like any other.
 let written: string | null = null
 let stale: string | null = null
-// AN ADDRESS THE PAGE OPENED ON BEFORE ANY ROUTE EFFECT HAD RUN — the way back from /full, whose drawer
-// the page pushes in its FIRST render (store.ts primeFullscreenReturn) so the reverse morph has something
-// to land on. The store has taken that address in, but nothing here knows it yet: the page's writer and
-// its route effect are passive effects, and the return is a view transition whose update callback held
-// them back — 1.0-1.3s after the drawer was in the DOM at a load average of ~6 (2026-09-29, probed with
-// the browser's own `startViewTransition` promises). The previous page's writer is gone with it, so an
-// Escape in that window closed the drawer and wrote nothing; the route then applied the drawer's address,
-// which PARKED the slug, and the board settled it straight back into a drawer — Escape undone in 15 of 25
-// tries on that machine, and the address never left the drawer.
-//
-// So when the route applies an adopted address the store no longer says (`currentPath()` — closed, or
-// another thread opened on top), it is stale exactly as a written one is: absorbed, not applied, and the
-// writer runs to say what the store says now — once the transition is over (`routerTransitioning`).
-// When the store still says it, it is applied as ever.
-let adopted: string | null = null
-
-/**
- * The page's first render on the way back from /full (routes.tsx CrossProjectPage): prime the drawer the
- * address names, and — when it did — mark that address as one the store has already taken in.
- */
-export function primeReturnFromFullscreen(thread: string | undefined): void {
-  if (!primeFullscreenReturn(thread)) return
-  if (typeof location !== "undefined" && typeof location.pathname === "string") adopted = location.pathname
-}
-
 /** URL → store for the page's current address (routes.tsx useRouteToStore, and boot). */
 export function applyLocation(pathname: string): void {
   absorbed = typeof location !== "undefined" && typeof location.pathname === "string" ? location.pathname : pathname
   if (skippedWrite && pathname === written) stale = pathname
-  if (pathname === adopted && currentPath() !== innerPath(pathname)) {
-    stale = pathname
-    skippedWrite = true
-  }
-  adopted = null
   written = null
   if (pathname !== stale) {
     stale = null
@@ -178,16 +145,11 @@ export function applyLocation(pathname: string): void {
  * handler called, reached the same way every other navigation reaches it.
  */
 // THE APP'S NAVIGATOR, reachable without router context. react-router's `useNavigate` is a hook, and
-// the components that need to change the URL in place — the fullscreen door on a sidebar row, the
-// back arrow on the fullscreen page — render in unit tests and fixtures with no <Router> above them,
+// the components that need to change the URL in place render in unit tests and fixtures with no <Router> above them,
 // where the hook throws. The route tree registers its navigate here (routes.tsx, both shells) and
 // leaves call there; with nothing registered (a bare test render) it falls back to a document load,
 // which is what the underlying <a href> would have done anyway.
-// `viewTransition` rides through to react-router's navigate, which wraps the route swap in
-// `document.startViewTransition` where the browser has it and falls back to an instant swap where it
-// doesn't. Both halves of the fullscreen door pass it today; react-router re-arms
-// it on its own for the browser-Back POP of a pair that transitioned.
-export type SpaNavigateOptions = { replace?: boolean; viewTransition?: boolean }
+export type SpaNavigateOptions = { replace?: boolean }
 
 let registeredNavigate: ((path: string, options?: SpaNavigateOptions) => void) | null = null
 
@@ -198,25 +160,6 @@ export function registerNavigate(navigate: ((path: string, options?: SpaNavigate
 export function spaNavigate(path: string, options?: SpaNavigateOptions): void {
   if (registeredNavigate) registeredNavigate(path, options)
   else if (typeof location !== "undefined") location.assign(path)
-}
-
-// REACT-ROUTER'S VIEW TRANSITION, from the navigation that starts one until its `finished` settles —
-// its own `isTransitioning` (routes.tsx useRouterTransition reports it from a layout effect, which runs
-// at commit, not a second later with the passive ones). Not the browser's `:active-view-transition`: a
-// transition whose update outran the browser's DOM-update timeout (4s, at a load average of 30+) stops
-// matching that at the timeout while react-router is still rendering into it, and a write issued in
-// between was lost exactly as one issued earlier.
-let routerTransitioning = false
-let heldForTransition = false
-
-/** react-router's view transition started or finished (routes.tsx useRouterTransition). */
-export function noteRouterTransition(on: boolean): void {
-  routerTransitioning = on
-  if (on || !heldForTransition) return
-  heldForTransition = false
-  // After the commit that ended it has finished its layout effects — react-router's own included, which
-  // re-subscribe its router to the post-transition state.
-  queueMicrotask(() => activeWriter?.())
 }
 
 /**
@@ -248,14 +191,6 @@ export function startRouter(navigate: (path: string, options: { replace: boolean
   primeRoute()
 
   const write = () => {
-    // The fullscreen page is NOT the board's URL to write. Its route lives outside RootLayout, but
-    // valtio delivers this notification a microtask late: StandaloneRoute clears the drawer stack on
-    // its first render (it moved there from the fullscreen door's click handler for the view
-    // transition — see ThreadMenu.tsx openFullscreen), so by the time this runs the address bar already says
-    // `/thread/<slug>/full` and the board shell is on its way out — and without this guard the
-    // "unwind" below navigated straight back to the board (caught live, 2026-08-28: a plain click
-    // on the door left the URL exactly where it was).
-    if (parseStandaloneThreadPath(innerPath()) !== null) return
     // The store still holds the project the page is LEAVING. react-router writes history before the new
     // route's effects reset the store (routes.tsx useProjectBinding), so a notification in between would
     // put the old project's drawer under the new project's prefix — on the cross-project page, where
@@ -265,17 +200,6 @@ export function startRouter(navigate: (path: string, options: { replace: boolean
     // The address bar has moved on and the store has not caught up yet (see `absorbed`).
     if (location.pathname !== absorbed) {
       skippedWrite = true
-      return
-    }
-    // Not while a view transition is running — the way back from /full is one. react-router renders its
-    // destination inside the transition, and a navigation issued before the transition has finished
-    // moves history and the router but was not rendered: the page stayed on the address it was leaving
-    // while the address bar said another, so its route effect never ran for the new one, and a later
-    // click that navigated back to the old one landed on nothing — the router saw no change (8 of 8
-    // navigations issued inside that window on the return from /full, 2026-09-29). So the write waits
-    // for the transition to finish, and `stale` stays until it has run.
-    if (routerTransitioning) {
-      heldForTransition = true
       return
     }
     // The held-back write is running: whatever address was stale, the store says its piece now.

@@ -1481,7 +1481,7 @@ export function createRouter(ctx: AppContext) {
   function reviewTarget(slug: string, title: string | undefined): EditorReviewTarget {
     const row = ctx.storage.getSession(slug)
     if (!row) throw new Error(`no session registered for ${slug}`)
-    const page = readLatestThreadTranscriptPage(ctx.project, ctx.storage, slug, ctx.backendFor)
+    const page = readLatestThreadTranscriptPage(ctx.project, ctx.storage, slug, ctx.backendFor, { editedFiles: true })
     return reviewTargetOf({
       projectDir: workDir,
       title: (title?.trim() || row.title?.trim() || slug).slice(0, 200),
@@ -3023,13 +3023,12 @@ export function createRouter(ctx: AppContext) {
     //
     // The All queues page's card body. Every OTHER queue surface renders the whole latest window through
     // `threadTranscript`; that page draws one card per queued thread across EVERY project at once, so it
-    // asks for exactly the two messages a card shows. Read without the edited-files scan (two git spawns
-    // per call) that only the thread's own file rail needs, the same economy the /ws push producer makes.
+    // asks for exactly the two messages a card shows.
     threadHandoff: query({
       input: SlugInput,
       output: ThreadHandoff,
       handler: async ({ input }) => {
-        const page = readLatestThreadTranscriptPage(ctx.project, ctx.storage, input.slug, ctx.backendFor, { editedFiles: false })
+        const page = readLatestThreadTranscriptPage(ctx.project, ctx.storage, input.slug, ctx.backendFor)
         return handoffOf(page.messages)
       },
     }),

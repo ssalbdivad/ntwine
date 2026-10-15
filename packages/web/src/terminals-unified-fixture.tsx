@@ -1,10 +1,8 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { BgShellView, EndedShellView, ThreadTerminal, ThreadView } from "@ntwine/shared"
-import { FolderHintToken, ProcessRow, ThreadProcessStrip, folderHintTitle, processFolderHint } from "./components/ThreadTerminals.tsx"
-import { BgShellRow, TermWaitRow, WaitGrid } from "./components/AwaitingBackgroundCard.tsx"
-import { RAIL_WIDTH } from "./components/FocusRail.tsx"
-import { humanProcess, threadProcesses } from "./lib/threadProcesses.ts"
+import { ProcessRow, ThreadProcessStrip } from "./components/ThreadTerminals.tsx"
+import { humanProcess } from "./lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./components/ThreadCheckoutToken.tsx"
 import { HumanTerminalHeader, TerminalSheet } from "./components/TerminalSheet.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -121,22 +119,6 @@ createRoot(document.getElementById("root")!).render(
               </div>
               <div className="mt-1.5 mb-3 h-10 rounded-md border border-attention/40" />
               <ThreadProcessStrip thread={thread} surface="card" onOpen={() => {}} />
-            </div>
-            {/* The fullscreen rail's Terminals group (FocusRail), at the rail's own width. */}
-            <div data-fixture-rail className="rounded-md border border-border bg-bg px-4 py-3" style={{ width: RAIL_WIDTH }}>
-              <WaitGrid
-                divider={false}
-                groups={[{
-                  head: "Terminals",
-                  rows: threadProcesses(thread, [], { now: Date.now() }).filter((p) => p.state === "prompt" || p.state === "running").map((p) => {
-                    const where = processFolderHint(p, here)
-                    const hint = where ? <FolderHintToken hint={where} title={folderHintTitle(where, ROOT, "/home/u")} /> : undefined
-                    return p.terminal
-                      ? <TermWaitRow key={p.key} terminal={p.terminal} slug="fixture" now={Date.now()} hint={hint} />
-                      : <BgShellRow key={p.key} shell={p.shell!} slug="fixture" now={Date.now()} hint={hint} />
-                  }),
-                }]}
-              />
             </div>
           </div>
         )}
