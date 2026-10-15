@@ -20,7 +20,8 @@ export function threadLifecycleAvailability(
   // the card claim to read fields it never touches.
   thread: Pick<ThreadView, "kind" | "foreign" | "state" | "archived">,
 ): ThreadLifecycleAvailability {
-  const owned = thread.kind === "session" && thread.foreign !== true
+  // A terminal thread has the same verbs: snooze it to a time, mark it done (which stops a running one).
+  const owned = (thread.kind === "session" || thread.kind === "terminal") && thread.foreign !== true
   // `archived` mirrors the pre-state-column protocol; honor it during a rolling server/client reload.
   const archived = owned && (thread.state === "archived" || thread.archived === true)
   // An archived thread has no lifecycle VERBS — there is no Reopen button (reopening is just sending
@@ -49,14 +50,16 @@ export function threadLifecycleAvailability(
 // caller reinstates the card + opens the dialog on a needsConfirmation reply — so this only ever errs
 // toward NON-optimistic (waiting), never toward skipping a dialog the server would have shown.
 export function completionArchivesImmediately(thread: ThreadView): boolean {
+  // A terminal thread's Mark as done is never asked about: it stops the process and files it.
+  if (thread.kind === "terminal") return true
   // A worker that was CUT OFF mid-turn — dead, its recorded turn never ended — is asked about too
   // (router.cutOffHold): it is not finished, and Done would say it was. `crashed` is the board's reading
   // of exactly that, and a slight superset of the server's (it also covers a dead daemon still tracking
   // a sub-agent), which only ever errs toward waiting. Checked FIRST: a pending ask on a dead thread is
   // still a dead thread.
   if (thread.runtime === "exited" && thread.crashed) return false
-  // A terminal the human opened on the thread and left running is asked about in EVERY state, a paused
-  // or dead worker included: Done stops it, and it is the human's own process (router.withTerminalHold).
+  // A terminal this thread started and left running is asked about in EVERY state, a paused or dead worker
+  // included: the dialog is where the human can tick it to stop it too (router.withTerminalHold).
   if (thread.terminals?.some((terminal) => terminal.state === "running")) return false
   // Paused-for-a-human states are explicitly safe to stop on the server, regardless of any background work.
   if (thread.runtime === "perm-prompt" || thread.pendingAsk) return true
@@ -85,7 +88,8 @@ export interface CompletionHoldGroup {
   // is not proof the op stopped — which is why it holds the completion — but claiming a silent child
   // is actively running would overstate what the tailer knows. `owner` is a terminal's: the agent's
   // (a background shell) or yours.
-  items: { label: string; stale: boolean; owner?: "agent" | "human" }[]
+  // `id` is a terminal thread's slug: the dialog offers a stop checkbox for it.
+  items: { label: string; stale: boolean; owner?: "agent" | "human"; id?: string }[]
   overflow: number // labels the server withheld; >0 renders a "+N more" line
 }
 
@@ -107,8 +111,8 @@ export function completionHoldSummary(hold: CompletionHold | undefined): Complet
     trailer: "Marking it done will stop its agent session, then move it to Done.",
   }
   if (!hold) return generic
-  // The terminals the human opened on the thread and left running. They are held on in any state of the
-  // worker — resting, dead or mid-turn — because Done stops them too (router.withTerminalHold).
+  // The terminal threads this thread started, still running. They are listed in any state of the worker —
+  // resting, dead or mid-turn — each with a stop checkbox, unticked: Done leaves them running unless ticked.
   const terminals = holdGroup("terminal", "terminal", hold.terminals ?? [], hold.terminalCount ?? 0, "human")
   // Nothing of the agent's is running and nothing of its will be stopped: the worker is already gone,
   // mid-turn. The correction the human needs is that the thread is NOT finished — and that Retry, not
@@ -119,7 +123,7 @@ export function completionHoldSummary(hold: CompletionHold | undefined): Complet
       lead: "This session was cut off mid-turn — its worker ended before the turn finished, so the thread isn’t done.",
       groups: terminals ? [terminals] : [],
       trailer: terminals
-        ? "Marking it done stops its terminals and files it under Done as it is. Retry resumes it where it left off."
+        ? "Marking it done files it under Done as it is; its terminals keep running unless ticked. Retry resumes it where it left off."
         : "Marking it done files it under Done as it is. Retry resumes it where it left off.",
     }
   }
@@ -140,9 +144,9 @@ export function completionHoldSummary(hold: CompletionHold | undefined): Complet
   // Only terminals hold it: the agent itself is finished, and what Done would end is the human's own.
   if (!hold.turnInFlight && agentGroups.length === 0) {
     return {
-      lead: terminals!.heading === "1 terminal" ? "A terminal on this thread is still running:" : "Terminals on this thread are still running:",
+      lead: terminals!.heading === "1 terminal" ? "A terminal this thread started is still running:" : "Terminals this thread started are still running:",
       groups,
-      trailer: "Marking it done will stop them, then move the thread to Done.",
+      trailer: "They keep running after Done. Tick one to stop it.",
     }
   }
   const lead = hold.turnInFlight
@@ -157,7 +161,9 @@ export function completionHoldSummary(hold: CompletionHold | undefined): Complet
   return {
     lead,
     groups,
-    trailer: groups.length > 0
+    trailer: terminals
+      ? "Marking it done will stop the session and the agent's work, then move it to Done. Terminals keep running unless ticked."
+      : groups.length > 0
       ? "Marking it done will stop the session and everything running under it, then move it to Done."
       : "Marking it done will stop its agent session mid-turn, then move it to Done.",
   }
@@ -176,7 +182,7 @@ function holdGroup(
   return {
     kind,
     heading: headingFor(total, noun),
-    items: ops.map((op) => ({ label: op.label, stale: op.state === "stale", ...(owner ? { owner } : {}) })),
+    items: ops.map((op) => ({ label: op.label, stale: op.state === "stale", ...(owner ? { owner } : {}), ...(owner === "human" && op.id ? { id: op.id } : {}) })),
     overflow: Math.max(0, total - ops.length),
   }
 }

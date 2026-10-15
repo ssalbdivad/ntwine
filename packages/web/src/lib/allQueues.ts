@@ -178,7 +178,7 @@ export function liveQueue(
   if (!queues || !board || !focusSlug || board.projectSlug !== focusSlug) return undefined
   const polled = queues.find((queue) => queue.projectSlug === focusSlug)
   if (!polled) return undefined
-  const threads = board.threads.filter((thread) => thread.kind === "session" && !thread.foreign)
+  const threads = board.threads.filter((thread) => (thread.kind === "session" || thread.kind === "terminal") && !thread.foreign)
   return { ...polled, threads, doneCount: 0, pinnedDone: [] }
 }
 

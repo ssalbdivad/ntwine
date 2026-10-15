@@ -1,7 +1,7 @@
 import type { BgShellView, EndedShellView, ThreadTerminal, ThreadView, WorkCheckout } from "@ntwine/shared"
 import { mergeBackgroundShells, visibleChildOps, type TranscriptShellRecord } from "./childOps.ts"
 import { shellBudgetReading } from "./shellBudget.ts"
-import { promptingTerminal, terminalFailed, terminalLive } from "./threadTerminals.ts"
+import { terminalFailed, terminalLive } from "./threadTerminals.ts"
 
 // EVERY PROCESS ON A THREAD, AS ONE LIST — the terminals the human opened (server thread-terminals.ts, a
 // pty each) and the ones the agent started (a background `Bash`, a `Monitor`, a Codex background exec;
@@ -177,10 +177,9 @@ export function processIsLive(p: ThreadProcess): boolean {
   return p.state === "running" || p.state === "quiet" || p.state === "prompt"
 }
 
-/** A queue card lists only what is live, and never the terminal its prompt pane already shows. */
-export function onCard(thread: Pick<ThreadView, "terminals">): (p: ThreadProcess) => boolean {
-  const prompting = promptingTerminal(thread)
-  return (p) => processIsLive(p) && !(prompting && p.terminal?.id === prompting.id)
+/** A queue card lists only what is live. (A terminal at a prompt is a card of its own since 2026-10-15.) */
+export function onCard(_thread: Pick<ThreadView, "terminals">): (p: ThreadProcess) => boolean {
+  return processIsLive
 }
 
 /** The rows a queue card's strip draws, and what its counts line counts as terminals. The card gates its

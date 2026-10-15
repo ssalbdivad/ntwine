@@ -78,7 +78,8 @@ import { ThreadLifecycleActions } from "./ThreadLifecycle.tsx"
 import { RecurringPromptControl } from "./RecurringPromptControl.tsx"
 import { ContextFact, FACTS_LINE_CLASS, Fact, FactSep, GoalLoopFact } from "./ThreadHeaderFacts.tsx"
 import { DeadlineFact } from "./DeadlineControl.tsx"
-import { focusedProject, openProcessDrawer, TerminalPromptPane, ThreadProcessStrip } from "./ThreadTerminals.tsx"
+import { focusedProject, openProcessDrawer, ThreadProcessStrip } from "./ThreadTerminals.tsx"
+import { TerminalCardArticle } from "./TerminalQueueCard.tsx"
 import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
@@ -228,7 +229,7 @@ const noop = () => {}
 /** The collapsed body's height: enough for a verdict line and the paragraph under it, never a wall. */
 const CLAMP_PX = 188
 
-interface AllQueuesCardProps {
+export interface AllQueuesCardProps {
   project: QueuesProject
   thread: ThreadView
   leaving: boolean
@@ -285,6 +286,8 @@ export const AllQueuesCard = memo(function AllQueuesCard(props: AllQueuesCardPro
     () => setBuilt(true),
     () => {
       const { project: p, thread: t } = latest.current
+      // A terminal's card reads its screen over /term, not a handoff.
+      if (t.kind === "terminal") return Promise.resolve()
       // …and the transcript its open questions are placed by (cardNeedsTranscript), so they land with the
       // handoff rather than a round trip after it. One promise, so the prefetch's concurrency counts both.
       return Promise.all([
@@ -299,7 +302,7 @@ export const AllQueuesCard = memo(function AllQueuesCard(props: AllQueuesCardPro
   return (
     <div ref={slotRef} data-xq-card={key} data-queue-leaving={leaving} data-queue-ghost={ghost || undefined} aria-hidden={ghost || undefined} data-queue-concealed={concealed || undefined} inert={concealed || ghost} className="ntwine-card-slot min-w-0" style={remembered ? { containIntrinsicBlockSize: `auto ${remembered}px` } : undefined}>
       <div className="ntwine-card-clip min-h-0 min-w-0">
-        {built ? <CardArticle {...props} /> : <CardStandIn thread={thread} height={remembered} />}
+        {built ? (thread.kind === "terminal" ? <TerminalCardArticle {...props} /> : <CardArticle {...props} />) : <CardStandIn thread={thread} height={remembered} />}
       </div>
     </div>
   )
@@ -719,12 +722,6 @@ function CardArticle({
               is its ending (questionsAtCurrentRest). Without the transcript, any open question counts —
               the reading from before 2026-10-05 (showsRestedCard). */}
           {showsRestedCard(thread, text, messages ? slots?.here : undefined) && <RestedCard thread={thread} />}
-          {/* A terminal of yours waiting at a prompt — what queued this card — as its live screen under its
-              own row, so the answer is typed right here and the row says which terminal is asking. The
-              strip below lists every other one. */}
-          <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
-            <TerminalPromptPane thread={thread} onOpen={openProcess} />
-          </ThreadProjectScope>
         </div>
         )}
 

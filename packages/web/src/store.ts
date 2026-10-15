@@ -302,6 +302,13 @@ export function drawerThreadSlug(drawers: readonly Pick<Drawer, "kind" | "slug" 
 }
 
 export function pushDrawer(kind: "thread" | "doc", slug: string, opts?: { routed?: boolean; drillIn?: boolean }): void {
+  // A TERMINAL THREAD's drawer is its terminal (TerminalSheet), whichever way it was asked for — a row, a card's
+  // title, a cold `/thread/<slug>` link. Its own slug is both the layer's thread and its terminal.
+  const t = kind === "thread" ? store.board?.threads.find((x) => x.id === slug) : undefined
+  if (t?.kind === "terminal") {
+    openOrRaiseDrawer({ kind: "terminal", slug, subId: slug, label: t.title, routed: opts?.routed }, { drillIn: opts?.drillIn })
+    return
+  }
   openOrRaiseDrawer({ kind, slug, routed: opts?.routed }, { drillIn: opts?.drillIn })
 }
 
@@ -312,9 +319,10 @@ export function pushScheduleDrawer(id: string, projectId: string | undefined, op
   openOrRaiseDrawer({ kind: "schedule", slug: id, ...(projectId ? { projectId } : {}) }, { drillIn: opts?.drillIn })
 }
 
-// Open one of a thread's TERMINALS (lib/threadTerminals.ts) as a layer over the thread it belongs to.
-// `slug` is the THREAD, as for a sub-agent or a shell, so the layer is that thread's family: it stacks over
-// the thread's own drawer and lights the thread's row. `id` is the terminal's /term handle and dedupe key.
+// Open a TERMINAL THREAD's drawer (lib/threadTerminals.ts). `slug` is the thread the layer belongs to: the
+// terminal's own slug when it is opened as itself (its row, its card), or the thread it was started from when
+// opened from that thread's strip — then it stacks over that thread's drawer, as a sub-agent or a shell does.
+// `id` is the terminal's /term handle and dedupe key.
 export function pushTerminalDrawer(slug: string, id: string, opts?: { label?: string }): void {
   openOrRaiseDrawer({ kind: "terminal", slug, subId: id, label: opts?.label })
 }
@@ -339,7 +347,7 @@ export function pushBackgroundShellDrawer(slug: string, id: string, opts: { labe
 // worth seeing) opens the chat drawer.
 export function openThread(slug: string): void {
   const t = store.board?.threads.find((x) => x.id === slug)
-  pushDrawer(t && t.runtime === "none" ? "doc" : "thread", slug)
+  pushDrawer(t && t.runtime === "none" && t.kind !== "terminal" ? "doc" : "thread", slug)
 }
 
 // A COLD LINK TO A QUEUED THREAD LANDS ON ITS CARD (plans/upstream-superset.md §3, upstream's store.ts

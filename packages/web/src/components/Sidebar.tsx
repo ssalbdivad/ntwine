@@ -30,6 +30,8 @@ import type { ReactElement, ReactNode } from "react"
 import { useSnapshot } from "valtio"
 import { prefs } from "../lib/prefs.ts"
 import { RailDeadline } from "./DeadlineControl.tsx"
+import { terminalStateLabel } from "../lib/threadTerminals.ts"
+import { TerminalRowTitle, RowRestartButton, terminalRowAge } from "./TerminalThreadRow.tsx"
 
 // THE THREAD ROW — one thread as a line of a list, with its indicator, its title and trailers, and the
 // verbs it offers on hover (pin, Retry, reopen). The tier list draws every project's threads with these
@@ -377,7 +379,9 @@ export const ThreadRow = memo(function ThreadRow({
   const dim = snoozed || done
   // The done CHECK is a real checkbox on a row ntwine owns: unchecking it reopens the thread. A foreign
   // row is read-only (the server has no session to write), so its check stays a plain mark.
-  const uncheckable = done && !foreign
+  // A Done TERMINAL reopens by running again (its card's Restart or a `$` line), not by an uncheck.
+  const terminal = t.kind === "terminal" ? t.terminal : undefined
+  const uncheckable = done && !foreign && !terminal
   const dimLabel = titleIsProvisional(t)
   // A WORKING thread's status, and its task clock in the right-edge column a rested row gives its rest
   // time (ThreadStatusLine.tsx statusElapsed). The status is drawn inline in grey after the name while the
@@ -386,18 +390,21 @@ export const ThreadRow = memo(function ThreadRow({
   const { alwaysShowStatusLines: statusPref } = useSnapshot(prefs)
   const alwaysShowStatusLines = statusPref || statusAlways
   const elapsed = statusElapsed(t, nowMs)
-  const working = elapsed && t.statusLine ? { status: t.statusLine.trim(), elapsed } : undefined
-  const inlineStatus = working?.status
+  const terminalAge = terminal ? terminalRowAge(terminal, nowMs) : undefined
+  const working = terminalAge ? { status: "", elapsed: terminalAge } : elapsed && t.statusLine ? { status: t.statusLine.trim(), elapsed } : undefined
+  const inlineStatus = working?.status || undefined
   // The rows with an obvious single next action carry that verb INLINE, instead of making you open the
   // thread to find it. offersRetry (groups.ts) picks them: a STALLED row (the [!] mark — process
   // exited) AND a row KILLED by a usage limit ntwine will auto-resume (the yellow hourglass — a faster
   // door to the in-drawer "Continue now" than waiting for the window). The queue card and drawer header
   // read the SAME helper, so no surface can disagree with the rail about which threads offer Retry.
   const canRestart = offersRetry(t)
+  // A failed or interrupted terminal's one verb is Restart, a faster door to its card's.
+  const canRestartTerminal = terminal !== undefined && !done && t.needsYou === true && terminal.state === "exited"
   // Whether the row has any hover verb at all: the pin on every row ntwine owns, Retry on a stalled one.
   // A terminal thread ntwine only reads offers neither, so it keeps its rest time under the pointer rather
   // than trading it for an empty strip.
-  const hoverActions = !foreign || canRestart
+  const hoverActions = !foreign || canRestart || canRestartTerminal
   // A pinned row wears the mark in its right-edge column AND places the unpin verb rightmost in the
   // hover strip; both read this one predicate so the two can never disagree.
   const pinned = isPinned(t)
@@ -481,11 +488,13 @@ export const ThreadRow = memo(function ThreadRow({
               {/* With a working status beside it the title keeps its whole width (and wraps if it must)
                   and the status truncates into what is left; without one the title fills the line. */}
               <span className={`min-w-0 ${oneLine ? "truncate" : "break-words"} text-[13px] leading-[19px] ${inlineStatus ? `max-w-full ${oneLine ? "shrink" : "shrink-0"}` : "flex-1"} ${dimLabel ? "text-provisional" : dim ? "text-fg/75" : "text-fg/90"}`}>
-                <TitleWithTrailers title={displayTitle(t)}>
-                  {/* A schedule's run, or its next run: the repeat glyph, before the provider (ScheduleMark). */}
-                  {t.schedule && <ScheduleMark schedule={t.schedule} className="ml-1" />}
-                  <ProviderMark backend={t.backend} model={t.model} className="ml-1" />
-                </TitleWithTrailers>
+                {terminal ? <TerminalRowTitle terminal={terminal} /> : (
+                  <TitleWithTrailers title={displayTitle(t)}>
+                    {/* A schedule's run, or its next run: the repeat glyph, before the provider (ScheduleMark). */}
+                    {t.schedule && <ScheduleMark schedule={t.schedule} className="ml-1" />}
+                    <ProviderMark backend={t.backend} model={t.model} className="ml-1" />
+                  </TitleWithTrailers>
+                )}
               </span>
               {/* The same inline status either way; by default it is drawn only while the row is pointed at
                   or focused. The title keeps its width (shrink-0) in both, so the reveal moves nothing. */}
@@ -556,6 +565,7 @@ export const ThreadRow = memo(function ThreadRow({
               or the gap changes. */}
           {!foreign && !pinned && <RowPinButton t={t} className="-mr-0.5" />}
           {canRestart && <RowRetryButton t={t} />}
+          {canRestartTerminal && <RowRestartButton t={t} className={ROW_ACTION_CLASS} />}
           {!foreign && pinned && <RowPinButton t={t} />}
         </div>
       )}
@@ -1122,6 +1132,16 @@ function timerWake(t: Pick<ThreadView, "watches">, nowMs = Date.now()): string |
 
 function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: string | null } {
   const kind = sessionIndicatorKind(t)
+  // A TERMINAL THREAD wears the same family, read off its process (groups.ts sessionIndicatorKind): the
+  // spinner while it runs, "?" at a prompt, "!" when it failed or was interrupted, the check once Done.
+  if (t.kind === "terminal" && t.terminal) {
+    const said = terminalStateLabel(t.terminal)
+    const tip = said.charAt(0).toUpperCase() + said.slice(1)
+    if (kind === "archived") return { node: <StatusBox><Check size={10} strokeWidth={3} className="text-muted-75" /></StatusBox>, tip: `Done — ${said}` }
+    if (kind === "needs-input") return { node: <StatusBox><Glyph ch="?" muted /></StatusBox>, tip }
+    if (kind === "stalled") return { node: <StatusBox accent><Glyph ch="!" /></StatusBox>, tip: `${tip} — restart it, or run another command` }
+    if (kind === "working") return { node: <BoxSpinner />, tip }
+  }
   // A HELD THREAD (ThreadView.held) is an EMPTY box: the same box Done fills with its check, so an unstarted thread reads
   // as an unchecked box. Done and a snooze keep their own marks; only an open, unparked held thread wears it.
   if (t.held !== undefined && kind !== "archived" && kind !== "done" && !t.snoozedUntil) return { node: <StatusBox />, tip: "Not started" }

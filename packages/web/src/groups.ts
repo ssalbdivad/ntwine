@@ -18,6 +18,7 @@ import {
   subAgentAddress,
   subAgentChain,
   subAgentHandle,
+  terminalOutcome,
   threadHandle,
   type AwaitingHint,
   type SectionKey,
@@ -33,7 +34,7 @@ import { canRetry } from "./lib/status.ts"
 // Shared listing logic: the queue definition (needsAction), the sidebar's status-keyed sections
 // (sectionThreads), and the interaction-recency ordering both surfaces use.
 
-type TitleFields = Pick<ThreadView, "title" | "aiTitle" | "id" | "titleAuto" | "titleLocked" | "titleNamed" | "spawnedAt" | "backend" | "runtime" | "foreign" | "held">
+type TitleFields = Pick<ThreadView, "title" | "aiTitle" | "id" | "titleAuto" | "titleLocked" | "titleNamed" | "spawnedAt" | "backend" | "runtime" | "foreign" | "held"> & Partial<Pick<ThreadView, "kind">>
 
 // The title to SHOW for a thread: its HANDLE. A real name ("Shell budgets") renders as the kebab-case
 // handle it makes (`shell-budgets`, @ntwine/shared thread-handle.ts), so what the operator reads on the
@@ -111,6 +112,8 @@ export function subAgentTitle(
 // Where the shown title comes from, and whether it is a real NAME (which displays as its handle) or a
 // stand-in for one (a placeholder, an id, an external row's resolved title), which displays verbatim.
 function titleSource(t: TitleFields): { text: string; name: boolean } {
+  // A TERMINAL THREAD is called by the line it runs, as a terminal tab is.
+  if (t.kind === "terminal") return { text: t.title, name: false }
   // An EXTERNAL row is already named. The server resolves it in foreignThreadView — the harness's own
   // name, else a chop of the opening human turn, else a short id — which is the order both agents'
   // resume pickers use, and it stores the result in `title`. Every rule below is about a row ntwine
@@ -412,7 +415,7 @@ export const SECTION_ORDER: readonly SectionKey[] = ["active", "snoozed", "inact
 // altitude as the foreign drop. Deliberately ignores state: the pin outranks Done, Snoozed and the
 // queue alike — that is the whole feature.
 export function isPinned(t: ThreadView): boolean {
-  return t.kind === "session" && t.foreign !== true && typeof t.pinnedAt === "string"
+  return (t.kind === "session" || t.kind === "terminal") && t.foreign !== true && typeof t.pinnedAt === "string"
 }
 
 // The wait kinds that truthfully earn the parked/hourglass presentation. A timer is only a park while
@@ -668,6 +671,14 @@ export type SessionIndicatorKind = "archived" | "needs-input" | "working" | "bac
 // The prompt box's RecurringPromptControl carries the state instead, where it is legible and editable.
 
 export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
+  // A TERMINAL THREAD's mark is its process's state (shared terminalOutcome), in this family's words: a
+  // prompt needs input, a failure or an interruption is stalled (Restart is its answer), a live run works.
+  if (t.kind === "terminal" && t.terminal) {
+    if (t.state === "archived") return "archived"
+    if (futureSnoozedUntil(t) !== undefined && isSnoozed(t)) return "snoozed"
+    const outcome = terminalOutcome(t.terminal)
+    return outcome === "running" ? "working" : outcome === "prompt" ? "needs-input" : "stalled"
+  }
   // DONE IS THE HUMAN'S TO UNDO, and nothing a worker does afterwards un-archives the thread. But a live
   // session never sits under Done (upstream, hit 3× before 2026-07-10): while its turn drains or a sub-agent
   // it dispatched is still out, `sectionOf` lifts the row into Running and it wears the spinner (shared
@@ -798,6 +809,8 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
 // yellow, no exclamation point". Nothing is lost by narrowing: the drawer has a composer, and sending
 // an archived or done thread a message is already how you reopen it (see StateButton).
 export function offersRetry(t: ThreadView): boolean {
+  // A terminal's answer to a failure is Restart, which its own row and card offer; Retry sends an agent words.
+  if (t.kind === "terminal") return false
   const kind = sessionIndicatorKind(t)
   // Gated on the RESOLVED kinds (never raw limitPause/canRetry) so a higher-priority state that stole
   // the row — a fresh ask, live work, the operator's own snooze — never sprouts a Retry. Both kinds

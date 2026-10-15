@@ -13,7 +13,7 @@ export { cardProcesses }
 import { liveAgeSince } from "../lib/durationLabels.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { abbreviateHome } from "../lib/paths.ts"
-import { promptingTerminal, terminalStateLabel } from "../lib/threadTerminals.ts"
+import { terminalStateLabel } from "../lib/threadTerminals.ts"
 import { projectSlug } from "../lib/base-path.ts"
 import { pushBackgroundShellDrawer, pushTerminalDrawer, showToast, store } from "../store.ts"
 
@@ -568,43 +568,6 @@ export function ThreadProcessStrip({
           </button>
         </div>
       )}
-    </div>
-  )
-}
-
-/**
- * The live screen of the terminal a thread is queued on — a card's copy, so the answer is typed right there
- * — under ITS OWN ROW, the same row anatomy as the strip's, as its caption: which terminal is asking, what
- * it runs, where. The row is not listed again in the card's strip (onCard). Split apart for one round, the
- * pane sat above the reply box with no header and its row ~150px below in the strip, so with several
- * terminals nothing said which one was asking (main had the row directly above the pane, as here).
- *
- * A few rows tall: the prompt and the lines above it. Keyed on the RUN, like the drawer's pane, so a restart
- * is a fresh screen; no focus grab, because a card is one of many. Renders nothing otherwise.
- */
-export function TerminalPromptPane({ thread, base, onOpen }: {
-  thread: Pick<ThreadView, "id" | "terminals" | "checkout">
-  base?: string
-  /** What opening the caption row does. Absent ⇒ the terminal's own drawer, over this thread's. */
-  onOpen?: (process: ThreadProcess) => void
-}) {
-  const prompting = promptingTerminal(thread)
-  const fallback = useThreadApiBase()
-  if (!prompting) return null
-  const process = humanProcess(prompting)
-  const open = onOpen ?? ((p: ThreadProcess) => openProcessDrawer(thread.id, p))
-  return (
-    <div data-terminal-prompt={prompting.id} className="flex min-w-0 flex-col">
-      {/* `px-1`: the strip's own inset (AllQueuesCard), so this row's arrow and label sit in the one column
-          the rows under the reply box use, and its screen's border is the box edge, as the reply box is theirs. */}
-      <div className="px-1">
-        <ProcessRow process={process} slug={thread.id} here={thread.checkout} caption onOpen={() => open(process)} />
-      </div>
-      <div data-terminal-prompt-pane={prompting.id} className="mt-1.5 flex h-[168px] min-w-0 overflow-hidden rounded-md border border-attention/40">
-        <Suspense fallback={<div className="flex-1 bg-bg" />}>
-          <TerminalPane key={`${prompting.id}:${prompting.runId}`} id={prompting.id} base={base ?? fallback} focusOnMount={false} exitedStatus={() => null} />
-        </Suspense>
-      </div>
     </div>
   )
 }

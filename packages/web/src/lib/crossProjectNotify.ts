@@ -64,9 +64,9 @@ export function queueArrivals(prev: QueueSightings | null, queues: readonly Proj
     const seen = prev?.get(project.projectId)
     const sightings = new Map<string, QueueSighting>()
     next.set(project.projectId, sightings)
-    // Sessions only: the server notifies for a session entering the queue, never a finished command.
+    // Sessions and terminal threads: the server notifies for either entering the queue.
     for (const thread of project.threads) {
-      if (thread.kind !== "session") continue
+      if (thread.kind !== "session" && thread.kind !== "terminal") continue
       const queued = queuedThread(thread)
       const before = seen?.get(thread.id)
       const left = before?.lastInQueue

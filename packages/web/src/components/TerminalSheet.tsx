@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState, type ReactNode } from "react"
-import { Bot, Copy, RotateCcw, SquareTerminal, Trash2 } from "lucide-react"
+import { Bot, Check, Copy, RotateCcw, SquareTerminal, Trash2 } from "lucide-react"
 import type { BackgroundShellOutputResult, ThreadTerminal, WorkCheckout } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast, threadBySlug } from "../store.ts"
@@ -151,20 +151,27 @@ export function StateReading({ state, age, budget, tone, stopShown, attr }: {
 function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: number; slug: string; terminalId: string; depth: number; widthDepth: number }) {
   const board = useBoard()
   const thread = threadBySlug(board, slug)
-  const terminal = terminalOf(thread, terminalId)
+  // The terminal's own row first (it is a thread of its own), then the strip of the thread it was opened
+  // over — which drops it once it is Done, while its own row keeps it.
+  const own = threadBySlug(board, terminalId)
+  const terminal = terminalOf(own, terminalId) ?? terminalOf(thread, terminalId)
+  const filed = own?.kind === "terminal" && own.state === "archived"
   // The drawer opens the moment the start RPC answers, which can beat the board delta carrying the
   // terminal. Until it has been seen once, its absence means "starting", not "gone".
   const seen = useRef(false)
   if (terminal) seen.current = true
-  const [pending, setPending] = useState<"stop" | "restart" | "remove" | null>(null)
+  const [pending, setPending] = useState<TerminalAct | null>(null)
 
-  function act(kind: "stop" | "restart" | "remove", close: () => void) {
+  function act(kind: TerminalAct, close: () => void) {
     if (pending) return
     setPending(kind)
-    const call = kind === "stop" ? rpc.terminalStop({ id: terminalId }) : kind === "restart" ? rpc.terminalRestart({ id: terminalId }) : rpc.terminalRemove({ id: terminalId })
+    const call = kind === "stop" ? rpc.terminalStop({ id: terminalId })
+      : kind === "restart" ? rpc.terminalRestart({ id: terminalId })
+      : kind === "done" ? rpc.setThreadState({ slug: terminalId, state: "archived" })
+      : rpc.terminalRemove({ id: terminalId })
     call
       .then(() => {
-        if (kind === "remove") close()
+        if (kind === "remove" || kind === "done") close()
       })
       .catch((error: unknown) => showToast(error instanceof Error ? error.message : `Could not ${kind} this terminal`))
       .finally(() => setPending(null))
@@ -179,6 +186,7 @@ function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: n
             fallbackSubtitle={thread ? displayTitle(thread) : undefined}
             homeDir={board?.homeDir}
             pending={pending}
+            done={filed}
             onAct={(kind) => act(kind, close)}
             onClose={close}
           />
@@ -208,13 +216,17 @@ function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: n
 
 /** YOUR TERMINAL'S DRAWER HEADER — the command, where it runs, how it stands, and its actions — split out so
  *  the terminals fixture draws the very header the drawer does (terminals-unified-fixture `?mode=header`). */
-export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pending, onAct, onClose }: {
+export type TerminalAct = "stop" | "restart" | "remove" | "done"
+
+export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pending, done = true, onAct, onClose }: {
   terminal: ThreadTerminal | undefined
   /** The thread's title, for a terminal with no folder (or none yet). */
   fallbackSubtitle?: string
   homeDir: string | undefined
-  pending: "stop" | "restart" | "remove" | null
-  onAct: (kind: "stop" | "restart" | "remove") => void
+  pending: TerminalAct | null
+  /** Already Done — so no Mark as done. A terminal is a thread of its own, and Done is its to reach. */
+  done?: boolean
+  onAct: (kind: TerminalAct) => void
   onClose: () => void
 }) {
   // A size container, so the header's secondary actions fold to glyphs when the drawer is narrow.
@@ -234,6 +246,12 @@ export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pendi
             {terminal.state === "running" ? (
               <button type="button" data-terminal-stop disabled={pending !== null} onClick={() => onAct("stop")} className={stopClass}>
                 {pending === "stop" ? "Stopping…" : "Stop"}
+              </button>
+            ) : null}
+            {/* Mark as done on a running one stops it first (thread-terminals.ts setState). */}
+            {!done ? (
+              <button type="button" data-terminal-done disabled={pending !== null} onClick={() => onAct("done")} title="Mark as done" aria-label="Mark as done" className={actionClass}>
+                <NarrowGlyph icon={Check} text={pending === "done" ? "Marking…" : "Mark as done"} />
               </button>
             ) : null}
             <button type="button" data-terminal-restart disabled={pending !== null} onClick={() => onAct("restart")} title="Restart" aria-label="Restart" className={actionClass}>

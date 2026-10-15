@@ -1,14 +1,12 @@
 import type { ThreadTerminal, ThreadView } from "@ntwine/shared"
 
-// A THREAD'S TERMINALS — ptys the human opened on a thread, running in the folder its agent works in
-// (server thread-terminals.ts). They are not threads: no row, no card of their own. They ride
-// `ThreadView.terminals` and show inside their thread — the drawer's terminals strip, the card's, and a
-// mark on the thread's row (ThreadTerminals.tsx). They replaced the prompt box's Terminal tab and its
-// top-level command threads on 2026-09-29.
+// TERMINAL THREADS — ptys a human or an agent started (server thread-terminals.ts). Each is a thread of its own
+// (`ThreadView.kind: "terminal"`, its process in `ThreadView.terminal`): a row, a card when it needs you, a
+// drawer. One started from a thread also rides that thread's `ThreadView.terminals`, so its strip links to it.
 
 // How a run stands, on its strip row and its drawer's header alike.
 export function terminalStateLabel(terminal: ThreadTerminal): string {
-  // Alive, but silent at a prompt — a password, an OTP, a [y/N]. It queues its thread.
+  // Alive, but silent at a prompt — a password, an OTP, a [y/N]. It queues itself.
   if (terminal.state === "running" && terminal.awaitingInput) return "waiting for input"
   if (terminal.state === "running") return "running"
   if (terminal.stopped) return "stopped"
@@ -40,13 +38,14 @@ export function runningTerminals(thread: Pick<ThreadView, "terminals">): ThreadT
   return (thread.terminals ?? []).filter((terminal) => terminal.state === "running")
 }
 
-/** The terminal a thread is queued on, when one is waiting at a prompt. */
-export function promptingTerminal(thread: Pick<ThreadView, "terminals">): ThreadTerminal | undefined {
-  return thread.terminals?.find((terminal) => terminal.awaitingInput === true)
+/** A terminal thread's process while it waits at a prompt — what its card draws a live screen for. */
+export function promptingTerminal(thread: Pick<ThreadView, "kind" | "terminal">): ThreadTerminal | undefined {
+  return thread.kind === "terminal" && thread.terminal?.awaitingInput === true ? thread.terminal : undefined
 }
 
-/** The thread's terminal with this id — the terminal drawer's lookup. */
-export function terminalOf(thread: Pick<ThreadView, "terminals"> | undefined, id: string): ThreadTerminal | undefined {
+/** The terminal with this id — a terminal thread's own process, or one in a thread's strip. */
+export function terminalOf(thread: Pick<ThreadView, "terminals" | "kind" | "terminal"> | undefined, id: string): ThreadTerminal | undefined {
+  if (thread?.kind === "terminal" && thread.terminal?.id === id) return thread.terminal
   return thread?.terminals?.find((terminal) => terminal.id === id)
 }
 

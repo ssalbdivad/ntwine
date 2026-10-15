@@ -188,6 +188,8 @@ export function StateButton({
   // `optimistic`: fade the card NOW (before the RPC) rather than after the round-trip. Only when a
   // reinstate path exists AND the completion is predicted to archive immediately — so the common resting
   // "done" card feels instantaneous, while an executing turn still waits and shows the confirm dialog.
+  // The terminals the human ticked in the dialog to stop with the thread — none, by default.
+  const [stops, setStops] = useState<ReadonlySet<string>>(new Set())
   const complete = (terminateLive: boolean, optimistic: boolean) => {
     setPending(true)
     if (optimistic) onArchived?.() // start the exit animation immediately
@@ -198,7 +200,7 @@ export function StateButton({
     const expectsArchive = terminateLive || completionArchivesImmediately(thread)
     if (expectsArchive && overlayRail) markArchived(thread.id)
     api
-      .completeThread({ slug: thread.id, sessionId: thread.sessionId ?? "", terminateLive })
+      .completeThread({ slug: thread.id, sessionId: thread.sessionId ?? "", terminateLive, ...(terminateLive && stops.size > 0 ? { stopTerminals: [...stops] } : {}) })
       .then((result) => {
         if (result.needsConfirmation) {
           if (overlayRail) clearArchived(thread.id) // mispredicted: the server wants the dialog, so the row stays put
@@ -211,6 +213,7 @@ export function StateButton({
           // gone instance — the user simply sees the card return and can click again. Safe either way.
           if (optimistic) onDismissCancel?.()
           setHold(result.hold)
+          setStops(new Set())
           setConfirmUserAt(lastUserAt.current)
           setConfirmOpen(true)
           setPending(false)
@@ -295,7 +298,12 @@ export function StateButton({
           </>
         }
       >
-        <CompletionHoldBody hold={hold} />
+        <CompletionHoldBody hold={hold} stops={stops} onToggle={(id) => setStops((was) => {
+          const next = new Set(was)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })} />
       </Dialog>
     </>
   )
@@ -322,7 +330,7 @@ function HoldOwnerGlyph({ owner }: { owner: "agent" | "human" }) {
   )
 }
 
-function CompletionHoldBody({ hold }: { hold: CompletionHold | undefined }) {
+function CompletionHoldBody({ hold, stops, onToggle }: { hold: CompletionHold | undefined; stops: ReadonlySet<string>; onToggle: (id: string) => void }) {
   const summary = completionHoldSummary(hold)
   return (
     <div data-completion-hold className="flex flex-col gap-2 p-4 text-[12px] leading-relaxed text-muted">
@@ -344,6 +352,13 @@ function CompletionHoldBody({ hold }: { hold: CompletionHold | undefined }) {
                 <span className={`min-w-0 truncate text-fg/80 ${item.owner === "human" ? "font-mono-keep text-[11.5px]" : ""}`}>{item.label}</span>
                 {/* Stale is why we ask rather than proof of life: say so instead of implying either. */}
                 {item.stale && <span className="shrink-0 text-[11px] text-muted-60">no recent output</span>}
+                {/* A terminal this thread started outlives its Done unless ticked here. */}
+                {item.id ? (
+                  <label data-hold-stop={item.id} className="ml-auto flex shrink-0 cursor-pointer items-baseline gap-1 pl-2 text-[11px] text-muted-70">
+                    <input type="checkbox" checked={stops.has(item.id)} onChange={() => onToggle(item.id!)} className="translate-y-[1px] accent-[var(--color-fg)]" />
+                    Stop
+                  </label>
+                ) : null}
               </li>
             ))}
             {group.overflow > 0 && <li className="pl-[15px] text-muted-60">+{group.overflow} more</li>}
