@@ -2054,13 +2054,17 @@ export function createStorage(source: string | Database, projectId: string): Sto
       title_auto = excluded.title_auto,
       title_locked = excluded.title_locked,
       title = excluded.title,
-      -- This statement REPLACES the title text, so the provenance of the old one cannot survive it: a
+      -- A re-dispatch REPLACES the title text, so the provenance of the old one cannot survive it: a
       -- re-dispatch over a slug whose worker had already named itself would otherwise keep reading as
       -- agent-written while displaying the fresh dispatch chop. The next title signal sets it again.
-      title_agent = 0,
+      -- The SAME session written back is not that: it is a held thread starting (dispatch \`onto\`), which
+      -- keeps the title it was given, so it keeps that title's provenance too. Cleared here, a to-do's
+      -- minted name stopped being a name the moment it started: no handle, Claude's live session title
+      -- in its place, and "Spinning up a thread…" for its first minute (2026-10-15).
+      title_agent = CASE WHEN session.session_id = excluded.session_id AND excluded.title IS session.title THEN session.title_agent ELSE 0 END,
       -- Same reasoning: a fresh session is unnamed again and has no status yet.
-      title_worker_renamed = 0,
-      former_titles = NULL,
+      title_worker_renamed = CASE WHEN session.session_id = excluded.session_id AND excluded.title IS session.title THEN session.title_worker_renamed ELSE 0 END,
+      former_titles = CASE WHEN session.session_id = excluded.session_id THEN session.former_titles ELSE NULL END,
       status = NULL,
       status_at = NULL,
       snoozed_until = excluded.snoozed_until,
