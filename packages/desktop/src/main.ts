@@ -13,8 +13,8 @@ import {
   type Rectangle,
   type WebContents,
 } from "electron"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { basename, dirname, join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import { appPath, classifyNavigation, startAddress } from "./navigation.ts"
@@ -84,6 +84,32 @@ function registerAppId(): void {
   }
   if (!shell.writeShortcutLink(link, existsSync(link) ? "replace" : "create", options))
     console.error(`[desktop] could not write ${link}; the taskbar will show Electron's icon`)
+  // Any other Start Menu shortcut claiming APP_ID competes with this one, and Windows may pick it: pinning
+  // a window that carried no relaunch details (before windowAppDetails) wrote `Electron.lnk`, the bare
+  // exe with no icon, and the taskbar showed the atom again.
+  const programs = dirname(link)
+  for (const name of readdirSync(programs)) {
+    if (!name.endsWith(".lnk") || name === basename(link)) continue
+    const other = join(programs, name)
+    let claimsOurs = false
+    try { claimsOurs = shell.readShortcutLink(other).appUserModelId === APP_ID } catch {}
+    if (claimsOurs) rmSync(other, { force: true })
+  }
+}
+
+/**
+ * What Windows records when the window is pinned to the taskbar. Without it the pin relaunches the bare
+ * exe and takes Electron's icon and name, whatever the window itself shows.
+ */
+function setWindowAppDetails(win: BrowserWindow): void {
+  if (process.platform !== "win32") return
+  const icon = join(here, "icon.ico")
+  win.setAppDetails({
+    appId: APP_ID,
+    relaunchCommand: `"${process.execPath}" "${app.getAppPath()}"`,
+    relaunchDisplayName: "ntwine",
+    ...(existsSync(icon) ? { appIconPath: icon, appIconIndex: 0 } : {}),
+  })
 }
 
 /** The server this app is showing — the one origin its windows may navigate within. */
@@ -160,6 +186,7 @@ function windowOptions(): BrowserWindowConstructorOptions {
 function createMainWindow(): BrowserWindow {
   const state = readWindowState()
   const win = new BrowserWindow({ ...windowOptions(), ...restorableBounds(state.bounds) })
+  setWindowAppDetails(win)
   if (state.maximized) win.maximize()
   win.once("ready-to-show", () => win.show())
   win.on("close", () => saveWindowState(win))
