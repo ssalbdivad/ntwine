@@ -17,6 +17,7 @@ import type { Tailer } from "./tailer.ts"
 import { createWakeDeliveryStore } from "./wake-store.ts"
 import { knownHandles, resolveSubAgent, resolveThreadHandle, subAgentAddresses, THREAD_MESSAGE_HOURLY_CAP } from "./thread-mentions.ts"
 import type { NamedThread } from "./thread-names.ts"
+import { createTerminalRunner } from "./thread-terminals.ts"
 
 const named = (slug: string, name: string, open = true, at = 0): NamedThread => ({ slug, name, open, at })
 
@@ -103,6 +104,29 @@ test("readThread answers by handle, and a miss lists the handles that exist", as
     assert.equal(miss.found, false)
     assert.deepEqual(miss.known, ["@shell-budgets"], "the caller is not offered to itself")
   } finally { h.close() }
+})
+
+// A TERMINAL THREAD is read by its handle too (plans/terminal-threads.md): what it runs, how its run ended,
+// and its screen. A real runner over the same SQLite, with rows a boot would find — no pty is started.
+test("readThread reads a terminal by its handle, an open thread of the same name wins, and a miss lists terminals", async () => {
+  const h = harness()
+  const terminals = createTerminalRunner({ storage: h.storage, onChange: () => {} })
+  ;(h.ctx as { terminalRunner: unknown }).terminalRunner = terminals
+  const router = createRouter(h.ctx)
+  try {
+    h.storage.upsertSession(row("me", "Mentions"))
+    const at = Date.now()
+    h.storage.insertThreadTerminal({ slug: "term-a", startedBy: "human", handle: "nub-test", command: "nub test", cwd: h.dir, shell: false, createdAtMs: at })
+    h.storage.recordTerminalExit("term-a", { exitedAtMs: at + 1, exitCode: 1, stopped: false })
+    const read = await router.readThread.handler({ input: { slug: "me", handle: "@nub-test" } })
+    assert.deepEqual(read, { found: true, handle: "nub-test", slug: "term-a", state: "resting", terminal: { command: "nub test", cwd: h.dir, outcome: "failed", exitCode: 1, startedBy: "human", screen: "" } })
+    // A thread already called "Nub test" was named first; the terminal is reached by its slug.
+    h.storage.upsertSession(row("nt", "Nub test"))
+    assert.equal((await router.readThread.handler({ input: { slug: "me", handle: "@nub-test" } })).slug, "nt")
+    assert.equal((await router.readThread.handler({ input: { slug: "me", handle: "term-a" } })).slug, "term-a")
+    const miss = await router.readThread.handler({ input: { slug: "me", handle: "@nub-tst" } })
+    assert.deepEqual(miss.known, ["@nub-test", "@nub-test (terminal)"])
+  } finally { terminals.shutdown(); h.close() }
 })
 
 test("messageThread queues a signed message for the other thread, and refuses self, done and a loop", async () => {

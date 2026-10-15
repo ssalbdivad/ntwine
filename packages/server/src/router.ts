@@ -5711,7 +5711,9 @@ export function createRouter(ctx: AppContext) {
           const other = elsewhere && routersByContext.get(elsewhere.tenant)
           const read = other ? await other.readThread.handler({ input }) : undefined
           if (read?.found) return { ...read, project: elsewhere!.tenant.project.name }
-          return { found: false, known: knownHandles(threads, input.slug) }
+          // Open terminals are handles too: listed after the threads, so a typo of `@nub-run-dev` is answered.
+          const terminals = (ctx.terminalRunner?.terminals?.() ?? []).filter(({ row }) => row.state === "open" && row.handle && row.slug !== input.slug).map(({ row }) => `@${row.handle} (terminal)`)
+          return { found: false, known: [...knownHandles(threads, input.slug), ...terminals.slice(0, 20)] }
         }
         const clip = clipText
         if (childPath.length > 0) return readSubAgent(hit.slug, handleOf(hit), childPath, clip)
