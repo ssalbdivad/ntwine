@@ -1,4 +1,5 @@
 import { createContext, memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+import { useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
 import { createPortal } from "react-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
@@ -4457,6 +4458,7 @@ export function LimitPauseCard({ slug, pause }: { slug: string; sessionId: strin
  *  through the page's own project (LimitPauseCard above), a queue card through the card's project
  *  (AllQueuesCard). One component, so a paused thread reads identically in the drawer and in the queue. */
 export function LimitPauseNotice({ pause, onContinue, continuing }: { pause: NonNullable<ThreadViewData["limitPause"]>; onContinue: () => void; continuing: boolean }) {
+  const continueKeys = useShortcutLabel("app.newThread")
   return (
     <TranscriptCard data-limit-pause tone="caution" icon={Hourglass} label={limitPauseTitle(pause)}>
       {/* The provider's own "You've hit your session limit · resets …" line sits directly above this
@@ -4467,6 +4469,8 @@ export function LimitPauseNotice({ pause, onContinue, continuing }: { pause: Non
         <button
           onClick={onContinue}
           disabled={continuing}
+          title={withShortcut("Continue now", continueKeys)}
+          data-command="continue"
           onMouseDown={(e) => e.preventDefault()}
           className={`disabled:opacity-45 ${CARD_PRIMARY_ACTION}`}
         >

@@ -256,7 +256,7 @@ function focusReplyBoxOnceOpen(): void {
  *  a click (a Radix menu trigger opens on pointerdown/keydown) can claim it with preventDefault. */
 export const COMMAND_EVENT = "ntwine:command"
 
-export type ThreadCommand = "done" | "snooze" | "open" | "terminal" | "editor" | "menu" | "spinoff" | "reply"
+export type ThreadCommand = "done" | "snooze" | "open" | "terminal" | "editor" | "menu" | "spinoff" | "reply" | "continue"
 
 // Every prompt box that answers the thing on screen. Deliberately NOT the question card's free-text
 // answer box (`questionAnswer`) — `r` is a reply to the thread, and a question has its own chips.
@@ -268,7 +268,8 @@ const REPLY_BOXES = ["queueComposer", "chatComposer", "subAgentComposer", "termi
  *  which lets a page fall back to its own reading of the key (AllQueues.tsx: `e` with no card). */
 export function runThreadCommand(command: ThreadCommand): boolean {
   const surface = currentThreadSurface()
-  if (!surface) return openForCommand(command)
+  // `continue` shares `c` with New thread (App.tsx), so with nothing in front of it the key is New thread's.
+  if (!surface) return command === "continue" ? false : openForCommand(command)
   if (command === "reply") return focusReplyBox(surface)
   // `~=`: one control can carry several commands, space-separated — the ⋯ trigger answers for its menu
   // and for the items inside it, which exist only while it is open.

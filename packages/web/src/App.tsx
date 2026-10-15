@@ -9,7 +9,7 @@ import { detectPlatform } from "./lib/keybindings.ts"
 import { openDispatch } from "./lib/newThreadDoor.ts"
 import { useBoard } from "./hooks.ts"
 import { closeDrawerAnimated } from "./lib/overlays.ts"
-import { useShortcut } from "./lib/keyboardRuntime.ts"
+import { runThreadCommand, useShortcut } from "./lib/keyboardRuntime.ts"
 import { clampPinnedPage, pageScrollY, pinPageAt } from "./lib/pageScrollLock.ts"
 import { startRouter } from "./lib/router.ts"
 import { projectSlug } from "./lib/base-path.ts"
@@ -279,7 +279,11 @@ export function App() {
   useShortcut("app.settings", () => {
     store.showSettings = true
   })
-  useShortcut("app.newThread", () => openDispatch())
+  // `c` presses the thread's own "Continue now" when it shows one (a usage-limit pause), the way `d` presses
+  // Mark as done; anywhere else it is New thread.
+  useShortcut("app.newThread", () => {
+    if (!runThreadCommand("continue")) openDispatch()
+  })
 
   const board = useBoard()
 
