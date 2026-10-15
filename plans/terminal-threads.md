@@ -93,6 +93,33 @@ gate (a test suite, a build) stays `run_in_background`, because it belongs to th
 turn. That also unblocks hibernation for every thread that runs a dev server. It is a rule a worker measurably gets
 wrong without being told, so it earns its tokens.
 
+## Control: one thread concept for humans and agents (added 2026-10-15)
+
+ssalbdivad, after asking @live-view to "start a dev server so I can try it": *"agent-started terminals and user
+terminals equivalent … maybe some take control a user can use if an agent is currently in charge … it should be one
+cohesive thread concept … it's about communication across the whole network."* This replaces the earlier rule above
+that an agent may type only into terminals it started.
+
+- **Who started a terminal no longer decides who may type into it. Its controller does.** The controller is `human`
+  or a thread. The starter holds control at first.
+- **Only the controller types into a terminal or stops or restarts it.** The human is held to this too, so an agent
+  driving a terminal is never interleaved with stray keystrokes. While an agent drives, the pane and the `$` box are
+  read-only, with a bar reading "@thread is driving" and a **Take control** button.
+- **The human can always take control.** Afterwards the bar offers **Hand back to @thread**. The ⋯ menu's "Let an
+  agent drive…" hands any terminal, including one the human started, to a thread. An agent gives control up with
+  `ntwinectl terminal release @h`.
+- **Control changes are messages.** The agent that lost control is told "ssalbdivad took control of @h", and is woken
+  if it is waiting on that terminal. Handing back tells it "@h is yours again".
+- **The verbs are the thread verbs.** `read-thread @h` reads a terminal's screen as it reads an agent's transcript.
+  `message-thread @h` types a line into a terminal as it sends a message to an agent, gated by control. An awaiting
+  fence's `threads: [@h]` wakes on the terminal's exit, a prompt, or a control change, as it wakes on an agent's
+  reply. Only `ntwinectl terminal start|stop|restart|release` are terminal-specific.
+
+**The general shape this sets for every thread.** A thread is something with a driver (an agent's worker or a pty's
+process), an optional parent, and a screen anyone can read. It is reached the same way whoever is asking: read it,
+message it, wait on it. A human and an agent differ only in which verbs the board draws as buttons. The agent-thread
+analogue of Take control is the existing steer and interrupt: the human always outranks the driver.
+
 ## Terminals survive a restart: a detached terminal host
 
 This is the largest piece, and it is what makes "one-stop shop" true. It follows the pattern three transports already
