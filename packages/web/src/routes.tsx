@@ -295,8 +295,7 @@ function usePageResolution(routeSlug: string | undefined): PageResolution {
  * All-projects drawer's address cut short (`/all`, `/all/<slug>`) land on All projects, at `/`.
  */
 function HomeRedirect() {
-  const { pathname, search } = useLocation()
-  const first = pathname.split("/")[1] ?? ""
+  const { search } = useLocation()
   return <Navigate to={`/${search}`} replace />
 }
 
