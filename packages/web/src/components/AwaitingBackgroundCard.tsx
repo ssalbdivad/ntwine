@@ -1464,7 +1464,7 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
         <StepsDone slug={thread.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />
       ) : footer ? (
         <CardActions data-awaiting-actions>
-          {keepWorking && <KeepWorkingButton key={thread!.lastAssistantAt ?? ""} slug={thread!.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />}
+          {keepWorking && <KeepWorkingButton key={`keep-working:${thread!.lastAssistantAt ?? ""}`} slug={thread!.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />}
           {askable && <AwaitingAskUpdate key={thread!.lastAssistantAt ?? ""} thread={thread!} />}
           {stopIds.length > 0 && <AwaitingStopShells key={stopIds.join(" ")} slug={thread!.id} ids={stopIds} />}
         </CardActions>

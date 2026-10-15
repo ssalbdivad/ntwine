@@ -46,8 +46,7 @@ export function offersKeepWorking(
 
 /** Does the chat draw this user turn as the Keep working marker rather than the human's bubble?
  *  `keepWorking` is the server's tell (transcript.ts userProjection, delivery-ledger.ts); the text read
- *  covers the optimistic copy, which no projection has seen. A FAILED send keeps the bubble, which is what
- *  carries Retry / Edit / Dismiss. */
-export function drawsKeepWorkingMarker(m: Pick<TranscriptMessage, "text" | "keepWorking" | "deliveryState">): boolean {
-  return (m.keepWorking === true || isKeepWorkingMessage(m.text)) && m.deliveryState !== "failed"
+ *  covers the optimistic copy, which no projection has seen. */
+export function drawsKeepWorkingMarker(m: Pick<TranscriptMessage, "text" | "keepWorking">): boolean {
+  return m.keepWorking === true || isKeepWorkingMessage(m.text)
 }

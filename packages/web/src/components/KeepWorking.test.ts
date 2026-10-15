@@ -60,17 +60,15 @@ const user = (over: Partial<TranscriptMessage>): TranscriptMessage => ({ role: "
 
 // ChatView's Message cannot load under node (it pulls in CSS), so its branch is pinned at the predicate it
 // calls and the marker it returns.
-test("the sent message draws as the human's marker, served or optimistic, and a failed one keeps its bubble", () => {
+test("the sent message draws as the human's marker, served or optimistic, and never as its raw words", () => {
   assert.equal(drawsKeepWorkingMarker(user({ keepWorking: true })), true)
   // The optimistic copy carries only the raw text.
   assert.equal(drawsKeepWorkingMarker(user({ queued: true })), true)
-  // A failed send is the bubble, which is what carries Retry / Edit / Dismiss.
-  assert.equal(drawsKeepWorkingMarker(user({ deliveryState: "failed", deliveryError: "offline" })), false)
   // The envelope pasted inside a message of the human's own is just their message.
   assert.equal(drawsKeepWorkingMarker(user({ text: `look at this:\n${KEEP_WORKING_MESSAGE}` })), false)
   const marker = renderToStaticMarkup(createElement(KeepWorkingMarker, { sourceId: "u1" }))
   assert.equal(marker.replace(/<[^>]+>/g, ""), "Told it to keep working")
-  assert.match(renderToStaticMarkup(createElement(KeepWorkingMarker, { queued: true })), /opacity-50/)
+  assert.match(renderToStaticMarkup(createElement(KeepWorkingMarker, { dimmed: true })), /opacity-50/)
 })
 
 test("it is not the human's turn the queue card opens at", () => {

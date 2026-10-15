@@ -127,7 +127,7 @@ import { LightboxGallery } from "./Lightbox.tsx"
 import { META_CARD_STEP, PICTURE_STEP, STEP, TIME_BREAK_ABOVE, TIME_BREAK_BELOW, USER_TAIL_EXTRA, VSpace } from "./rhythm.tsx"
 import { SpinoffButton, SpinoffCard, SpinoffOf, SpinoffOriginCard } from "./Spinoff.tsx"
 import { KeepWorkingMarker } from "./KeepWorking.tsx"
-import { drawsKeepWorkingMarker } from "../lib/keepWorking.ts"
+import { drawsKeepWorkingMarker, KEEP_WORKING_LABEL } from "../lib/keepWorking.ts"
 import { ThreadSlugContext } from "./threadSlugContext.ts"
 import { toolSchedule, type ToolSlot } from "../lib/toolQueue.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
@@ -3815,7 +3815,16 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // this renderer for each part it draws, so one held and merged with other wakes is still a bubble.
     // THE HUMAN'S KEEP WORKING (KeepWorking.tsx): their click on a resting card, sent as a message worded
     // for the worker, so it is drawn as their one-line marker (lib/keepWorking.ts drawsKeepWorkingMarker).
-    if (drawsKeepWorkingMarker(m)) return <KeepWorkingMarker sourceId={m.sourceId} queued={m.queued} />
+    // A FAILED send keeps the marker and takes the bubble's failure row under it: Retry resends the
+    // message itself, and Edit puts the button's words, not the worker's instructions, in the prompt box.
+    if (drawsKeepWorkingMarker(m)) {
+      const failed = m.deliveryState === "failed" && m.deliveryId
+      return (
+        <KeepWorkingMarker sourceId={m.sourceId} dimmed={m.queued || !!failed}>
+          {failed && <FailedSendRow deliveryId={m.deliveryId!} text={KEEP_WORKING_LABEL} rawText={m.text} error={m.deliveryError} />}
+        </KeepWorkingMarker>
+      )
+    }
     if (m.wake) return <NtwineWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} />
     // A SIDEWAYS writer of a user turn the human didn't type: another top-level thread messaging this
     // one. An expandable hairline naming and linking the sender — see SessionMessageLine.
