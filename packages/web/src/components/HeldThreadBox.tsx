@@ -36,9 +36,20 @@ export function TodoSteps({ steps }: { steps: string }): ReactElement {
   )
 }
 
-type HeldComposerProps = { thread: ThreadView; surface: "queueComposer" | "chatComposer"; className?: string; id?: string }
+type HeldComposerProps = {
+  thread: ThreadView
+  surface: "queueComposer" | "chatComposer"
+  className?: string
+  id?: string
+  /** The start went out: a queue card leaves, as it does for a reply (AllQueues useLeavingCards). */
+  onSent?: () => void
+  /** It landed. */
+  onLanded?: () => void
+  /** It failed: the card comes back, with the words still in its box. */
+  onFailed?: () => void
+}
 
-export function HeldThreadComposer({ thread, surface, className, id }: HeldComposerProps): ReactElement {
+export function HeldThreadComposer({ thread, surface, className, id, onSent, onLanded, onFailed }: HeldComposerProps): ReactElement {
   const api = useThreadApi()
   const sessionId = thread.sessionId ?? ""
   const note = thread.heldPrompt ?? ""
@@ -71,12 +82,29 @@ export function HeldThreadComposer({ thread, surface, className, id }: HeldCompo
 
   const launch = useMutation({
     mutationFn: (prompt: string) => api.startHeldThread({ slug: thread.id, sessionId, prompt }),
-    onError: (cause) => showToast(`Could not start the agent: ${(cause instanceof Error ? cause.message : String(cause)).slice(0, 80)}`),
+    onSuccess: () => onLanded?.(),
+    onError: (cause) => {
+      onFailed?.()
+      const message = cause instanceof Error ? cause.message : String(cause)
+      // Started already — from another tab, or a send whose answer this box missed. Not a failure.
+      showToast(/already start/i.test(message) ? "This thread has already started." : `Could not start the agent: ${message.slice(0, 80)}`)
+    },
   })
+  // STARTED IS FINAL. Once the start lands the thread is running, but this box is still drawn with the
+  // words in it until the board says so — and a queue card whose box has the caret stays drawn for as
+  // long as it does (AllQueues `typingKey`). It used to unlock there, so the box looked as if nothing had
+  // happened, and a second send answered "This thread has already started" (2026-10-15). It stays
+  // locked from the send until it is replaced by the running thread's box.
+  const locked = launch.isPending || launch.isSuccess
 
   const submit = () => {
     const prompt = text.trim()
-    if (!prompt || !sessionId || launch.isPending) return
+    if (!prompt || !sessionId || locked) return
+    // A queue card unmounts as it leaves, and its pending save with it; should the start fail, the card
+    // comes back with what the server has. So the words go to the server now, not 500ms from now. Once the
+    // start lands this save is refused (the text is the first message by then), which is nothing to report.
+    if (text !== saved.current) void save(text).then(() => { saved.current = text }, () => {})
+    onSent?.()
     launch.mutate(prompt)
   }
 
@@ -89,7 +117,7 @@ export function HeldThreadComposer({ thread, surface, className, id }: HeldCompo
         onChange={setText}
         onSubmit={submit}
         placeholder="Describe the task…"
-        busy={launch.isPending}
+        busy={locked}
         footer={<span className="pl-1 text-[11px] text-muted-70">Send to start an agent</span>}
       />
     </div>
