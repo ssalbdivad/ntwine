@@ -37,7 +37,8 @@ export function TerminalCardArticle({ project, thread, onLeave, onReturn, onSent
   }
   const said = terminalStateLabel(terminal)
   const tone = outcome === "prompt" || outcome === "interrupted" ? "text-attention" : outcome === "failed" ? "text-danger-soft" : ""
-  const folder = terminal.cwd ? abbreviateHome(terminal.cwd, project.homeDir) : undefined
+  // The folder only off the project root, as its row names it: at the root it would repeat the project chip.
+  const folder = terminal.cwd && !terminal.atRoot ? abbreviateHome(terminal.cwd, project.homeDir) : undefined
   return (
     <article
       data-xq-card-root

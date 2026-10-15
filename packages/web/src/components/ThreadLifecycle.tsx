@@ -274,7 +274,7 @@ export function StateButton({
         }}
         // A cut-off worker has no session left to end; the question is whether an unfinished thread
         // should be filed as done at all (lib/threadLifecycle.ts completionHoldSummary).
-        title={hold?.cutOff ? "Mark an unfinished thread done?" : "End this session?"}
+        title={hold?.cutOff ? "Mark an unfinished thread done?" : completionHoldSummary(hold).terminalsOnly ? "Mark as done?" : "End this session?"}
         className="w-[390px] max-w-[92vw]"
         footer={
           <>
@@ -293,7 +293,7 @@ export function StateButton({
               className="button-outline flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[12px] font-medium text-bg outline-none transition-opacity hover:opacity-90 disabled:opacity-45"
             >
               {pending && <Loader2 size={12} className="animate-spin" />}
-              {hold?.cutOff ? "Mark done anyway" : "End session & mark done"}
+              {hold?.cutOff ? "Mark done anyway" : completionHoldSummary(hold).terminalsOnly ? "Mark as done" : "End session & mark done"}
             </button>
           </>
         }
@@ -352,10 +352,12 @@ function CompletionHoldBody({ hold, stops, onToggle }: { hold: CompletionHold | 
                 <span className={`min-w-0 truncate text-fg/80 ${item.owner === "human" ? "font-mono-keep text-[11.5px]" : ""}`}>{item.label}</span>
                 {/* Stale is why we ask rather than proof of life: say so instead of implying either. */}
                 {item.stale && <span className="shrink-0 text-[11px] text-muted-60">no recent output</span>}
-                {/* A terminal this thread started outlives its Done unless ticked here. */}
+                {/* A terminal this thread started outlives its Done unless ticked here. The box's `0.18em` puts its
+                    centre on the word's cap band: `translate-y-[1px]` left it 1.00px high at 11px sans (dsf 6,
+                    box mid vs baseline − cap/2), 0.00 after. */}
                 {item.id ? (
                   <label data-hold-stop={item.id} className="ml-auto flex shrink-0 cursor-pointer items-baseline gap-1 pl-2 text-[11px] text-muted-70">
-                    <input type="checkbox" checked={stops.has(item.id)} onChange={() => onToggle(item.id!)} className="translate-y-[1px] accent-[var(--color-fg)]" />
+                    <input type="checkbox" checked={stops.has(item.id)} onChange={() => onToggle(item.id!)} className="translate-y-[0.18em] accent-[var(--color-fg)]" />
                     Stop
                   </label>
                 ) : null}

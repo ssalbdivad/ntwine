@@ -195,7 +195,8 @@ test("a running terminal on the thread is asked about, and named, whatever the w
   assert.deepEqual(only.groups.map((g) => [g.kind, g.heading]), [["terminal", "1 terminal"]])
   // Its slug is what the dialog's stop checkbox sends; Done leaves it running unless ticked.
   assert.deepEqual(only.groups[0].items, [{ id: "npm-run-dev", label: "npm run dev", stale: false, owner: "human" }])
-  assert.equal(only.trailer, "They keep running after Done. Tick one to stop it.")
+  assert.equal(only.trailer, "It keeps running after Done unless you tick Stop.")
+  assert.equal(only.terminalsOnly, true, "nothing of the agent's to end: the dialog asks plain Done")
 
   const withShell = completionHoldSummary(hold({
     bgShells: [{ label: "Watch CI", state: "running" }],

@@ -97,6 +97,8 @@ export interface CompletionHoldSummary {
   lead: string // the sentence that names WHY Done stopped to ask
   groups: CompletionHoldGroup[]
   trailer: string // what "End session & mark done" will actually do
+  /** Only the human's own terminals hold it: there is no session to end, so the dialog asks plain Done. */
+  terminalsOnly?: true
 }
 
 // The confirm dialog's copy. "This thread is still running" answers nothing the human can act on —
@@ -146,7 +148,8 @@ export function completionHoldSummary(hold: CompletionHold | undefined): Complet
     return {
       lead: terminals!.heading === "1 terminal" ? "A terminal this thread started is still running:" : "Terminals this thread started are still running:",
       groups,
-      trailer: "They keep running after Done. Tick one to stop it.",
+      trailer: terminals!.heading === "1 terminal" ? "It keeps running after Done unless you tick Stop." : "They keep running after Done. Tick one to stop it.",
+      terminalsOnly: true,
     }
   }
   const lead = hold.turnInFlight
