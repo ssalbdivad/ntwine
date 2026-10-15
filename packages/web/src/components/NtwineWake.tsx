@@ -31,7 +31,7 @@
 // accent ref, the corner glyph) with no hierarchy between them.
 import { Fragment, useContext, useId, useRef, useState, type ReactNode } from "react"
 import { AlarmClock, Bell, Bot, Github, Hourglass, MessageCircleOff, RefreshCw, TerminalSquare } from "lucide-react"
-import { isGithubWakeBacklog, isInjectedNoise, isParkCorrection, parseGithubWakeSteer, parseLimitModelSwitchWake, parseLimitResumeWake, parseMergedWake, parseOwnWatchExpiredWake, parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake, parsePrWatchWake, parseQuestionsCancelledWake, parseRecurringPrompt, parseShellDoneWake, parseTimerWake, stripWakeTrailer, type GithubWakeSteer, type LimitWindow, type MergedWakePart, type ParkWake, type PrWatchStateWake, type PrWatchWake, type ShellDoneWake, type TimerWake } from "@ntwine/shared"
+import { isGithubWakeBacklog, isInjectedNoise, isParkCorrection, parseGithubWakeSteer, parseLimitModelSwitchWake, parseLimitResumeWake, parseMergedWake, parseOwnWatchExpiredWake, parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake, parsePrWatchWake, parseQuestionsCancelledWake, parseRecurringPrompt, parseShellDoneWake, parseTerminalWake, parseTerminalWatchExpiredWake, parseTimerWake, stripWakeTrailer, type GithubWakeSteer, type LimitWindow, type MergedWakePart, type ParkWake, type PrWatchStateWake, type PrWatchWake, type ShellDoneWake, type TimerWake } from "@ntwine/shared"
 import { useMermaidIslands } from "./CodexRichOutput.tsx"
 import { BLOCK_RADIUS, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 import { RecurringPromptLine } from "./RecurringPromptLine.tsx"
@@ -110,6 +110,9 @@ export function NtwineWake({ steer: served, text, sourceId, at, wrap, agentMessa
   if (lapsed) return <PrWatchExpiredDivider watchRef={lapsed.ref} sourceId={sourceId} at={at} />
   const ownLapsed = parseOwnWatchExpiredWake(text)
   if (ownLapsed) return <OwnWatchExpiredDivider kind={ownLapsed.kind} sourceId={sourceId} at={at} />
+  const terminal = parseTerminalWake(text)
+  if (terminal) return <TerminalWakeDivider handle={terminal.handle} event={terminal.event} sourceId={sourceId} at={at} />
+  if (parseTerminalWatchExpiredWake(text)) return <OwnWatchExpiredDivider kind="terminal" sourceId={sourceId} at={at} />
   // The ONE wake on the registered-question path ntwine writes in its own voice. Its sibling — the human's
   // ANSWER — never reaches this component at all: it is written in the answers wire form, which Message
   // recognizes and draws as the human's own card before it ever asks whether ntwine delivered the turn.
@@ -456,15 +459,27 @@ function RefText({ value }: { value: string }) {
 // (`bzvtnt3ig`), the handle a worker writes on a fence and nothing a reader correlates by eye, which is
 // the reason the shell-finished line below never draws one either. The glyph is the subject's own, as
 // it is on the PR line above — the terminal every shell divider wears, the bot every sub-agent one does.
-function OwnWatchExpiredDivider({ kind, sourceId, at }: { kind: "shell" | "agent"; sourceId?: string; at?: string }) {
+function OwnWatchExpiredDivider({ kind, sourceId, at }: { kind: "shell" | "agent" | "terminal"; sourceId?: string; at?: string }) {
   // State first, like the PR one above — and on a narrow row the glyph alone says which kind of wait.
-  const what = ` on a ${kind === "agent" ? "sub-agent" : "background shell"}`
+  const what = ` on a ${kind === "agent" ? "sub-agent" : kind === "terminal" ? "terminal" : "background shell"}`
   return (
     <WakeDivider icon={kind === "agent" ? Bot : TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={`Watch expired${what}`} at={at}>
       <span className="min-w-0 truncate">
         Watch expired
         <span className={WAKE_DIVIDER_WIDE_ONLY}>{what}</span>
       </span>
+    </WakeDivider>
+  )
+}
+
+/** A terminal the worker started and waited on reached a prompt or ended (server SOURCE 17). The worker
+ *  got its screen; the human gets the one line, since the terminal is a row of its own to open. */
+function TerminalWakeDivider({ handle, event, sourceId, at }: { handle: string; event: string; sourceId?: string; at?: string }) {
+  const what = event === "is waiting for input" ? "waiting for input" : event.replace(/^FAILED \(exit (-?\d+)\)$/, "exited $1").replace(/^FAILED$/, "failed").replace(/^ended \(exit (-?\d+)\)$/, "exited $1").replace(/^was interrupted$/, "interrupted")
+  const label = `Terminal @${handle} ${what}`
+  return (
+    <WakeDivider icon={TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={label} at={at}>
+      <span className="min-w-0 truncate">{label}</span>
     </WakeDivider>
   )
 }

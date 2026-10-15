@@ -87,3 +87,16 @@ test("splitAwaitingFrontmatter: `threads:` is a structural key producing `thread
   assert.deepEqual(splitAwaitingFrontmatter("threads: @shell-budgets\nfor: 1h").hints, [{ kind: "for", value: "1h" }, { kind: "thread", value: "@shell-budgets" }])
   assert.equal(isAwaitingItemKind("thread"), true)
 })
+
+// `terminals:` (2026-10-15) names terminals by `@handle` too, so it is read verbatim the same way — and
+// beside `threads:` neither list takes the other's entries.
+test("splitAwaitingFrontmatter: `terminals:` produces `terminal` hints, `@` and all, apart from `threads:`", () => {
+  const { hints } = splitAwaitingFrontmatter("terminals: [@nub-run-dev]\nthreads:\n  - @shell-budgets\nstatus: working\nfor: 2h")
+  assert.deepEqual(hints, [
+    { kind: "status", value: "working" },
+    { kind: "for", value: "2h" },
+    { kind: "thread", value: "@shell-budgets" },
+    { kind: "terminal", value: "@nub-run-dev" },
+  ])
+  assert.equal(isAwaitingItemKind("terminal"), true)
+})

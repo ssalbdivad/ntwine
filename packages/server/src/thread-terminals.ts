@@ -90,6 +90,8 @@ export interface TerminalRunner {
   live(parent: string): ThreadTerminal[]
   /** The run's screen so far, escape sequences dropped — `read-thread`'s answer for a terminal. */
   screenTail(id: string, maxChars?: number): string
+  /** Type into the live run's pty (`ntwinectl terminal send`). False when nothing is running to take it. */
+  write(id: string, data: string): boolean
   /** The /term transport's gate: non-null iff this id is one of this project's terminals. */
   attach(id: string): TerminalAttachment | null
   has(id: string): boolean
@@ -601,6 +603,12 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       const run = runs.get(id)
       if (!run) return ""
       return plainScreen(run.proc.replay().slice(-maxChars * 4)).replace(/\s+$/, "").slice(-maxChars)
+    },
+    write(id, data) {
+      const run = runs.get(id)
+      if (!run || run.proc.exit) return false
+      run.proc.write(data)
+      return true
     },
     live(parent) {
       return [...rows().values()].filter((row) => row.parent_slug === parent).map(view)

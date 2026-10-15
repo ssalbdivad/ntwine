@@ -103,7 +103,8 @@ test("an untimed run_in_background call gets ONE non-blocking line; a timed one,
   assert.deepEqual(untimed.hookSpecificOutput?.updatedInput, { command: "npx vite --port 5231", run_in_background: true, timeout: 86_400_000 })
   assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /no `timeout`/)
   assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /ntwinectl extend-shell/)
-  assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /dev server or watcher/)
+  // A dev server is sent to a terminal thread, which outlives the turn (plans/terminal-threads.md).
+  assert.match(untimed.hookSpecificOutput?.additionalContext ?? "", /dev server or watcher belongs in `ntwinectl terminal start/)
   assert.ok((untimed.hookSpecificOutput?.additionalContext ?? "").length < 500, "brief")
   // The negative controls: the same command, every way that must stay silent.
   assert.deepEqual(decision("npx vite --port 5231", true, { run_in_background: true, timeout: 600_000 }), {}, "a declared timeout is not nagged")

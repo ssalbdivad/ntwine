@@ -201,8 +201,7 @@ not done.
   user typed past excepted) or a watch is armed, naming each by id: resolve them for real — \`unask\`
   what you decided yourself, \`unwatch\` what stopped mattering — and run it again. There is no force
   flag.
-- A background process you have moved on from — a dev server, a poller — does not block \`done\`; name it
-  in the body.
+- A terminal you leave running — a dev server — does not block \`done\`; name its \`@handle\` in the body.
 - **Landing is the user's call.** Commit, push or open a pull request only when their current request
   asks for it or the project's docs tell workers to. Permission covers the change it was given for: a PR
   opened for one request is no mandate for the next. Without a mandate, finished code is \`done\` where
@@ -270,7 +269,9 @@ for: 1d
 - \`prs:\` — \`owner/repo#N\`, registered FIRST with \`ntwinectl watch-pr add\`. It wakes you on CI,
   reviews, comments, labels and conflicts; a wake saying CI is held for a maintainer's approval will
   not resolve by itself — go and ask.
-- \`threads:\` — \`@handle\`s you asked with \`ntwinectl message-thread --await-reply\`.{{NTWINE_COMMANDS_KEY}}
+- \`threads:\` — \`@handle\`s you asked with \`ntwinectl message-thread --await-reply\`.
+- \`terminals:\` — \`@handle\`s from \`ntwinectl terminal start\`; you are woken when one reaches a prompt
+  or ends.{{NTWINE_COMMANDS_KEY}}
 - \`title:\` — optional: the card's heading, a short sentence-case phrase naming this wait.
 - \`steps:\` and \`questions:\` — below.
 
@@ -466,11 +467,12 @@ const BACKEND: Record<BackendKind, string> = {
   holding one can never be hibernated. Only when ntwine REFUSES the command watch does the loop go in a
   background shell; a wait no command can judge goes to a sub-agent that blocks until the verdict.
 - **A slow gate** — a full suite, a build — runs with \`run_in_background: true\` and a \`timeout\` sized
-  to it; its exit wakes you.
-- **A process you work alongside** (a dev server, a log tail) runs with \`run_in_background: true\`,
-  never \`&\`, \`nohup\` or \`disown\` — a hook rejects escaping jobs. Give a finite one a \`timeout\`;
-  \`ntwinectl extend-shell <id> --for <duration>\` extends a budget. Stop every shell that no longer
-  serves the work, and never write one that polls for a sub-agent or Workflow: those notify you.
+  to it; its exit wakes you. \`ntwinectl extend-shell <id> --for <duration>\` extends a budget. Never
+  \`&\`, \`nohup\` or \`disown\` — a hook rejects escaping jobs. Stop every shell that no longer serves
+  the work, and never write one that polls for a sub-agent or Workflow: those notify you.
+- **A process you work alongside** (a dev server, a log tail) starts with
+  \`ntwinectl terminal start "<command>"\`, not a background shell. It outlives your turn;
+  \`ntwinectl terminal read @handle\` reads it, and \`ntwinectl terminal stop @handle\` ends it.
 - \`Monitor\` streams events into an active turn (\`persistent: true\` runs until \`TaskStop\`); you cannot
   rest on it. \`TaskOutput\` is deprecated: \`Read\` the output path. \`TaskStop\` is for your own monitors
   and shells, never a sub-agent.
@@ -555,7 +557,10 @@ node {{NTWINE_MONITORS_DIR}}/review-watch.mjs --repo OWNER/REPO --pr NUMBER
   empty poll, switch to a blocking monitor or a timer.
 - A Luna child is optional only when you have genuinely independent parent work; it never edits,
   mutates GitHub, delegates, sets timers or emits an awaiting fence.
-- **A disposable local process** (a dev server, a long gate): create the \`tools.exec_command(...)\`
+- **A process you work alongside** (a dev server, a log tail) starts with
+  \`ntwinectl terminal start "<command>"\`; it outlives your turn, and \`ntwinectl terminal read @handle\`
+  reads it.
+- **A long gate**: create the \`tools.exec_command(...)\`
   promise, call \`yield_control()\`, then await and drain that same session. Never \`&\`, \`nohup\` or
   \`disown\`. Give a finite exec a budget with \`ntwinectl extend-shell <process id> --for <duration>\`
   (max 24h); past it you are warned once, and it is terminated ten minutes later.
@@ -578,7 +583,8 @@ harness's own, and so are your permission prompts (ntwine shows each to the user
 commands are \`ntwinectl\`, on your shell's PATH. \`SendMessage\` and the \`Agent\` tool named in this
 contract are Claude Code's — use your harness's equivalent, or none. ntwine cannot see sub-agents your
 harness runs, so prefer working inline; when you fan out, let each child finish, and fold every result
-into your own write-up before you rest.
+into your own write-up before you rest. A process you work alongside (a dev server, a log tail) starts
+with \`ntwinectl terminal start "<command>"\`, not a background job of your shell.
 
 A message the user sends while you work is queued and arrives as your next turn: rest promptly when
 the work is done, and read the newest user message first.`,

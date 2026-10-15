@@ -123,7 +123,10 @@ function folderName(dir: string): string {
  *  has gone quiet, the last place it was seen. */
 export function processTitle(p: ThreadProcess, homeDir: string | undefined, watched = false): string {
   const where = p.cwd ? abbreviateHome(p.cwd, homeDir) : undefined
-  if (p.owner === "human") return where ? `Your terminal — ${p.label}\n${where}` : `Your terminal — ${p.label}`
+  if (p.owner === "human") {
+    const whose = p.mark === "agent" ? "Agent terminal" : "Your terminal"
+    return where ? `${whose} — ${p.label}\n${where}` : `${whose} — ${p.label}`
+  }
   const head = `${p.monitor ? "Agent monitor" : "Agent terminal"} — ${p.label}`
   const lines = [
     head,
@@ -311,7 +314,8 @@ export function ProcessRow({ process: p, slug, here, lines, watched, onOpen }: {
   const projectDir = useThreadProjectDir()
   const now = useNowMs()
   const [busy, setBusy] = useState(false)
-  const Glyph = OWNER_GLYPH[p.owner]
+  const mark = p.mark ?? p.owner
+  const Glyph = OWNER_GLYPH[mark]
   const terminal = p.terminal
   const human = p.owner === "human"
   // A live row shows its age whoever owns it — a terminal of yours waiting at a prompt included: it is
@@ -326,7 +330,7 @@ export function ProcessRow({ process: p, slug, here, lines, watched, onOpen }: {
   // same text changing typeface from one row to the next read as two kinds of thing.
   const commandLabel = human || (p.shell?.command !== undefined && p.shell.command === p.label)
   const title = processTitle(p, board?.homeDir, watched)
-  const noun = human ? "your terminal" : p.monitor ? "agent monitor" : "agent terminal"
+  const noun = human ? (mark === "agent" ? "agent terminal" : "your terminal") : p.monitor ? "agent monitor" : "agent terminal"
 
   // The × is Stop while yours runs and Remove once it has ended; on the agent's it is the ops strip's own
   // × (childOpDismisser): offered only when the server says the shell can really be stopped. Its tooltip
@@ -360,7 +364,7 @@ export function ProcessRow({ process: p, slug, here, lines, watched, onOpen }: {
     <>
       <span aria-hidden className={CHILD_ARROW_CLASS}>{CHILD_ARROW}</span>
       <span className={OWNER_SLOT}>
-        <Glyph aria-hidden strokeWidth={OWNER_STROKE[p.owner]} className={`${OWNER_ICON} ${PROCESS_HUE[p.state]}`} data-process-mark={p.owner} data-running-indicator={RUNNING_INDICATOR[p.state]} />
+        <Glyph aria-hidden strokeWidth={OWNER_STROKE[mark]} className={`${OWNER_ICON} ${PROCESS_HUE[p.state]}`} data-process-mark={mark} data-running-indicator={RUNNING_INDICATOR[p.state]} />
       </span>
       <span className={CHILD_KIND_TAG_CLASS}>TERM</span>
       <span data-process-label className={onOpen ? `${LABEL} group-hover:text-fg/80 group-hover:underline` : LABEL}>

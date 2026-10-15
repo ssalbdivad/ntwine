@@ -134,7 +134,7 @@ test("the ntwine MCP server identifies as `ntwine` and exposes its worker tools"
     // there is exactly one thing this call does, and none of the three has a defensible default — `for`
     // least of all, because a duration ntwine picked would be a wait nobody chose.
     assert.deepEqual(list.result.tools[4].inputSchema.required, ["kind", "target", "for"])
-    assert.deepEqual(list.result.tools[4].inputSchema.properties.kind.enum, ["shell", "agent"])
+    assert.deepEqual(list.result.tools[4].inputSchema.properties.kind.enum, ["shell", "agent", "terminal"])
     assert.deepEqual(Object.keys(list.result.tools[4].inputSchema.properties).sort(), ["for", "kind", "target"])
     assert.deepEqual(list.result.tools[5].inputSchema.required, ["id"])
     assert.deepEqual(Object.keys(list.result.tools[5].inputSchema.properties), ["id"])
@@ -1370,7 +1370,7 @@ test("`watch` and `unwatch` register and withdraw against the CALLING thread", a
     for (const [id, args, pattern] of [
       [4, { kind: "shell", for: "2h" }, /`target` is required/],
       [5, { kind: "shell", target: "bzvtnt3ig" }, /`for` is required/],
-      [6, { kind: "process", target: "bzvtnt3ig", for: "2h" }, /`kind` must be "shell" or "agent"/],
+      [6, { kind: "process", target: "bzvtnt3ig", for: "2h" }, /`kind` must be "shell", "agent" or "terminal"/],
     ] as const) {
       rpc.send({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "watch", arguments: args } })
       const refused = await rpc.next(id)

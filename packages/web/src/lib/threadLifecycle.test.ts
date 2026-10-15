@@ -197,6 +197,9 @@ test("a running terminal on the thread is asked about, and named, whatever the w
   assert.deepEqual(only.groups[0].items, [{ id: "npm-run-dev", label: "npm run dev", stale: false, owner: "human" }])
   assert.equal(only.trailer, "It keeps running after Done unless you tick Stop.")
   assert.equal(only.terminalsOnly, true, "nothing of the agent's to end: the dialog asks plain Done")
+  // One the agent started (`ntwinectl terminal start`) wears the agent's mark and keeps its Stop box.
+  const agents = completionHoldSummary(hold({ terminals: [{ id: "nub-run-dev", label: "nub run dev", state: "running", owner: "agent" }], terminalCount: 1 }))
+  assert.deepEqual(agents.groups[0].items, [{ id: "nub-run-dev", label: "nub run dev", stale: false, owner: "agent" }])
 
   const withShell = completionHoldSummary(hold({
     bgShells: [{ label: "Watch CI", state: "running" }],

@@ -185,7 +185,12 @@ function holdGroup(
   return {
     kind,
     heading: headingFor(total, noun),
-    items: ops.map((op) => ({ label: op.label, stale: op.state === "stale", ...(owner ? { owner } : {}), ...(owner === "human" && op.id ? { id: op.id } : {}) })),
+    // A terminal thread carries its own starter (`op.owner`: an agent's `ntwinectl terminal start`, or yours)
+    // and its slug, which is what earns the Stop box.
+    items: ops.map((op) => {
+      const by = op.owner ?? owner
+      return { label: op.label, stale: op.state === "stale", ...(by ? { owner: by } : {}), ...(kind === "terminal" && op.id ? { id: op.id } : {}) }
+    }),
     overflow: Math.max(0, total - ops.length),
   }
 }
