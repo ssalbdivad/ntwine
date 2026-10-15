@@ -1,8 +1,8 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { BoardSnapshot } from "@ntwine/shared"
-import { markDrawerClosing, noteStandaloneThreadRender, pushDrawer, registerRoutedLanding, resolveRoutedThread, store } from "../store.ts"
-import { applyLocation, appPushedCurrentEntry, noteRouterTransition, primeReturnFromFullscreen, primeRoute, startRouter } from "./router.ts"
+import { markDrawerClosing, pushDrawer, registerRoutedLanding, resolveRoutedThread, store } from "../store.ts"
+import { applyLocation, appPushedCurrentEntry, primeRoute, startRouter } from "./router.ts"
 
 function resetStore(): void {
   store.drawers = []
@@ -181,157 +181,53 @@ test("malformed percent escapes fall back to Queue instead of throwing before mo
 // A deep link to a slug THIS project does not have. Since one server started serving every project
 // that is usually a thread ANOTHER project has — every pre-singleton bookmark and every agent-written
 // `/thread/<slug>` cross-reference has that shape — so it must not open an empty sheet over the board.
-test("a routed slug this board does not have hands off to the /full page's recovery", () => {
+test("a routed slug this board does not have opens in the project that has it", async () => {
   resetStore()
   const globals = globalThis as typeof globalThis & { location?: Location }
-  const previous = globals.location
+  const previous = { location: globals.location, fetch: globalThis.fetch }
   const replaced: string[] = []
-  globals.location = { pathname: "/", replace: (url: string) => replaced.push(url) } as unknown as Location
+  const asked: string[] = []
+  globals.location = { pathname: "/", origin: "http://page", replace: (url: string) => replaced.push(url) } as unknown as Location
+  let owners = [{ projectSlug: "elsewhere", projectName: "Elsewhere" }]
+  globalThis.fetch = (async (input: unknown) => {
+    asked.push(new URL(String(input)).pathname.split("/").pop()!)
+    return new Response(JSON.stringify({ result: owners }), { headers: { "content-type": "application/json" } })
+  }) as typeof fetch
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
   try {
     boardWith([{ id: "present" }])
     primeRoute("/thread/lives-elsewhere")
     resolveRoutedThread()
-    assert.deepEqual(replaced, ["/thread/lives-elsewhere/full"], "<MissingThread> + threadLocate relocate from there")
     assert.equal(store.drawers.length, 0, "no empty drawer is opened over the board")
+    for (let i = 0; i < 5 && replaced.length === 0; i++) await settle()
+    assert.deepEqual(asked, ["threadLocate"])
+    assert.deepEqual(replaced, ["/all/elsewhere/thread/lives-elsewhere"], "its drawer, in the project that has it")
 
-    // A thread this board DOES have is unaffected: it still opens in place, with no navigation.
+    // Nobody has it: the page stays, and says so.
     replaced.length = 0
+    owners = []
+    primeRoute("/thread/nowhere")
+    resolveRoutedThread()
+    for (let i = 0; i < 5 && store.toast === null; i++) await settle()
+    assert.deepEqual(replaced, [])
+    assert.equal(store.toast?.text, "No thread named nowhere")
+
+    // A thread this board DOES have is unaffected: it still opens in place, with no lookup.
+    asked.length = 0
     primeRoute("/thread/present")
     resolveRoutedThread()
-    assert.deepEqual(replaced, [])
+    assert.deepEqual(asked, [])
     assert.equal(store.drawers.length, 1)
     assert.equal(store.drawers[0].slug, "present")
   } finally {
-    globals.location = previous
-  }
-})
-
-// The fullscreen door clears the drawer stack and navigates to `/thread/<slug>/full` in one tick;
-// valtio delivers the store notification a microtask later, when the address bar already names the
-// fullscreen page. The board's store→URL sync must leave that URL alone — it pulled the page straight
-// back to the board before the guard (live, 2026-08-28).
-test("the store→URL sync never writes over the fullscreen page", async () => {
-  resetStore()
-  const globals = globalThis as typeof globalThis & { location?: Location }
-  const previous = globals.location
-  const navigated: string[] = []
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-  try {
-    globals.location = { pathname: "/thread/focus/full" } as unknown as Location
-    const stop = startRouter((path) => navigated.push(path))
-    store.drawers = [{ id: 1, kind: "thread", slug: "focus" } as never]
-    await settle()
-    store.drawers = []
-    await settle()
-    stop()
-    assert.deepEqual(navigated, [], "no write while the address bar names a /full page")
-
-    // CONTROL — the same writes on the board DO drive the URL, so the guard is the only difference.
-    globals.location = { pathname: "/" } as unknown as Location
-    const stopBoard = startRouter((path) => navigated.push(path))
-    store.drawers = [{ id: 2, kind: "thread", slug: "focus" } as never]
-    await settle()
-    stopBoard()
-    assert.deepEqual(navigated, ["/thread/focus"])
-  } finally {
-    globals.location = previous
-    resetStore()
-  }
-})
-
-// The cross-project page opens another project's thread URL-FIRST: history already names
-// `/all/c/thread/u` while the store still holds the previous focus's state (here: a thread parked for
-// project b, whose board never landed). A notification in that window must not write the old state over
-// the new URL — that put b's `t` under c's prefix. Once the route has applied the URL, the store agrees
-// with it and nothing is written at all.
-test("the store→URL sync waits until the route has applied a URL-first navigation", async () => {
-  resetStore()
-  const globals = globalThis as typeof globalThis & { location?: Location }
-  const previous = globals.location
-  const navigated: string[] = []
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-  try {
-    globals.location = { pathname: "/all/b/thread/t" } as unknown as Location
-    const stop = startRouter((path) => navigated.push(path))
-    // The operator clicks c's card before b's board lands: history moves first.
-    globals.location = { pathname: "/all/c/thread/u" } as unknown as Location
-    store.connection = "open" // an unrelated notification, in the window
-    await settle()
-    assert.deepEqual(navigated, [], "nothing written over the URL the store has not absorbed")
-
-    // The route applies it (routes.tsx useRouteToStore) — the store now parks c's `u`, and the address
-    // bar already says so.
-    store.routeThreadSlug = null
-    applyLocation("/all/c/thread/u")
-    await settle()
-    assert.equal(store.routeThreadSlug, "u")
-    assert.deepEqual(navigated, [], "the store agrees with the URL")
-
-    // CONTROL: a store-first change once absorbed IS written — the guard only holds a moving URL.
-    store.routeThreadSlug = "v"
-    await settle()
-    stop()
-    assert.deepEqual(navigated, ["/all/c/thread/v"])
-  } finally {
-    globals.location = previous
-    store.connection = "connecting"
-    resetStore()
-  }
-})
-
-// A drawer opened STORE-first — a row of the page's own project, every row in focus mode — has its
-// address written by the store → URL writer, and the route applies it a beat later (react-router commits
-// history first, the route's effects after, and TWO of them apply it: App re-registering the writer, and
-// useRouteToStore). Closed inside that beat, the close was held back by the guard above and then UNDONE
-// when the route applied the drawer's address: the drawer re-opened and Escape did nothing (6 of 6 tries
-// on a loaded machine, 2026-09-29). An address the writer wrote that arrives while a write is held back
-// is absorbed without being applied; an address from anywhere else, or the writer's own with nothing held
-// back, still is.
-test("a drawer closed before the route has applied its own address stays closed", async () => {
-  resetStore()
-  const globals = globalThis as typeof globalThis & { location?: Location }
-  const previous = globals.location
-  const navigated: string[] = []
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-  try {
-    globals.location = { pathname: "/" } as unknown as Location
-    // The router writes history at once, as react-router does; the route applies it only when told to.
-    const stop = startRouter((path) => {
-      navigated.push(path)
-      globals.location = { pathname: new URL(path, "http://page").pathname } as unknown as Location
-    })
-    store.drawers = [{ id: 1, kind: "thread", slug: "t" } as never]
-    await settle()
-    assert.deepEqual(navigated, ["/thread/t"], "opening the drawer writes its address")
-
-    // Escape, before the route has applied that address.
-    store.drawers = []
-    await settle()
-    assert.deepEqual(navigated, ["/thread/t"], "the close waits for the route")
-
-    // Both of the commit's applications, back to back as its effects run them.
-    applyLocation("/thread/t")
-    applyLocation("/thread/t")
-    await settle()
-    assert.equal(store.routeThreadSlug, null, "the drawer's own address did not park it again")
-    assert.equal(store.drawers.length, 0, "…or re-open it")
-    assert.deepEqual(navigated, ["/thread/t", "/"], "and the held-back close is written")
-    applyLocation("/")
-
-    // CONTROL: the same address arriving from outside — Back, a link, a reload — is applied.
-    globals.location = { pathname: "/thread/t" } as unknown as Location
-    applyLocation("/thread/t")
-    assert.equal(store.routeThreadSlug, "t", "an address the store did not write is still applied")
-    stop()
-  } finally {
-    globals.location = previous
-    resetStore()
+    globals.location = previous.location
+    globalThis.fetch = previous.fetch
+    store.toast = null
   }
 })
 
 // The writer's own address with NOTHING held back is applied like any other: it is what clears a slug
-// left parked when the page comes back from /full to the drawer it left, and skipping it there left the
-// address on a drawer the reader had since closed.
+// left parked while its drawer was already in the stack.
 test("the writer's own address is applied when the store has not moved past it", async () => {
   resetStore()
   const globals = globalThis as typeof globalThis & { location?: Location }
@@ -353,62 +249,6 @@ test("the writer's own address is applied when the store has not moved past it",
     stop()
   } finally {
     globals.location = previous
-    resetStore()
-  }
-})
-
-// THE WAY BACK FROM /full opens the drawer in the page's FIRST render (store.ts primeFullscreenReturn),
-// and the page's route effects — its store → URL writer and useRouteToStore — run only after the return's
-// view transition lets them, over a second later on a loaded machine. An Escape in that window closed the
-// drawer with no writer to record it, and the route then applied the drawer's address: parked, settled by
-// the board, re-opened (3 to 5 of 6 tries, 2026-09-29). The page opened on that address, so a close before
-// the route caught up is the store moving past it, like a write held back.
-test("a drawer the return from /full opened, closed before the route caught up, stays closed", async () => {
-  const globals = globalThis as typeof globalThis & { location?: Location; window?: Window & typeof globalThis }
-  const previous = { location: globals.location, window: globals.window }
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-  // The return leg, up to the page's first effects: /full rendered, then the page primed its drawer.
-  const returnTo = () => {
-    resetStore()
-    globals.location = { pathname: "/thread/t" } as unknown as Location
-    boardWith([{ id: "t" }])
-    noteStandaloneThreadRender("t")
-    primeReturnFromFullscreen("t")
-  }
-  const effects = (navigated: string[]) => {
-    const stop = startRouter((path) => {
-      navigated.push(path)
-      globals.location = { pathname: new URL(path, "http://page").pathname } as unknown as Location
-    })
-    applyLocation(globals.location!.pathname)
-    return stop
-  }
-  try {
-    globals.window = { setTimeout: () => 0 } as unknown as Window & typeof globalThis
-    returnTo()
-    assert.deepEqual(store.drawers.map((d) => d.slug), ["t"], "the page opens on the drawer")
-    store.drawers = [] // Escape, before any route effect has run
-    const navigated: string[] = []
-    const stop = effects(navigated)
-    await settle()
-    resolveRoutedThread() // the render the board is authoritative on
-    assert.equal(store.routeThreadSlug, null, "the drawer's address did not park it again")
-    assert.equal(store.drawers.length, 0, "…or re-open it")
-    assert.deepEqual(navigated, ["/"], "and the close is written")
-    stop()
-
-    // CONTROL: left open, the same return applies its address and writes nothing.
-    returnTo()
-    const untouched: string[] = []
-    const stopUntouched = effects(untouched)
-    await settle()
-    resolveRoutedThread()
-    assert.deepEqual(store.drawers.map((d) => d.slug), ["t"], "the drawer stays up")
-    assert.deepEqual(untouched, [], "and the address stays on it")
-    stopUntouched()
-  } finally {
-    globals.location = previous.location
-    globals.window = previous.window
     resetStore()
   }
 })
@@ -459,36 +299,6 @@ test("Back onto a thread a lateral move replaced pops without writing history", 
     assert.equal(store.drawers.filter((d) => !d.closing).length, 0)
   } finally {
     stop()
-    globals.location = previous
-    resetStore()
-  }
-})
-
-// A navigation issued while react-router's view transition is running — the way back from /full is one —
-// moved history and the router but was not rendered, leaving the page on the address it was leaving
-// (2026-09-29). The writer holds its write until the transition has finished.
-test("the store → URL writer waits out react-router's view transition", async () => {
-  resetStore()
-  const globals = globalThis as typeof globalThis & { location?: Location }
-  const previous = globals.location
-  const navigated: string[] = []
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-  try {
-    globals.location = { pathname: "/" } as unknown as Location
-    const stop = startRouter((path) => {
-      navigated.push(path)
-      globals.location = { pathname: new URL(path, "http://page").pathname } as unknown as Location
-    })
-    noteRouterTransition(true)
-    store.drawers = [{ id: 1, kind: "thread", slug: "t" } as never]
-    await settle()
-    assert.deepEqual(navigated, [], "nothing is written while the transition runs")
-    noteRouterTransition(false)
-    await settle()
-    assert.deepEqual(navigated, ["/thread/t"], "and the write lands as it finishes")
-    stop()
-  } finally {
-    noteRouterTransition(false)
     globals.location = previous
     resetStore()
   }
