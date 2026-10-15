@@ -152,7 +152,7 @@ export function awaitingProseBlock(body: string | undefined): string | null {
  *  keyed on "has a colon" would eat it. */
 // The answer lines are machinery too: `status:` (2026-10-05) and the `needs_input:` it replaced, in both
 // spellings the parser reads.
-const FENCE_SYNTAX_KEYS = new Set<string>([...RETIRED_AWAITING_KINDS, "shells", "agents", "timers", "prs", "commands", "for", "title", "status", "needs_input", "needs-input"])
+const FENCE_SYNTAX_KEYS = new Set<string>([...RETIRED_AWAITING_KINDS, "shells", "agents", "timers", "prs", "commands", "terminals", "for", "title", "status", "needs_input", "needs-input"])
 function stripFenceSyntax(body: string): string {
   return body
     .split("\n")
@@ -191,6 +191,8 @@ export function awaitingWaitClause(hints: readonly AwaitingHint[]): string | nul
     ...prWatchRefs(hints).map((pr) => pr.ref),
     // An awaited thread keeps its handle, as a PR keeps its ref: it names a thing the reader knows.
     ...hints.filter((h) => h.kind === "thread" && h.value.trim()).map((h) => `@${h.value.trim().replace(/^@/, "")}`),
+    // A terminal the worker started keeps its handle the same way: it is a row of its own on the board.
+    ...hints.filter((h) => h.kind === "terminal" && h.value.trim()).map((h) => `@${h.value.trim().replace(/^@/, "")}`),
     plural(count("shell"), "agent terminal", "agent terminals"), // the strip's own noun for the same row
     plural(count("agent"), "sub-agent", "sub-agents"),
     plural(count("timer"), "timer", "timers"),

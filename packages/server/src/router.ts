@@ -143,6 +143,12 @@ import {
   PR_WATCH_FOR_MAX_MS,
   type PrWatchView,
   AddOwnWatchInput,
+  AddOwnTerminalWatchInput,
+  AddOwnTerminalWatchResult,
+  DropOwnTerminalWatchInput,
+  OwnTerminalInput,
+  OwnTerminalResult,
+  OWN_TERMINAL_WATCH_ID_PREFIX,
   ExtendOwnShellInput,
   ExtendOwnShellResult,
   AddOwnWatchResult,
@@ -572,7 +578,7 @@ export function cutOffHold(telemetry: SessionTelemetry | undefined): CompletionH
  *  to stop the ones the human ticked. Marking the thread done no longer stops them by itself: a dev server
  *  is meant to outlive the effort that started it (plans/terminal-threads.md § Lifecycle). */
 export interface CompletionTerminals {
-  live: readonly { id: string; command: string; shell?: boolean }[]
+  live: readonly { id: string; command: string; shell?: boolean; startedBy?: string }[]
   /** The terminals the human ticked in the dialog — stopped before Done is recorded. */
   stop: () => Promise<void>
 }
@@ -586,7 +592,12 @@ function withTerminalHold(hold: CompletionHold | undefined, terminals: Completio
   return {
     ...base,
     // Every one, not holdOps' first few: each is a checkbox, and a box the dialog cannot show cannot be ticked.
-    terminals: terminals.map((terminal) => ({ id: terminal.id, label: terminal.shell ? `${terminal.command} (shell)` : terminal.command, state: "running" as const })),
+    terminals: terminals.map((terminal) => ({
+      id: terminal.id,
+      label: terminal.shell ? `${terminal.command} (shell)` : terminal.command,
+      state: "running" as const,
+      owner: terminal.startedBy && terminal.startedBy !== "human" ? "agent" as const : "human" as const,
+    })),
     terminalCount: terminals.length,
   }
 }
@@ -1504,6 +1515,30 @@ export function createRouter(ctx: AppContext) {
         ...(terminal.parent ? { parent: terminal.parent } : {}),
         screen: ctx.terminalRunner.screenTail(t.id, 8_000),
       },
+    }
+  }
+
+  /** A thread's handle by slug, for a refusal that names whose terminal it is. */
+  function threadHandleOf(slug: string): string {
+    const named = threadNamer().threads().find((t) => t.slug === slug)
+    return named ? handleOf(named) : slug
+  }
+
+  /** `ntwinectl terminal`'s answer: the terminal and its last `tailLines` lines, escape sequences dropped. */
+  function ownTerminalReading(t: ThreadView | undefined, caller: string, tailLines: number): OwnTerminalResult {
+    if (!t?.terminal) return {}
+    const terminal = t.terminal
+    const lines = ctx.terminalRunner.screenTail(t.id, 256_000).split("\n")
+    return {
+      handle: terminal.handle ?? t.id,
+      id: t.id,
+      command: terminal.command,
+      cwd: terminal.cwd,
+      outcome: terminalOutcome(terminal),
+      ...(terminal.exitCode !== undefined ? { exitCode: terminal.exitCode } : {}),
+      ...(terminal.startedBy ? { startedBy: terminal.startedBy === "human" ? "human" : threadHandleOf(terminal.startedBy) } : {}),
+      mine: terminal.startedBy === caller,
+      screen: lines.slice(-tailLines).join("\n"),
     }
   }
 
@@ -4433,6 +4468,18 @@ export function createRouter(ctx: AppContext) {
             since: new Date(w.created_at).toISOString(), until: new Date(w.expires_at).toISOString(),
           })
         }
+        // The TERMINALS this thread started and has not seen marked done, by the `@handle` a `terminals:`
+        // entry names, with how each stands — a fence may name only the running ones.
+        for (const { row: t, terminal } of ctx.terminalRunner?.terminals?.() ?? []) {
+          if (t.started_by !== input.slug || t.state === "archived") continue
+          const outcome = terminalOutcome(terminal)
+          if (outcome === "finished") continue
+          const stands = outcome === "running" ? "running" : outcome === "prompt" ? "waiting for input" : outcome === "failed" ? `exited ${terminal.exitCode ?? "?"}` : "interrupted"
+          activity.push({
+            kind: "terminal", id: `@${terminal.handle ?? terminal.id}`, label: `${terminal.command.replace(/\s+/g, " ").slice(0, 120)} (${stands})`,
+            since: terminal.startedAt, ...(t.watch_id ? { watchId: t.watch_id } : {}),
+          })
+        }
         // The WATCHES are already readable: each armed one rides its live item as `watchId`, and the
         // scheduler settles a watch the tick its target stops being live, so an armed row always has an
         // item to ride. The QUESTIONS had nowhere at all — hence their own list.
@@ -6049,6 +6096,100 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         await ctx.terminalRunner.remove(input.id)
         return {}
+      },
+    }),
+
+    // ---- A WORKER'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md § Agents) --------------
+    // The same terminal threads the human starts, through the same `startTerminalThread`, with the calling
+    // thread as parent and starter. READ reaches any terminal, the human's included, so "why did my dev
+    // server die?" is answerable. SEND, STOP and RESTART reach only a terminal THIS thread started: an agent
+    // typing into the human's shell is the one asymmetry, and it holds without a bypass (maintainer
+    // 2026-10-15; reversing it needs their say-so). Refusals are answers, so `ntwinectl` exits 2 on them.
+    ownTerminal: mutation({
+      input: OwnTerminalInput,
+      output: OwnTerminalResult,
+      handler: async ({ input }) => {
+        const row = ctx.storage.getSession(input.slug)
+        if (!row) throw new Error(`thread ${input.slug} is not registered`)
+        if (input.action === "start") {
+          if (row.state === "archived" || row.archived === 1) return { refused: "This thread is done; reopen it before starting a terminal from it." }
+          const cwd = input.cwd ? terminalFolder(input.cwd) : threadWorkingDir(input.slug).dir
+          const started = await startTerminalThread({ parent: input.slug, startedBy: input.slug, command: input.command, cwd })
+          const t = terminalByHandle(started.id)
+          return { ...ownTerminalReading(t, input.slug, 40), handle: started.handle, id: started.id }
+        }
+        const t = terminalByHandle(input.handle)
+        if (!t?.terminal) {
+          const known = (ctx.terminalRunner?.terminals?.() ?? []).filter(({ row }) => row.state === "open" && row.handle).map(({ row }) => `@${row.handle}`)
+          return { refused: `No terminal is called ${input.handle}.`, known: known.slice(0, 20) }
+        }
+        if (input.action === "read") return ownTerminalReading(t, input.slug, input.tail ?? 80)
+        const handle = t.terminal.handle ?? t.id
+        if (t.terminal.startedBy !== input.slug) {
+          const by = t.terminal.startedBy
+          const whose = !by || by === "human" ? "the user's" : `@${threadHandleOf(by)}'s`
+          return { refused: `@${handle} is ${whose} terminal. You can read it; only a terminal you started takes \`send\`, \`stop\` or \`restart\`.`, handle, id: t.id }
+        }
+        if (input.action === "send") {
+          if (!ctx.terminalRunner.write(t.id, input.text)) {
+            return { refused: `@${handle} is not running, so there is nothing to type into. \`ntwinectl terminal restart @${handle}\` runs it again.`, handle, id: t.id }
+          }
+        } else if (input.action === "stop") {
+          await ctx.terminalRunner.stop(t.id)
+        } else {
+          // A restart reopens a terminal marked done (storage restartThreadTerminal); a watch on it stays armed.
+          await ctx.terminalRunner.restart(t.id)
+        }
+        return ownTerminalReading(terminalByHandle(t.id) ?? t, input.slug, 40)
+      },
+    }),
+
+    // `ntwinectl watch terminal @handle --for <d>`: wake this thread when a terminal it started reaches a
+    // prompt or ends (scheduler evalTerminalWaits). One per terminal, on its row, because only its starter
+    // may hold it. Checked against the live process: a terminal already at a prompt or over has nothing
+    // left to wait for, and the worker is told so rather than parked on a wake that cannot come.
+    addOwnTerminalWatch: mutation({
+      input: AddOwnTerminalWatchInput,
+      output: AddOwnTerminalWatchResult,
+      handler: async ({ input }) => {
+        const row = ctx.storage.getSession(input.slug)
+        if (!row) throw new Error(`thread ${input.slug} is not registered`)
+        if (row.state === "archived" || row.archived === 1) throw new Error("Reopen this thread before registering a watch on it")
+        const t = terminalByHandle(input.handle)
+        if (!t?.terminal) return { refused: `No terminal is called ${input.handle}. \`ntwinectl activity\` lists the terminals you started.` }
+        const handle = t.terminal.handle ?? t.id
+        if (t.terminal.startedBy !== input.slug) return { refused: `@${handle} is not a terminal you started, so it cannot wake you. Start your own with \`ntwinectl terminal start\`.`, handle }
+        const terminalRow = ctx.terminalRunner.terminals().find(({ row }) => row.slug === t.id)?.row
+        if (terminalRow?.watch_id && (terminalRow.watch_expires_at ?? 0) > Date.now()) {
+          return { id: terminalRow.watch_id, handle, alreadyArmed: true, expiresAt: new Date(terminalRow.watch_expires_at!).toISOString() }
+        }
+        const outcome = terminalOutcome(t.terminal)
+        if (outcome !== "running") {
+          const now = outcome === "prompt" ? "is already waiting for input" : "is no longer running"
+          return { refused: `@${handle} ${now}, so there is nothing to wait for. Read it with \`ntwinectl terminal read @${handle}\`.`, handle }
+        }
+        const asked = parseAwaitingDurationRaw(input.for)
+        if (asked === null) throw new Error(`\`for: ${input.for}\` is not a duration — give one like \`30m\`, \`2h\` or \`3d\` (max 24h)`)
+        const forMs = Math.min(asked, AWAITING_FOR_MAX_MS)
+        const now = Date.now()
+        const id = `${OWN_TERMINAL_WATCH_ID_PREFIX}${randomUUID().replace(/-/g, "").slice(0, 12)}`
+        // A registration trumps a done — see setOwnThreadTimer.
+        ctx.storage.clearThreadDone(input.slug)
+        ctx.storage.setThreadTerminalWatch(t.id, id, now + forMs)
+        ctx.board.refresh()
+        return { id, handle, alreadyArmed: false, expiresAt: new Date(now + forMs).toISOString(), ...(asked > AWAITING_FOR_MAX_MS ? { clampedFrom: input.for } : {}) }
+      },
+    }),
+
+    dropOwnTerminalWatch: mutation({
+      input: DropOwnTerminalWatchInput,
+      output: z.object({ dropped: z.boolean() }),
+      handler: async ({ input }) => {
+        const hit = ctx.terminalRunner.terminals().find(({ row }) => row.watch_id === input.id && row.started_by === input.slug)
+        if (!hit) return { dropped: false }
+        ctx.storage.setThreadTerminalWatch(hit.row.slug, null, null)
+        ctx.board.refresh()
+        return { dropped: true }
       },
     }),
 

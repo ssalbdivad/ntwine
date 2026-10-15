@@ -217,10 +217,10 @@ export function hasEscapingBackgroundJob(raw, depth = 0) {
 // (shell-budget.ts). 24h is a hard ceiling here; nothing longer can be asked for.
 export const BACKGROUND_UNTIMED_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 export const BACKGROUND_NO_TIMEOUT_CONTEXT =
-  '⟦background shell with no `timeout`⟧ ntwine never stops this shell on a clock; Claude Code stops it after 24h. ' +
-  'Right for a dev server or watcher meant to keep running. If it is a poller, build or one-off check, give it an end — ' +
-  '`ntwinectl extend-shell <id> --for <duration>` sized to it now (ntwine warns you past it, then stops it), or a ' +
-  '`timeout` (ms, max 24h) on the call next time. Either way, `TaskStop` it once you no longer need it.';
+  '⟦background shell with no `timeout`⟧ Claude Code stops it after 24h; ntwine never does. ' +
+  'A dev server or watcher belongs in `ntwinectl terminal start "<command>"` instead. ' +
+  'A poller, build or one-off check gets an end: `ntwinectl extend-shell <id> --for <duration>` now (ntwine warns past it, ' +
+  'then stops it), or a `timeout` (ms, max 24h) next time. `TaskStop` it once you no longer need it.';
 
 /** @param {unknown} toolInput */
 function isUntimedBackgroundCall(toolInput) {
@@ -316,8 +316,8 @@ export function evaluateBashBackgroundHook(input, env = process.env) {
       permissionDecision: 'deny',
       permissionDecisionReason:
         codex
-          ? 'ntwine blocked an untracked shell background job (`&`). Shell job control can return without a Codex lifecycle handle, so ntwine cannot report completion or wake this agent. For work that must continue while you do something else, remove `&` and use the managed unified exec pattern: start `tools.exec_command(...)`, call `yield_control()`, then await and fully drain that same process. A returned `session_id` alone is only foreground continuation. For bounded parallel work inside one shell call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.'
-          : 'ntwine blocked an untracked shell background job (`&`). Shell job control can return from Bash without a Claude task ID, so ntwine cannot report completion or wake this agent. For a long-running local command, remove `&` and call Bash with `run_in_background:true`. For bounded parallel work inside one Bash call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.',
+          ? 'ntwine blocked an untracked shell background job (`&`). Shell job control can return without a Codex lifecycle handle, so ntwine cannot report completion or wake this agent. A dev server or watcher goes in `ntwinectl terminal start "<command>"`. For other work that must continue while you do something else, remove `&` and use the managed unified exec pattern: start `tools.exec_command(...)`, call `yield_control()`, then await and fully drain that same process. A returned `session_id` alone is only foreground continuation. For bounded parallel work inside one shell call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.'
+          : 'ntwine blocked an untracked shell background job (`&`). Shell job control can return from Bash without a Claude task ID, so ntwine cannot report completion or wake this agent. For a long-running local command, remove `&`: a dev server or watcher goes in `ntwinectl terminal start "<command>"`, and a build or suite you wait on runs with `run_in_background:true`. For bounded parallel work inside one Bash call, finish with `wait` (after `kill`, if used) or own cleanup with an EXIT trap.',
     },
   };
 }

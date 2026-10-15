@@ -346,10 +346,11 @@ function CompletionHoldBody({ hold, stops, onToggle }: { hold: CompletionHold | 
                     drill-in, no dismiss — hence the tokens rather than ChildOpRow itself. */}
                 <span aria-hidden className={CHILD_ARROW_CLASS}>{CHILD_ARROW}</span>
                 {item.owner ? <HoldOwnerGlyph owner={item.owner} /> : null}
-                {/* A terminal of YOURS is named by its command, and a command is set in mono on every surface
-                    (the strip, the rail, the drawer's title) — here too, a step smaller so mono's wider face
-                    reads at the prose's size (the rail's 11.5-in-12). The agent's are named by description. */}
-                <span className={`min-w-0 truncate text-fg/80 ${item.owner === "human" ? "font-mono-keep text-[11.5px]" : ""}`}>{item.label}</span>
+                {/* A terminal THREAD (`id`) is named by its command, whoever started it, and a command is set in
+                    mono on every surface (the strip, the rail, the drawer's title) — here too, a step smaller so
+                    mono's wider face reads at the prose's size (the rail's 11.5-in-12). The agent's background
+                    shells are named by description. */}
+                <span className={`min-w-0 truncate text-fg/80 ${item.id ? "font-mono-keep text-[11.5px]" : ""}`}>{item.label}</span>
                 {/* Stale is why we ask rather than proof of life: say so instead of implying either. */}
                 {item.stale && <span className="shrink-0 text-[11px] text-muted-60">no recent output</span>}
                 {/* A terminal this thread started outlives its Done unless ticked here. The box's `0.18em` puts its

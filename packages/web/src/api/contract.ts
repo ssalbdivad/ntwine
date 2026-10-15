@@ -148,6 +148,11 @@ import type {
   ListOwnCommandWatchesInput,
   OwnCommandWatchesResult,
   AddOwnWatchInput,
+  AddOwnTerminalWatchInput,
+  AddOwnTerminalWatchResult,
+  DropOwnTerminalWatchInput,
+  OwnTerminalInput,
+  OwnTerminalResult,
   AddOwnWatchResult,
   ExtendOwnShellInput,
   OwnDeadlineInput,
@@ -314,6 +319,10 @@ export interface Api {
   // THE WORKER'S OWN WATCHES on its own running work, called by `ntwinectl watch` / `unwatch`. Same
   // story as the PR watchers above: declared for the drift gate, never called from the browser.
   addOwnWatch(input: AddOwnWatchInput): Promise<AddOwnWatchResult>
+  // `ntwinectl terminal` and `ntwinectl watch terminal`. Drift gate only, like its neighbours.
+  ownTerminal(input: OwnTerminalInput): Promise<OwnTerminalResult>
+  addOwnTerminalWatch(input: AddOwnTerminalWatchInput): Promise<AddOwnTerminalWatchResult>
+  dropOwnTerminalWatch(input: DropOwnTerminalWatchInput): Promise<{ dropped: boolean }>
   // `ntwinectl extend-shell` — a background shell's runtime budget. Drift gate only, like its neighbours.
   extendOwnShell(input: ExtendOwnShellInput): Promise<ExtendOwnShellResult>
   // `ntwinectl deadline` — the worker's own time limit. Drift gate only, like its neighbours.
@@ -597,6 +606,9 @@ export const PROCEDURES = {
   dropOwnCommandWatch: "mutation",
   listOwnCommandWatches: "mutation",
   addOwnWatch: "mutation",
+  ownTerminal: "mutation",
+  addOwnTerminalWatch: "mutation",
+  dropOwnTerminalWatch: "mutation",
   extendOwnShell: "mutation",
   ownDeadline: "mutation",
   threadDeadline: "query",

@@ -523,6 +523,9 @@ export interface ThreadTerminalRow {
   snoozed_until?: string | null
   /** The signal that ended the last run, when one did. */
   exit_signal?: number | null
+  /** The starting thread's armed `ntwinectl watch terminal` (`trw_…`), and when it lapses (epoch ms). */
+  watch_id?: string | null
+  watch_expires_at?: number | null
   /** The line it runs; for an interactive shell (`shell` = 1), the shell's name. */
   command: string
   /** The folder it runs in. NULL only on a pre-2026-09-29 row, which ran in the project root. */
@@ -913,6 +916,8 @@ export interface Storage extends ScheduleStore {
   setThreadTerminalSnooze(slug: string, until: string | null): boolean
   /** A row from before handles (migrated at boot) gets its minted handle. */
   setThreadTerminalHandle(slug: string, handle: string): void
+  /** Arm (an id and its lapse, epoch ms) or clear (nulls) the starting thread's watch on a terminal. */
+  setThreadTerminalWatch(slug: string, id: string | null, expiresAtMs: number | null): boolean
   /** Register a watch, or return the armed one already covering this (thread, kind, target). Idempotent
    *  by that triple, so a worker re-registering the same wait after a wake gets one row, not two. */
   armThreadWatch(watch: { id: string; slug: string; kind: "shell" | "agent"; target: string; createdAtMs: number; expiresAtMs: number }): ThreadWatchRow
@@ -1630,6 +1635,10 @@ export const STORAGE_SCHEMA = `
       pinned_at     TEXT,
       snoozed_until TEXT,
       exit_signal   INTEGER,
+      -- The starting thread's wait on it (ntwinectl watch terminal, 2026-10-15): one per terminal, since
+      -- only its starter may watch it. Cleared when it fires or lapses. Also ALTERed below.
+      watch_id         TEXT,
+      watch_expires_at INTEGER,
       PRIMARY KEY (project_id, slug)
     );
     -- SCHEDULED THREADS (ARCHITECTURE.md § Scheduled threads): a saved prompt plus a recurrence that starts a
@@ -1789,6 +1798,9 @@ export function ensureStorageSchema(db: Database): void {
     ["thread_terminal", "pinned_at TEXT"],
     ["thread_terminal", "snoozed_until TEXT"],
     ["thread_terminal", "exit_signal INTEGER"],
+    // `thread_terminal.watch_id` / `watch_expires_at` (2026-10-15): `ntwinectl watch terminal`.
+    ["thread_terminal", "watch_id TEXT"],
+    ["thread_terminal", "watch_expires_at INTEGER"],
     // `thread_spinoff.child_project_id` (2026-09-30): a spinoff can start its thread in another project.
     // The row stays filed under the parent's project; this names the child's when it is not that one.
     ["thread_spinoff", "child_project_id TEXT"],
@@ -2453,7 +2465,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     VALUES (@project_id, @slug, @parentSlug, @startedBy, @handle, @command, @cwd, @shell, @createdAtMs, @createdAtMs)
   `)
   const listThreadTerminalsStmt = scope.prepare<[], ThreadTerminalRow>(
-    "SELECT slug, parent_slug, started_by, handle, pinned_at, snoozed_until, exit_signal, command, cwd, shell, created_at, started_at, runs, exited_at, exit_code, stopped, state FROM thread_terminal WHERE project_id = @project_id ORDER BY created_at, slug",
+    "SELECT slug, parent_slug, started_by, handle, pinned_at, snoozed_until, exit_signal, watch_id, watch_expires_at, command, cwd, shell, created_at, started_at, runs, exited_at, exit_code, stopped, state FROM thread_terminal WHERE project_id = @project_id ORDER BY created_at, slug",
   )
   // A follow-up line makes a shell terminal a command one: the shell ended, and the line is what runs now.
   const restartThreadTerminalStmt = scope.prepare<{ command: string | null; startedAtMs: number; slug: string }>(`
@@ -2477,6 +2489,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
   const setThreadTerminalPinStmt = scope.prepare("UPDATE thread_terminal SET pinned_at = ? WHERE project_id = @project_id AND slug = ?")
   const setThreadTerminalSnoozeStmt = scope.prepare("UPDATE thread_terminal SET snoozed_until = ? WHERE project_id = @project_id AND slug = ?")
   const setThreadTerminalHandleStmt = scope.prepare("UPDATE thread_terminal SET handle = ? WHERE project_id = @project_id AND slug = ?")
+  const setThreadTerminalWatchStmt = scope.prepare("UPDATE thread_terminal SET watch_id = ?, watch_expires_at = ? WHERE project_id = @project_id AND slug = ?")
   const armThreadWatchStmt = scope.prepare(`
     INSERT INTO thread_watch (project_id, id, thread_slug, kind, target, state, created_at, expires_at, settled_at)
     VALUES (@project_id, @id, @slug, @kind, @target, 'armed', @createdAtMs, @expiresAtMs, NULL)
@@ -3130,6 +3143,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     setThreadTerminalPin: (slug, at) => setThreadTerminalPinStmt.run(at, slug).changes === 1,
     setThreadTerminalSnooze: (slug, until) => setThreadTerminalSnoozeStmt.run(until, slug).changes === 1,
     setThreadTerminalHandle: (slug, handle) => void setThreadTerminalHandleStmt.run(handle, slug),
+    setThreadTerminalWatch: (slug, id, expiresAtMs) => setThreadTerminalWatchStmt.run(id, expiresAtMs, slug).changes === 1,
     // IDEMPOTENT BY (thread, kind, target), which is what the partial unique index enforces. A worker
     // woken by an expiry re-registers the same wait, and a worker that simply calls twice must not end
     // up with two rows to drop — so an existing armed row is RETURNED rather than replaced. Replacing

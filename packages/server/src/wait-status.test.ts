@@ -136,6 +136,20 @@ test("`working` on a PR spins while its checks run, and reads as a watch once th
   assert.equal(place(row(), park, { prs: [PR] }).waitStatus, "watching")
 })
 
+// A TERMINAL the worker started (`ntwinectl terminal start`, 2026-10-15) parks like a named shell: it holds
+// while it runs, and lets go the moment it is at a prompt or over — the wake the worker rests for.
+test("a `terminals:` park holds while its terminal runs, and queues at a prompt, after an exit, or on a terminal not the thread's", () => {
+  const own = (outcome: "running" | "prompt" | "failed") => ({ ownTerminals: [{ id: "term-1", handle: "nub-run-dev", outcome, at: AT }] })
+  const park = (answer: string) => fence({ kind: "terminal", value: "@nub-run-dev" }, FOR_2H, status(answer))
+  assert.deepEqual(place(row(), tele({ ...own("running"), ...park("working") })), { needsYou: false, waitStatus: "working" })
+  assert.deepEqual(place(row(), tele({ ...own("running"), ...park("watching") })), { needsYou: false, waitStatus: "watching" })
+  // Named by its slug, any casing, reads the same.
+  assert.equal(place(row(), tele({ ...own("running"), ...fence({ kind: "terminal", value: "TERM-1" }, FOR_2H, status("working")) })).needsYou, false)
+  assert.equal(place(row(), tele({ ...own("prompt"), ...park("working") })).needsYou, true, "at a prompt: only the user, or the worker, can answer it")
+  assert.equal(place(row(), tele({ ...own("failed"), ...park("working") })).needsYou, true, "over")
+  assert.equal(place(row(), tele(park("working"))).needsYou, true, "a terminal this thread did not start names nothing")
+})
+
 test("a registered shell watch is the worker naming the shell — until the row runs out", () => {
   const watch: RegisteredWatch = { id: "wch_1", kind: "shell", target: "bzvtnt3ig", createdAt: AT, expiresAt: new Date(NOW + 3_600_000).toISOString() }
   const park = tele({ bgShells: [LIVE_SHELL], ...fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("working")) })

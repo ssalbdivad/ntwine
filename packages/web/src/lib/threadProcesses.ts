@@ -19,7 +19,11 @@ export type ShellBudgetReading = NonNullable<ReturnType<typeof shellBudgetReadin
 export interface ThreadProcess {
   /** `t:<terminalId>` for yours, `s:<shellId|launchId|label@startedAt>` for the agent's. */
   key: string
+  /** Which machinery the row is: a terminal thread (`human`, whoever started it) or an agent's shell. */
   owner: ProcessOwner
+  /** Whose it is, as the owner glyph says: a terminal thread an agent started (`ntwinectl terminal start`)
+   *  is the agent's, though it is a terminal thread. Absent ⇒ `owner`. */
+  mark?: ProcessOwner
   /** Yours: the command line. The agent's: the tool call's own description of it. */
   label: string
   state: ProcessState
@@ -100,6 +104,7 @@ export function humanProcess(terminal: ThreadTerminal): ThreadProcess {
   return {
     key: `t:${terminal.id}`,
     owner: "human",
+    ...(terminal.startedBy && terminal.startedBy !== "human" ? { mark: "agent" as const } : {}),
     label: terminal.command,
     state: humanState(terminal),
     startedAt: terminal.startedAt,

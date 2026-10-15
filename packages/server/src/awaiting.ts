@@ -1,5 +1,5 @@
 import { threadAwaitKey } from "./thread-mentions.ts"
-import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, type AwaitingHint, type AwaitingItemKind } from "@ntwine/shared"
+import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, terminalOutcome, type AwaitingHint, type AwaitingItemKind, type ThreadTerminal } from "@ntwine/shared"
 
 // The PR-reference vocabulary shared by the PR-watching scheduler and the board. It lives here rather
 // than in scheduler.ts so a reader can resolve a ref without pulling in the whole waker; scheduler.ts
@@ -87,10 +87,42 @@ export interface LiveActivity {
    *  command watches existed still type-checks: absent reads as "none armed", which makes a `commands:`
    *  entry unaccounted — the safe direction. */
   commands?: ReadonlySet<string>
+  /** The `terminalAwaitKey`s of the RUNNING terminals this thread started (`ntwinectl terminal start`,
+   *  2026-10-15) — running and not at a prompt, since a prompt or an exit is the event a `terminals:` wait
+   *  is for. Optional for the reason `commands` is: absent reads as none, the safe direction. */
+  terminals?: ReadonlySet<string>
 }
 
 const LIVE_SET: Record<AwaitingItemKind, keyof LiveActivity> = {
-  shell: "shells", agent: "agents", timer: "timers", pr: "prs", thread: "timers", command: "commands",
+  shell: "shells", agent: "agents", timer: "timers", pr: "prs", thread: "timers", command: "commands", terminal: "terminals",
+}
+
+/** A terminal this thread started, as the board and the scheduler layer it onto the thread's telemetry
+ *  (`ownTerminals`): the tailer knows nothing of terminals, and both readers must judge a `terminals:`
+ *  entry against the same reading. `at` is when it last changed state (a prompt, an exit, its start). */
+export interface OwnTerminalLive {
+  id: string
+  handle?: string
+  outcome: "running" | "prompt" | "failed" | "interrupted" | "finished"
+  at?: string
+}
+
+/** The terminals each AGENT started, by the starting thread's slug, as a `terminals:` wait reads them
+ *  (awaiting.ts OwnTerminalLive). A human's terminal is nobody's to wait on. */
+export function ownTerminalsByStarter(terminals: readonly Pick<ThreadTerminal, "id" | "handle" | "startedBy" | "state" | "awaitingInput" | "awaitingSince" | "exitedAt" | "startedAt" | "exitCode" | "stopped" | "shell" | "signal">[]): Map<string, OwnTerminalLive[]> {
+  const out = new Map<string, OwnTerminalLive[]>()
+  for (const t of terminals) {
+    if (!t.startedBy || t.startedBy === "human") continue
+    const list = out.get(t.startedBy) ?? []
+    list.push({ id: t.id, ...(t.handle ? { handle: t.handle } : {}), outcome: terminalOutcome(t), at: t.awaitingSince ?? t.exitedAt ?? t.startedAt })
+    out.set(t.startedBy, list)
+  }
+  return out
+}
+
+/** The key a `terminals:` entry is checked by: the handle or the slug, folded as a thread handle is. */
+export function terminalAwaitKey(value: string): string {
+  return `terminal:${threadAwaitKey(value)}`
 }
 
 /** One shell or sub-agent as the fold reports it — the handles it answers to and whether it still runs. */
@@ -115,7 +147,7 @@ interface LiveHandleRow {
  *  the correction printed and asked why there were two. Refusing a
  *  correct-but-label-shaped name would make the fence unusable for the case it exists for. */
 export function liveActivityOf(
-  tele: { bgShells?: readonly LiveHandleRow[]; subAgents?: readonly LiveHandleRow[] } | undefined,
+  tele: { bgShells?: readonly LiveHandleRow[]; subAgents?: readonly LiveHandleRow[]; ownTerminals?: readonly OwnTerminalLive[] } | undefined,
   registeredPrWatches: ReadonlySet<string>,
   armedTimerIds: ReadonlySet<string>,
   armedCommandWatches: ReadonlySet<string> = new Set(),
@@ -130,7 +162,12 @@ export function liveActivityOf(
     if (a.state !== "running") continue
     for (const h of [a.taskId, a.id, a.label]) if (h) agents.add(h)
   }
-  return { shells, agents, timers: armedTimerIds, prs: registeredPrWatches, commands: armedCommandWatches }
+  const terminals = new Set<string>()
+  for (const t of tele?.ownTerminals ?? []) {
+    if (t.outcome !== "running") continue
+    for (const h of [t.id, t.handle]) if (h) terminals.add(terminalAwaitKey(h))
+  }
+  return { shells, agents, timers: armedTimerIds, prs: registeredPrWatches, commands: armedCommandWatches, terminals }
 }
 
 /** The items this fence names that ntwine CANNOT account for — dead, unknown, or another thread's.
@@ -156,6 +193,7 @@ function liveKey(i: AwaitingItem): string {
   }
   // A thread is named by its `@handle` (or its slug), folded as every handle is.
   if (i.kind === "thread") return threadAwaitKey(i.value)
+  if (i.kind === "terminal") return terminalAwaitKey(i.value)
   return i.value
 }
 

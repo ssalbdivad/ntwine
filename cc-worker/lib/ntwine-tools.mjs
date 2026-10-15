@@ -27,7 +27,7 @@
  * environment the worker was started with, which is what stops one thread acting as another.
  */
 import { readFileSync, readdirSync } from "node:fs"
-import { basename, dirname, isAbsolute, join, relative } from "node:path"
+import { basename, dirname, isAbsolute, join, relative, resolve as resolvePath } from "node:path"
 
 // Comfortably above a codex dispatch's bounded rollout-discovery wait (~15s) PLUS the server's bounded
 // wait for a spawned thread's name (router.ts SPAWNED_NAME_WAIT_MS, 10s), so a legitimate slow dispatch
@@ -383,13 +383,15 @@ const WATCH = {
     "already armed, and leaves the original expiry alone — so re-registering after a compaction is safe " +
     "and is the right instinct. Use `ntwinectl unwatch <id>` to withdraw one. A PULL REQUEST is `ntwinectl watch-pr`, not this: " +
     "that one polls GitHub and reports repeatedly.\n\n" +
+    "A TERMINAL you started with `ntwinectl terminal start` is watched by its `@handle`: you are woken when it " +
+    "reaches a prompt or ends.\n\n" +
     "You can only ever watch work on your OWN thread.",
   inputSchema: {
     type: "object",
     properties: {
       kind: {
         type: "string",
-        enum: ["shell", "agent"],
+        enum: ["shell", "agent", "terminal"],
         description:
           "What the target IS. Checked against live telemetry, not taken on trust — the two kinds of " +
           "handle are both opaque runtime strings and look identical, so ntwine answers this exactly " +
@@ -1143,13 +1145,63 @@ const WATCH_COMMAND = {
   },
 }
 
+// A TERMINAL (2026-10-15, plans/terminal-threads.md § Agents): a process the worker works ALONGSIDE — a dev
+// server, a log tail — in a terminal thread of its own, which outlives the worker's turn and lets the thread
+// hibernate while it runs. The same thread a human's `$ cmd` makes, on the board as its own row. `read`
+// reaches any terminal; `send`, `stop` and `restart` only one this thread started (router ownTerminal).
+const TERMINAL = {
+  name: "terminal",
+  description:
+    "START, READ, TYPE INTO OR STOP A TERMINAL. A terminal is a thread of its own on the board, running one " +
+    "command in its own process. It keeps running after your turn ends and after ntwine restarts.\n\n" +
+    "Start a process you work ALONGSIDE here — a dev server, a log tail, a watcher. A slow gate you wait " +
+    "for (a test suite, a build) stays a `run_in_background` shell.\n\n" +
+    "`start` prints the terminal's `@handle`; every other action takes it. `read` works on any terminal, the " +
+    "user's included. `send`, `stop` and `restart` work only on a terminal you started, and are refused " +
+    "(exit 2) on anyone else's.\n\n" +
+    "To be woken when it reaches a prompt or ends: `ntwinectl watch terminal @handle --for <d>`, and name it " +
+    "in your ```awaiting fence as `terminals: [@handle]`. A terminal still running when you sign off keeps " +
+    "running; the user's Done dialog offers to stop it.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      action: {
+        type: "string",
+        enum: ["start", "read", "send", "stop", "restart"],
+        description: "`start` a command; `read` a terminal's screen; `send` text to it; `stop` it; `restart` its command.",
+      },
+      command: {
+        type: "string",
+        description: "Required for `start`. One shell command line, run under your login shell.",
+      },
+      cwd: {
+        type: "string",
+        description: "For `start`. The folder to run in; a relative path is taken from your current folder. Default: the folder you are working in.",
+      },
+      handle: {
+        type: "string",
+        description: "Required for every action but `start`. The terminal's `@handle`, as `start` printed it.",
+      },
+      tail: {
+        type: "integer",
+        description: "For `read`. How many of the screen's last lines to print (default 80, max 2000).",
+      },
+      text: {
+        type: "string",
+        description: "Required for `send`. Typed into the terminal as written; a trailing newline is Enter.",
+      },
+    },
+    required: ["action"],
+  },
+}
+
 // New commands ride at the END: the tool list is read by position in ntwine-mcp.test.ts, and a worker's
 // runtime reads it by name, so the order costs nothing and appending breaks nothing. EXTEND_SHELL was
 // appended (2026-09-29) after `watch_issue`, which was removed on 2026-10-14; EDITOR after MESSAGE_THREAD
 // (2026-10-02), SCHEDULE after EDITOR (2026-10-05), DEADLINE after SCHEDULE (2026-10-06), upstream's
 // SECRET after DEADLINE (2026-10-08), and upstream's WATCH_COMMAND after SECRET (2026-10-12). Upstream's STEER is not
 // here: MESSAGE_THREAD is the fork's thread-to-thread command (plans/upstream-superset.md).
-const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST]
+const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST, TERMINAL]
 
 // A COMMAND WHOSE FEATURE CAN BE ABSENT, and the capability the server reports for it (router
 // `workerCapabilities`, the same predicate that gates the contract's sections, dispatch.ts). Of the
@@ -1160,8 +1212,10 @@ const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, 
 const GATED_TOOLS = /** @type {Record<string, string>} */ ({ [EDITOR.name]: "editor" })
 
 // A COMMAND THE MCP FRONT-END NEVER LISTS. `mcp_request` mounts a server into a CLAUDE session, and the
-// front-end is what Codex and ACP workers run, which load their own MCP servers themselves.
-const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name])
+// front-end is what Codex and ACP workers run, which load their own MCP servers themselves. `terminal`
+// (2026-10-15) came after the CLI cutover: only a worker taught the MCP tools mounts the front-end
+// (context.ts workerTaughtMcp), its contract never names terminals, and a listed tool costs every turn.
+const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name, TERMINAL.name])
 
 /** @type {Record<string, (args: Record<string, unknown>) => Promise<string>>} */
 const HANDLERS = {
@@ -1187,6 +1241,7 @@ const HANDLERS = {
   [SCHEDULE.name]: schedule,
   [DEADLINE.name]: deadline,
   [WATCH_COMMAND.name]: watchCommand,
+  [TERMINAL.name]: terminal,
 }
 
 /** The `deadline` handler: read, set, extend or clear this thread's time limit.
@@ -1417,9 +1472,9 @@ async function activity() {
   // keys are PLURAL sequences, so an id printed on its own line is no longer something a worker can copy
   // into a fence — it has to see the shape. This command is where the contract sends a worker that has lost
   // an id, so printing the retired one-line-per-item form would teach the very grammar ntwine refuses.
-  const byKind = { shell: [], agent: [], timer: [], pr: [], thread: [], command: [] }
+  const byKind = { shell: [], agent: [], timer: [], pr: [], thread: [], command: [], terminal: [] }
   for (const i of items) if (byKind[i.kind] && i.id) byKind[i.kind].push(i.id)
-  const block = Object.entries({ shells: byKind.shell, agents: byKind.agent, timers: byKind.timer, prs: byKind.pr, threads: byKind.thread, commands: byKind.command })
+  const block = Object.entries({ shells: byKind.shell, agents: byKind.agent, timers: byKind.timer, prs: byKind.pr, threads: byKind.thread, commands: byKind.command, terminals: byKind.terminal })
     .filter(([, ids]) => ids.length > 0)
     .map(([key, ids]) => `  ${key}: [${ids.join(", ")}]`)
   // Every open question rides the fence too: a fence that leaves one out is refused, and a fence on
@@ -1429,7 +1484,7 @@ async function activity() {
   // it.
   const questionIds = questions.map((q) => q.id).filter(Boolean)
   if (questionIds.length > 0) block.push(`  questions: [${questionIds.join(", ")}]`)
-  const status = questionIds.length > 0 ? "needs_input" : byKind.shell.length + byKind.agent.length > 0 ? "working" : "watching"
+  const status = questionIds.length > 0 ? "needs_input" : byKind.shell.length + byKind.agent.length + byKind.terminal.length > 0 ? "working" : "watching"
   return selfLine + (
     `${items.length} thing${items.length === 1 ? "" : "s"} running on this thread:\n\n${lines.join("\n")}\n\n` +
     "Name the ones you are ACTUALLY waiting on in your ```awaiting fence. The frontmatter is YAML — one " +
@@ -2396,11 +2451,12 @@ function armedWatchList(result) {
 async function watch(args) {
   const slug = threadSlug()
   const kind = typeof args.kind === "string" ? args.kind.trim() : ""
-  if (kind !== "shell" && kind !== "agent") throw new Error("`kind` must be \"shell\" or \"agent\"")
+  if (kind !== "shell" && kind !== "agent" && kind !== "terminal") throw new Error("`kind` must be \"shell\", \"agent\" or \"terminal\"")
   const target = typeof args.target === "string" ? args.target.trim() : ""
   if (!target) throw new Error("`target` is required — the handle you were shown; `ntwinectl activity` prints them all")
   const forValue = typeof args.for === "string" ? args.for.trim() : ""
   if (!forValue) throw new Error("`for` is required — a DURATION like `30m`, `2h` or `3d` (max 24h), never an instant")
+  if (kind === "terminal") return watchTerminal(slug, target, forValue)
   const result = (await callRpc("addOwnWatch", { slug, kind, target, for: forValue }))?.result
   const id = result?.id ?? "(unknown)"
   const head = result?.alreadyArmed
@@ -2417,6 +2473,75 @@ async function watch(args) {
     `again if you still mean it.\n\nDROP IT the moment it stops mattering (\`ntwinectl unwatch ${id}\`); ` +
     `you do NOT need to when the work simply finishes.\n\n${armedWatchList(result)}`
   )
+}
+
+/** `watch terminal`: wake this thread when a terminal it started reaches a prompt or ends.
+ * @param {string} slug @param {string} target @param {string} forValue @returns {Promise<string | Refused>} */
+async function watchTerminal(slug, target, forValue) {
+  const r = (await callRpc("addOwnTerminalWatch", { slug, handle: target, for: forValue }))?.result
+  if (r?.refused) return new Refused(`NOT registered. ${r.refused}`)
+  const handle = `@${r?.handle ?? target.replace(/^@/, "")}`
+  const clamped = r?.clampedFrom ? ` Your \`--for ${r.clampedFrom}\` was CAPPED at 24h.` : ""
+  const head = r?.alreadyArmed ? `Already watching ${handle} as ${r.id}; its expiry stands (${r.expiresAt}).` : `Watching ${handle} as ${r?.id} until ${r?.expiresAt}.${clamped}`
+  return (
+    `${head} You are woken when it reaches a prompt or ends. Name it in your fence as \`terminals: [${handle}]\`. ` +
+    `When \`--for\` runs out the watch is cancelled and you are woken to re-decide. \`ntwinectl unwatch ${r?.id}\` drops it.`
+  )
+}
+
+/** How a terminal stands, in words. @param {any} r */
+function terminalStands(r) {
+  switch (r?.outcome) {
+    case "running": return "running"
+    case "prompt": return "waiting for input"
+    case "failed": return `exited ${r.exitCode ?? "?"}`
+    case "interrupted": return "interrupted (ntwine went away under it)"
+    case "finished": return r.exitCode === undefined || r.exitCode === 0 ? "finished" : `ended (exit ${r.exitCode})`
+    default: return "unknown"
+  }
+}
+
+/** The `terminal` handler: start, read, type into, stop or restart a terminal thread.
+ * @param {Record<string, unknown>} args @returns {Promise<string | Refused>} */
+async function terminal(args) {
+  const slug = threadSlug()
+  const action = typeof args.action === "string" ? args.action.trim() : ""
+  if (!["start", "read", "send", "stop", "restart"].includes(action)) throw new Error("`action` must be one of start, read, send, stop, restart")
+  /** @type {Record<string, unknown>} */
+  let body
+  if (action === "start") {
+    const command = typeof args.command === "string" ? args.command.trim() : ""
+    if (!command) throw new Error('`start` needs the command: ntwinectl terminal start "nub run dev"')
+    const cwd = typeof args.cwd === "string" && args.cwd.trim() ? resolvePath(process.cwd(), args.cwd.trim().replace(/^~(?=$|\/)/, process.env.HOME ?? "~")) : undefined
+    body = { slug, action, command, ...(cwd ? { cwd } : {}) }
+  } else {
+    const handle = typeof args.handle === "string" ? args.handle.trim() : ""
+    if (!handle) throw new Error(`\`${action}\` needs the terminal's @handle: ntwinectl terminal ${action} @nub-run-dev`)
+    if (action === "send") {
+      const text = typeof args.text === "string" ? args.text : ""
+      if (!text) throw new Error("`send` needs the text: --text-file - (stdin) or --text \"…\"; a trailing newline is Enter")
+      body = { slug, action, handle, text }
+    } else if (action === "read") {
+      body = { slug, action, handle, ...(typeof args.tail === "number" ? { tail: args.tail } : {}) }
+    } else {
+      body = { slug, action, handle }
+    }
+  }
+  const r = (await callRpc("ownTerminal", body))?.result
+  if (r?.refused) return new Refused(`${r.refused}${r.known?.length ? `\n\nTerminals: ${r.known.join(", ")}` : ""}`)
+  const at = `@${r?.handle}`
+  const screen = typeof r?.screen === "string" && r.screen.trim() ? `\n\n${codeFence(r.screen, "")}` : ""
+  if (action === "start") {
+    return (
+      `Started ${at} — \`${r?.command}\` in ${r?.cwd}, ${terminalStands(r)}. It is a thread of its own on the board and keeps ` +
+      `running after your turn. \`ntwinectl terminal read ${at}\` reads it; \`ntwinectl terminal stop ${at}\` stops it.${screen}`
+    )
+  }
+  if (action === "send") return `Typed ${String(body.text).length} characters into ${at}. \`ntwinectl terminal read ${at}\` shows what it answered.`
+  if (action === "stop") return `Stopped ${at} (${terminalStands(r)}).${screen}`
+  if (action === "restart") return `Restarted ${at} — \`${r?.command}\`, ${terminalStands(r)}.${screen}`
+  const who = r?.mine ? "you" : r?.startedBy === "human" || !r?.startedBy ? "the user" : `@${r.startedBy}`
+  return `${at} — \`${r?.command}\` in ${r?.cwd}, ${terminalStands(r)}, started by ${who}.${screen || "\n\nIts screen is empty."}`
 }
 
 /** The `unwatch` handler: withdraw one registered watch by id.
@@ -2444,6 +2569,12 @@ async function unwatch(args) {
       ? `Command watch ${id} dropped. ntwine will not run it again, and it will not wake you.`
       : `No ARMED command watch ${id} on this thread — it already passed, expired or was cancelled, or the id is not one of yours.`
     return `${head}\n\n${armedCommandWatchList(dropped)}`
+  }
+  if (id.startsWith("trw_")) {
+    const dropped = (await callRpc("dropOwnTerminalWatch", { slug, id }))?.result
+    return dropped?.dropped
+      ? `Terminal watch ${id} dropped. The terminal keeps running; it will not wake you.`
+      : `No ARMED terminal watch ${id} on this thread — it already fired or lapsed, or the id is not one of yours.`
   }
   if (id.startsWith("tmr_")) {
     const cancelled = (await callRpc("cancelOwnThreadTimer", { slug, id }))?.result
@@ -2873,9 +3004,9 @@ const CLI = {
   },
   watch: {
     group: "Waiting",
-    summary: "Register a wait on a background shell or a sub-agent",
+    summary: "Register a wait on a background shell, a sub-agent or a terminal you started",
     positional: ["kind", "target"],
-    examples: ["ntwinectl watch shell bzvtnt3ig --for 2h", "ntwinectl watch agent a01b2d20b32feab11 --for 1h"],
+    examples: ["ntwinectl watch shell bzvtnt3ig --for 2h", "ntwinectl watch agent a01b2d20b32feab11 --for 1h", "ntwinectl watch terminal @nub-run-dev --for 2h"],
   },
   unwatch: {
     group: "Waiting",
@@ -2926,6 +3057,18 @@ const CLI = {
       "ntwinectl goal get",
       "ntwinectl goal start --post-compaction --no-stop-hook --prompt-file resume-prompt.md",
       "ntwinectl goal stop",
+    ],
+  },
+  terminal: {
+    group: "This thread",
+    summary: "Start, read, type into or stop a terminal (a dev server, a log tail)",
+    positional: ["action"],
+    then: { start: ["command"], read: ["handle"], send: ["handle"], stop: ["handle"], restart: ["handle"] },
+    examples: [
+      'ntwinectl terminal start "nub run dev"',
+      "ntwinectl terminal read @nub-run-dev --tail 40",
+      "ntwinectl terminal send @nub-run-dev --text-file - <<'EOF'\ny\nEOF",
+      "ntwinectl terminal stop @nub-run-dev",
     ],
   },
   title: {

@@ -1128,6 +1128,13 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
       } catch {
         // ProducerStoppedError — the board is gone, and so is anyone to show the change to.
       }
+      // A terminal reaching a prompt or ending may be a wake its starter waits on (scheduler SOURCE 17):
+      // send it now rather than on the next poll. Declared below, so absent while the runner adopts at boot.
+      try {
+        scheduler.kick()
+      } catch {
+        // not constructed yet (boot adoption), or stopped
+      }
     },
   })
   // Late-bound: the schedule service needs the dispatcher, which needs the board.
@@ -1271,6 +1278,8 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
       stop: (slug, id, reason, stopOpts) => stopBackgroundShell(shellStopDeps, slug, id, reason, stopOpts),
     },
     commandWatches,
+    terminals: () => terminalRunner.terminals(),
+    terminalScreen: (id) => terminalRunner.screenTail(id, 16_000),
     // Second wake source: every thread a subscription window cut off mid-turn gets its own "continue"
     // once that window rolls, over this same delivery path. The quota reader supplies the fallback
     // instant for a weekly limit, whose message text carries a clock but no date; readQuota memoizes,

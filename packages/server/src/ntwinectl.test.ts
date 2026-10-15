@@ -342,6 +342,55 @@ test("exit 0 is done, 1 is a failure, and 2 is a gate that held", async () => {
   }
 })
 
+// `terminal` (2026-10-15): a relative `--cwd` is resolved where the worker stands (the server only takes an
+// absolute one), `send` carries stdin byte for byte, a refusal — a human's terminal — exits 2, and `watch
+// terminal` / `unwatch trw_…` reach the terminal watch rather than the shell registry.
+test("`terminal` resolves --cwd where the worker stands, sends stdin verbatim, exits 2 on a refusal, and watches through its own RPC", async () => {
+  const fake = await fakeNtwine((procedure, body) => {
+    if (procedure === "ownTerminal" && body.action === "send" && body.handle === "@shell") {
+      return { result: { refused: "@shell is the user's terminal. You can read it; only a terminal you started takes `send`, `stop` or `restart`." } }
+    }
+    if (procedure === "ownTerminal") return { result: { handle: "nub-run-dev", id: "term-1", command: "nub run dev", cwd: "/w/app", outcome: "running", mine: true, startedBy: "the-caller", screen: "ready on :5173" } }
+    if (procedure === "addOwnTerminalWatch") return { result: { id: "trw_abc", handle: "nub-run-dev", alreadyArmed: false, expiresAt: "2026-10-15T20:00:00.000Z" } }
+    if (procedure === "dropOwnTerminalWatch") return { result: { dropped: true } }
+    return undefined
+  })
+  try {
+    const cwd = mkdtempSync(join(tmpdir(), "ntwinectl-term-"))
+    mkdirSync(join(cwd, "app"))
+    const started = await run(["terminal", "start", "nub run dev", "--cwd", "app"], { env: worker(fake), cwd })
+    assert.equal(started.code, 0, started.stderr)
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "start", command: "nub run dev", cwd: join(cwd, "app") })
+    assert.match(started.stdout, /^Started @nub-run-dev — `nub run dev` in \/w\/app, running\./)
+    await run(["terminal", "start", "nub run dev"], { env: worker(fake), cwd })
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "start", command: "nub run dev" }, "no --cwd: the server picks the thread's folder")
+
+    const sent = await run(["terminal", "send", "@nub-run-dev", "--text-file", "-"], { env: worker(fake), stdin: "y\n" })
+    assert.equal(sent.code, 0, sent.stderr)
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "send", handle: "@nub-run-dev", text: "y\n" })
+
+    const refused = await run(["terminal", "send", "@shell", "--text", "rm -rf ~\n"], { env: worker(fake) })
+    assert.equal(refused.code, 2)
+    assert.match(refused.stdout, /^@shell is the user's terminal\./)
+
+    const read = await run(["terminal", "read", "@nub-run-dev", "--tail", "5"], { env: worker(fake) })
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "read", handle: "@nub-run-dev", tail: 5 })
+    assert.match(read.stdout, /^@nub-run-dev — `nub run dev` in \/w\/app, running, started by you\.\n\n```\nready on :5173\n```/)
+
+    const watched = await run(["watch", "terminal", "@nub-run-dev", "--for", "2h"], { env: worker(fake) })
+    assert.equal(watched.code, 0, watched.stderr)
+    assert.ok(fake.seen.at(-1)?.url.endsWith("/rpc/addOwnTerminalWatch"), fake.seen.at(-1)?.url)
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", handle: "@nub-run-dev", for: "2h" })
+    assert.match(watched.stdout, /`terminals: \[@nub-run-dev\]`/)
+
+    const dropped = await run(["unwatch", "trw_abc"], { env: worker(fake) })
+    assert.ok(fake.seen.at(-1)?.url.endsWith("/rpc/dropOwnTerminalWatch"), fake.seen.at(-1)?.url)
+    assert.match(dropped.stdout, /^Terminal watch trw_abc dropped\./)
+  } finally {
+    fake.close()
+  }
+})
+
 // `watch-command` (2026-10-11): the server runs the check, so what the command line owes is the right
 // body, the refusal as exit 2 (it is the permission gate holding, with the background-shell fallback in
 // it), a first check that already passed read as "nothing armed", and `unwatch` reaching the right RPC.

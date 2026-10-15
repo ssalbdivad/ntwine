@@ -566,6 +566,8 @@ export const CompletionHoldOp = z.object({
   state: z.enum(["running", "stale"]),
   // A terminal's slug, so the dialog can offer to stop it (completeThread `stopTerminals`).
   id: z.string().optional(),
+  // A terminal's starter: the thread's agent (`ntwinectl terminal start`) or the human. Absent ⇒ the human's.
+  owner: z.enum(["agent", "human"]).optional(),
 })
 export type CompletionHoldOp = z.infer<typeof CompletionHoldOp>
 export const CompletionHold = z.object({
@@ -762,7 +764,7 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //   prose bodies       narrowed to `reason:` so the fence is machine-checkable — then given back in full
 //                      below the `---` delimiter, where prose cannot be mistaken for structure.
 export const AwaitingHint = z.object({
-  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command", "for", "title", "status", "needs_input", "step", "question"]),
+  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command", "terminal", "for", "title", "status", "needs_input", "step", "question"]),
   value: z.string(),
 })
 export type AwaitingHint = z.infer<typeof AwaitingHint>
@@ -850,7 +852,7 @@ const AWAITING_KEY_RE = /^([a-z][a-z_-]*):\s*(\S.*)?$/i
  *  recognised here so they never fall to the body, but are read verbatim rather than as YAML (see
  *  splitAwaitingFrontmatter). Anything else falls through to the body. `needs-input` is the same key
  *  spelled the way the other hyphenated kinds are. */
-const AWAITING_YAML_KEYS = new Set(["shells", "agents", "timers", "prs", "threads", "commands", "questions", "for", "title", "steps", "status", "needs_input", "needs-input"])
+const AWAITING_YAML_KEYS = new Set(["shells", "agents", "timers", "prs", "threads", "commands", "terminals", "questions", "for", "title", "steps", "status", "needs_input", "needs-input"])
 
 /** Which singular hint kind each plural sequence key produces. The WIRE SHAPE is unchanged by the
  *  2026-08-24 cutover — every consumer still reads a flat `{kind, value}` list with SINGULAR kinds — so
@@ -970,12 +972,16 @@ export function splitAwaitingFrontmatter(raw: string): { body: string; hints: Aw
   // `threads:` names another ntwine thread this one asked with `ntwinectl message-thread` and
   // `await_reply: true`, by its `@handle` — and `@` is a character YAML reserves, so `threads: [@x]` is a
   // parse error that would cost the fence every lookup beside it. So its values are read verbatim too,
-  // as a flow list or `- ` items, with any quotes a worker added taken off.
+  // as a flow list or `- ` items, with any quotes a worker added taken off. `terminals:` (2026-10-15) names
+  // a terminal thread this thread started with `ntwinectl terminal start`, by its `@handle`, so it is read
+  // the same way for the same reason.
   const threads: string[] = []
+  const terminals: string[] = []
   let structural = true
   let inTitle = false
   let inSteps = false
   let inThreads = false
+  let inTerminals = false
   for (const line of frontmatter) {
     const m = line.match(AWAITING_KEY_RE)
     const key = m?.[1].toLowerCase()
@@ -984,6 +990,7 @@ export function splitAwaitingFrontmatter(raw: string): { body: string; hints: Aw
       inTitle = key === "title"
       inSteps = key === "steps"
       inThreads = key === "threads"
+      inTerminals = key === "terminals"
     }
     // A LINE THAT IS NOT A KEY AND NOT A CONTINUATION IS PROSE, exactly as it was under the line grammar:
     // a worker that omits the `---` and writes its handoff straight into the frontmatter must still park.
@@ -993,13 +1000,14 @@ export function splitAwaitingFrontmatter(raw: string): { body: string; hints: Aw
       inTitle = false
       inSteps = false
       inThreads = false
+      inTerminals = false
     }
     if (inTitle) titleLines.push(m && key === "title" ? (m[2] ?? "") : line)
-    else if (inThreads) {
-      const raw = m && key === "threads" ? (m[2] ?? "") : (/^\s*-\s+(.*)$/.exec(line)?.[1] ?? "")
+    else if (inThreads || inTerminals) {
+      const raw = m && (key === "threads" || key === "terminals") ? (m[2] ?? "") : (/^\s*-\s+(.*)$/.exec(line)?.[1] ?? "")
       const v = raw.trim()
       const list = v.startsWith("[") && v.endsWith("]") ? v.slice(1, -1).split(",") : [v]
-      threads.push(...list.map((t) => t.trim().replace(/^(["'])(.*)\1$/, "$2").trim()).filter(Boolean))
+      ;(inThreads ? threads : terminals).push(...list.map((t) => t.trim().replace(/^(["'])(.*)\1$/, "$2").trim()).filter(Boolean))
     }
     else if (inSteps) {
       if (m && key === "steps") steps.push(...inlineSteps(m[2] ?? ""))
@@ -1016,6 +1024,7 @@ export function splitAwaitingFrontmatter(raw: string): { body: string; hints: Aw
   // wrote, or the correction it gets is about a fence it can no longer read.
   if (!parsed.ok) rest.push(...yamlLines)
   for (const thread of threads) parsed.hints.push({ kind: "thread", value: thread.slice(0, AWAITING_HINT_VALUE_MAX) })
+  for (const terminal of terminals) parsed.hints.push({ kind: "terminal", value: terminal.slice(0, AWAITING_HINT_VALUE_MAX) })
   rest.push(...after)
   // Capped HERE rather than at the card, so the hint on the wire is already the string that renders and
   // no consumer can draw a longer one. A title alone still parks nothing (see readAwaitingPark).
@@ -1239,7 +1248,7 @@ export function awaitingNeedsInput(hints: readonly AwaitingHint[] | undefined): 
   return needsInput
 }
 
-export const AWAITING_ITEM_KINDS = ["shell", "agent", "timer", "pr", "thread", "command"] as const
+export const AWAITING_ITEM_KINDS = ["shell", "agent", "timer", "pr", "thread", "command", "terminal"] as const
 export type AwaitingItemKind = (typeof AWAITING_ITEM_KINDS)[number]
 export function isAwaitingItemKind(kind: string): kind is AwaitingItemKind {
   return (AWAITING_ITEM_KINDS as readonly string[]).includes(kind)
@@ -2029,6 +2038,8 @@ export interface SignoffLiveOps {
   threads?: { id?: string; label: string }[]
   /** Armed command watches, by row id (`cmw_…`) — what a `commands:` entry names. */
   commands?: { id?: string; label: string }[]
+  /** Running terminals this thread started (`ntwinectl terminal start`), by `@handle` — what a `terminals:` entry names. */
+  terminals?: { id?: string; label: string }[]
 }
 
 // THE NUDGE PRINTS THE IDS, and that is not a convenience — it is what makes the fence writable at all.
@@ -2055,7 +2066,7 @@ export function liveOpsLines(ops?: SignoffLiveOps, needsInput = false): string[]
     if (!items.length) return
     lines.push("", heading)
     for (const i of items) lines.push(`- \`${i.id ?? "?"}\`  — ${i.label}`)
-    lines.push(`In a fence: \`${key}: [${items.map((i) => i.id ? (key === "threads" ? i.id : fenceScalar(i.id)) : "?").join(", ")}]\``)
+    lines.push(`In a fence: \`${key}: [${items.map((i) => i.id ? (key === "threads" || key === "terminals" ? i.id : fenceScalar(i.id)) : "?").join(", ")}]\``)
   }
   section("Background shells still running:", "shells", ops?.shells ?? [])
   // Under the answer-required contract (`status:`, NEEDS_INPUT_REQUIRED_AT) a sub-agent is no longer
@@ -2066,6 +2077,7 @@ export function liveOpsLines(ops?: SignoffLiveOps, needsInput = false): string[]
   section("Pull requests you registered:", "prs", ops?.prs ?? [])
   section("Threads you are awaiting a reply from:", "threads", ops?.threads ?? [])
   section("Command watches you registered:", "commands", ops?.commands ?? [])
+  section("Terminals you started, still running:", "terminals", ops?.terminals ?? [])
   return lines
 }
 
@@ -4358,6 +4370,117 @@ export const RunTerminalInput = z.object({ id: ThreadSlug, command: TerminalComm
 export type RunTerminalInput = z.infer<typeof RunTerminalInput>
 export const StartTerminalResult = z.object({ id: ThreadSlug, handle: z.string().optional() }).strict()
 export type StartTerminalResult = z.infer<typeof StartTerminalResult>
+
+// ---- A WORKER'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md § Agents) -----------------------
+// The same terminal threads the human starts, started by an agent: a dev server, a log tail, anything the
+// worker works ALONGSIDE rather than waits on. It lives in its own detached host, so it outlives the worker's
+// turn and its daemon, and the thread can hibernate while it runs. `read` reaches any terminal, the human's
+// included; `send`, `stop` and `restart` reach only one this thread started — a human's terminal is
+// read-only to agents (maintainer 2026-10-15). A refusal is an answer (`refused`), not a fault.
+export const OWN_TERMINAL_TAIL_MAX_LINES = 2_000
+export const OWN_TERMINAL_SEND_MAX_CHARS = 16_000
+export const OwnTerminalInput = z.discriminatedUnion("action", [
+  z.object({ slug: ThreadSlug, action: z.literal("start"), command: TerminalCommand, cwd: z.string().trim().min(1).max(4_096).optional() }).strict(),
+  z.object({ slug: ThreadSlug, action: z.literal("read"), handle: z.string().trim().min(1).max(200), tail: z.number().int().min(1).max(OWN_TERMINAL_TAIL_MAX_LINES).optional() }).strict(),
+  // Typed into the pty as written: a trailing newline is the Enter that submits a line.
+  z.object({ slug: ThreadSlug, action: z.literal("send"), handle: z.string().trim().min(1).max(200), text: z.string().min(1).max(OWN_TERMINAL_SEND_MAX_CHARS) }).strict(),
+  z.object({ slug: ThreadSlug, action: z.enum(["stop", "restart"]), handle: z.string().trim().min(1).max(200) }).strict(),
+])
+export type OwnTerminalInput = z.infer<typeof OwnTerminalInput>
+export const OwnTerminalResult = z.object({
+  /** Set when the call was refused: the text says why and what to do instead. Nothing was changed. */
+  refused: z.string().optional(),
+  /** The terminal's `@handle`, without the `@`, and its slug. */
+  handle: z.string().optional(),
+  id: z.string().optional(),
+  command: z.string().optional(),
+  cwd: z.string().optional(),
+  outcome: z.enum(["running", "prompt", "failed", "interrupted", "finished"]).optional(),
+  exitCode: z.number().int().optional(),
+  /** `human`, or the handle of the thread that started it. */
+  startedBy: z.string().optional(),
+  /** This thread started it, so `send`, `stop` and `restart` reach it. */
+  mine: z.boolean().optional(),
+  /** The screen's tail, escape sequences dropped. */
+  screen: z.string().optional(),
+  /** When the handle named nothing: the terminal handles that exist. */
+  known: z.array(z.string()).optional(),
+}).strict()
+export type OwnTerminalResult = z.infer<typeof OwnTerminalResult>
+
+/** A worker's wait on one of its own terminals (`ntwinectl watch terminal`), stored on the terminal's row:
+ *  only the thread that started a terminal may watch it, so a terminal holds at most one. `trw_…` ids. */
+export const OWN_TERMINAL_WATCH_ID_PREFIX = "trw_"
+export const AddOwnTerminalWatchInput = z.object({
+  slug: ThreadSlug,
+  handle: z.string().trim().min(1).max(200),
+  /** A DURATION (`30m`, `2h`), parseAwaitingDurationRaw, capped at 24h and the cap reported. */
+  for: z.string().trim().min(1).max(16),
+}).strict()
+export type AddOwnTerminalWatchInput = z.infer<typeof AddOwnTerminalWatchInput>
+export const AddOwnTerminalWatchResult = z.object({
+  refused: z.string().optional(),
+  id: z.string().optional(),
+  handle: z.string().optional(),
+  alreadyArmed: z.boolean().optional(),
+  expiresAt: z.string().optional(),
+  clampedFrom: z.string().optional(),
+}).strict()
+export type AddOwnTerminalWatchResult = z.infer<typeof AddOwnTerminalWatchResult>
+export const DropOwnTerminalWatchInput = z.object({ slug: ThreadSlug, id: z.string().min(1).max(64) }).strict()
+export type DropOwnTerminalWatchInput = z.infer<typeof DropOwnTerminalWatchInput>
+
+/** How a terminal a worker waits on stands at its wake, as a clause after its `@handle`. */
+function terminalWakeClause(t: { outcome: TerminalOutcome; exitCode?: number }): string {
+  switch (t.outcome) {
+    case "prompt": return "is waiting for input"
+    case "failed": return t.exitCode === undefined ? "FAILED" : `FAILED (exit ${t.exitCode})`
+    case "interrupted": return "was interrupted"
+    case "finished": return t.exitCode === undefined || t.exitCode === 0 ? "finished" : `ended (exit ${t.exitCode})`
+    default: return "is running"
+  }
+}
+
+const TERMINAL_WAKE_HEAD = /^⏰ Your terminal @([a-z0-9-]+) (is waiting for input|FAILED(?: \(exit -?\d+\))?|was interrupted|finished|ended \(exit -?\d+\))/
+
+/** The wake a worker gets when a terminal it started and waits on (a `terminals:` fence entry, or
+ *  `ntwinectl watch terminal`) reaches a prompt or ends. Minted by the scheduler only. */
+export function terminalWakeMessage(t: { handle: string; command: string; outcome: TerminalOutcome; exitCode?: number; screen: string }): string {
+  const tail = t.screen.trim()
+  const next = t.outcome === "prompt"
+    ? `Answer it with \`ntwinectl terminal send @${t.handle} --text-file -\`.`
+    : `\`ntwinectl terminal restart @${t.handle}\` runs it again.`
+  return [
+    `⏰ Your terminal @${t.handle} ${terminalWakeClause(t)}:`,
+    "",
+    codeBlock(t.command, "sh"),
+    "",
+    tail ? `Its screen ends:\n\n${codeBlock(tail)}` : "Its screen is empty.",
+    "",
+    next,
+  ].join("\n")
+}
+
+/** A terminal wake, read back — the handle and what happened — or null. */
+export function parseTerminalWake(text: string): { handle: string; event: string } | null {
+  const m = TERMINAL_WAKE_HEAD.exec(text.trim())
+  return m ? { handle: m[1], event: m[2] } : null
+}
+
+/** The wake a terminal watch sends when its `for` runs out before the terminal did anything. */
+export function terminalWatchExpiredWakeMessage(handle: string): string {
+  return (
+    `⏰ Your watch on the terminal @${handle} has expired and is no longer armed — it is still running, and ` +
+    "nothing about it will wake you now. Register it again with `ntwinectl watch terminal` and a fresh " +
+    "`--for` if you still mean to wait."
+  )
+}
+
+const TERMINAL_WATCH_EXPIRED_HEAD = /^⏰ Your watch on the terminal @([a-z0-9-]+) has expired\b/
+export function parseTerminalWatchExpiredWake(text: string): { handle: string } | null {
+  const m = TERMINAL_WATCH_EXPIRED_HEAD.exec(text.trim())
+  return m ? { handle: m[1] } : null
+}
 // Where a new terminal on this thread would start, and how that was worked out — the drawer's folder
 // field opens on it. `source`: the agent's own latest reading (a Claude transcript's `cwd`, a Codex
 // tool call's `workdir`), the session's recorded folder, or the project root when neither is known.
@@ -5936,7 +6059,7 @@ export type OwnThreadTimersResult = z.infer<typeof OwnThreadTimersResult>
 // compaction, a long turn, a wake it did not expect) cannot write a correct fence at all. This is how it
 // gets them back, and it is the same list the sign-off nudge prints, so the two can never disagree.
 export const ThreadActivityItem = z.object({
-  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command"]),
+  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command", "terminal"]),
   /** The string a `<kind>:` fence line must carry. For a shell that is the runtime task id the worker
    *  was shown; for a PR, `owner/repo#N`; for a timer, its `tmr_…` row id; for a thread this one awaits a
    *  reply from, its `@handle`. */

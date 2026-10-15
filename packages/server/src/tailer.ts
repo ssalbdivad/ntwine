@@ -1,3 +1,4 @@
+import type { OwnTerminalLive } from "./awaiting.ts"
 import { statSync, openSync, readSync, closeSync, readdirSync, realpathSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -780,6 +781,9 @@ export interface SessionTelemetry extends NormalizedTail {
   // fixture valid — this is an additive observation, not a new required fact about a session.
   droppedReports?: QueuedReport[]
   bgShells: BgShellView[] // live background shells this session launched (empty when none)
+  // The terminals this thread STARTED (`ntwinectl terminal start`), layered on by the board and the
+  // scheduler (board.withOwnTerminals) — the tailer never sets it: a terminal is not in the transcript.
+  ownTerminals?: OwnTerminalLive[]
   // Background shells that have FINISHED, newest-wins ring (RETAINED_SHELLS_MAX). The scheduler's watcher
   // pass matches against it (see retiredShellViews), and since 2026-09-30 the board also carries it to the
   // drawer's TERM strip as ThreadView.endedShells, so a finished agent terminal stays openable the way a
