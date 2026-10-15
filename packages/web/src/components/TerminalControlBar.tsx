@@ -28,7 +28,10 @@ function handleIn(threads: readonly ThreadView[], slug: string): string {
   return t ? threadHandleOf(t) ?? slug : slug
 }
 
-const barButtonClass = "shrink-0 rounded-md border border-border-strong bg-panel-2/60 px-2 py-0.5 text-[12px] text-fg/85 transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-50"
+// No flex-shrink here: Take control never gives way (`shrink-0` at its call site), while Hand back is the one
+// part of its bar that may — a `shrink-0` in this shared string outranked that button's own `min-w-0
+// truncate`, so a long handle pushed it 222px past a 390px drawer and collapsed "You're driving" to 0px.
+const barButtonClass = "whitespace-nowrap rounded-md border border-border-strong bg-panel-2/60 px-2 py-0.5 text-[12px] text-fg/85 transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-50"
 
 export function TerminalControlBar({ terminal, threads, move }: { terminal: ThreadTerminal; threads: readonly ThreadView[]; move: ControlMove }) {
   const [busy, setBusy] = useState(false)
@@ -54,15 +57,21 @@ export function TerminalControlBar({ terminal, threads, move }: { terminal: Thre
               It paints 1/12 of its box as air per side, so `-mr-[0.25em]` brings its ink to ~6px off the label
               where `gap-2` alone drew 9.17px. */}
           <Bot aria-hidden strokeWidth={AGENT_GLYPH_STROKE} className="h-[1.1667em] w-[1.1667em] shrink-0 self-baseline -mr-[0.25em] translate-y-[calc(0.5833em_-_0.5cap)] text-muted-60" />
-          <span data-terminal-driver className="min-w-0 flex-1 truncate">@{handleIn(threads, driver)} is driving</span>
-          <button type="button" data-terminal-take-control disabled={busy} onClick={() => act("human")} className={barButtonClass}>
+          {/* A long handle gives way, never the verb: "@internationalization-reconc… is driving". */}
+          <span data-terminal-driver title={`@${handleIn(threads, driver)} is driving`} className="flex min-w-0 flex-1 whitespace-nowrap">
+            <span className="min-w-0 truncate">@{handleIn(threads, driver)}</span>
+            <span className="shrink-0 whitespace-pre"> is driving</span>
+          </span>
+          <button type="button" data-terminal-take-control disabled={busy} onClick={() => act("human")} className={`${barButtonClass} shrink-0`}>
             {busy ? "Taking control…" : "Take control"}
           </button>
         </>
       ) : (
         <>
-          <span className="min-w-0 flex-1 truncate">You're driving</span>
-          <button type="button" data-terminal-hand-back disabled={busy} onClick={() => act(back!, true)} className={`${barButtonClass} min-w-0 truncate`}>
+          {/* "You're driving" is short and always whole; the button beside it gives way, truncating the handle
+              at its end ("Hand back to @internationaliz…"), with the whole name in its title. */}
+          <span className="flex-1 whitespace-nowrap">You're driving</span>
+          <button type="button" data-terminal-hand-back disabled={busy} onClick={() => act(back!, true)} title={`Hand back to @${handleIn(threads, back!)}`} className={`${barButtonClass} min-w-0 truncate`}>
             {busy ? "Handing back…" : `Hand back to @${handleIn(threads, back!)}`}
           </button>
         </>

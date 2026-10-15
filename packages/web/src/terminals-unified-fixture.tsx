@@ -4,6 +4,7 @@ import type { BgShellView, EndedShellView, ThreadTerminal, ThreadView } from "@n
 import { ThreadProcessStrip } from "./components/ThreadTerminals.tsx"
 import { ThreadCheckoutToken } from "./components/ThreadCheckoutToken.tsx"
 import { HumanTerminalHeader, TerminalSheet } from "./components/TerminalSheet.tsx"
+import { TerminalControlBar } from "./components/TerminalControlBar.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
 import { Toaster } from "./components/Toaster.tsx"
 import { initFont } from "./lib/font.ts"
@@ -88,6 +89,12 @@ const endedShells: EndedShellView[] = [
   { id: "e-old2", label: "Running the root test suite", status: "completed", startedAt: ago(58), finishedAt: ago(52), cwd: ROOT, atRoot: true },
   { id: "e-old3", label: "Building the docs site for production", status: "completed", startedAt: ago(66), finishedAt: ago(60), cwd: ROOT, atRoot: true },
 ]
+// `?mode=control`: the drawer's control bar in both states, for a short handle and the longest a name can make
+// (five long words), edge to edge as in a phone drawer.
+const LONG = "Internationalization reconciliation infrastructure authentication synchronization"
+const controlThreads = [{ id: "short-t", title: "Dev server" }, { id: "long-t", title: LONG }].map((t) => ({ ...t, kind: "session", titleAuto: false, titleLocked: true })) as unknown as ThreadView[]
+const controlTerminal = (controller: string, controlAgent?: string) =>
+  ({ id: `t-${controller}-${controlAgent ?? ""}`, command: "nub run dev", cwd: ROOT, state: "running", runId: 1, startedAt: ago(3), handle: "nub-run-dev", controller, ...(controlAgent ? { controlAgent } : {}) }) as ThreadTerminal
 const thread = { id: "fixture", terminals, bgShells, endedShells, watches: [], ...(here ? { checkout: here } : {}) } as Pick<ThreadView, "id" | "terminals" | "bgShells" | "endedShells" | "watches" | "checkout">
 
 createRoot(document.getElementById("root")!).render(
@@ -113,6 +120,14 @@ createRoot(document.getElementById("root")!).render(
             <div data-fixture-strip="card" className="rounded-md border border-border bg-panel px-4 py-3">
               <ThreadProcessStrip thread={thread} surface="card" onOpen={() => {}} />
             </div>
+          </div>
+        )}
+        {mode === "control" && (
+          <div className="fixed inset-x-0 top-0 flex flex-col gap-3 bg-panel">
+            {(["short-t", "long-t"] as const).flatMap((who) => [
+              <div key={`${who}-agent`} data-fixture-control={`${who}-agent`}><TerminalControlBar terminal={controlTerminal(who)} threads={controlThreads} move={async () => {}} /></div>,
+              <div key={`${who}-human`} data-fixture-control={`${who}-human`}><TerminalControlBar terminal={controlTerminal("human", who)} threads={controlThreads} move={async () => {}} /></div>,
+            ])}
           </div>
         )}
         {mode === "header" && (
