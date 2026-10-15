@@ -16,7 +16,7 @@ import type { ClaudeAgentBrokerBridge } from "./backend/claude-agent-broker-brid
 import type { CodexAppServerBridge } from "./backend/codex-app-server.ts"
 import type { AcpBridge } from "./backend/acp-bridge.ts"
 import type { ClaudeOneShot } from "./backend/claude-oneshot.ts"
-import { createThreadNamer, rowThreadName } from "./thread-names.ts"
+import { createThreadNamer, nameEveryThread, rowThreadName } from "./thread-names.ts"
 
 const WINDOW_MS = 150
 
@@ -35,6 +35,10 @@ function harness(complete: ClaudeOneShot | undefined) {
   } as unknown as CodexAppServerBridge
   const acpBridge = { spawnDispatch: async () => ({ acpSessionId: "acp-session" }), releaseSession: () => {} } as unknown as AcpBridge
   const threadNamer = createThreadNamer({ storage, complete, windowMs: WINDOW_MS })
+  nameEveryThread(storage, threadNamer)
+  // A second, model-less namer on the same storage — what the router builds for name lookups — must not
+  // name anything: with the model answering, the name is the model's (the last test).
+  createThreadNamer({ storage })
   const dispatcher = createDispatcher({
     project, storage, board, claudeBroker, codexAppServer, acpBridge, threadNamer,
     getSettings: () => ({ ...defaultSettings(), model: "sonnet", effort: "high" }),

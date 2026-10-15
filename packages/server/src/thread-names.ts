@@ -359,8 +359,7 @@ function nameFromSource(source: string): string {
 }
 
 export interface ThreadNamerDeps {
-  /** With `subscribeSessionWrites`, every row written is named (ensureNamed) — the guarantee. */
-  storage: Pick<Storage, "allSessions" | "setMintedTitle"> & Partial<Pick<Storage, "subscribeSessionWrites">>
+  storage: Pick<Storage, "allSessions" | "setMintedTitle">
   /** The open threads of every OTHER project this server has open (`openThreadsElsewhere`) — names are
    *  unique across all of them (see the header). Absent ⇒ this project alone. */
   elsewhere?: () => readonly NamedThread[]
@@ -404,8 +403,8 @@ export interface ThreadNamer {
   mint(slug: string, sessionId: string, source: string): Promise<void>
   /** THE ONE GUARANTEE that a written row has a name: nothing when it has one (a caller's title, a human's,
    *  a name kept across a held start), else a mint from the source `expect` recorded for this session, the
-   *  held prompt, or the row's own title. Called for EVERY session write (storage subscribeSessionWrites,
-   *  wired in context.ts) and for every open row at boot, so a path that writes a row cannot forget it. */
+   *  held prompt, or the row's own title. Called for EVERY session write and every open row at boot
+   *  (nameEveryThread), so a path that writes a row cannot forget it. */
   ensureNamed(row: Pick<SessionRow, "slug" | "session_id" | "title" | "title_auto" | "title_locked" | "title_agent" | "lazy_prompt" | "archived" | "state">): void
   /** What the next write of this session should be named FROM — a dispatch's whole prompt, which the row
    *  does not keep. Consumed by that write's ensureNamed. */
@@ -541,8 +540,19 @@ export function createThreadNamer(deps: ThreadNamerDeps): ThreadNamer {
       return cleanThreadStatus(await deps.complete(statusRequest(current, conversation)))
     },
   }
-  // THE CHOKEPOINT: every thread's row is born or started through upsertSession, whatever the path —
-  // so naming hangs on that write, not on each path remembering to mint.
-  deps.storage.subscribeSessionWrites?.((row) => namer.ensureNamed(row))
   return namer
+}
+
+/**
+ * THE CHOKEPOINT of the guarantee that every thread has a name. Every thread's row is born or started
+ * through upsertSession, whatever the path, so naming hangs on that write rather than on each path
+ * remembering to mint: from now on every row written is named, and every open row already there is named
+ * now. Wired once per project, to the project's ONE namer (context.ts) — not inside createThreadNamer,
+ * because the router builds model-less namers for name lookups, and one of those subscribed would land
+ * its deterministic fallback before the real namer's model could answer. Returns the unsubscribe.
+ */
+export function nameEveryThread(storage: Pick<Storage, "allSessions" | "subscribeSessionWrites">, namer: Pick<ThreadNamer, "ensureNamed">): () => void {
+  const unsubscribe = storage.subscribeSessionWrites((row) => namer.ensureNamed(row))
+  for (const row of storage.allSessions()) namer.ensureNamed(row)
+  return unsubscribe
 }
