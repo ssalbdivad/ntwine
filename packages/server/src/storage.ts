@@ -294,11 +294,11 @@ export interface SessionRow {
   // is the one that ends the held state. Never dropped or emptied by a migration.
   lazy_prompt?: string | null
   // A HELD THREAD: a thread written down with no agent behind it yet, held by whoever wrote it — base's
-  // `schedules` (a schedule's next run), or `lazy` on a row left from lazy threads. Non-NULL means UNSTARTED. The row is
+  // `schedules` (a schedule's next run), or `todo` (a to-do; `lazy` on a row from lazy threads, the same thing). Non-NULL means UNSTARTED. The row is
   // otherwise an ordinary thread — it snoozes, is marked done, renamed, pinned and linked like any other —
   // but its session id names a session no provider has ever heard of, so nothing may tail, resume, nudge or
-  // wake it (isHeldRow). Base never QUEUES a held row, which is upstream's rule — "with no agent it makes no
-  // sense for a thread to ever show up inside the queue". A message sent to it starts it on that message,
+  // wake it (isHeldRow). Base QUEUES only a to-do (isTodoRow), which the human wrote down to come back to.
+  // A message sent to it starts it on that message,
   // so no holder can strand one. Starting it dispatches on
   // this same slug and session id (dispatch.ts `onto`), and that dispatch's upsert writes NULL here.
   held_by?: string | null
