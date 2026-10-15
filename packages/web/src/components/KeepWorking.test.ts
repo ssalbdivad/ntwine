@@ -5,12 +5,14 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { KEEP_WORKING_MESSAGE, type AwaitingHint, type TranscriptMessage } from "@ntwine/shared"
 import { AwaitingBackgroundCard } from "./AwaitingBackgroundCard.tsx"
+import { AwaitingSubAgentsCard } from "./AwaitingSubAgentsCard.tsx"
 import { KeepWorkingMarker } from "./KeepWorking.tsx"
 import { drawsKeepWorkingMarker, offersKeepWorking } from "../lib/keepWorking.ts"
 import { lastHumanTurnIndex } from "../lib/messagePresentation.ts"
 
-// KEEP WORKING: offered on a resting card only for a `needs_input` park that still names live work, and
-// the message it sends drawn as the human's one-line marker, never as their bubble of worker-facing words.
+// KEEP WORKING: offered on a resting card for a `needs_input` park, or a rest with no fence at all, while
+// the thread's own work still runs; and the message it sends drawn as the human's one-line marker, never as
+// their bubble of worker-facing words.
 
 const AT = "2026-10-14T12:00:00.000Z"
 const devServer = { id: "toolu_s", taskId: "bzvtnt3ig", label: "vite dev", startedAt: AT, state: "running" as const }
@@ -54,6 +56,42 @@ test("not offered where there is nothing to go back to, or the worker did not as
   assert.equal(offered(resting(tryIt), { body: "", hints: tryIt }), false)
   // Archived: no verbs at all.
   assert.equal(offered(resting(tryIt, { archived: true })), false)
+})
+
+// A Workflow run is a direct sub-agent row; its agents are depth 2 under it (tailer subAgentViews).
+const workflowRun = { id: "toolu_w", taskId: "wlx2xkdou", label: "Voice rewrite", startedAt: AT, state: "running" as const, workflow: true }
+const workflowAgent = { id: "ae0727b11fe7bb7de", label: "revise", startedAt: AT, state: "running" as const, depth: 2, parentId: "toolu_w" }
+const bare = (over: Partial<CardThread> = {}) => resting([], { lastFence: undefined, bgShells: [], subAgents: [workflowRun, workflowAgent], ...over })
+
+test("offered on a rest with no fence while its own sub-agent or Workflow runs: the reply that owed a park", () => {
+  assert.equal(offered(bare()), true)
+  assert.equal(offered(bare({ subAgents: [lane] })), true)
+  // Only the Workflow's own agents still out, or only a shell nobody declared, is not the thread's wait.
+  assert.equal(offered(bare({ subAgents: [workflowAgent] })), false)
+  assert.equal(offered(bare({ subAgents: [], bgShells: [devServer] })), false)
+  assert.equal(offered(bare({ subAgents: [{ ...workflowRun, state: "stale" }] })), false)
+  // A done is finished, whatever is still out; and an open question outranks it (the server then clears
+  // awaitingBackground, as it does for a limit or provider fault).
+  assert.equal(offered(bare({ lastFence: { kind: "done", body: "", hints: [] } })), false)
+  assert.equal(offered(bare({ awaitingBackground: false })), false)
+})
+
+test("a needs_input park that names no live work is offered while a sub-agent of its own runs", () => {
+  const prOnly = hints(["pr", "acme/app#391"], ["status", "needs_input"])
+  assert.equal(offered(resting(prOnly, { bgShells: [], subAgents: [workflowRun] })), true)
+  assert.equal(offered(resting(prOnly, { bgShells: [devServer], subAgents: [] })), false)
+  // A fence that gave no answer is bumped for one, not offered a verb that presumes it.
+  assert.equal(offered(resting(hints(["agent", "wlx2xkdou"]), { subAgents: [workflowRun] })), false)
+})
+
+test("the queue's sub-agent batch card carries it too, which the queue draws in place of the resting card", () => {
+  const batch = (thread: CardThread) => renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(AwaitingSubAgentsCard, {
+    project: { id: "p1", slug: "demo", projectDir: undefined }, thread, body: "", openThread: () => {},
+  })))
+  const parked = resting(hints(["agent", "wlx2xkdou"], ["status", "needs_input"]), { bgShells: [], subAgents: [workflowRun] })
+  assert.match(batch(parked), /data-keep-working[^>]*>Keep working</)
+  assert.equal(batch(resting(hints(["agent", "wlx2xkdou"], ["status", "working"]), { bgShells: [], subAgents: [workflowRun] })).includes("data-keep-working"), false)
+  assert.equal(batch({ ...parked, archived: true }).includes("data-keep-working"), false)
 })
 
 const user = (over: Partial<TranscriptMessage>): TranscriptMessage => ({ role: "user", text: KEEP_WORKING_MESSAGE, tools: [], parts: [], ...over })

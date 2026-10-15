@@ -91,6 +91,17 @@ test("true queues it while the work keeps running", () => {
   assert.equal(needsYou(row({ bg_snooze_rested_at: AT }), t), true, "a stale until-new-activity arming hides nothing")
 })
 
+// A plain reply while a Workflow runs (@personal-page, 2026-10-15): the worker owed a park and wrote none.
+// It queues, and the resting card states the run — the card the web's Keep working rides on.
+test("a rest with no fence queues while its Workflow runs, and still cards as the wait", () => {
+  const run = { id: "toolu_wf", taskId: "wlx2xkdou", label: "Voice rewrite", startedAt: AT, state: "running" as const, workflow: true }
+  const t = tele({ subAgents: [run, { id: "ae07", label: "revise", startedAt: AT, state: "running", depth: 2, parentId: "toolu_wf" }] })
+  assert.equal(needsYou(row(), t), true)
+  assert.equal(deriveAwaitingBackground(row(), t, "turn-idle", false, NOW), true)
+  // The run's agents alone are not the thread's own wait.
+  assert.equal(deriveAwaitingBackground(row(), tele({ subAgents: [{ id: "ae07", label: "revise", startedAt: AT, state: "running", depth: 2, parentId: "toolu_wf" }] }), "turn-idle", false, NOW), false)
+})
+
 test("no answer, or one that is neither true nor false, queues — it is never a park", () => {
   assert.equal(needsYou(row(), tele({ subAgents: [LIVE_AGENT], ...agentPark() })), true)
   assert.equal(needsYou(row(), tele({ subAgents: [LIVE_AGENT], ...agentPark("yes") })), true)

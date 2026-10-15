@@ -14,22 +14,28 @@
 //   • (a band of two EVENT snoozes — "until all return" and "until new activity" — rode under the rows
 //     until 2026-10-14, when both were removed: they hid threads whose own work was still out.)
 //
+//   • Keep working (lib/keepWorking.ts) is its one verb, when the worker parked the batch `needs_input`:
+//     the queue reaches this card in place of the resting card that carries it in the drawer.
+//
 // It is its own component, mounted by AllQueuesCard in place of the fence it replaces, because that card
 // is edited by several hands at once and this one only needs a line there.
 import { Hourglass } from "lucide-react"
 import type { ThreadView } from "@ntwine/shared"
 import { ThreadProjectScope, useThreadApi } from "../api/threadApi.tsx"
 import { projectSlug } from "../lib/base-path.ts"
+import { offersKeepWorking } from "../lib/keepWorking.ts"
+import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
 import { subAgentWait, subAgentWaitHeading } from "../lib/subAgentWait.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { pushSubAgentDrawer, store } from "../store.ts"
 import { LinkedHtml } from "./LinkedHtml.tsx"
 import { QueueSubAgentLines, type OpenQueueSubAgent } from "./QueueSubAgentLines.tsx"
-import { QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
+import { KeepWorkingButton } from "./KeepWorking.tsx"
+import { CardActions, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 
-type CardThread = Pick<ThreadView, "id" | "sessionId" | "kind" | "foreign" | "state" | "archived" | "subAgents" | "returnedSubAgents">
+type CardThread = Pick<ThreadView, "id" | "sessionId" | "kind" | "foreign" | "state" | "archived" | "subAgents" | "returnedSubAgents" | "runtime" | "awaitingBackground" | "lastFence" | "bgShells" | "lastAssistantAt">
 
-export function AwaitingSubAgentsCard({ project, thread, body, openThread }: {
+export function AwaitingSubAgentsCard({ project, thread, body, openThread, onReplied, onReplyFailed, reply }: {
   project: { id: string; slug: string; projectDir: string | undefined }
   thread: CardThread
   /** The ```awaiting fence's body, which this card states in place of the fence card. */
@@ -37,15 +43,20 @@ export function AwaitingSubAgentsCard({ project, thread, body, openThread }: {
   /** Open the thread's own drawer on this page — how a row opens its child when the card's project is
    *  not the one the page is focused on (see openChild). */
   openThread: () => void
+  /** Keep working's optimistic card exit, its rollback, and its send into the card's project — the
+   *  resting card's own (AwaitingBackgroundCard). */
+  onReplied?: () => void
+  onReplyFailed?: () => void
+  reply?: (message: string) => Promise<void>
 }) {
   return (
     <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
-      <WaitCard project={project} thread={thread} body={body} openThread={openThread} />
+      <WaitCard project={project} thread={thread} body={body} openThread={openThread} onReplied={onReplied} onReplyFailed={onReplyFailed} reply={reply} />
     </ThreadProjectScope>
   )
 }
 
-function WaitCard({ project, thread, body, openThread }: Parameters<typeof AwaitingSubAgentsCard>[0]) {
+function WaitCard({ project, thread, body, openThread, onReplied, onReplyFailed, reply }: Parameters<typeof AwaitingSubAgentsCard>[0]) {
   const api = useThreadApi()
   const html = useMarkdownHtml(body.trim())
   const wait = subAgentWait(thread)
@@ -76,6 +87,11 @@ function WaitCard({ project, thread, body, openThread }: Parameters<typeof Await
         onOpenChild={openChild}
         className={html ? "pt-3" : "pt-1"}
       />
+      {threadLifecycleAvailability(thread).snooze && offersKeepWorking(thread) && (
+        <CardActions data-awaiting-actions>
+          <KeepWorkingButton key={`keep-working:${thread.lastAssistantAt ?? ""}`} slug={thread.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />
+        </CardActions>
+      )}
     </TranscriptCard>
   )
 }

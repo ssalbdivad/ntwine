@@ -373,6 +373,7 @@ function CardArticle({
   // Is the thread at rest on its own declared wait, so the RESTING card states it (CardAwaiting)? The
   // drawer's predicate, unchanged — except where the sub-agent batch card is already stating the wait.
   const restingShown = showsRestingCard(thread) && !drawsSubAgentWait
+  const cardReply = useCardReply(project, thread, onLanded)
   // EACH QUESTION AT THE REST THAT ASKED IT (upstream e157817a, 22084580). This card is three rests at
   // most — the one before the human's bubble, the one its `answer` replies with, the newest — and a
   // question belongs to whichever its rest is, by the drawer's own readers over the thread's transcript
@@ -690,7 +691,7 @@ function CardArticle({
           {parts?.fences.map((fence, index) => fence.kind === "done"
             ? <FenceBody key={index} body={fence.body} project={project} thread={thread} />
             : drawsSubAgentWait
-              ? <AwaitingSubAgentsCard key={index} project={project} thread={thread} body={fence.body} openThread={() => openInPlace(project, thread.id, displayTitle(thread))} />
+              ? <AwaitingSubAgentsCard key={index} project={project} thread={thread} body={fence.body} openThread={() => openInPlace(project, thread.id, displayTitle(thread))} onReplied={onSent} onReplyFailed={onReturn} reply={cardReply} />
               : restingShown ? null
               : <CardAwaiting key={index} project={project} thread={thread} fence={{ body: fence.body, hints: fence.hints }} onLeave={onLeave} onSent={onSent} onLanded={onLanded} onReturn={onReturn} />)}
           {/* THE RESTING CARD (upstream TodosView AwaitingBackgroundBanner), whenever the thread is at rest on
@@ -1104,6 +1105,22 @@ function CardSettledStack({ questions, className }: { questions: readonly Settle
   return <SettledQuestionStack questions={shown} wrap className={className} />
 }
 
+/** A card verb's reply (the steps' Done, Keep working), sent into the card's own project — the reply box's
+ *  send — with its failure toasted and rethrown so the verb can roll back. */
+function useCardReply(project: QueuesProject, thread: ThreadView, onLanded: () => void) {
+  const queryClient = useQueryClient()
+  return useCallback((message: string) => deliverFollowUp(project, thread, message).then(
+    () => {
+      onLanded()
+      void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
+    },
+    (error: unknown) => {
+      if (!pageUnloading()) showToast(`Reply failed: ${(error instanceof Error ? error.message : "unknown error").slice(0, 80)}`)
+      throw error
+    },
+  ), [onLanded, project, queryClient, thread])
+}
+
 /**
  * THE DRAWER'S AWAITING CARD ON THE QUEUE CARD (AwaitingBackgroundCard) — the resting card when `fence` is
  * absent, the card stating a fence the thread is no longer at rest on when it is given — wired to THIS
@@ -1125,23 +1142,13 @@ function CardAwaiting({ project, thread, fence, onLeave, onSent, onLanded, onRet
   onLanded: () => void
   onReturn: () => void
 }) {
-  const queryClient = useQueryClient()
   const openInPlace = useOpenThreadInPlace()
   const openRow = useCallback((push: () => void) => {
     const here = focusedProject(project.slug)
     openInPlace(project, thread.id, displayTitle(thread))
     if (here) push()
   }, [openInPlace, project, thread])
-  const reply = useCallback((message: string) => deliverFollowUp(project, thread, message).then(
-    () => {
-      onLanded()
-      void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
-    },
-    (error: unknown) => {
-      if (!pageUnloading()) showToast(`Reply failed: ${(error instanceof Error ? error.message : "unknown error").slice(0, 80)}`)
-      throw error
-    },
-  ), [onLanded, project, queryClient, thread])
+  const reply = useCardReply(project, thread, onLanded)
   return (
     <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
       <WaitRowOpenContext.Provider value={openRow}>

@@ -1356,11 +1356,13 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // a fence the thread has moved past has no park left to check in on. A `watching` rest is the very
   // orchestration whose sub-agents report only at the check-in, so it is where asking early matters most.
   const askable = restOwned && fence === undefined && thread!.lastFence?.kind === "awaiting"
-  // KEEP WORKING: the same parked rest, when the worker parked it `needs_input` on work still running
-  // (lib/keepWorking.ts). It is the card's one white verb, and the first: it is the answer to what the
-  // card is asking, where the two beside it are about the work.
-  const keepWorking = askable && offersKeepWorking(thread!)
-  const footer = askable || stopIds.length > 0
+  // KEEP WORKING: a rest the human owns, on the board's own last word, when the worker parked it
+  // `needs_input` on work still running — or rested with no fence at all while its sub-agents run
+  // (lib/keepWorking.ts). Not gated on `askable`, whose awaiting fence that second rest has not got. It is
+  // the card's one white verb, and the first: it is the answer to what the card is asking, where the two
+  // beside it are about the work.
+  const keepWorking = restOwned && fence === undefined && offersKeepWorking(thread!)
+  const footer = keepWorking || askable || stopIds.length > 0
   return (
     // The SAME shell as every transcript card (TranscriptCard). This card stacks directly under an
     // awaiting fence card on a queue card, and it used to be a visibly different object there —
