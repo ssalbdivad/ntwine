@@ -76,3 +76,22 @@ export function loudBands(project: QueuesProject, hidden: (key: string) => boole
   const carded = new Set([...pinned.filter(queued), ...ready].map((t) => t.id))
   return { pinned, ready, working, waiting, carded, rows: pinned.length + ready.length + working.length + waiting.length }
 }
+
+/** Where Done today starts: the local midnight before `now`. */
+export function startOfToday(now: number): number {
+  const day = new Date(now)
+  day.setHours(0, 0, 0, 0)
+  return day.getTime()
+}
+
+/** When a Done thread came to rest — the instant the server orders `recentDone` by (router.ts). */
+export function restedAt(t: ThreadView): number {
+  return Date.parse(t.lastAssistantAt ?? t.lastActivityAt ?? t.spawnedAt ?? "") || 0
+}
+
+/** A project's Done today: the poll's `recentDone` that rested since local midnight, pins aside (a pinned
+ *  Done thread is the Pinned band's). The tier list's tail and the phone's Done today both read this. */
+export function doneToday(project: QueuesProject, now: number): ThreadView[] {
+  const today = startOfToday(now)
+  return project.recentDone.filter((t) => !isPinned(t) && restedAt(t) >= today)
+}

@@ -8,7 +8,7 @@
 //   · the view lives in the ADDRESS, per tab: two tabs on two boards stay there across reloads; All
 //     projects is `/all` (a retired `/?all` lands there), and a bare `/` goes back to the view this
 //     browser showed LAST — All projects for a browser that never chose (a board from 2026-10-06 to
-//     2026-10-14) — while a phone's `/` is its projects list;
+//     2026-10-14);
 //   · the dock changes the view by navigating, and Back undoes it; All projects is the
 //     unified page, with the prompt box's picker carried over to the project just left;
 //   · a thread drawer closes back to the tab's view, not to a guess;
@@ -365,7 +365,7 @@ try {
   })
 
   // ── a phone's width ────────────────────────────────────────────────────────────────────────────────
-  for (const [view, url] of [["focused", `/project/${A.slug}`], ["All projects", "/all"]]) {
+  for (const [view, url] of [["focused", `/project/${A.slug}`], ["All projects", "/"]]) {
     await step(`at 420px nothing overflows sideways (${view})`, async () => {
       await page.setViewport({ width: 420, height: 900, deviceScaleFactor: 2 })
       await page.goto(`${origin}${url}`, { waitUntil: "networkidle2" })
@@ -377,19 +377,20 @@ try {
       await page.screenshot({ path: join(shots, `focus-mode-narrow-${view === "focused" ? "focus" : "all"}.png`), fullPage: true })
     })
   }
-  await step("a phone's / is its projects list, and choosing from it pushes", async () => {
+  await step("a phone's / is All projects, and its dock changes the view by navigating", async () => {
     await page.setViewport({ width: 420, height: 900, deviceScaleFactor: 2 })
     await page.goto(`${origin}/`, { waitUntil: "networkidle2" })
-    await page.waitForSelector("[data-mobile-projects-page]")
-    check("a phone's / stays / and shows the projects list", (await address(page)) === "/", await address(page))
-    check("…with nothing marked as the view showing", (await page.$('[data-mobile-project-row][aria-current="page"]')) === null)
-    await clickSettled(page, `[data-mobile-project-row="${B.slug}"]`)
+    await page.waitForSelector('[data-mobile-board="all"]')
+    check("a phone's / stays / and shows All projects", (await address(page)) === "/", await address(page))
+    check("…with no square marked as the view showing", (await page.$('[data-mobile-dock-square][aria-current="page"]')) === null)
+    await clickSettled(page, `[data-mobile-dock-square="${B.slug}"]`)
     await waitAddress(page, `/project/${B.slug}`)
     await page.waitForSelector('[data-mobile-board="project"]')
+    check("…the square chosen is marked", (await page.$(`[data-mobile-dock-square="${B.slug}"][aria-current="page"]`)) !== null)
     await page.goBack()
     await waitAddress(page, "/")
-    await page.waitForSelector("[data-mobile-projects-page]")
-    check("…and Back from the board chosen returns to the list", true)
+    await page.waitForSelector('[data-mobile-board="all"]')
+    check("…and Back from the board chosen returns to All projects", true)
   })
 
   check("no page errors", errors.length === 0, errors.slice(0, 4).join(" | "))

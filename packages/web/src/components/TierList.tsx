@@ -32,7 +32,7 @@ import { setCenterTab } from "../lib/centerTab.ts"
 import { setTierFold, useTierFolds } from "../lib/crossProject.ts"
 import { holdLayout, type HeldSection, type HeldSlot } from "../lib/heldLayout.ts"
 import { actedOnHere } from "../lib/humanActs.ts"
-import { listOverlay, loudBands } from "../lib/listBands.ts"
+import { doneToday, listOverlay, loudBands, restedAt } from "../lib/listBands.ts"
 import { useListHold } from "../lib/listHold.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { useArchivingAt } from "../lib/optimisticArchive.ts"
@@ -56,18 +56,6 @@ interface Entry {
 }
 
 type Tier = "pinned" | "ready" | "working" | "waiting" | "snoozed" | "done"
-
-/** Where Done today starts: the local midnight before `now`. */
-function startOfToday(now: number): number {
-  const day = new Date(now)
-  day.setHours(0, 0, 0, 0)
-  return day.getTime()
-}
-
-/** When a Done thread came to rest — the instant the server orders `recentDone` by (router.ts). */
-function restedAt(t: ThreadView): number {
-  return Date.parse(t.lastAssistantAt ?? t.lastActivityAt ?? t.spawnedAt ?? "") || 0
-}
 
 export function TierList({
   projects,
@@ -113,7 +101,6 @@ export function TierList({
     const waiting: Entry[] = []
     const snoozed: Entry[] = []
     const done: Entry[] = []
-    const today = startOfToday(now)
     for (const project of projects) {
       const onPage = project.slug === focus && project.slug === boardSlug
       const loud = loudBands(project, hidden, listOverlay(project.id, onPage, steeredAt, archivingAt))
@@ -124,7 +111,7 @@ export function TierList({
       working.push(...loud.working.map(entry))
       waiting.push(...loud.waiting.map(entry))
       snoozed.push(...project.snoozed.filter((t) => !isPinned(t) && isSnoozed(t)).map(entry))
-      done.push(...project.recentDone.filter((t) => !isPinned(t) && restedAt(t) >= today).map(entry))
+      done.push(...doneToday(project, now).map(entry))
     }
     pinned.sort((a, b) => (a.t.pinnedAt ?? "").localeCompare(b.t.pinnedAt ?? "") || a.key.localeCompare(b.key))
     const at = new Map(queueOrder.map((key, index) => [key, index]))

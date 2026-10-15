@@ -3,8 +3,8 @@ import * as RadixDialog from "@radix-ui/react-dialog"
 import { useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import { useQuery } from "@tanstack/react-query"
-import { AlarmClock, ArrowLeft, Check, Hourglass, Plus, Repeat, Settings as SettingsIcon } from "lucide-react"
-import type { ScheduleView, ThreadView } from "@ntwine/shared"
+import { AlarmClock, ArrowLeft, Check, ChevronRight, Hourglass, LayoutGrid, Plus, Repeat, Settings as SettingsIcon } from "lucide-react"
+import type { ScheduleView } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { store } from "../store.ts"
 import { useBoard } from "../hooks.ts"
@@ -12,76 +12,59 @@ import { displayTitle, futureSnoozedUntil, lastActiveLabelAt, queued, queueLabel
 import { ageSpan, spanUntil } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { projectSlug } from "../lib/base-path.ts"
-import { squareCard, type QueuesProject } from "../lib/allQueues.ts"
+import { squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
+import { setTierFold, useTierFolds } from "../lib/crossProject.ts"
+import { setLens, useLens } from "../lib/lens.ts"
 import { listOverlay } from "../lib/listBands.ts"
 import { useSteeredAt } from "../lib/steering.ts"
 import { useArchivingAt } from "../lib/optimisticArchive.ts"
-import { useProjectBoards } from "../lib/projectBoards.ts"
 import { handleDialogEscape } from "../lib/selectOverlay.ts"
 import { agentSuffix, liveAgentCount, rowSecondLine, wakeAt } from "../lib/mobileBoardRow.ts"
-import { phoneCounts, phoneDone, phoneSubtitle, phoneProjects, phoneQueue, phoneSnoozed, type OverlayFor, type PhoneProjectEntry, type PhoneRow, type PhoneTab } from "../lib/phonePage.ts"
+import { phoneBands, phoneCounts, phoneSubtitle, type OverlayFor, type PhoneBand, type PhoneRow } from "../lib/phonePage.ts"
 import { scheduleKeys, scheduleNextLabel } from "../lib/schedules.ts"
 import { useOpenThreadInPlace } from "./AllQueuesCard.tsx"
+import { BANDS, type BandKey } from "./BandLabel.tsx"
+import { HistoryView } from "./HistoryView.tsx"
 import { ScheduleMark } from "./ScheduleMark.tsx"
 import { PhoneScheduleSheet } from "./PhoneScheduleSheet.tsx"
 import { ThreadActionsSheet } from "./MobileThreadActionsSheet.tsx"
-import { AllProjectsSquare, ProjectSquare } from "./ProjectSquare.tsx"
-import { shortPath } from "./ProjectActions.tsx"
+import { ProjectSquare } from "./ProjectSquare.tsx"
 
-// THE PHONE'S PAGE — a header, three text tabs, ONE list, and a "New thread" button. A fourth tab,
-// Schedules, joins the three while the view has any (ARCHITECTURE.md § Scheduled threads): the desktop's project
-// row lists them as its fourth quiet count, and here they are the list's fourth band, where the phone reads,
-// runs, pauses, turns on and deletes them (PhoneScheduleSheet.tsx). A schedule can also be MADE here: the New
-// thread sheet (PhoneNewThread, below) holds the desktop's own prompt box, so `every weekday at 9 …` typed on the
-// go becomes a schedule the same way it does at a desk (ARCHITECTURE.md § Scheduled threads): the model reads words
-// with a schedule word in them, a schedule shows as a strip under the box, and the send button wears the repeat
-// glyph while sending creates it. What a phone draws differently is ScheduleComposer.tsx's under
-// `useIsMobile()`: the strip is a TAP ROW (`↻ Every Monday at 9am · in 6d   ×`, the × a 32px hit square) and its
-// lines name the send button, never a key. Its Escape goes through `handleDialogEscape`, so a hardware
-// keyboard's first Escape dismisses the strip before it closes the sheet. Only the thread reply bar
-// (ThreadComposerBox, `layout: "bar"`) has no schedules.
+// THE PHONE'S PAGE — the desktop's left column for one hand (2026-10-14, after All projects first): the
+// DOCK as the header, then the LIST — the desktop list's bands in its order, Pinned, Ready, Working,
+// Waiting, Snoozed (folded), Done today (with History at its right) and Schedules (folded) — and a "New
+// thread" button. Below the phone breakpoint (lib/mobile.ts, 700px) the page renders this instead of its
+// desktop columns.
 //
-// Upstream's phone board (upstream MobileBoard.tsx, its 2026-09-30 redesign: 6754e72a "the phone
-// board gets a header, text tabs and one line per row", 39db08a6 "the projects page is a plain list on a
-// phone") brought onto the fork's ONE page (AllQueues.tsx). Below the phone breakpoint (lib/mobile.ts,
-// 700px) the page renders this instead of its desktop stack, which on a phone was the prompt box, then
-// every Ready card at full height, then the list ~9,400px down with six cards (2026-09-30).
+// WHAT IS THE DESKTOP'S, deliberately: the data and the vocabulary. The bands come from the list's own
+// `loudBands` (lib/phonePage.ts phoneBands, mirroring components/TierList.tsx), their names and icons from
+// the one band table (BandLabel.tsx BANDS), the dock's readings from ProjectDock.tsx, the fold state from
+// the desktop's (lib/crossProject.ts), and History is the desktop's center tab (HistoryView.tsx). The VIEW
+// is the page's too: All projects at `/`, a project at `/project/<slug>`, switched by navigating, so Back
+// works and a reload keeps it. In All projects a row wears its project's square, as the desktop's rows do.
 //
-// It is not a narrower desktop page. The desktop's two columns and its drawers beside them assume a
-// viewport that can hold more than one thing at once; 390pt cannot, so the phone gets a drill-down: the
-// projects, a view's list of threads, and a thread (its drawer, which a phone draws full-screen —
-// styles.css `.ntwine-sheet-panel`).
+// WHAT IS THE PHONE'S, each the maintainer's call from upstream's mockup reviews (2026-08-17, 2026-09-30):
 //
-// WHAT IS THE SAME, deliberately: the data. The page hands this its projects exactly as the desktop list
-// and queue draw them (lib/allQueues.ts), the tabs band them with the list's own `loudBands`
-// (lib/phonePage.ts), and every row reading comes from the rail's helpers — `sessionIndicatorKind` for
-// the mark, the queue clock for the age. The VIEW is the page's too: focused on one project
-// (`/project/<slug>`) or All projects (`/all`), switched by navigating, so Back works and a reload keeps
-// it. A phone's bare `/` is neither: it is the projects list (PhonePage below), upstream's phone home.
-//
-// WHAT IS UPSTREAM'S, each the maintainer's call from its mockup reviews (2026-08-17, 2026-09-30):
-//
-//   · READY AND WORKING ARE ONE TAB, called QUEUE, asks first ("something is active until it's marked
-//     done"); Snoozed and Done are the other two. UNDERLINE TABS UNDER THE HEADER, not a bottom tab bar:
-//     the bottom edge belongs to the thumb's primary verb.
+//   · TWO-LINE ROWS, the second saying what the thread wants (lib/mobileBoardRow.ts), a live sub-agent
+//     count ("· 2 agents") standing in for the child rows.
 //   · A RUNNING ROW WEARS A STATIC PLAY MARK, not the rail's travelling spinner, and NOTHING IN THE CHROME
 //     ANIMATES: permanent motion in the corner of the eye is noise.
-//   · NO COMPOSER ON THIS SCREEN. Starting a thread is the "New thread" button; a reply box belongs to a
-//     thread. AN ASK IS MARKED BY THE ACCENT "?" AND NOTHING ELSE.
-//   · ONE SECOND LINE PER ROW says what the thread wants (lib/mobileBoardRow.ts); a live sub-agent count
-//     ("· 2 agents") stands in for the child rows. THE SNOOZED TAB'S RIGHT COLUMN SAYS WHEN IT WAKES.
-//   · THE HEADER'S ← LEADS TO THE PROJECTS, a plain list, and its gear to Settings.
+//   · NO COMPOSER ON THIS SCREEN. Starting a thread is the "New thread" button, at the thumb; a reply box
+//     belongs to a thread. AN ASK IS MARKED BY THE ACCENT "?" AND NOTHING ELSE.
+//   · THE LIST SCROLLS. The desktop's never does (lib/sidebarBudget.ts), because a column beside the queue
+//     can give rows up to it; a phone's list is the whole screen, so it lists every row.
 //
-// WHAT IS THE FORK'S: All projects. Its rows come from every project, so each one names its project at
-// the head of its second line, and the projects list leads with All projects as the one view that is not a
-// project. Its New thread starts in the prompt box's PICK, with the pick's own picker in the box.
+// Until 2026-10-14 a phone had its own shape of the board: a Projects page at `/`, and Queue (Pinned,
+// Ready, Working and Waiting merged, asks first), Snoozed, Done and Schedules as tabs. When All projects
+// moved to `/`, that Projects page took its address and All projects became unreachable on a phone.
 //
-// NOT PORTED: swipe-to-triage. Its two RPCs were the page project's; on a page whose rows belong to any
-// project they would have to go through each project's own client, with the card's optimistic exit, and
-// a thread's drawer already has Snooze and Mark as done one tap away. What upstream added beside the
-// swipe IS here: a LONG-PRESS on a row opens the thread's ⋯ sheet (7d768576; useLongPress below), so
-// every verb the thread page's ⋯ offers — snooze, Goal, files, rename, Mark as done on a running one — is
-// one hold away from the list, for a row of any project.
+// A schedule can be MADE from the New thread sheet: it holds the desktop's own prompt box, so `every
+// weekday at 9 …` typed on the go becomes a schedule as it does at a desk (ARCHITECTURE.md § Scheduled
+// threads); ScheduleComposer.tsx draws its strip as a tap row under `useIsMobile()`.
+//
+// A LONG-PRESS on a row opens the thread's ⋯ sheet (upstream 7d768576; useLongPress below), so every verb
+// the thread page's ⋯ offers — snooze, Goal, files, rename, Mark as done on a running one — is one hold
+// away from the list, for a row of any project. Upstream's swipe-to-triage is not ported.
 
 /** The row title's size, which its mark's slot reads `cap` at. */
 const TITLE_PX = 15.5
@@ -182,17 +165,17 @@ function ThreadMark({ kind, userSnoozed, moving }: { kind: SessionIndicatorKind;
  * One thread, full width: the mark, the title with its right-hand reading, and one line under it.
  *
  * No card: a card spends side margins and then its own padding on every row, which on a 390pt screen is
- * 64pt of a 358pt measure. The hairline is INSET to the text column (16 + 18 + 12 = 46) so the glyph
- * column reads as a gutter rather than as the first cell of a table.
+ * 64pt of a 358pt measure. The hairline is INSET to the text column (16 + 18 + 12 = 46, and 24 more with
+ * a project square) so the glyph column reads as a gutter rather than as the first cell of a table.
  *
- * THE RIGHT-HAND READING depends on the tab. In Queue it is how long a Ready thread has waited — the
- * queue clock the desktop's cards and rows print, which is also the order the tab lists them in — and
- * nothing for one still in motion; in Done the rest age; in Snoozed when the thread wakes (`wakes 3h`),
- * and nothing for a park with no clock behind it (a PR watch, a done the human is watching).
+ * THE RIGHT-HAND READING depends on the band. In Ready it is how long the thread has waited — the queue
+ * clock the desktop's cards and rows print, which is also the order Ready lists them in — and nothing for
+ * one still in motion; in Snoozed when the thread wakes (`wakes 3h`); elsewhere the rest age.
  *
- * In All projects the second line opens with the row's PROJECT, since the list mixes them.
+ * In All projects the row wears its PROJECT'S SQUARE in the gutter, as the desktop list's rows do: the
+ * project is an attribute of a row, never a heading.
  */
-function ThreadRow({ row, tab, last, withProject, onLongPress }: { row: PhoneRow; tab: PhoneTab; last: boolean; withProject: boolean; onLongPress: () => void }) {
+function ThreadRow({ row, band, last, withProject, onLongPress }: { row: PhoneRow; band: PhoneBand; last: boolean; withProject: boolean; onLongPress: () => void }) {
   const { project, thread: t } = row
   const now = useNowMs()
   const open = useOpenThreadInPlace()
@@ -201,16 +184,16 @@ function ThreadRow({ row, tab, last, withProject, onLongPress }: { row: PhoneRow
   // A rest time dates a HANDOFF, so a row that is still going has nothing to date — the rail's own rule,
   // read off the MARK (upstream MobileBoard): a row that reads at-rest carries the time that goes with it.
   // A shell or PR rest is in motion only when its worker called it `working` (groups.restIsWorking,
-  // 2026-10-05): the same rest in the queue or the Snoozed tab is a handoff, and carries its rest time.
+  // 2026-10-05): the same rest elsewhere is a handoff, and carries its rest time.
   const waitMoving = (kind === "background" || kind === "pr") && restIsWorking(t)
   const inMotion = t.runtime === "running" || t.runtime === "spawning" || kind === "working" || waitMoving
-  const wakes = tab === "snoozed" ? spanUntil(wakeAt(t, now), now) : null
-  const at = tab === "queue" && queued(t) ? queueLabelAt(t) : lastActiveLabelAt(t)
-  const right = tab === "snoozed" ? (wakes ? `wakes ${wakes}` : null) : inMotion ? null : ageSpan(at, now)
+  const wakes = band === "snoozed" ? spanUntil(wakeAt(t, now), now) : null
+  const at = queued(t) ? queueLabelAt(t) : lastActiveLabelAt(t)
+  const right = band === "snoozed" ? (wakes ? `wakes ${wakes}` : null) : inMotion ? null : ageSpan(at, now)
   const line = rowSecondLine(t, kind, inMotion, now)
   const agents = agentSuffix(liveAgentCount(t))
   return (
-    <div className={kind === "snoozed" ? "opacity-[var(--mobile-dim-opacity)]" : undefined}>
+    <div className={kind === "snoozed" || t.state === "archived" ? "opacity-[var(--mobile-dim-opacity)]" : undefined}>
       <button
         type="button"
         data-mobile-thread-row={row.key}
@@ -220,6 +203,15 @@ function ThreadRow({ row, tab, last, withProject, onLongPress }: { row: PhoneRow
         style={NO_CALLOUT}
         className="flex w-full items-start gap-3 px-4 py-[11px] text-left active:bg-hover"
       >
+        {withProject ? (
+          <span className="-mr-1 flex shrink-0 items-start gap-2 self-baseline">
+            <CapSlot size={ROW_SQUARE} fontSize={TITLE_PX}>
+              <span data-mobile-row-project={project.slug} className={project.stale ? "grayscale" : undefined}>
+                <ProjectSquare project={project.card ?? squareCard(project)} size={ROW_SQUARE} />
+              </span>
+            </CapSlot>
+          </span>
+        ) : null}
         <CapSlot size={18} fontSize={TITLE_PX}>
           <ThreadMark kind={kind} userSnoozed={futureSnoozedUntil(t) !== undefined} moving={waitMoving} />
         </CapSlot>
@@ -241,16 +233,10 @@ function ThreadRow({ row, tab, last, withProject, onLongPress }: { row: PhoneRow
                 taller than one without (64 against 63px, 2026-09-30). */}
             {right ? <span data-mobile-row-right className="shrink-0 text-[12px] leading-[16px] tabular-nums text-faint">{right}</span> : null}
           </span>
-          {withProject || line || agents ? (
-            // The project and the agent count sit OUTSIDE the truncating span, so a long activity line
-            // ellipsizes between them and never swallows either.
+          {line || agents ? (
+            // The agent count sits OUTSIDE the truncating span, so a long activity line ellipsizes before it
+            // and never swallows it.
             <span data-mobile-row-line className="flex min-w-0 text-[13.5px] leading-[19px] text-muted">
-              {withProject ? (
-                <span data-mobile-row-project className="max-w-[45%] shrink-0 truncate">
-                  {project.name}
-                </span>
-              ) : null}
-              {withProject && (line || agents) ? <span className="shrink-0 whitespace-pre"> · </span> : null}
               {line ? (
                 <span className="min-w-0 truncate">
                   {line.lead ? <span className="font-semibold text-fg">{line.lead} </span> : null}
@@ -262,10 +248,13 @@ function ThreadRow({ row, tab, last, withProject, onLongPress }: { row: PhoneRow
           ) : null}
         </span>
       </button>
-      {last ? null : <div className="ml-[46px] h-px bg-border/70" />}
+      {last ? null : <div className="h-px bg-border/70" style={{ marginLeft: withProject ? 46 + ROW_SQUARE + 8 : 46 }} />}
     </div>
   )
 }
+
+/** A row's project square, in the gutter before its mark. */
+const ROW_SQUARE = 16
 
 /**
  * LONG-PRESS A ROW FOR ITS ACTIONS — the thread's own ⋯ sheet, opened from the list (upstream 7d768576,
@@ -361,138 +350,66 @@ function EmptyBand({ label }: { label: string }) {
   )
 }
 
-/**
- * One band's tab: a text label with an underline, and its count after it on the same baseline.
- *
- * The tab reserves its SEMIBOLD width whichever state it is in (an invisible bold copy shares its grid
- * cell), so selecting a tab never nudges the tabs after it sideways. 44px tall: the whole strip under the
- * header is the hit area, not the 20px of text in it.
- *
- * The copy is the label AND its count, where upstream reserved the label alone: the slack a regular-weight
- * label leaves then fell BETWEEN the label and its count, which stood 11.10px of ink off an unselected
- * "Snoozed" against 7.14px off the selected "Queue" (scripts/ink-gaps.mjs, sans, dsf 4, 2026-09-30) — the
- * count drifting off the word it counts whenever its tab was not the one open. Reserved together and
- * centred, the count holds at 7.1-7.9px in both states and the slack splits into the gaps either side,
- * which stay within 3px of each other — 26.85 and 29.69px with Queue open (left-aligned instead, it all landed after the count and the two
- * gaps read 23.4 and 31.2px).
- */
-function BandTab({ band, label, active, onClick, children }: { band: PageTab; label: string; active: boolean; onClick: () => void; children?: ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      data-mobile-tab={band}
-      onClick={onClick}
-      className={`flex h-[44px] shrink-0 items-center whitespace-nowrap border-b-2 ${active ? "border-fg text-fg" : "border-transparent text-muted"}`}
-    >
-      <span className="grid">
-        <span aria-hidden className={`invisible ${TAB_FACE}`}>
-          <span className="font-semibold">{label}</span>
-          {children}
-        </span>
-        <span className={`${TAB_FACE} justify-self-center`}>
-          <span className={active ? "font-semibold" : undefined}>{label}</span>
-          {children}
-        </span>
-      </span>
-    </button>
-  )
-}
 
 /**
- * THE BAND TABS: Queue, Snoozed, Done, and Schedules while the view has any, on ONE line that never wraps.
- *
- * A tab never shrinks (BandTab: `shrink-0`, `whitespace-nowrap`) — its label and count are one reading, and
- * squeezing the tab is what broke "Queue 1 · 15" across two lines, the "15" under the "·", with the strip
- * running 4px off a 390px screen (a question waiting, 14 queued and a schedule: QA 2026-10-06; 29px off at
- * 360 with two-digit counts everywhere).
- *
- * THE GAPS GIVE WAY FIRST, from 22px down to 10, and they are measured, not estimated: each is a spacer
- * that starts at 22px and shrinks, the tabs do not, so flexbox takes the overflow out of the three gaps
- * equally and stops each at its 10px floor. This replaces a `clamp(10px, (100vw - 326px) / 3, 22px)` gap,
- * which assumed the four tabs drew 290px — true at the counts it was tuned on (11.3px gaps at 360, 21.3 at
- * 390), and wrong the moment a count grew a digit. With spacers the same counts land on the same gaps, and
- * other counts land on theirs.
- *
- * ONLY WHEN 10px GAPS ARE NOT ENOUGH does the strip scroll sideways — no scrollbar, as the phone's effort
- * row (MobileModelSheet.tsx) — with the cut-off tab at the edge as the cue there is more. The worst
- * realistic counts get there on a 390px phone: asks, queue, snoozed and schedules all in two digits draw
- * 345px of tabs, 411 with margins and 10px gaps, which a 430px phone still holds on 16.5px gaps; QA's case
- * (1 ask of 15 queued, a schedule) fits 390 on 11.3px gaps and scrolls at 360 (2026-10-06, Linux Chrome,
- * sans; components/phoneBandTabs.e2e.test.ts pins the contract, not these widths).
- *
- * The SELECTED tab is scrolled fully into view, its 18px margin with it, whenever the selection changes;
- * nothing else moves the strip, so a poll re-rendering it never yanks back a strip the reader has scrolled.
- *
- * The scroller sits INSIDE the bordered box rather than being it: the underline overlaps the strip's
- * bottom border by its own 1px (`-mb-px`), and a scroll container clips its children on both axes, so on
- * the scroller itself that pixel would have been cut off (or made it scroll vertically by one).
+ * A BAND'S HEADER — the desktop list's own (Sidebar.tsx SectionHeader): the band's icon, its name in the
+ * uppercase label face and its count, from the one band table (BandLabel.tsx BANDS), a size up for a phone.
+ * Snoozed and Schedules fold, as they do on the desktop, and share its fold state (lib/crossProject.ts);
+ * Done today carries History at its right, as the desktop's does.
  */
-export function BandTabs({ tab, onTab, asks, queue, snoozed, schedules }: {
-  tab: PageTab
-  onTab: (tab: PageTab) => void
-  asks: number
-  queue: number
-  snoozed: number
-  /** The Schedules tab's count and tone, or null while the tab is not shown. */
-  schedules: { count: number; attention: boolean } | null
+function PhoneBandHeader({ band, count, label, attention = false, folded, onToggle, tail }: {
+  band: BandKey | "schedules"
+  count: number
+  label?: string
+  attention?: boolean
+  folded?: boolean
+  onToggle?: () => void
+  tail?: ReactNode
 }) {
-  const strip = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    const el = strip.current
-    const selected = el?.querySelector<HTMLElement>('[aria-selected="true"]')
-    if (!el || !selected) return
-    // offsetLeft is from the scroller's padding edge (it is `relative`) and ignores its scroll.
-    const left = selected.offsetLeft - TAB_MARGIN
-    const right = selected.offsetLeft + selected.offsetWidth + TAB_MARGIN - el.clientWidth
-    if (el.scrollLeft > left) el.scrollLeft = left
-    else if (el.scrollLeft < right) el.scrollLeft = right
-  }, [tab])
-  const gap = <span aria-hidden className="w-[22px] min-w-[10px] shrink" />
+  const { Icon, label: own } = band === "schedules" ? { Icon: Repeat, label: "Schedules" } : BANDS[band]
+  // The icon's lift onto the 12px uppercase label's cap band: 0.09em, where the desktop's 11px header takes
+  // 0.16em (BandGlyph). Measured (sans, Linux Chrome, path ink centre minus cap-band centre): -0.84px at
+  // 0.16em, 0.00 at 0.09em for every band's icon; the chevron sits +0.12px box-centred and is left there.
+  const body = (
+    <>
+      <span aria-hidden className="flex w-[18px] shrink-0 -translate-y-[0.09em] justify-center">
+        <Icon size={13} />
+      </span>
+      <span>{label ?? own}</span>
+      <span className={`ml-1 tabular-nums ${attention ? "font-semibold text-attention-soft" : "text-muted-60"}`}>{count}</span>
+      {onToggle ? (
+        <span aria-hidden className={`-ml-1 flex -translate-y-[0.08em] text-muted-60 transition-[rotate] ${folded ? "" : "rotate-90"}`}>
+          <ChevronRight size={13} />
+        </span>
+      ) : null}
+    </>
+  )
+  // The chevron tucks in to the count it folds (-ml-1): lucide's chevron is mostly empty box, and on the row's 6px
+  // gap it stood 13.94px of ink off the count; 7.94px now (scripts/ink-gaps.mjs, sans, open).
+  const face = `flex min-h-[40px] min-w-0 items-center gap-1.5 px-4 pt-3 pb-1 text-[12px] uppercase tracking-wide text-muted-70`
   return (
-    <div className="border-b border-border/70">
-      <div ref={strip} role="tablist" aria-label="Bands" className="relative -mb-px flex overflow-x-auto px-[18px] scrollbar-none">
-        <BandTab band="queue" label="Queue" active={tab === "queue"} onClick={() => onTab("queue")}>
-          {asks > 0 ? <span className="text-[12.5px] font-bold tabular-nums text-accent">{asks}</span> : null}
-          {queue > 0 ? <span className={TAB_COUNT}>{asks > 0 ? `· ${queue}` : queue}</span> : null}
-        </BandTab>
-        {gap}
-        <BandTab band="snoozed" label="Snoozed" active={tab === "snoozed"} onClick={() => onTab("snoozed")}>
-          {snoozed > 0 ? <span className={TAB_COUNT}>{snoozed}</span> : null}
-        </BandTab>
-        {gap}
-        <BandTab band="done" label="Done" active={tab === "done"} onClick={() => onTab("done")} />
-        {/* SCHEDULES, after the bands, only while the view has any (or the tab is open, so deleting the
-            last one does not pull the tab out from under the reader). Its count turns warning-toned
-            when one was paused by ntwine or a proposal waits — the desktop project row's fourth count. */}
-        {schedules ? (
-          <>
-            {gap}
-            <BandTab band="schedules" label="Schedules" active={tab === "schedules"} onClick={() => onTab("schedules")}>
-              {schedules.count > 0 ? (
-                <span data-mobile-schedules-count className={schedules.attention ? "text-[12.5px] font-bold tabular-nums text-attention-soft" : TAB_COUNT}>
-                  {schedules.count}
-                </span>
-              ) : null}
-            </BandTab>
-          </>
-        ) : null}
-      </div>
+    <div data-mobile-band={band} className="flex items-center">
+      {onToggle ? (
+        <button type="button" aria-expanded={!folded} onClick={onToggle} className={`${face} flex-1 text-left active:text-fg`}>
+          {body}
+        </button>
+      ) : (
+        <div className={`${face} flex-1`}>{body}</div>
+      )}
+      {tail}
     </div>
   )
 }
 
-/** The band tabs' side margin, which the selected tab keeps when it is scrolled into view. */
-const TAB_MARGIN = 18
-
-/** The view's name in the header. */
+/** The header button's 44px round hit area (←, the gear). */
+const HEADER_BUTTON = "flex size-[44px] shrink-0 items-center justify-center rounded-full text-fg/85 active:bg-hover-strong"
+/** The view's name, over the list. */
 const TITLE_TYPE = "text-[16.5px] font-semibold leading-[21px] tracking-[-0.01em] text-fg"
 
 /**
  * The line under the view's name (lib/phonePage.ts phoneSubtitle). Its parts WRAP rather than truncate,
- * onto a second line the box clips: a part that does not fit is left out whole — the Queue tab counts the
- * same rows — instead of being cut to "1 w…" mid-word, which a 300px column did to the last one.
+ * onto a second line the box clips: a part that does not fit is left out whole, instead of being cut to
+ * "1 w…" mid-word.
  */
 function Subtitle({ subtitle }: { subtitle: { accent: string | null; rest: string | null } }) {
   const parts = [
@@ -511,21 +428,10 @@ function Subtitle({ subtitle }: { subtitle: { accent: string | null; rest: strin
   )
 }
 
-const TAB_COUNT = "text-[12.5px] font-medium tabular-nums text-muted"
-/** A tab's label and count on one baseline, in the grid cell its bold copy reserves. */
-const TAB_FACE = "col-start-1 row-start-1 flex items-baseline gap-1.5 text-[14.5px] leading-[20px]"
-/** The header's 44px round buttons (←, the gear). */
-const HEADER_BUTTON = "flex size-[44px] shrink-0 items-center justify-center rounded-full text-fg/85 active:bg-hover-strong"
-/** Done rows drawn at once, then this many more per "Show more": the band grows without bound. */
-const DONE_PAGE = 30
-/** How often an open Done tab re-reads the boards it lists — nothing here drops them when the poll's Done
- *  count moves. */
-const DONE_REFETCH_MS = 10_000
-
 export interface PhonePageProps {
-  /** Every project, for the projects list. */
+  /** Every project, for the dock. */
   projects: QueuesProject[]
-  /** The view's projects — the focused one, or every one. */
+  /** The view's projects — the focused one, the lens's, or every one. */
   shown: QueuesProject[]
   /** The focused project, or undefined for All projects. */
   viewed: QueuesProject | undefined
@@ -535,51 +441,110 @@ export interface PhonePageProps {
   hidden: (key: string) => boolean
   loading: boolean
   error: string | undefined
-  /** The home folder, to shorten paths with. */
-  homeDir: string | undefined
   /** The prompt box, aimed where a new thread from this view goes; `onDispatched` closes its sheet, and
    *  `autoFocus` is false when the sheet was opened to show a chip without taking the caret
    *  (lib/editorBridge.ts composeInto). */
   composer: (onDispatched: () => void, autoFocus: boolean) => ReactNode
-  /** Show All projects; `replace` swaps out the list's own history entry rather than adding one. */
-  onAll: (options: { replace: boolean }) => void
-  /** Focus a project, the same way. */
-  onProject: (project: QueuesProject, options: { replace: boolean }) => void
-}
-
-export function PhonePage(props: PhonePageProps) {
-  const { listing, home, openListing, closeListing } = useProjectsListing()
-  if (listing) return <PhoneProjects {...props} home={home} onChoose={closeListing} />
-  return <PhoneThreads {...props} onProjects={openListing} />
+  /** Show All projects. */
+  onAll: () => void
+  /** Focus a project. */
+  onProject: (project: QueuesProject) => void
 }
 
 /**
- * THE PROJECTS LIST — the phone's HOME at `/` (upstream's phone home, kept when the desktop's `/` became a
- * redirect to the last view, 2026-10-06), and over a view a HISTORY ENTRY, so a phone's Back — the edge
- * swipe, Android's back button — puts it away again.
- *
- * At `/` it is the page: choosing a view pushes it, so Back returns to the list. Over a view, the header's
- * Projects button pushes the page's own address with a state flag (nothing in the URL: the view is the
- * path's, and a list is not a view); choosing replaces that entry with the view chosen, so Back from there
- * returns to the view before the list, as the desktop dock's Back does.
+ * THE PHONE'S PAGE — the desktop's left column, for one hand: the dock as the header, then the list. History,
+ * the desktop's center tab, is a screen of its own over the list: a HISTORY ENTRY (a state flag on the
+ * page's own address), so a phone's Back — the edge swipe, Android's back button — puts it away again.
  */
-function useProjectsListing() {
+export function PhonePage(props: PhonePageProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const home = location.pathname === "/"
-  const listing = home || (location.state as { phoneProjects?: boolean } | null)?.phoneProjects === true
-  return {
-    listing,
-    home,
-    openListing: () => navigate(`${location.pathname}${location.search}`, { state: { phoneProjects: true } }),
-    /** Back off the list, when the choice is the view it was opened from. */
-    closeListing: () => navigate(-1),
-  }
+  const history = (location.state as { phoneHistory?: boolean } | null)?.phoneHistory === true
+  if (history) return <PhoneHistory {...props} onBack={() => navigate(-1)} />
+  return <PhoneThreads {...props} onHistory={() => navigate(`${location.pathname}${location.search}`, { state: { phoneHistory: true } })} />
 }
 
-function PhoneThreads({ shown, viewed, focusedSlug, hidden, loading, error, composer, onProjects }: PhonePageProps & { onProjects: () => void }) {
+/**
+ * THE DOCK, a phone's: All and every project's square in the machine-wide order, the view's ringed, the
+ * desktop dock's readings on each — its Ready count in the accent badge, a tick under it while something
+ * works (ProjectDock.tsx). A tap is the desktop's click: a project's page, and its square again back to All
+ * projects. Squares a size up and each on a 40px hit area; the row scrolls sideways when the projects
+ * outnumber the width, and the view's square is scrolled into it. No lenses, reorder or menus here: those
+ * are a desk's.
+ */
+function PhoneDock({ projects, hidden, focusedSlug, onAll, onProject }: Pick<PhonePageProps, "projects" | "hidden" | "focusedSlug" | "onAll" | "onProject">) {
+  const lens = useLens()
+  const strip = useRef<HTMLDivElement>(null)
+  const focused = focusedSlug !== undefined ? projects.find((p) => p.slug === focusedSlug) : undefined
+  const allShowing = !focused && !lens
+  const inView = (project: QueuesProject) => (focused ? focused.id === project.id : lens ? lens.has(project.id) : true)
+  useLayoutEffect(() => {
+    const current = strip.current?.querySelector<HTMLElement>('[aria-current="page"]')
+    current?.scrollIntoView({ block: "nearest", inline: "nearest" })
+  }, [focusedSlug])
+  return (
+    <div ref={strip} data-mobile-dock className="flex min-w-0 flex-1 items-center overflow-x-auto pl-2 scrollbar-none">
+      <button
+        type="button"
+        data-mobile-dock-all
+        aria-pressed={allShowing}
+        aria-label="All projects"
+        onClick={() => { setLens(null); onAll() }}
+        className={`flex size-[40px] shrink-0 items-center justify-center rounded-lg active:bg-hover-strong ${allShowing ? "text-fg" : "text-muted"}`}
+      >
+        <LayoutGrid size={21} strokeWidth={1.5} absoluteStrokeWidth aria-hidden />
+      </button>
+      {projects.map((project) => {
+        const ready = project.queued.filter((t) => !hidden(threadKey(project.id, t.id))).length
+        const working = project.running.length
+        const current = focused?.id === project.id
+        return (
+          <button
+            key={project.id}
+            type="button"
+            data-mobile-dock-square={project.slug}
+            aria-current={current ? "page" : undefined}
+            aria-label={`${project.name}: ${ready} ready, ${working} working`}
+            onClick={() => (current ? onAll() : onProject(project))}
+            className={`relative flex size-[40px] shrink-0 items-center justify-center rounded-lg active:bg-hover-strong ${inView(project) ? "" : "opacity-40"}`}
+          >
+            <span className={`flex rounded-[6px] ${current ? "ring-[1.5px] ring-fg/75 ring-offset-2 ring-offset-bg" : ""} ${project.stale ? "grayscale" : ""}`}>
+              <ProjectSquare project={project.card ?? squareCard(project)} size={DOCK_SQUARE} />
+            </span>
+            {ready > 0 ? (
+              <span data-mobile-dock-ready={ready} className="absolute right-[1px] top-[2px] flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-accent-fill px-[4px] text-[10px] font-semibold leading-none tabular-nums text-on-accent shadow-[0_0_0_1.5px_var(--color-bg)]">
+                {ready}
+              </span>
+            ) : null}
+            {working > 0 ? <span data-mobile-dock-working={working} aria-hidden className="absolute bottom-[2px] left-1/2 h-[2px] w-[12px] -translate-x-1/2 rounded-full bg-fg/70" /> : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The dock's squares: the desktop's 20px a size up, for a thumb. */
+const DOCK_SQUARE = 26
+
+/** The fixed header: the dock and the gear, under the status bar's inset. */
+function PhoneHeader({ children }: { children: ReactNode }) {
+  // `env(safe-area-inset-top)`: on a notched phone the status bar sits over the top of the viewport, and no
+  // headless shot has that inset — so this is a defect no screenshot here can show and every real device would.
+  return (
+    <div className="fixed inset-x-0 top-0 z-30 border-b border-border/70 bg-bg pt-[env(safe-area-inset-top)]">
+      <div className="flex h-[56px] items-center gap-0.5 pr-0.5">
+        {children}
+        <button type="button" aria-label="Settings" data-mobile-settings onClick={() => (store.showSettings = true)} className={HEADER_BUTTON}>
+          <SettingsIcon size={21} strokeWidth={1.9} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function PhoneThreads({ projects, shown, viewed, focusedSlug, hidden, loading, error, composer, onAll, onProject, onHistory }: PhonePageProps & { onHistory: () => void }) {
   const focused = focusedSlug !== undefined
-  const [tab, setTab] = useState<PageTab>("queue")
   // The schedule whose sheet is up (PhoneScheduleSheet) — mounted means open.
   const [sheet, setSheet] = useState<ScheduleView | null>(null)
   // The row whose ⋯ sheet a long-press opened (ThreadActionsSheet) — mounted means open.
@@ -587,117 +552,104 @@ function PhoneThreads({ shown, viewed, focusedSlug, hidden, loading, error, comp
   // In the store, not local state: an editor's selection opens it too (lib/editorBridge.ts composeInto).
   const composing = useSnapshot(store).phoneNewThread
   const setComposing = (open: boolean) => (store.phoneNewThread = open ? { focus: true } : null)
-  // …and it closes with the list under it, as local state did: the projects list or the desktop layout
-  // coming back must not find a sheet left open.
+  // …and it closes with the list under it, as local state did: the desktop layout coming back must not
+  // find a sheet left open.
   useEffect(() => () => { store.phoneNewThread = null }, [])
-  const [donePage, setDonePage] = useState(DONE_PAGE)
-  // A different view is a different list to read: from its Queue, at its top.
+  // A different view is a different list to read: from its top.
   const viewId = focusedSlug ?? "*"
   const lastView = useRef(viewId)
   useEffect(() => {
     if (lastView.current === viewId) return
     lastView.current = viewId
-    setTab("queue")
-    setDonePage(DONE_PAGE)
     window.scrollTo(0, 0)
   }, [viewId])
 
-  const { live, onPage, overlayFor } = useJustActed()
-  const queue = phoneQueue(shown, hidden, overlayFor)
-  const counts = phoneCounts(queue)
-  const subtitle = phoneSubtitle(counts)
-  const snoozed = phoneSnoozed(shown)
-  // Done's rows are each project's own board — the page project's live one, every other's read through
-  // the cache, fetched while the tab is open.
-  const others = shown.filter((project) => project.open && !project.stale && !onPage(project))
-  const boards = useProjectBoards(others.map((project) => project.id), tab === "done", DONE_REFETCH_MS)
-  const boardById = new Map(others.map((project, index) => [project.id, boards[index]]))
-  const done = tab === "done" ? phoneDone(shown, (project) => (onPage(project) ? live : boardById.get(project.id))) : []
-  const doneLoading = tab === "done" && others.some((project) => boardById.get(project.id) === undefined)
+  const now = useNowMs()
+  const folds = useTierFolds()
+  const { onPage, overlayFor } = useJustActed()
+  const bands = phoneBands(shown, hidden, overlayFor, now)
+  const subtitle = phoneSubtitle(phoneCounts(bands))
 
-  // The view's schedules: the poll's count per project names the tab, and the rows are read while it is open.
+  // The view's schedules: the poll's count per project names the band, and the rows are read while it is open.
   const scheduleCount = shown.reduce((sum, project) => sum + (project.schedules?.count ?? 0), 0)
   const scheduleAttention = shown.some((project) => project.schedules?.attention === true)
-  const schedules = useViewSchedules(shown, focused ? viewed : undefined, focused, tab === "schedules", scheduleCount, scheduleAttention)
+  const schedulesOpen = folds.has("schedules")
+  const schedules = useViewSchedules(shown, focused ? viewed : undefined, focused, schedulesOpen, scheduleCount, scheduleAttention)
 
-  const rows = tab === "queue" ? queue : tab === "snoozed" ? snoozed : tab === "done" ? done.slice(0, donePage) : []
   const title = focused ? (viewed?.name ?? focusedSlug) : "All projects"
+  const open = bands.pinned.length + bands.ready.length + bands.working.length + bands.waiting.length
+  const rows = (band: PhoneBand, list: readonly PhoneRow[]) =>
+    list.map((row, index) => <ThreadRow key={row.key} row={row} band={band} last={index === list.length - 1} withProject={!focused} onLongPress={() => setActionsFor(row)} />)
+  const loud = (band: "pinned" | "ready" | "working" | "waiting") =>
+    bands[band].length > 0 ? (
+      <section key={band} aria-label={BANDS[band].label} data-mobile-tier={band}>
+        <PhoneBandHeader band={band} count={bands[band].length} />
+        {rows(band, bands[band])}
+      </section>
+    ) : null
 
   return (
     <div data-mobile-board={focused ? "project" : "all"} className="relative min-h-dvh bg-bg">
-      {/* The header and the band tabs, fixed together. `env(safe-area-inset-top)`: on a notched phone the
-          status bar sits over the top of the viewport, and no headless shot has that inset — so this is a
-          defect no screenshot here can show and every real device would. */}
-      <div className="fixed inset-x-0 top-0 z-30 bg-bg pt-[env(safe-area-inset-top)]">
-        <div className="flex h-[56px] items-center gap-0.5 pr-0.5">
-          <button type="button" aria-label="Projects" data-mobile-projects onClick={onProjects} className={HEADER_BUTTON}>
-            <ArrowLeft size={21} strokeWidth={2.1} />
-          </button>
-          <div className="min-w-0 flex-1 pl-0.5">
-            <div data-mobile-board-title className={`truncate ${TITLE_TYPE}`}>
-              {title}
-            </div>
-            {!loading ? <Subtitle subtitle={subtitle} /> : null}
-          </div>
-          <button type="button" aria-label="Settings" data-mobile-settings onClick={() => (store.showSettings = true)} className={HEADER_BUTTON}>
-            <SettingsIcon size={21} strokeWidth={1.9} />
-          </button>
-        </div>
-        <BandTabs
-          tab={tab}
-          onTab={setTab}
-          asks={counts.asks}
-          queue={queue.length}
-          snoozed={snoozed.length}
-          schedules={scheduleCount > 0 || tab === "schedules" ? { count: scheduleCount, attention: scheduleAttention } : null}
-        />
-      </div>
+      <PhoneHeader>
+        <PhoneDock projects={projects} hidden={hidden} focusedSlug={focusedSlug} onAll={onAll} onProject={onProject} />
+      </PhoneHeader>
 
-      {/* The list: 56 + 45 of header and tabs above; below, the "New thread" button's 50 plus 16 either
-          side, so the last row scrolls clear of it and its age column is never under the button. */}
-      <div className="flex min-h-dvh flex-col pb-[calc(82px+env(safe-area-inset-bottom))] pt-[calc(101px+env(safe-area-inset-top))]">
+      {/* The list: 56 + 1 of header above; below, the "New thread" button's 50 plus 16 either side, so the
+          last row scrolls clear of it and its age column is never under the button. */}
+      <div className="flex min-h-dvh flex-col pb-[calc(82px+env(safe-area-inset-bottom))] pt-[calc(57px+env(safe-area-inset-top))]">
+        <div className="px-4 pb-1 pt-3.5">
+          <h1 data-mobile-board-title className={`m-0 truncate ${TITLE_TYPE}`}>{title}</h1>
+          {!loading && !error ? <Subtitle subtitle={subtitle} /> : null}
+        </div>
         {error ? (
           <EmptyBand label={`Could not read the queues: ${error}`} />
-        ) : tab === "schedules" ? (
-          schedules.error ? (
-            <EmptyBand label={`Could not read the schedules: ${(schedules.error as Error).message.slice(0, 120)}`} />
-          ) : !schedules.data ? (
-            <EmptyBand label="Loading…" />
-          ) : schedules.data.length === 0 ? (
-            <EmptyBand label="No schedules." />
-          ) : (
-            <div role="tabpanel" data-mobile-schedules>
-              {schedules.data.map((schedule, index) => (
-                <ScheduleRow key={schedule.id} schedule={schedule} last={index === schedules.data!.length - 1} withProject={!focused} onOpen={() => setSheet(schedule)} />
-              ))}
-            </div>
-          )
-        ) : rows.length === 0 ? (
-          <EmptyBand
-            label={
-              loading || (tab === "done" && doneLoading)
-                ? "Loading…"
-                : tab === "queue"
-                  ? "Nothing in the queue. Tap New thread to start one."
-                  : tab === "snoozed"
-                    ? "Nothing snoozed."
-                    : "Nothing finished yet."
-            }
-          />
+        ) : loading && open === 0 ? (
+          <EmptyBand label="Loading…" />
         ) : (
-          <div role="tabpanel">
-            {rows.map((row, index) => (
-              <ThreadRow key={row.key} row={row} tab={tab} last={index === rows.length - 1} withProject={!focused} onLongPress={() => setActionsFor(row)} />
-            ))}
-            {tab === "done" && done.length > donePage ? (
-              <button
-                type="button"
-                data-mobile-done-more
-                onClick={() => setDonePage((page) => page + DONE_PAGE)}
-                className="w-full border-t border-border/70 px-4 py-3.5 text-left text-[14px] text-muted active:bg-hover"
-              >
-                Show {Math.min(DONE_PAGE, done.length - donePage)} more
-              </button>
+          <div data-mobile-tiers>
+            {(["pinned", "ready", "working", "waiting"] as const).map(loud)}
+            {open === 0 ? (
+              <p data-mobile-tiers-empty className="m-0 px-4 pb-2 pt-4 text-[15px] text-muted">
+                No open threads. Tap New thread to start one.
+              </p>
+            ) : null}
+            {bands.snoozed.length > 0 ? (
+              <section aria-label="Snoozed" data-mobile-tier="snoozed">
+                <PhoneBandHeader band="snoozed" count={bands.snoozed.length} folded={!folds.has("snoozed")} onToggle={() => setTierFold("snoozed", !folds.has("snoozed"))} />
+                {folds.has("snoozed") ? rows("snoozed", bands.snoozed) : null}
+              </section>
+            ) : null}
+            {/* Done today, every row of it — a phone's list scrolls, so it gives nothing up — and History,
+                every Done thread past today, one tap away at its right, as on the desktop. Shown with no rows
+                too, so History is always reachable. */}
+            <section aria-label="Done today" data-mobile-tier="done">
+              <PhoneBandHeader
+                band="done"
+                label="Done today"
+                count={bands.done.length}
+                tail={
+                  <button type="button" data-mobile-open-history onClick={onHistory} className="mr-1 mt-2 flex h-[36px] items-center rounded-md px-3 text-[13px] text-muted active:bg-hover-strong">
+                    History
+                  </button>
+                }
+              />
+              {rows("done", bands.done)}
+            </section>
+            {scheduleCount > 0 || schedulesOpen ? (
+              <section aria-label="Schedules" data-mobile-tier="schedules">
+                <PhoneBandHeader band="schedules" count={scheduleCount} attention={scheduleAttention} folded={!schedulesOpen} onToggle={() => setTierFold("schedules", !schedulesOpen)} />
+                {!schedulesOpen ? null : schedules.error ? (
+                  <p className="m-0 px-4 py-2 text-[14px] text-muted">Could not read the schedules: {(schedules.error as Error).message.slice(0, 120)}</p>
+                ) : !schedules.data ? (
+                  <p className="m-0 px-4 py-2 text-[14px] text-muted">Loading…</p>
+                ) : (
+                  <div data-mobile-schedules>
+                    {schedules.data.map((schedule, index) => (
+                      <ScheduleRow key={schedule.id} schedule={schedule} last={index === schedules.data!.length - 1} withProject={!focused} onOpen={() => setSheet(schedule)} />
+                    ))}
+                  </div>
+                )}
+              </section>
             ) : null}
           </div>
         )}
@@ -728,11 +680,11 @@ function PhoneThreads({ shown, viewed, focusedSlug, hidden, loading, error, comp
           <ThreadActionsSheet slug={actionsFor.thread.id} onClose={() => setActionsFor(null)} />
         ) : (
           // Any other project's: through that project's client, on this list's live reading of the row —
-          // undefined once the row has left every list here, which closes the sheet.
+          // undefined once the row has left every band here, which closes the sheet.
           <ThreadActionsSheet
             slug={actionsFor.thread.id}
             project={shown.find((project) => project.id === actionsFor.project.id) ?? actionsFor.project}
-            thread={[...queue, ...snoozed, ...done].find((row) => row.key === actionsFor.key)?.thread}
+            thread={Object.values(bands).flat().find((row) => row.key === actionsFor.key)?.thread}
             onClose={() => setActionsFor(null)}
           />
         )
@@ -743,27 +695,51 @@ function PhoneThreads({ shown, viewed, focusedSlug, hidden, loading, error, comp
 }
 
 /**
+ * HISTORY, a phone's: the desktop's center tab (HistoryView.tsx) — every Done thread in the view, by day,
+ * each with its done card's ledger, and the search box over them — as a screen with a ← back to the list.
+ */
+function PhoneHistory({ shown, focusedSlug, onBack }: PhonePageProps & { onBack: () => void }) {
+  const open = useOpenThreadInPlace()
+  const lens = useLens()
+  const focused = focusedSlug !== undefined
+  const ids = focused || lens ? shown.map((project) => project.id) : undefined
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+  return (
+    <div data-mobile-history className="min-h-dvh bg-bg">
+      <PhoneHeader>
+        <button type="button" aria-label="Back" data-mobile-history-back onClick={onBack} className={HEADER_BUTTON}>
+          <ArrowLeft size={21} strokeWidth={2.1} />
+        </button>
+        <h1 className={`m-0 min-w-0 flex-1 truncate pl-0.5 ${TITLE_TYPE}`}>History</h1>
+      </PhoneHeader>
+      <div className="px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[calc(57px+12px+env(safe-area-inset-top))]">
+        <HistoryView projectIds={ids} onOpen={(entry) => open({ id: entry.projectId, slug: entry.projectSlug, name: entry.projectName }, entry.thread.id, displayTitle(entry.thread))} />
+      </div>
+    </div>
+  )
+}
+
+/**
  * What the operator has just done that the poll cannot know yet, folded into every project's rows the way
  * the desktop list folds it (lib/listBands.ts listOverlay): a reply sent from a drawer takes its row from
  * Ready to Working before the poll says so. The page project's drawer files those by bare slug; anything
- * else, by the thread's key — so `onPage` says which project is the page's own, whose board is `live`.
+ * else, by the thread's key — so `onPage` says which project is the page's own.
  */
-function useJustActed(): { live: ReturnType<typeof useBoard>; onPage: (project: QueuesProject) => boolean; overlayFor: OverlayFor } {
+function useJustActed(): { onPage: (project: QueuesProject) => boolean; overlayFor: OverlayFor } {
   const steeredAt = useSteeredAt()
   const archivingAt = useArchivingAt()
   const focus = projectSlug(useLocation().pathname)
   const live = useBoard()
   const onPage = (project: QueuesProject) => project.slug === focus && live?.projectSlug === project.slug
-  return { live, onPage, overlayFor: (project) => listOverlay(project.id, onPage(project), steeredAt, archivingAt) }
+  return { onPage, overlayFor: (project) => listOverlay(project.id, onPage(project), steeredAt, archivingAt) }
 }
-
-/** The page's tabs: the three bands, and the view's schedules. */
-export type PageTab = PhoneTab | "schedules"
 
 /**
  * The view's SCHEDULES — the focused project's through its own client, or every project's for All projects
- * (the palette's read), kept to the projects the view shows. Read while the tab is open, and again whenever
- * the poll's count or attention for the view moves (both ride the key, as the desktop project row's do).
+ * (the palette's read), kept to the projects the view shows. Read while the band is open, and again whenever
+ * the poll's count or attention for the view moves (both ride the key, as the desktop's band does).
  */
 function useViewSchedules(shown: QueuesProject[], viewed: QueuesProject | undefined, focused: boolean, open: boolean, count: number, attention: boolean) {
   const ids = new Set(shown.map((project) => project.id))
@@ -780,7 +756,7 @@ function useViewSchedules(shown: QueuesProject[], viewed: QueuesProject | undefi
 }
 
 /**
- * One schedule, in the thread row's anatomy so the tab reads as more of the same list: the repeat glyph in
+ * One schedule, in the thread row's anatomy so the band reads as more of the same list: the repeat glyph in
  * the mark column, the title with its next run at the right — `in 3h`, or `Paused` / `Proposed` when it will
  * not run on its own, warning-toned when that is ntwine's doing or a proposal waiting — and the rule under it,
  * after its project in All projects. Dimmed like a Snoozed row when it will not run on its own, unless that
@@ -831,7 +807,7 @@ function ScheduleRow({ schedule, last, withProject, onOpen }: { schedule: Schedu
  * cannot cover it. The box is aimed by the page — focused, at the view's project; in All projects at the
  * prompt box's PICK, with the pick's own picker in the box's bottom strip (AllQueues.tsx ProjectPicker),
  * so the project is chosen where the desktop chooses it. A dispatch closes it; the new thread then shows
- * in the queue under it.
+ * in the list under it.
  */
 function PhoneNewThread({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   return (
@@ -851,117 +827,5 @@ function PhoneNewThread({ onClose, children }: { onClose: () => void; children: 
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>
-  )
-}
-
-/**
- * THE PHONE'S PROJECTS — a plain list, the way to change the view (upstream's projects page on a phone,
- * 39db08a6, here the dock as a page). All projects first, as the one view that is not a
- * project; then each project with its square, its name, its path, and at the right its ASKS in the
- * accent (lib/phonePage.ts phoneProjects: the "N need you" its own header shows) and its spinning band
- * in muted; Home last. The view showing now wears a check.
- *
- * Choosing NAVIGATES, as the dock does, replacing the list's history entry; choosing the view it was
- * opened from goes Back. At `/` (`home`) the list is the page and was opened over no view, so nothing
- * wears the check and every choice pushes. No add, rename or remove here: they stay on the desktop.
- */
-function PhoneProjects({ projects, focusedSlug: viewSlug, hidden, homeDir, onAll, onProject, onChoose, home }: PhonePageProps & { onChoose: () => void; home: boolean }) {
-  // The threads view's own overlay, so a reply just sent takes its ask off this count as it takes it off
-  // that header — the two read the same rows.
-  const list = phoneProjects(projects, hidden, useJustActed().overlayFor)
-  const total = [...list.projects, ...(list.home ? [list.home] : [])].reduce((sum, entry) => sum + entry.asks, 0)
-  const allWorking = [...list.projects, ...(list.home ? [list.home] : [])].reduce((sum, entry) => sum + entry.working, 0)
-  // At `/` the binding is All projects', but the list is not showing it.
-  const focusedSlug = home ? null : viewSlug
-  const isAll = focusedSlug === undefined
-  const replace = !home
-  useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [])
-  const choose = (project: QueuesProject) => (project.slug === focusedSlug ? onChoose() : onProject(project, { replace }))
-  const row = (entry: PhoneProjectEntry) => {
-    const { project } = entry
-    const card = squareCard(project)
-    return (
-      <li key={project.id}>
-        <button
-          type="button"
-          data-mobile-project-row={project.slug}
-          aria-current={project.slug === focusedSlug ? "page" : undefined}
-          onClick={() => choose(project)}
-          className={`flex min-h-[62px] w-full items-center gap-3 border-b border-border/70 px-[18px] py-2 text-left active:bg-hover ${project.stale ? "opacity-60" : ""}`}
-        >
-          <span className={`shrink-0 ${project.stale ? "grayscale" : ""}`}>
-            <ProjectSquare project={card} size={PROJECT_SQUARE} />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[15.5px] font-medium leading-[20px] text-fg">{project.name}</span>
-            <span className="truncate font-mono-keep text-[12.5px] leading-[17px] text-muted" title={card.path}>
-              {project.stale ? "Directory is missing" : !project.open ? "Not open" : shortPath(card.path, project.homeDir ?? homeDir)}
-            </span>
-          </span>
-          <Counts asks={entry.asks} working={entry.working} />
-          <Current on={project.slug === focusedSlug} />
-        </button>
-      </li>
-    )
-  }
-  return (
-    <div data-mobile-projects-page className="min-h-dvh bg-bg">
-      <header className="sticky top-0 z-10 border-b border-border/70 bg-bg pt-[env(safe-area-inset-top)]">
-        <div className="flex h-[56px] items-center pl-[18px] pr-[5px]">
-          <h1 className="m-0 min-w-0 flex-1 truncate text-[16.5px] font-semibold tracking-[-0.01em] text-fg">Projects</h1>
-          <button type="button" aria-label="Settings" data-mobile-settings onClick={() => (store.showSettings = true)} className={HEADER_BUTTON}>
-            <SettingsIcon size={21} strokeWidth={1.9} />
-          </button>
-        </div>
-      </header>
-      <ul className="m-0 list-none p-0 pb-[env(safe-area-inset-bottom)]">
-        <li>
-          <button
-            type="button"
-            data-mobile-project-row="*"
-            aria-current={isAll ? "page" : undefined}
-            onClick={() => (isAll ? onChoose() : onAll({ replace }))}
-            className="flex min-h-[62px] w-full items-center gap-3 border-b border-border/70 px-[18px] py-2 text-left active:bg-hover"
-          >
-            <AllProjectsSquare size={PROJECT_SQUARE} />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-[15.5px] font-medium leading-[20px] text-fg">All projects</span>
-              <span className="truncate text-[12.5px] leading-[17px] text-muted">
-                {list.projects.length === 1 ? "1 project" : `${list.projects.length} projects`}
-              </span>
-            </span>
-            <Counts asks={total} working={allWorking} />
-            <Current on={isAll} />
-          </button>
-        </li>
-        {list.projects.map(row)}
-        {list.home ? row(list.home) : null}
-      </ul>
-    </div>
-  )
-}
-
-/** The squares' size: upstream's card icon, legible as a mark. */
-const PROJECT_SQUARE = 34
-
-/** A project's asks in the accent and its spinning band in muted — upstream's projects row (ef6f7f23). */
-function Counts({ asks, working }: { asks: number; working: number }) {
-  if (asks === 0 && working === 0) return null
-  return (
-    <span data-mobile-project-counts className="flex shrink-0 items-baseline gap-2.5 whitespace-nowrap text-[13px] text-muted">
-      {asks > 0 ? <span data-mobile-project-asks className="font-bold tabular-nums text-accent">{asks}</span> : null}
-      {working > 0 ? <span className="tabular-nums">{working} working</span> : null}
-    </span>
-  )
-}
-
-/** The view showing now: a check in a fixed column, so the counts stand in one column whichever row has it. */
-function Current({ on }: { on: boolean }) {
-  return (
-    <span className="flex w-4 shrink-0 justify-center" aria-hidden={!on}>
-      {on ? <Check size={16} strokeWidth={2.2} aria-label="Showing" className="text-fg/80" /> : null}
-    </span>
   )
 }

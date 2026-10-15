@@ -491,9 +491,8 @@ export function AllQueuesPage() {
     )
   }
 
-  // A PHONE GETS ITS OWN LAYOUT of the same page (PhonePage.tsx): a header naming the view, Queue /
-  // Snoozed / Done tabs of one-line rows, and a New thread button — upstream's phone board, over this
-  // page's projects. The stack below is the desktop's, down to the 800px stacking point.
+  // A PHONE GETS ITS OWN LAYOUT of the same page (PhonePage.tsx): the dock as its header, the list's
+  // bands in two-line rows, and a New thread button, over this page's projects. The stack below is the desktop's, down to the 800px stacking point.
   if (phone) {
     return (
       <PhonePage
@@ -504,7 +503,6 @@ export function AllQueuesPage() {
         hidden={hidden}
         loading={loading}
         error={queues.error && !queues.data ? String(queues.error) : undefined}
-        homeDir={home}
         composer={(onDispatched, autoFocus) => (
           <FocusedComposer
             onLeadingProject={routeToProject}
@@ -518,11 +516,8 @@ export function AllQueuesPage() {
             target={focused ? undefined : <ProjectPicker projects={projects} focus={focus} onPick={(project) => pickProject(project, dirs?.projectDir)} />}
           />
         )}
-        // Choosing from the phone's projects list over a view replaces the list's own history entry
-        // (PhonePage.tsx useProjectsListing), so Back from the view chosen returns to the one before the
-        // list; from the list at `/`, the phone's home, it pushes, so Back returns to the list.
-        onAll={(options) => chooseView.all(focusProject && focused ? focusProject : undefined, options)}
-        onProject={(project, options) => chooseView.project(project.slug, options)}
+        onAll={() => chooseView.all(focusProject && focused ? focusProject : undefined)}
+        onProject={(project) => chooseView.project(project.slug)}
       />
     )
   }
@@ -651,7 +646,7 @@ export function AllQueuesPage() {
 }
 
 /**
- * CHANGE THE PAGE'S VIEW — the dock's one verb, and the phone's projects list's (PhonePage.tsx), so the
+ * CHANGE THE PAGE'S VIEW — the dock's one verb, on a desk and a phone (PhonePage.tsx), so the
  * two cannot drift. Choosing is a navigation (`/project/<slug>`, `/all`), so Back returns to the view before.
  * Leaving a project for All projects carries it over as the prompt box's pick, so the box there starts
  * where the operator just was. A different set of cards is a different page to read, so it is read from

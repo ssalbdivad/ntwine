@@ -46,9 +46,11 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
       assert.ok(await page.$("[data-mobile-board]"))
     }
     const openFromBoard = async () => {
-      await page.click('[data-mobile-tab="done"]')
-      await page.waitForSelector('[data-mobile-thread-row="done-thread"]')
-      await page.click('[data-mobile-thread-row="done-thread"]')
+      // Done today, or History when the seed's thread rested before midnight.
+      const row = '[data-mobile-thread-row$="/done-thread"], [data-history-entry$="/done-thread"] [data-history-open]'
+      if (!(await page.$('[data-mobile-thread-row$="/done-thread"]'))) await page.click("[data-mobile-open-history]")
+      await page.waitForSelector(row)
+      await page.click(row)
       await waitForThread()
     }
     // Back from the board leaves ntwine: there is no second board entry (or a dead same-URL one) under it.
@@ -63,9 +65,9 @@ test("mobile thread Back returns direct/reloaded links to their project and pops
     await page.goto(threadUrl, { waitUntil: "networkidle2" })
     await waitForThread()
     await backToBoard()
-    await page.click("[data-mobile-projects]")
+    await page.click("[data-mobile-dock-all]")
     await page.waitForFunction(() => location.pathname === "/")
-    await page.waitForSelector("[data-mobile-projects-page]")
+    await page.waitForSelector('[data-mobile-board="all"]')
 
     // A live push pops, rather than rewriting a second board entry into the history stack.
     await page.goto(outside)

@@ -478,20 +478,19 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
     await new Promise(resolve => gallery.close(resolve))
   }
 
-  // At a phone's width the page has its own layout (components/PhonePage.tsx, since 2026-09-30): a tab
-  // per band over one list of rows, and a gear that opens the phone Settings page. From 2026-09-28 until
-  // then a phone got the desktop page stacked in one column, and before that the board's own phone
-  // layout; these are upstream's checks of its redesigned phone board, on the fork's page. Each tab
-  // waits for one of its own fixture rows (a row's key is `<project id>/<slug>`), so the contrast is
-  // sampled over rows rather than over a tab still drawing its empty state.
+  // At a phone's width the page has its own layout (components/PhonePage.tsx): the dock as its header,
+  // the desktop list's bands in one scrolling list, and a gear that opens the phone Settings page. Snoozed
+  // folds, so it is opened first; each shot waits for one fixture row (a row's key is
+  // `<project id>/<slug>`), so the contrast is sampled over rows rather than over a list still loading.
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
   await page.goto(home, { waitUntil: "networkidle2" })
-  await page.waitForSelector('[data-mobile-tab="snoozed"]')
-  for (const [band, slug] of [["snoozed", "theme-snoozed"], ["done", "theme-done"], ["queue", "theme-question"]]) {
-    await page.click(`[data-mobile-tab="${band}"]`)
+  await page.waitForSelector('[data-mobile-tiers]')
+  await page.evaluate(() => document.querySelector('[data-mobile-band="snoozed"] button[aria-expanded="false"]')?.click())
+  for (const slug of ["theme-snoozed", "theme-done", "theme-question"]) {
     await page.waitForSelector(`[data-mobile-thread-row$="/${slug}"]`)
-    await contrast(`phone-${band}`)
-    await shot(`phone-${band}`)
+    await page.evaluate(s => document.querySelector(`[data-mobile-thread-row$="/${s}"]`).scrollIntoView({ block: "center" }), slug)
+    await contrast(`phone-${slug}`)
+    await shot(`phone-${slug}`)
   }
   await page.goto(`${url}/thread/theme-question/full`, { waitUntil: 'networkidle2' })
   await page.waitForSelector('[data-question-option]')
