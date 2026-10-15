@@ -12,9 +12,9 @@ that wrote this, `.ntwine/threads/87256cc2-078f-471c-9177-7c18fe38d2fc/all-proje
 Today's All projects is a project board repeated 17 times. The left column is grouped BY PROJECT
 (`ProjectList.tsx`): each project is a heading row, its Pinned/Ready/Working rows hang under it, and its
 Snoozed/Done/External bands are quiet counts on that heading. The right column is one queue across
-projects. That shape is inherited from Frizz's principles, which this proposal drops wholesale:
+projects. That shape is inherited from the original principles, which this proposal drops wholesale:
 
-| Frizz principle (CLAUDE.md § The board) | Replaced by |
+| Original principle (CLAUDE.md § The board) | Replaced by |
 | --- | --- |
 | Every thread is in one of five rails, and no view may lose that distinction | Four ATTENTION TIERS (Needs you, Working, Waiting, Finished), plus pins as a flag. Snoozed and External stop being bands. |
 | Projects stay separate; All projects never interleaves projects | Tiers interleave projects. The project is an attribute of a row (its square in the gutter), not a container. |
@@ -22,7 +22,7 @@ projects. That shape is inherited from Frizz's principles, which this proposal d
 | Default view shows ≥ upstream's board at heavy load (`capacityParity.e2e.test.ts`) | A new bar: the sidebar NEVER SCROLLS at heavy load, at 1280×720 and up, and still accounts for every live thread. |
 | A project's board at `/project/<slug>` | A LENS: the same page filtered to one or more projects. |
 
-Kept, because they are product facts and not Frizz's taste: one server for every project, the queue as the
+Kept, because they are product facts and not inherited taste: one server for every project, the queue as the
 center column, the worker contract and its rows, density.
 
 ## The question each region answers

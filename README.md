@@ -2,7 +2,7 @@
   <h1 align="center"><img src="assets/logo-ntwine/final/tile.png" alt="" width="104" height="104"><br/>ntwine</h1>
   <p align="center">One tab for all your coding agents, and one queue for the ones that need you
     <br/>
-    by <a href="https://github.com/ssalbdivad">@ssalbdivad</a>, from an original design by <a href="https://x.com/colinhacks">@colinhacks</a>
+    by <a href="https://github.com/ssalbdivad">@ssalbdivad</a>
   </p>
 </p>
 <br/>
@@ -18,8 +18,6 @@
 ntwine is a local web UI for running lots of coding agents at once.
 
 It drives the agent CLIs you already pay for from one browser tab. When an agent comes to rest needing you, it becomes a card in a queue, so you can work through a list instead of checking on ten terminals.
-
-> ntwine started as Frizz, which [Colin McDonnell](https://github.com/colinhacks) designed ([colinhacks/frizz](https://github.com/colinhacks/frizz)). The queue, the board and the principles below are his, and I'm grateful to build on them. ntwine is my standalone continuation. It keeps every one of those principles, and the features I've added are listed under [What ntwine adds](#what-ntwine-adds). — [David Blass](https://github.com/ssalbdivad)
 
 <br/>
 
@@ -49,8 +47,6 @@ A browser tab opens on **All projects**, with acme picked in the prompt box beca
 <br/>
 
 <h2 align="center">Principles</h2>
-
-These are Colin's design principles from Frizz, and ntwine keeps all of them. I owe him a lot for thinking them through so carefully. Every feature ntwine adds is held to them too.
 
 **The agent decides, and ntwine checks.**
 
@@ -105,7 +101,7 @@ These are Colin's design principles from Frizz, and ntwine keeps all of them. I 
 
 <h2 align="center">What ntwine adds</h2>
 
-Here's what I've built on top of the original design so far:
+Here's what ntwine has added so far:
 
 - **Threads that talk to each other.** Every thread has an `@handle`, and agents use it to read, message and wait on other threads. `#slug` names a project.
 - **Spinoff.** Start a new thread from any card with its context, without interrupting the one you're reading.
@@ -307,6 +303,12 @@ $ node --test monitors/*.test.mjs
 Everything else runs locally. Install with `pnpm install`, typecheck with `pnpm typecheck`, and run the full suite with `pnpm test`. The suite drives real agent CLIs and a real browser, so CI doesn't gate on it. Just mention in your PR what you ran.
 
 The suite needs a current Node 22.x or ≥ 23.4. Early 22.x point releases (22.15 measured) fail `receipt-bus.test.ts` because of a test-runner bug that's since been fixed.
+
+<br/>
+
+<h2 align="center">Attribution</h2>
+
+ntwine is a fork of [Frizz](https://github.com/colinhacks/frizz) by [Colin McDonnell](https://github.com/colinhacks). Many of its best ideas started there, including the queue of agents that need you and a thread's state coming from its agent's own last word.
 
 <br/>
 

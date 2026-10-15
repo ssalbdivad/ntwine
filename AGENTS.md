@@ -1,15 +1,12 @@
 # Principles: never break one without explicit confirmation
 
-Colin McDonnell designed Frizz ([colinhacks/frizz](https://github.com/colinhacks/frizz)), the original, and David Blass maintains ntwine, its standalone continuation. Each line below is a decision one of them made on
+Each line below is a decision the maintainer made on
 purpose and has said matters most. **Do not write code, copy, docs or worker-contract text that breaks one unless the
 maintainer has explicitly confirmed it in the current conversation.** If a task seems to need it, that is a question to ask
 first, not a call to make. An approval given for one case does not carry over to the next. Detail lives where each line
 points.
 
-**Lines from Colin's original design are flexible where they conflict with better UX** (maintainer 2026-10-14). When one
-stands between the human and a clearly better experience, propose changing it rather than designing around it.
-
-**How a thread hands off (original design; ARCHITECTURE.md § How a thread hands off its state)**
+**How a thread hands off (ARCHITECTURE.md § How a thread hands off its state)**
 - The worker's own last word decides its thread's state, and ntwine only checks it. There is no status field: the final
   message is the interface, and its fence language is the state.
 - ntwine never answers, withdraws, parks or queues on a worker's behalf. The few deliberate exceptions are listed in
