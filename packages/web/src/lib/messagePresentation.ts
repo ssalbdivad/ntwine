@@ -27,7 +27,7 @@ export function lastAskIndex(messages: readonly Pick<TranscriptMessage, "role" |
 }
 
 export type HumanTurnLike = Pick<TranscriptMessage, "role" | "text"> &
-  Partial<Pick<TranscriptMessage, "displayText" | "kind" | "queued" | "wake" | "peerFrom" | "agentInstruction" | "spinoff" | "sessionPeer">>
+  Partial<Pick<TranscriptMessage, "displayText" | "kind" | "queued" | "wake" | "peerFrom" | "agentInstruction" | "spinoff" | "keepWorking" | "sessionPeer">>
 
 // THE MOST RECENT INTERACTION — the last turn the human themself put into the thread. The QUEUE CARD
 // opens here: its handoff quotes this message (server router.ts `handoffOf`), and its transcript, opened
@@ -39,7 +39,8 @@ export type HumanTurnLike = Pick<TranscriptMessage, "role" | "text"> &
 // `isHumanTurn` has since grown three cases upstream's web copy never had, and a disagreement would open
 // the transcript on a different message than the handoff it replaces:
 //   • a `kind` row (an event line, a reasoning summary) is punctuation, never a turn;
-//   • a SPINOFF request, and a turn with nothing in it, are not the human speaking here;
+//   • a SPINOFF request, a Keep working click, and a turn with nothing in it, are not the human speaking
+//     here (a Keep working only sends the worker back to its wait — router.ts isHumanTurn);
 //   • an "Ask for update" click IS the human's turn, though it rides in as a park wake: the progress note
 //     under it is the reply to the click (router.ts isUpdateRequest).
 // Upstream's copy has since grown one of its own: a `sessionPeer` record is another thread messaging this
@@ -62,7 +63,7 @@ export type HumanTurnLike = Pick<TranscriptMessage, "role" | "text"> &
 export function lastHumanTurnIndex(messages: readonly HumanTurnLike[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
-    if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.agentInstruction || m.spinoff || m.sessionPeer) continue
+    if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.agentInstruction || m.spinoff || m.keepWorking || m.sessionPeer) continue
     const said = (m.displayText ?? m.text).trim()
     if (!said) continue
     if (m.wake && !said.startsWith(BURIED_ANSWERS_HEADER) && parseParkWake(said)?.kind !== "requested") continue

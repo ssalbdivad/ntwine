@@ -26,6 +26,7 @@ import { isBrokerClaudeRow, type SessionRow, type Storage } from "./storage.ts"
 // and counting them would rewrite a quiet thread's status every few watcher ticks. A SPINOFF REQUEST is not
 // one either (2026-09-30), though the human asked for it: it is about the NEW thread, so it neither moves
 // this thread's conversation on nor names the request live-status.ts should describe this one's work by.
+// Nor is a Keep working click: it only sends the worker back to the wait it was already on.
 export const STATUS_WINDOW_MESSAGES = 5
 // Enough to say what the conversation is doing, bounded well under anything a one-shot should carry.
 const PER_MESSAGE_CHARS = 1_500
@@ -33,7 +34,7 @@ const CONVERSATION_CHARS = 12_000
 
 export function operatorMessages(messages: readonly TranscriptMessage[]): TranscriptMessage[] {
   return messages.filter((m) =>
-    m.role === "user" && !m.wake && !m.peerFrom && !m.agentInstruction && !m.boundary && !m.kind && !m.queued && !m.spinoff &&
+    m.role === "user" && !m.wake && !m.peerFrom && !m.agentInstruction && !m.boundary && !m.kind && !m.queued && !m.spinoff && !m.keepWorking &&
     (m.displayText ?? m.text).trim() !== "")
 }
 

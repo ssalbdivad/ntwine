@@ -1,4 +1,4 @@
-import { stripFollowUpRiders, stripWakeDeliveryToken, type TranscriptMessage } from "@ntwine/shared"
+import { isKeepWorkingMessage, stripFollowUpRiders, stripWakeDeliveryToken, type TranscriptMessage } from "@ntwine/shared"
 import type { Storage } from "./storage.ts"
 import { decodeDeliveryMarkers, deliveryTag, stripDeliveryMarkers } from "./delivery-marker.ts"
 
@@ -1133,6 +1133,8 @@ export function projectDeliveryLedger(messages: TranscriptMessage[], items: Deli
       deliveryId: item.id,
       deliveryState: item.state,
       ...(item.state === "failed" && item.error ? { deliveryError: item.error } : {}),
+      // The human's Keep working, tagged as transcript.ts userProjection tags the record it becomes.
+      ...(isKeepWorkingMessage(item.text) ? { keepWorking: true as const } : {}),
     })
   }
   return messages

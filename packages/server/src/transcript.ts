@@ -31,6 +31,7 @@ import {
   type TranscriptTodo,
   type TranscriptToolCall,
   parseSpinoffRequest,
+  isKeepWorkingMessage,
   parseSpinoffChildPrompt,
 } from "@ntwine/shared"
 import { projectTranscriptSessionPeers, type SessionPeerThread } from "./session-peer.ts"
@@ -246,7 +247,7 @@ function sessionPeerOf(session: { name?: string; socket?: string }): NonNullable
 // Both derive from the same raw record, and every site that pushes a user message needs both — keeping
 // them in one helper is what stops a new push site from shipping the display projection while silently
 // dropping the wake flag (which would put a scheduler steer back in the human's own bubble).
-function userProjection(text: string, first: boolean): { displayText?: string; spinoff?: { id: string; instructions: string }; spinoffOrigin?: { instructions: string; brief: string }; wake?: true; wakeSteer?: GithubWakeSteer; peerFrom?: string; peerUnnamed?: true; sessionPeer?: TranscriptMessage["sessionPeer"] } {
+function userProjection(text: string, first: boolean): { displayText?: string; spinoff?: { id: string; instructions: string }; spinoffOrigin?: { instructions: string; brief: string }; keepWorking?: true; wake?: true; wakeSteer?: GithubWakeSteer; peerFrom?: string; peerUnnamed?: true; sessionPeer?: TranscriptMessage["sessionPeer"] } {
   // A SIDEWAYS message — another top-level session's SendMessage into this one — is settled first for
   // the same reason as the upward one below: none of it is the human's, and its wrapper is not prose.
   const session = parseCrossSessionMessage(text)
@@ -259,6 +260,9 @@ function userProjection(text: string, first: boolean): { displayText?: string; s
   const peer = parseAgentMessage(text)
   if (peer) return { displayText: peer.body, peerFrom: peer.from }
   const displayText = userDisplayText(text, first)
+  // THE HUMAN'S KEEP WORKING (shared KEEP_WORKING_MESSAGE): their send, but worded for the worker, so the
+  // chat draws it as their one-line marker rather than a bubble of instructions.
+  if (isKeepWorkingMessage(displayText ?? text)) return { ...(displayText ? { displayText } : {}), keepWorking: true }
   // A SPINOFF REQUEST an older build delivered to the parent's worker (parseSpinoffRequest). It is the
   // human's (they asked for it), but its text was ntwine's errand for the worker, so the chat draws the
   // human's instructions as the same spinoff card a request drawn from its row gets (withSpinoffCards).
@@ -3174,8 +3178,8 @@ function countBoundedStart(messages: readonly TranscriptMessage[]): number {
   for (let i = tail - 1; i >= 0; i--) {
     const m = messages[i]
     // A spinoff request is the human asking for ANOTHER thread, not what this one's handoff answers, and a
-    // `sessionPeer` is another thread messaging this one.
-    if (m.role === "user" && !m.wake && !m.queued && !m.agentInstruction && !m.spinoff && !m.sessionPeer) {
+    // `sessionPeer` is another thread messaging this one. A Keep working asks for nothing either.
+    if (m.role === "user" && !m.wake && !m.queued && !m.agentInstruction && !m.spinoff && !m.keepWorking && !m.sessionPeer) {
       boundary = i
       break
     }
@@ -4672,11 +4676,11 @@ export function pageProjectedTranscript(
   // the exchange being summarised. An `agentInstruction` is also user-side but belongs to a CHILD's
   // coordinator/peer conversation, never the operator's turn — and so does a `sessionPeer`, another
   // thread messaging this one. A spinoff request asks for another thread, so the exchange the reader
-  // needs goes back past it too.
+  // needs goes back past it too, and so does a Keep working, which only sends the worker back to its wait.
   const turnStart = (before: number): number => {
     for (let i = before - 1; i >= 0; i--) {
       const m = messages[i]
-      if (m.role === "user" && !m.wake && !m.queued && !m.agentInstruction && !m.spinoff && !m.sessionPeer) return i
+      if (m.role === "user" && !m.wake && !m.queued && !m.agentInstruction && !m.spinoff && !m.keepWorking && !m.sessionPeer) return i
     }
     return 0
   }

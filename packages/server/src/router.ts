@@ -1196,9 +1196,12 @@ function openingRequestOf(messages: readonly TranscriptMessage[]): TranscriptMes
  *
  *  A spinoff request does NOT count (2026-09-30), though the human asked for it: it asks for another
  *  thread, so nothing this thread says afterwards answers it. Anchoring on it would quote the spinoff's
- *  instructions over a reply about something else. */
+ *  instructions over a reply about something else.
+ *
+ *  Nor does a Keep working (shared KEEP_WORKING_MESSAGE): it sends the worker back to a wait, so the
+ *  handoff that eventually queues answers the ask before it, which is the one the card should quote. */
 function isHumanTurn(m: TranscriptMessage): boolean {
-  if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.sessionPeer || m.agentInstruction || m.spinoff) return false
+  if (m.role !== "user" || m.kind || m.queued || m.peerFrom || m.sessionPeer || m.agentInstruction || m.spinoff || m.keepWorking) return false
   const said = (m.displayText ?? m.text).trim()
   if (!said) return false
   // questionAnswerMessage's form; the wake token rides outside `displayText`.
