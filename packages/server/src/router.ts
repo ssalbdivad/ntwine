@@ -1482,7 +1482,7 @@ export function createRouter(ctx: AppContext) {
   /** The terminal thread a handle (or its slug) names: an open one before a Done one, then the newest. */
   function terminalByHandle(handle: string): ThreadView | undefined {
     const bare = handle.trim().replace(/^@/, "").toLowerCase()
-    const views = ctx.terminalRunner.terminals().map(({ row, terminal }) => terminalThreadView(row, terminal))
+    const views = (ctx.terminalRunner?.terminals?.() ?? []).map(({ row, terminal }) => terminalThreadView(row, terminal))
     const hits = views.filter((t) => t.id === bare || t.terminal?.handle?.toLowerCase() === bare)
     return hits.find((t) => t.state !== "archived") ?? hits.sort((a, b) => (b.spawnedAt ?? "").localeCompare(a.spawnedAt ?? ""))[0]
   }

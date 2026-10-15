@@ -936,10 +936,10 @@ export async function listEditorProjects(
 export function attentionNeeds(t: ThreadView): EditorAttentionNeeds {
   const reasons = queueUrgency(t).split(" ")
   const has = (...names: string[]) => reasons.some((reason) => names.includes(reason) || names.some((name) => name.endsWith(":") && reason.startsWith(name)))
-  if (has("terminal")) return "terminal"
+  if (has("terminal:prompt")) return "terminal"
   if (has("interaction", "perm-prompt")) return "approval"
   if (has("ask", "question", "q:")) return "question"
-  if (has("crashed", "provider-error")) return "stopped"
+  if (has("crashed", "provider-error", "terminal:failed", "terminal:interrupted")) return "stopped"
   if (has("limit")) return "limit"
   return "ready"
 }

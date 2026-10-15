@@ -726,7 +726,13 @@ test("what a queued thread needs, most pressing first, from the queue's own urge
   assert.equal(attentionNeeds(queuedView("a", { questions: [{ id: "q1" }] } as Partial<ThreadView>)), "question")
   assert.equal(attentionNeeds(queuedView("a", { actionableInteraction: true, pendingQuestion: true })), "approval")
   assert.equal(attentionNeeds(queuedView("a", { runtime: "perm-prompt" })), "approval")
-  assert.equal(attentionNeeds(queuedView("a", { terminals: [{ awaitingInput: true }], actionableInteraction: true } as Partial<ThreadView>)), "terminal")
+  // A terminal thread at a prompt asks for typing; one that failed or was cut off stopped. A parent's
+  // terminal at a prompt is the terminal's own card, not the parent's need.
+  const terminal = (over: object) => queuedView("a", { kind: "terminal", terminal: { id: "a", command: "npm run dev", cwd: "/r", runId: 1, startedAt: "2026-10-15T10:00:00.000Z", ...over } } as Partial<ThreadView>)
+  assert.equal(attentionNeeds(terminal({ state: "running", awaitingInput: true })), "terminal")
+  assert.equal(attentionNeeds(terminal({ state: "exited", exitCode: 1 })), "stopped")
+  assert.equal(attentionNeeds(terminal({ state: "exited" })), "stopped")
+  assert.equal(attentionNeeds(queuedView("a", { terminals: [{ awaitingInput: true }] } as Partial<ThreadView>)), "ready")
   assert.equal(attentionNeeds(queuedView("a", { crashed: true })), "stopped")
   assert.equal(attentionNeeds(queuedView("a", { limitPause: {} } as Partial<ThreadView>)), "limit")
 })
