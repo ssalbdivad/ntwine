@@ -374,6 +374,11 @@ function remoteTerminal(options: RemoteOptions): RemoteTerminal {
       awaitingSince = typeof state.awaitingSince === "number" ? state.awaitingSince : null
       idle = state.idle === true
     }
+    if (message.superseded === 1) {
+      // Another server attached (this one is being replaced): detach for good, never fight it for the run.
+      released = true
+      return
+    }
     if (message.hello === 1) {
       if (typeof message.screen === "string") ring.reset(message.screen)
       attempts = 0
@@ -491,9 +496,20 @@ export function createTerminalHost(options: TerminalHostOptions): TerminalHost {
       if ("finished" in outcome) return outcome
       let ready!: (ok: boolean) => void
       const helloed = new Promise<boolean>((resolve) => { ready = resolve })
-      const process = remoteTerminal({ stateDir: options.stateDir, record: outcome.record, stopGraceMs, onReady: ready })
-      await helloed
-      return { process }
+      const terminal = remoteTerminal({ stateDir: options.stateDir, record: outcome.record, stopGraceMs, onReady: ready })
+      let timer: NodeJS.Timeout | undefined
+      const timedOut = new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), options.readyTimeoutMs ?? 15_000) })
+      const ok = await Promise.race([helloed, timedOut])
+      clearTimeout(timer)
+      if (!ok) {
+        // A daemon that published its record and never greets is wedged. End it, so the caller's
+        // in-process fallback is the ONLY copy of this run.
+        terminal.release()
+        endDaemonTree(outcome.record.daemonPid, "SIGKILL")
+        if (outcome.record.ptyPid > 0 && process.platform !== "win32") { try { process.kill(-outcome.record.ptyPid, "SIGKILL") } catch {} }
+        throw new Error("terminal daemon did not answer")
+      }
+      return { process: terminal }
     },
     adopt(id, runId) {
       const record = liveTerminalHostRecord(options.stateDir, id)

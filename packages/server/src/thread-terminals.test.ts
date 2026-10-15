@@ -453,3 +453,19 @@ test("a daemon whose terminal the board forgot is ended at boot; one the board s
   assert.ok(alive(keptDaemon), "the kept one is never touched")
   assert.equal(term(runner, kept.id)?.state, "running")
 })
+
+test("a server replaced while it still runs (an update's overlap) gives its terminals up to the new one, and never takes them back", { skip: !posix }, async () => {
+  const old = harness({ hosted: true })
+  const { id } = await old.start("cat")
+  const next = harness({ hosted: true, storage: old.storage, dir: old.dir })
+  await until(() => (term(next.runner, id)?.state === "running" ? true : undefined), "the new server to adopt it")
+  // Each attach the daemon greets is a change on the new server; a fight over the run would be a stream of them.
+  await new Promise((resolve) => setTimeout(resolve, 600))
+  const settled = next.changes()
+  await new Promise((resolve) => setTimeout(resolve, 1_500))
+  assert.equal(next.changes(), settled, "the new server is not being re-attached over and over")
+  const attachment = next.runner.attach(id)!
+  attachment.write("still-mine\r")
+  await until(() => (/still-mine\r?\n.*still-mine/s.test(attachment.replay()) ? true : undefined), "the echo through the new server")
+  await next.runner.stop(id)
+})

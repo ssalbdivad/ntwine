@@ -20,7 +20,8 @@
 // The wire is newline-delimited JSON. Control lines carry the reserved DAEMON_CONTROL_KEY
 // (daemon-control.ts) like every other daemon's; a pty byte chunk travels as `{"d": "<text>"}` in both
 // directions (output out, keystrokes in). Out: a `hello` (screen, state) on attach, then data, `state`
-// (prompt / shell-idle) on a change, and `exit`. In: data, `resize`, `stop`.
+// (prompt / shell-idle) on a change, `exit`, and `superseded` to a client a newer one replaced. In: data,
+// `resize`, `stop`.
 //
 // It has NO idle timer. An agent daemon whose ntwine never returns is abandoned work; a dev server
 // whose ntwine never returns is still the dev server the human asked for. It ends when its process ends,
@@ -204,8 +205,14 @@ async function main(): Promise<void> {
   }
 
   const server = createServer((sock) => {
-    // One client at a time: a new ntwine generation supersedes the old one's socket outright.
-    if (client) { try { client.destroy() } catch {} }
+    // One client at a time: a new ntwine generation supersedes the old one outright, and is told so,
+    // so an old server still running beside its successor (an update's overlap) stops reattaching
+    // instead of trading the terminal back and forth with it.
+    if (client) {
+      const previous = client
+      try { previous.end(control({ superseded: 1 })) } catch {}
+      setTimeout(() => { try { previous.destroy() } catch {} }, 1_000).unref?.()
+    }
     client = sock
     sock.setNoDelay(true)
     try { sock.write(control({ hello: 1, generation: config.generation, runId: config.runId, screen: session.replay(), state: state() })) } catch {}
