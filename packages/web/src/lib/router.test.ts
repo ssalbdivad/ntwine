@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { BoardSnapshot } from "@ntwine/shared"
-import { markDrawerClosing, pushDrawer, registerRoutedLanding, resolveRoutedThread, store } from "../store.ts"
+import { markDrawerClosing, pushDrawer, pushTerminalDrawer, registerRoutedLanding, resolveRoutedThread, store } from "../store.ts"
 import { applyLocation, appPushedCurrentEntry, primeRoute, startRouter } from "./router.ts"
 
 function resetStore(): void {
@@ -401,6 +401,80 @@ test("an entry this tab pushed — a drawer it opened, reloaded or gone back to 
     assert.equal(asked, 0)
   } finally {
     unregister()
+    resetStore()
+  }
+})
+
+// A TERMINAL THREAD is a row of its own (kind "terminal"), and its drawer is its terminal (store pushDrawer).
+// Opened by its address — every click on another project's row from All projects goes through the address
+// (AllQueuesCard useOpenThreadInPlace), and so does a cold `/thread/term-…` link — the drawer opened, the
+// store→URL writer found no THREAD layer to name, wrote the page's bare address, and applying that address
+// closed every drawer: "it opens in the sidebar then immediately closes" (maintainer 2026-10-15, a `nub run
+// dev` terminal in job-search-2026, clicked from All projects).
+test("a terminal thread opened by its address keeps its drawer and its address", async () => {
+  resetStore()
+  const globals = globalThis as typeof globalThis & { location?: Location }
+  const previous = globals.location
+  const writes: string[] = []
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+  globals.location = { pathname: "/" } as unknown as Location
+  const stop = startRouter((path) => {
+    writes.push(path)
+    globals.location = { pathname: path } as unknown as Location
+    // The route tree applies whatever address the writer navigates to (routes.tsx useRouteToStore).
+    applyLocation(path)
+  })
+  const live = () => store.drawers.filter((d) => !d.closing).map(({ kind, slug, subId }) => ({ kind, slug, subId }))
+  try {
+    store.board = { threads: [{ id: "term-dev", kind: "terminal", title: "nub run dev", needsYou: false }] } as unknown as BoardSnapshot
+    globals.location = { pathname: "/thread/term-dev" } as unknown as Location
+    applyLocation("/thread/term-dev")
+    resolveRoutedThread()
+    await settle()
+    assert.deepEqual(live(), [{ kind: "terminal", slug: "term-dev", subId: "term-dev" }], "the terminal's drawer stays open")
+    assert.deepEqual(writes, [], "its address already names it, so nothing is written")
+
+    // Applied again (each commit applies its address twice), it is the drawer already up — not a park that
+    // displaces it.
+    applyLocation("/thread/term-dev")
+    assert.equal(store.routeThreadSlug, null)
+    assert.deepEqual(live(), [{ kind: "terminal", slug: "term-dev", subId: "term-dev" }])
+
+    // Closing it returns to the page.
+    store.drawers[0]!.closing = true
+    await settle()
+    assert.deepEqual(writes, ["/"])
+  } finally {
+    stop()
+    globals.location = previous
+    resetStore()
+  }
+})
+
+// The other way to open a terminal: from a thread's strip, as a drill-in over that thread. The address names
+// the thread, never the terminal, so Back still pops to the thread and a card's strip (no thread layer below)
+// leaves the address alone.
+test("a terminal opened from a thread's strip leaves the address on the thread", async () => {
+  resetStore()
+  const globals = globalThis as typeof globalThis & { location?: Location }
+  const previous = globals.location
+  const writes: string[] = []
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+  globals.location = { pathname: "/" } as unknown as Location
+  const stop = startRouter((path) => {
+    writes.push(path)
+    globals.location = { pathname: path } as unknown as Location
+    applyLocation(path)
+  })
+  try {
+    store.board = { threads: [{ id: "agent", needsYou: false }] } as unknown as BoardSnapshot
+    pushTerminalDrawer("agent", "term-dev")
+    await settle()
+    assert.deepEqual(writes, [], "a strip's terminal over no thread layer names nothing")
+    assert.equal(store.drawers.filter((d) => !d.closing).length, 1, "and stays open")
+  } finally {
+    stop()
+    globals.location = previous
     resetStore()
   }
 })

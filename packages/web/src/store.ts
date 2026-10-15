@@ -523,12 +523,26 @@ export function topThreadSlug(): string | null {
   return null
 }
 
-// The slug the ADDRESS BAR names: the topmost thread layer. A thread's terminal, like its sub-agents and
-// shells, is a drill-in the URL does not name — it stacks over the thread the address already names.
+// The thread a layer IS, when the address bar can name it: a chat layer, or a TERMINAL THREAD opened as
+// itself (pushDrawer: its row, its card, a `/thread/term-…` link), whose layer's slug and terminal are both
+// its own. A terminal opened from a thread's strip (pushTerminalDrawer, slug = that thread) is a drill-in,
+// like a sub-agent or a shell: it stacks over the thread the address already names, and names nothing.
+//
+// Leaving terminal threads out is what closed one the instant it opened by its address (maintainer
+// 2026-10-15, a `nub run dev` terminal clicked from All projects): the route opened its drawer, the
+// store→URL writer found no layer to name and wrote the page's bare address, and applying that closed it.
+export function routedLayerSlug(d: Pick<Drawer, "kind" | "slug" | "subId" | "closing">): string | null {
+  if (d.closing) return null
+  if (d.kind === "thread") return d.slug
+  if (d.kind === "terminal" && d.subId === d.slug) return d.slug
+  return null
+}
+
+// The slug the ADDRESS BAR names: the topmost layer that is a thread (routedLayerSlug).
 export function topRoutedSlug(): string | null {
   for (let i = store.drawers.length - 1; i >= 0; i--) {
-    const d = store.drawers[i]
-    if (d.kind === "thread" && !d.closing) return d.slug
+    const slug = routedLayerSlug(store.drawers[i])
+    if (slug !== null) return slug
   }
   return null
 }

@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
-import { store } from "../store.ts"
+import { routedLayerSlug, store } from "../store.ts"
 import { innerPath, outerPath, projectSlug } from "../lib/base-path.ts"
 import { SHEET_PANEL_CLASS, SHEET_SCRIM_CLASS, sheetWidth } from "../lib/sheet.ts"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
@@ -24,7 +24,7 @@ export function PendingThreadSheet() {
   const snap = useSnapshot(store)
   const navigate = useNavigate()
   const pending = snap.pendingOpen
-  const drawn = pending !== null && snap.drawers.some((d) => d.kind === "thread" && d.slug === pending.slug && !d.closing)
+  const drawn = pending !== null && snap.drawers.some((d) => routedLayerSlug(d) === pending.slug)
 
   function cancel() {
     const open = store.pendingOpen
