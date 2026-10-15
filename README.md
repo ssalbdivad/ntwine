@@ -58,12 +58,12 @@ These are Colin's design principles from Frizz, and ntwine keeps all of them. I 
 - ntwine never acts on an agent's behalf. It doesn't answer, withdraw, park or queue for one. The few deliberate exceptions are listed below.
 - What must outlive a message gets recorded. A question, a finish and a watch are rows, not sentences, and a wait always names what it's waiting on.
 - A gate can refuse, and it has no bypass.
-- A question stays open until it's answered, dismissed or withdrawn. Typing past it leaves it open, and nothing retracts it by omission.
+- A question moves with the conversation. Type past it and it stays answerable where it was asked, but the agent carries on without it and never asks it again.
 - Every card can be answered or archived. Nothing enters the queue just to be dismissed, and a running thread never enters it.
 
 **The board shows what's true, densely.**
 
-- There are five bands: Pinned, Ready, Working, Snoozed and Done. Every thread is in exactly one, no view loses that, and the first three never fold.
+- There are six bands: Pinned, Ready, Working, Waiting, Snoozed and Done. Every thread is in exactly one, no view loses that, and the first four never fold.
 - All projects first. The default view is one list of every project's threads by what they need, each wearing its project's square; one project, or a set of them, is one click away.
 - Density over decoration, and few settings. The list never scrolls: it gives up the least useful lines first, even at heavy load (17 projects, ~70 threads), and [a test](packages/web/src/sidebarFit.e2e.test.ts) holds it there.
 
@@ -109,7 +109,7 @@ Here's what I've built on top of the original design so far:
 
 - **Threads that talk to each other.** Every thread has an `@handle`, and agents use it to read, message and wait on other threads. `#slug` names a project.
 - **Spinoff.** Start a new thread from any card with its context, without interrupting the one you're reading.
-- **Snooze until sub-agents return.** A queued parent waiting on its sub-agents parks until every one is back, and each return still wakes it.
+- **Waiting.** A thread whose agent is waiting on something outside it — a review, CI, a release, a reply — sits in its own band under Working, always in view.
 - **Thread names and status lines.** Every thread gets a stable name and a one-line status (a hover on a board), plus Auto effort.
 - **First-run tour.** A new browser opens on All projects with a short tour of the page. **Take the tour** in ⌘K replays it.
 - **Schedules.** Type "every weekday at 9am triage new issues" and the prompt box reads the schedule as you type. Each run starts a fresh thread.
@@ -147,7 +147,7 @@ Options are numbered. Press a number or click to pick one, then Enter to send. T
 
 Each project's **board**, at `/project/<name>`, lists its threads under the five named bands, its cards beside them, and a prompt box that starts threads in it. A working thread's status shows when you point at it. `npx ntwine` in a project opens its board, and `http://127.0.0.1:9393/` opens whichever view you had last.
 
-**All projects**, at `/`, is the first choice in the switcher above the prompt box. It lists every project's threads by band — Pinned, Ready, Working, then Snoozed and Done today, folded or short — with each row wearing its project's square, and every waiting card beside them. The list never scrolls: when it is short of room it counts what it cannot show. Older done threads, and sessions ntwine did not start, are under History beside the queue, with search across every project.
+**All projects**, at `/`, is the first choice in the switcher above the prompt box. It lists every project's threads by band — Pinned, Ready, Working, Waiting, then Snoozed and Done today, folded or short — with each row wearing its project's square, and every waiting card beside them. The list never scrolls: when it is short of room it counts what it cannot show. Older done threads, and sessions ntwine did not start, are under History beside the queue, with search across every project.
 
 <p align="center">
   <img src="assets/projects.png" alt="The All projects page: billing-worker, marketing-site and acme-api each list their threads on the left, and the cards from every project are queued on the right." width="100%">
@@ -272,7 +272,7 @@ In the terminal running ntwine, **R** sets up remote access and **L** shows a fr
 | **Worker** | The agent driving a thread: a real Claude Code, Codex or ACP process, running as you. |
 | **Sub-agent** | A helper a worker dispatches for one prong of its task, listed under its parent as `@parent.child`. |
 | **Handle** | A thread's short name, `@port-the-parser`, used to mention, read and message it. |
-| **Bands** | **Pinned** (your shelf), **Ready** (resting, needs you), **Working** (working now), **Snoozed** (parked until a time or an event), **Done**. |
+| **Bands** | **Pinned** (your shelf), **Ready** (resting, needs you), **Working** (working now), **Waiting** (an agent waiting on something outside the thread), **Snoozed** (parked until a time), **Done**. |
 | **Question** | An answerable choice an agent hands back, with numbered options and a recommendation. |
 | **Goal** | A standing prompt a thread receives at every rest, on a clock, or both. |
 | **Schedule** | A prompt plus a recurrence, in plain words. Each run starts a fresh thread. |

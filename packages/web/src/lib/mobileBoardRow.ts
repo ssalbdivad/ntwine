@@ -85,8 +85,8 @@ function armedTimerFireAt(t: Pick<ThreadView, "watches">, nowMs: number): string
 
 /**
  * When a parked thread comes back, if anything says so: the human's own snooze instant, else the
- * earliest armed timer. Undefined for a park with no clock behind it (a PR watch, the resting card's
- * event-snooze) — those wake on an event, and inventing a time for them would be a promise nobody made.
+ * earliest armed timer. Undefined for a park with no clock behind it (a PR watch, a done the human is
+ * watching) — those wake on an event, and inventing a time for them would be a promise nobody made.
  */
 export function wakeAt(t: Pick<ThreadView, "snoozedUntil" | "watches">, nowMs = Date.now()): string | undefined {
   return futureSnoozedUntil(t, nowMs) ?? armedTimerFireAt(t, nowMs)

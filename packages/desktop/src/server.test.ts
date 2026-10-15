@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
@@ -9,7 +9,8 @@ import { join } from "node:path"
 import { DEFAULT_DEV_PORT, DEFAULT_PORT, fallbackPort } from "@ntwine/shared"
 import { ntwinePaths } from "@ntwine/server/ntwine-paths"
 import { acquireProjectLaunchOwner, projectLaunchTokenProof } from "@ntwine/server/project-launch"
-import { locateServer, ntwineAnswers, ownedNtwine } from "./server.ts"
+import { STABLE_SERVER_OWNER_NAME, STABLE_SERVER_OWNER_PROJECT_ID } from "../../../src/server-owner.ts"
+import { locateServer, ntwineAnswers, ownedNtwine, readRecordedServer } from "./server.ts"
 
 const running = (port: number) => ({ kind: "running" as const, port, owner: {} as never })
 const none = async () => false
@@ -61,6 +62,28 @@ test("an ntwine on a well-known port is ours only if it proves this user's launc
   } finally {
     server.close()
     lease.release()
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test("a Windows window reads the launcher's port only from an address naming the owner's generation", () => {
+  const home = mkdtempSync(join(tmpdir(), "ntwine-desktop-recorded-"))
+  const roots = ntwinePaths({ home, env: {} })
+  const stateDir = join(roots.state, STABLE_SERVER_OWNER_NAME)
+  try {
+    assert.equal(readRecordedServer(roots).kind, "idle")
+    mkdirSync(stateDir, { recursive: true })
+    const lease = acquireProjectLaunchOwner({ projectId: STABLE_SERVER_OWNER_PROJECT_ID, projectDir: roots.data, stateDir }, "server")
+    // Starting: the owner is there, its address is not yet.
+    assert.equal(readRecordedServer(roots).kind, "busy")
+    // An address left by an earlier generation is not this one's.
+    writeFileSync(join(stateDir, "address.json"), JSON.stringify({ ownerToken: randomUUID(), port: 4321 }))
+    assert.equal(readRecordedServer(roots).kind, "busy")
+    writeFileSync(join(stateDir, "address.json"), JSON.stringify({ ownerToken: lease.token, port: 4321 }))
+    const read = readRecordedServer(roots)
+    assert.equal(read.kind === "running" && read.port, 4321)
+    lease.release()
+  } finally {
     rmSync(home, { recursive: true, force: true })
   }
 })

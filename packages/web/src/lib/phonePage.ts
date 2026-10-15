@@ -1,5 +1,5 @@
 import { activeBandThread, type BoardSnapshot, type ThreadView } from "@ntwine/shared"
-import { isPinned, orderByInteraction, orderQueue, queued, sectionThreads, sessionIndicatorKind } from "../groups.ts"
+import { inWaitingBand, isPinned, orderByInteraction, orderQueue, queued, sectionThreads, sessionIndicatorKind } from "../groups.ts"
 import { isBusy, threadKey, type QueuesProject } from "./allQueues.ts"
 import { loudBands } from "./listBands.ts"
 
@@ -74,17 +74,20 @@ export function phoneQueue(
   const pinned: ThreadView[] = []
   const ready: ThreadView[] = []
   const working: ThreadView[] = []
+  const waiting: ThreadView[] = []
   for (const project of projects) {
     const bands = loudBands(project, hidden, overlayFor(project))
     // The shelf's OPEN pins: a pinned Done thread, which the list's Pinned band now carries from the poll
     // (lib/listBands.ts), is the Done tab's here (phoneDone) — one tab per thread, as it always was.
     const shelf = bands.pinned.filter((t) => t.state !== "archived")
-    for (const t of [...shelf, ...bands.ready, ...bands.working]) owner.set(t, project)
+    for (const t of [...shelf, ...bands.ready, ...bands.working, ...bands.waiting]) owner.set(t, project)
     pinned.push(...shelf)
     ready.push(...bands.ready)
     working.push(...bands.working)
+    waiting.push(...bands.waiting)
   }
-  const active = [...orderQueue(ready), ...orderByInteraction(working)]
+  // Waiting rides at the end of the queue tab, in view, as it sits under Working in the list.
+  const active = [...orderQueue(ready), ...orderByInteraction(working), ...orderByInteraction(waiting)]
   return rowsOf([...pinned.sort(byPin), ...active.filter(isAsk), ...active.filter((t) => !isAsk(t))], owner)
 }
 
@@ -127,7 +130,7 @@ export function phoneCounts(queue: readonly PhoneRow[]): { asks: number; ready: 
     else if (queued(thread)) ready += 1
     // The maintainer's ACTIVE band, counted with the predicate the desktop rail's badge uses, so the phone
     // and the rail cannot disagree (upstream MobileBoard's own rule).
-    if (activeBandThread(thread)) working += 1
+    if (activeBandThread(thread) && !inWaitingBand(thread)) working += 1
   }
   return { asks, ready, working }
 }

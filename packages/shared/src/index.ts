@@ -4570,24 +4570,11 @@ export const ThreadView = z.object({
   // this instant's order. Lifecycle metadata like the snooze: written only by the pin/unpin verb, and
   // it outranks every derived state (a pinned thread that finishes stays pinned).
   pinnedAt: z.string().optional(),
-  /** The EVENT snooze on the resting card is armed for this exact rest — the human has said "hide this
-   *  until something reports". Distinct from `snoozedUntil`, which is a wall-clock park on the whole
-   *  thread: this one has no deadline and clears itself when the thread comes to a NEW rest.
-   *
-   *  It travels because the chat has to honour it too (2026-08-14). Until then only the QUEUE did, on
-   *  the reasoning that the card states a FACT the drawer must keep showing or it blanks at rest and
-   *  reads as "the agent died". That reasoning holds for a thread nobody has parked; once the human has
-   *  explicitly parked THIS rest, showing them the same card with the same button one surface over is
-   *  not information, and they said so. */
+  /** The human pressed Watch on this rest's done card (board.doneParkedOnWatch): the done stays readable
+   *  while the watch runs, and the thread waits in the Waiting band until it reports. It clears itself
+   *  when the thread comes to a NEW rest. (It was also the resting card's "Snooze until new activity"
+   *  until 2026-10-14, when that snooze and "until all sub-agents return" were removed.) */
   bgSnoozed: z.boolean().optional(),
-  /** The human snoozed this thread UNTIL ALL ITS SUB-AGENTS RETURN, and that snooze is what is keeping
-   *  it out of the queue right now. Server truth (board.subAgentsSnoozeHolds): unlike `bgSnoozed` it
-   *  survives the parent's intermediate rests — each child's return still wakes the parent, which runs
-   *  and rests again without re-queueing — and it lets go when no direct sub-agent is running, when the
-   *  human speaks to the thread, or earlier when something outranks it (a question, a crash, a done).
-   *  Present only while it is the reason the thread is out of the queue; isSnoozed parks the row in
-   *  Snoozed on it. */
-  subAgentsSnoozed: z.boolean().optional(),
   /** Direct sub-agents that returned inside the wait still open — see ReturnedSubAgentView. */
   returnedSubAgents: z.array(ReturnedSubAgentView).optional(),
   // Which Claude transport serves this thread. "broker" — a session-broker-owned Agent SDK session with
@@ -4627,15 +4614,15 @@ export const ThreadView = z.object({
   crashed: z.boolean().optional(),
   // The queued reason is "resting while its OWN background work (sub-agents / shells) is still live,
   // with no human ask": the agent came to rest awaiting results it dispatched, not awaiting the human.
-  // The card renders the informational awaiting-background banner + an event-Snooze that hides it until
-  // the work returns (the parent re-rests). True only when this is the SOLE queue reason (no question /
-  // ask / native input / done fence outranks it) and no event-snooze is armed for the current rest.
+  // The card renders the informational awaiting-background banner (with an event-Snooze that hid it
+  // until the work returned, until 2026-10-14). True only when this is the SOLE queue reason (no question /
+  // ask / native input / done fence outranks it).
   // Optional like needsYou/crashed: absent ⇒ a pre-restart server or a non-session row; the client
   // treats absence as false.
   awaitingBackground: z.boolean().optional(),
   // SERVER-DERIVED: which band a rest OUT OF THE QUEUE sits in (board.deriveWaitStatus, 2026-10-05).
   // `working` — the work it waits on finishes by itself, so it is Running and spins; `watching` —
-  // something must happen outside the thread, so it is Snoozed and still. Present only for a thread at
+  // something must happen outside the thread, so it is in Waiting (Snoozed until 2026-10-14) and still. Present only for a thread at
   // rest behind a wait the server honoured with no queue card; absent everywhere else, including every
   // queued rest, which never spins. Absent from a pre-2026-10-05 server, which the client reads as the
   // old Running placement.
@@ -4808,9 +4795,9 @@ export function hasLiveSubAgents(t: ThreadView): boolean {
 // queue card behind it — the server excuses a rest on a live SUB-AGENT from the queue (2026-07-30), so
 // without this a live-but-cardless row would fall into the RESTED band, which is the queue-ordered band,
 // with nothing behind it: the exact 2026-07-29 report, "showing up as a rested thread in my sidebar, yet
-// there's no card for it". (That report was an EVENT-SNOOZED shell-only rest, which is cardless too; since
-// 2026-08-28 that one parks in Snoozed instead — isSnoozed reads `bgSnoozed` ahead of this flag — so this
-// flag no longer bands it. An UNsnoozed shell-only rest DOES card since 2026-08-04, and `needsYou` then
+// there's no card for it". (That report was an EVENT-SNOOZED shell-only rest, which is cardless too; from
+// 2026-08-28 that one parked in Snoozed instead — isSnoozed read `bgSnoozed` ahead of this flag — and the
+// event-snooze itself was removed on 2026-10-14, so this flag no longer bands it. An UNsnoozed shell-only rest DOES card since 2026-08-04, and `needsYou` then
 // bands it below the rule regardless — see inActiveBand. This flag decides nothing for it beyond keeping
 // it out of Snoozed.)
 //
@@ -4910,21 +4897,31 @@ export function futureSnoozedUntil(
   return Number.isFinite(at) && at > nowMs ? t.snoozedUntil : undefined
 }
 
-// SNOOZED IS THE HUMAN'S BAND (2026-10-14). Only a park the human made folds a thread into it: a
-// wall-clock snooze, the resting card's event-snoozes ("until new activity", "until all sub-agents
-// return"), and a schedule's next run waiting to start. A worker's own park — `status: watching`, or any
-// honoured ```awaiting wait — stays in Working, at rest under its wait's mark (agentParked), because the
-// human may still consider that thread active (maintainer: "if I consider a thread to be active and an
-// agent happens to be waiting for something, I still don't want to see it collapsed"). Until then a
-// worker's park dimmed its row into Snoozed the same as the human's click did.
+// SNOOZED IS THE HUMAN'S BAND (2026-10-14), and only a TIME: a wall-clock snooze the human picked, or a
+// schedule's next run waiting to start. A worker's own park stays in view, at rest under its wait's mark
+// (agentParked): in Waiting when the wait is on the world (inWaitingBand), in Working otherwise, because
+// the human may still consider that thread active (maintainer: "if I consider a thread to be active and
+// an agent happens to be waiting for something, I still don't want to see it collapsed"). The resting
+// card's event-snoozes ("until new activity", "until all sub-agents return") parked here too until the
+// same day, when they were removed for hiding working threads.
 export function isSnoozed(t: ThreadView, nowMs = Date.now()): boolean {
   return parkOf(t, nowMs) === "human"
 }
 
-/** At rest on a wait its WORKER declared, which the server honoured — the park that sits in Working,
- *  undimmed, since Snoozed became the human's band. The rail draws it with its wait's mark. */
+/** At rest on a wait its WORKER declared, which the server honoured — the park that sits in Working or
+ *  Waiting, undimmed, since Snoozed became the human's band. The rail draws it with its wait's mark. */
 export function agentParked(t: ThreadView, nowMs = Date.now()): boolean {
   return parkOf(t, nowMs) === "agent"
+}
+
+/** THE WAITING BAND (2026-10-14): an agent's park on something OUTSIDE the thread — a review, CI, a
+ *  release, a reply, a timer — which the server reads as `waitStatus: "watching"` (board.deriveWaitStatus;
+ *  a done the human chose to watch from its card reads the same). Always in view, under Working, and never
+ *  folded (maintainer: "a separate category that is always visible under working … when agents are
+ *  waiting for something external"). A park on the thread's own sub-agents or shells stays in Working: it
+ *  finishes by itself, soon. */
+export function inWaitingBand(t: ThreadView, nowMs = Date.now()): boolean {
+  return agentParked(t, nowMs) && watchingRest(t)
 }
 
 // WHO PARKED THIS ROW, if anyone. One semantic predicate owns both classification and presentation. Only
@@ -4940,28 +4937,8 @@ function parkOf(t: ThreadView, nowMs: number): "human" | "agent" | undefined {
   // time passes and before the tick that starts it (a post-boot grace, the start cap). Reading its clock
   // here would drop it into Active for exactly that window (ARCHITECTURE.md § Scheduled threads).
   if (t.schedule?.pending === true && t.held !== undefined) return "human"
-  // THE RESTING CARD'S EVENT-SNOOZE IS A PARK THE HUMAN MADE, and it parks into Snoozed exactly as the
-  // wall-clock snooze does. It arrives as `bgSnoozed` (server truth: bg_snooze_rested_at equals the
-  // current rest) on a thread resting behind a shell, a PR watch or a timer — the three shapes whose
-  // queue card carries that snooze. Until 2026-08-28 the gate below read `hasLiveOps` alone, and that
-  // predicate reads `awaitingBackground`, which the server keeps TRUE across the snooze (the flag states
-  // what the thread waits on, and a snooze does not change that) — so the click took the card away and
-  // left the row in the Active band, undimmed, wearing an at-rest mark. Reported on a thread parked on a
-  // green PR (maintainer 2026-08-28: "It's resting and snoozed, and for some reason it's in the actively
-  // running rail instead of a snoozed rail"). A live SUB-AGENT still wins, as it does over every park:
-  // a child's return re-invokes the parent within seconds, so that row keeps spinning in Active
-  // (maintainer 2026-07-10, "when an agent is merely awaiting its own sub-agents, we should NOT dim it")
-  // — unless the worker itself called the rest `watching` (see hasLiveOps).
-  const eventSnooze = t.bgSnoozed === true && t.runtime === "turn-idle"
-  // "SNOOZE UNTIL ALL SUB-AGENTS RETURN" IS THE ONE PARK A LIVE SUB-AGENT DOES NOT OUTRANK, because the
-  // live sub-agents are exactly what it parks on. The human looked at the card, saw children still out,
-  // and chose to stop seeing the thread until they are all back; a row that spun in Active through each
-  // intermediate return would undo that choice on the one surface still showing the thread. While the
-  // parent is RUNNING a turn (a child's return woke it) it spins in Active like any snoozed row, and it
-  // comes back here at its next rest. The server drops the flag the moment the snooze lets go.
-  const subAgentsSnooze = t.subAgentsSnoozed === true && t.runtime === "turn-idle"
   const watching = watchingRest(t)
-  if (!subAgentsSnooze && !watching && (hasLiveSubAgents(t) || (hasLiveOps(t) && !eventSnooze))) return undefined
+  if (!watching && (hasLiveSubAgents(t) || hasLiveOps(t))) return undefined
   // A user-owned snooze deliberately wins over a concrete ask, permission prompt, or crash. Those
   // states still exist in the transcript/runtime and re-enter Queue at the exact wake deadline; the
   // snooze merely parks their presentation until then. Mid-turn work keeps spinning in the Active band,
@@ -4981,14 +4958,11 @@ function parkOf(t: ThreadView, nowMs: number): "human" | "agent" | undefined {
   // A WITHHELD ENTRY IS NOT A PARK. The server holds a thread out of the queue for a few seconds after a
   // hold lets go, while its wake lands (queue-clock.ts), and it reads `!needsYou` meanwhile — but the hold
   // has ENDED, so the inference below (an awaiting fence plus `!needsYou` means the park stood) would be
-  // false, and the row would drop into Snoozed for those seconds on the way to Ready or back to Active.
+  // false, and the row would read as a park for those seconds on the way to Ready or back to Active.
   if (t.queueSettling) return undefined
   if (!atRest(t)) return undefined
   // (A limit pause used to return true here — "parked on the clock with a wake already armed" — until
   // 2026-08-31. It is now the hard NON-snooze gate above, and the queue's problem: see deriveNeedsYou.)
-  // The event-snooze needs no fence behind it: a shell-only rest cards without one and its snooze is the
-  // same click. It expires by itself at the thread's next rest, which is the wake the human asked for.
-  if (eventSnooze || subAgentsSnooze) return "human"
   // THE WORKER'S OWN PARK (2026-10-05): `status: watching`, honoured by the server — "parked until
   // something wakes it", said by the one party that knows the wait is on the world. It needs no fence
   // check, because a registered watch with no fence is a park too.

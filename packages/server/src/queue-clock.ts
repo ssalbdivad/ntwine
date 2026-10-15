@@ -89,8 +89,8 @@ import { heldQuestionViews, type ThreadView } from "@ntwine/shared"
 // back at the bottom. So a departure the human did not cause leaves a claim on the old place, and an entry
 // that finds its claim unbroken takes the place back. Everything a person does to a queued thread breaks
 // it, through one of three channels the board can see:
-//   • a HOLD the human made, seen on any reading out of the queue (`humanOut`): a snooze, done, the resting
-//     card's event-snooze, or a follow-up still in the delivery ledger. Every follow-up passes through the
+//   • a HOLD the human made, seen on any reading out of the queue (`humanOut`): a snooze, done, a done card's
+//     Watch, or a follow-up still in the delivery ledger. Every follow-up passes through the
 //     ledger and the router re-assembles the board the moment it writes one, so no message the human sends
 //     can slip past unseen — which is why this reads the ledger rather than the transcript, where a wake
 //     ntwine delivers is a user turn exactly like one the human typed;

@@ -9,16 +9,6 @@ import { heldQuestionViews, isDirectSubAgent, type ReturnedSubAgentView, type Su
 // The pure half of that card lives here, beside the words it puts on screen, so a test can pin them
 // without a DOM (AwaitingSubAgentsCard draws them).
 
-/** The toasts, shared with the rail's Snoozed tooltip (Sidebar.tsx), which states the same park in the
- *  same words once the card is gone. */
-export const SUBAGENTS_SNOOZE_TOAST = "Snoozed until all sub-agents return"
-export const ACTIVITY_SNOOZE_TOAST = "Snoozed until the background work returns"
-
-/** The batch-long snooze's explainer, in the tooltip of both places it is offered (the card's band and
- *  the footer's snooze menu). The second clause is the part a human would not guess: the agent is not
- *  put to sleep, only the card is. */
-export const SUBAGENTS_SNOOZE_EXPLAINER = "Hides card until every sub-agent has returned — each return still wakes the agent"
-
 export interface SubAgentWait {
   /** The direct children the thread still has out, in any liveness state the card draws. */
   out: readonly SubAgentView[]

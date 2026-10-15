@@ -47,8 +47,7 @@ import "./styles.css"
 //                              Done replies into the CARD's project and takes the card out. The neighbour is
 //                              an ordinary rest.
 //   ?case=resting              the first card's thread rests on an agent terminal it declared (`shells:`), so
-//                              it draws the RESTING card — the wait row and the event-snooze, which parks it
-//                              through the card's project and takes the card out.
+//                              it draws the RESTING card — the wait row, and no snooze while the shell runs.
 //   ?case=questions            each card's question at the rest that asked it (upstream e157817a, 22084580). The
 //                              first card's was asked two rests ago, the rest after it is a CI wake's bare
 //                              reply: the question sits under the reply that asked it, and the bare rest
@@ -210,16 +209,14 @@ function scenario(): Scenario {
         ],
         text: (id) => (id === "rotate-key" ? SHELL_FENCE : "Found the race; the fix is in, 50 green runs."),
       }
-    // A parent resting `needs_input` on a sub-agent still out, whose snooze menu offers the event snoozes
-    // above the clock — under the keyboard runtime, so `s` opens it as on the page.
+    // A parent resting `needs_input` on a sub-agent still out — working, so nothing may snooze it — beside a
+    // card with nothing running, under the keyboard runtime so `s` and `j` act as on the page.
     case "subagents":
       return {
         threads: [
           thread("rotate-key", "Rotate the signing key without downtime", {
             subAgents: [{ id: "lane", label: "Audit the refresh-token rotation", state: "running", startedAt: new Date(Date.now() - 10 * 60_000).toISOString() }],
             lastFence: { kind: "awaiting", body: "The audit lane is still running.", hints: [{ kind: "agent", value: "lane" }, { kind: "status", value: "needs_input" }] },
-            // `&snoozed=1`: already parked on it, so the menu leads with Wake now.
-            ...(params.get("snoozed") === "1" ? { subAgentsSnoozed: true } : {}),
           }),
           thread("flaky-ci", "Deflake the auth integration suite"),
         ],
@@ -377,11 +374,6 @@ window.fetch = async (input, init) => {
   // The reply box's @ typeahead reads every project's queue on an All projects page, which this path
   // reads as; its answer is a list, and `{}` crashed the box.
   if (rpc === "projectsQueues") return json([])
-  // The resting card's event-snooze parks the thread, and the next poll reads it out of the queue.
-  if (rpc === "snoozeAwaitingBackground") {
-    setTimeout(() => dropThread(body.slug ?? ""), 400)
-    return json({})
-  }
   if (rpc === "threadSeen") {
     setTimeout(() => dropThread(body.slug ?? ""), 50)
     return json({})

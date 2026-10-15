@@ -1,9 +1,9 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { useSnapshot } from "valtio"
 import { AlarmClock, AlarmClockOff, Loader2 } from "lucide-react"
 import { SNOOZE_PROMPT_MAX, type ThreadView } from "@ntwine/shared"
 import { useThreadApi } from "../api/threadApi.tsx"
-import { futureSnoozedUntil } from "../groups.ts"
+import { futureSnoozedUntil, isActivelyRunning } from "../groups.ts"
 import {
   DEFAULT_SNOOZE_PRESET,
   SNOOZE_PRESETS,
@@ -17,7 +17,6 @@ import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { showToast, store } from "../store.ts"
 import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
 import { useCommandHandler, useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
-import { ACTIVITY_SNOOZE_TOAST, SUBAGENTS_SNOOZE_TOAST } from "../lib/subAgentWait.ts"
 import { Dialog } from "./ui/Dialog.tsx"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 import { TextareaCodeFences } from "./TextareaCodeFences.tsx"
@@ -38,15 +37,20 @@ import { Tooltip } from "./Tooltip.tsx"
 // for Friday says so in its header, and the menu then leads with when it wakes and Wake now.
 //
 // The fork's additions ride along from the split button they lived on: the `s` shortcut opens this
-// menu, a snooze toasts where the thread went with an Undo, a cross-project card names its own project
-// and calls through its own project's API (useThreadApi), and a parent waiting on its sub-agents offers
-// EVENT snoozes above the wall-clock presets (`eventItems`).
+// menu, a snooze toasts where the thread went with an Undo, and a cross-project card names its own
+// project and calls through its own project's API (useThreadApi). A parent waiting on its sub-agents
+// offered two EVENT snoozes above the presets until 2026-10-14; a snooze is a time now, nothing else.
+//
+// NOT WHILE IT IS WORKING (2026-10-14). A thread running a turn, or at rest with its own sub-agents or
+// shells still out, has work in flight, and a snooze would fold it away while that work lands
+// (maintainer: "ensure active threads cant be hidden under snooze easily"). The clock stays in place —
+// a header verb that comes and goes moves its neighbours — but is disabled and says when it will work,
+// and the server refuses the same snooze (router.setThreadSnooze). Wake now is never blocked.
 export function SnoozeMenu({
   thread,
   projectName,
   onSnoozed,
   onUndone,
-  eventItems,
 }: {
   thread: ThreadView
   /** The project the thread waits under once snoozed, named in the toast. Defaults to the page's — the
@@ -55,10 +59,6 @@ export function SnoozeMenu({
   onSnoozed?: () => void
   /** The toast's Undo put the snooze back as it was: give back whatever `onSnoozed` took away. */
   onUndone?: () => void
-  /** EVENT snoozes the surface can offer, above the wall-clock presets — a snooze whose wake is something
-   *  the thread does rather than an instant. The queue card of a parent waiting on its sub-agents passes
-   *  its two (AwaitingSubAgentsCard SubAgentWaitSnoozeItems), each ending in its own separator. */
-  eventItems?: ReactNode
 }) {
   const api = useThreadApi()
   // The board's NAME, read whether or not the caller named the project: a board read but not dereferenced
@@ -95,16 +95,11 @@ export function SnoozeMenu({
   }), [open])
   // Two shapes: a plain park only re-surfaces the card, while an armed one resumes the agent with that
   // text — so naming the follow-up IS the detail.
-  // THE TWO EVENT SNOOZES, when one is what parks the thread: no instant to name, so the state reads as its
-  // toast did, and Wake now clears it through the RPC that armed it (each takes `clear`, the toast's Undo).
-  // Until 2026-10-14 only a wall-clock snooze had a Wake now, so a thread parked on its sub-agents could
-  // be brought back only by Undo while the toast lasted, or by typing to it.
-  const eventSnooze = snoozedUntil ? null : thread.subAgentsSnoozed === true ? "subagents" : thread.bgSnoozed === true ? "activity" : null
-  const state = snoozedUntil
-    ? (prompt ? `Bumps ${formatSnoozeWake(snoozedUntil)}` : `Snoozed until ${formatSnoozeWake(snoozedUntil)}`)
-    : eventSnooze === "subagents" ? SUBAGENTS_SNOOZE_TOAST : eventSnooze === "activity" ? ACTIVITY_SNOOZE_TOAST : null
+  const state = snoozedUntil ? (prompt ? `Bumps ${formatSnoozeWake(snoozedUntil)}` : `Snoozed until ${formatSnoozeWake(snoozedUntil)}`) : null
+  // Working, and nothing to wake: the verb waits for the thread to stop.
+  const working = !snoozedUntil && isActivelyRunning(thread)
   const snoozeKeys = useShortcutLabel("thread.snooze")
-  const label = state ? (prompt ? `${state}\n${prompt}` : state) : withShortcut("Snooze", snoozeKeys)
+  const label = state ? (prompt ? `${state}\n${prompt}` : state) : working ? "Snooze once it stops working" : withShortcut("Snooze", snoozeKeys)
   // THE `s` SHORTCUT OPENS THIS MENU (lib/keyboardRuntime.ts): how long to put a thread off is a choice,
   // and Superhuman's H and Linear's H, the snooze keys this one replaced, both open a picker too. A Radix
   // trigger opens on pointer-down and keys, not on the synthetic click a command press sends, so the
@@ -113,7 +108,7 @@ export function SnoozeMenu({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const openedByKey = useRef(false)
   useCommandHandler(triggerRef, () => {
-    if (busy) return
+    if (busy || working) return
     openedByKey.current = true
     setOpen(true)
   })
@@ -121,10 +116,11 @@ export function SnoozeMenu({
     if (!open || !openedByKey.current) return
     openedByKey.current = false
     // One frame: Radix mounts the content on open; this puts focus on Wake now when the thread is snoozed,
-    // else on the FIRST CLOCK PRESET — never on an event snooze above it. It focused the first row of any
-    // kind until 2026-10-14, and on a parent with a sub-agent out that row is "Until all sub-agents
-    // return": `s` then Enter armed a snooze with no deadline that hid @precompile-design for hours, on a
-    // thread whose human never meant to pick it (maintainer: "I never said snooze until all return").
+    // else on the FIRST CLOCK PRESET, by name. It focused the first row of any kind until 2026-10-14, and
+    // on a parent with a sub-agent out that row was "Until all sub-agents return": `s` then Enter armed a
+    // snooze with no deadline that hid @precompile-design for hours, on a thread whose human never meant
+    // to pick it (maintainer: "I never said snooze until all return"). Named, the landing cannot drift
+    // onto whatever row a later change puts first.
     // Only one menu can be open when a plain key fires (the runtime ignores them while any menu is up), so
     // the lookup cannot land in another card's menu.
     const frame = requestAnimationFrame(() => {
@@ -176,19 +172,6 @@ export function SnoozeMenu({
     }
   }
 
-  async function wakeEvent(): Promise<void> {
-    const ids = { slug: thread.id, sessionId: thread.sessionId ?? "", clear: true }
-    setBusy(true)
-    try {
-      await (eventSnooze === "subagents" ? api.snoozeUntilSubAgentsReturn(ids) : api.snoozeAwaitingBackground(ids))
-      showToast("Snooze cleared")
-    } catch (error) {
-      showToast((error instanceof Error ? error.message : "Wake failed").slice(0, 100))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   // An existing snooze re-opens as itself so editing the follow-up never silently moves the deadline;
   // otherwise the dialog starts a day out.
   function openCustom() {
@@ -227,11 +210,11 @@ export function SnoozeMenu({
             <button
               ref={triggerRef}
               type="button"
-              disabled={busy}
+              disabled={busy || working}
               data-command="snooze"
               data-snooze-menu
-              data-snoozed={state ? "true" : "false"}
-              aria-label={state ?? "Snooze"}
+              data-snoozed={snoozedUntil ? "true" : "false"}
+              aria-label={state ?? (working ? "Snooze once it stops working" : "Snooze")}
               // The armed follow-up is the tooltip's second line; a screen reader hears it here, since the
               // name stays the short state that the menu's own first line repeats.
               aria-description={snoozedUntil && prompt ? prompt : undefined}
@@ -239,7 +222,7 @@ export function SnoozeMenu({
               onMouseDown={(event) => event.preventDefault()}
               onBlur={() => setTooltipQuiet(false)}
               onPointerLeave={() => setTooltipQuiet(false)}
-              className={`${state ? HEADER_ICON_CLASS.replace(/(^| )text-muted( |$)/, "$1text-attention-90$2") : HEADER_ICON_CLASS} ${open ? "bg-panel-2" : ""}`}
+              className={`${snoozedUntil ? HEADER_ICON_CLASS.replace(/(^| )text-muted( |$)/, "$1text-attention-90$2") : HEADER_ICON_CLASS} ${open ? "bg-panel-2" : ""}`}
             >
               {busy ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <AlarmClock size={14} strokeWidth={2} />}
             </button>
@@ -247,13 +230,12 @@ export function SnoozeMenu({
         </Tooltip>
         <MenuContent align="end">
           <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-muted-60">{state ?? "Snooze"}</div>
-          {(snoozedUntil || eventSnooze) && (
+          {snoozedUntil && (
             <>
-              <MenuItem value="wake-now" onSelect={() => void (snoozedUntil ? apply(null) : wakeEvent())} icon={<AlarmClockOff size={12} />}>Wake now</MenuItem>
+              <MenuItem value="wake-now" onSelect={() => void apply(null)} icon={<AlarmClockOff size={12} />}>Wake now</MenuItem>
               <MenuSeparator />
             </>
           )}
-          {!eventSnooze && eventItems}
           {rows.map((row) => (
             <MenuItem key={row.value} value={row.value} onSelect={() => void apply(snoozePresetInstant(row.value))} icon={<AlarmClock size={12} />}>
               <span data-snooze-preset={row.value} className="flex min-w-0 flex-1 items-center justify-between gap-6">

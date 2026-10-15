@@ -409,6 +409,34 @@ test("setThreadSnooze RPC validates canonical future UTC and persists any owned 
   h.storage.close()
 })
 
+// A WORKING THREAD CANNOT BE SNOOZED (2026-10-14): a stray `s` then Enter hid @precompile-design while
+// its sub-agents ran. Motion is a running turn or the thread's own live sub-agents/shells at rest; a
+// `watching` rest is a wait on the world, not motion, and stays snoozable. Wake now always works.
+test("setThreadSnooze RPC refuses a working thread, and lets one waiting on the world be snoozed", async () => {
+  const h = harness()
+  const slug = "rpc-snooze-working"
+  h.storage.upsertSession(row(slug))
+  h.addExitedThread(slug)
+  const thread = h.snapshot.threads.at(-1)!
+  const until = "2099-07-14T08:45:00.000Z"
+  const snooze = (to: string | null) => h.router.setThreadSnooze.handler({ input: { slug, sessionId: `sid-${slug}`, until: to } })
+  thread.runtime = "running"
+  await assert.rejects(snooze(until), /working/)
+  thread.runtime = "turn-idle"
+  thread.subAgents = [{ id: "a", label: "audit", startedAt: "2026-10-14T00:00:00.000Z", state: "running" }]
+  await assert.rejects(snooze(until), /working/, "its own sub-agent out is still work")
+  assert.equal(h.storage.getSession(slug)?.snoozed_until ?? null, null)
+  thread.waitStatus = "watching"
+  await snooze(until)
+  assert.equal(h.storage.getSession(slug)?.snoozed_until, until, "a watching rest is a wait, not motion")
+  assert.ok(h.storage.getSession(slug)?.snooze_set_at, "the set instant is stamped for the next-rest wake")
+  thread.waitStatus = undefined
+  await snooze(null)
+  assert.equal(h.storage.getSession(slug)?.snoozed_until, null, "wake now is never refused")
+  assert.equal(h.storage.getSession(slug)?.snooze_set_at ?? null, null)
+  h.storage.close()
+})
+
 // The writer-yield guard exists to avoid racing an operator driving the thread from their own
 // terminal. A rollout FROZEN by a dead app-server looks identical from the rollout alone, and yielding
 // to it left the operator unable to answer their own stalled thread at all — the second half of the

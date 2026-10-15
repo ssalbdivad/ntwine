@@ -5,6 +5,10 @@
 // means. Lowest priority goes first:
 //
 //   1. the Done-today tail shortens, one row at a time, to its header (unless the human opened Done);
+//   1b. Waiting shortens, a row at a time, to its floor, and says how many more are waiting (unless the
+//      human opened it). Its rows are at rest on something outside the thread, so they give before any
+//      thread that is spinning or that needs the human — but never to nothing: the band is always in
+//      view (2026-10-14, shared inWaitingBand);
 //   2. Working rolls up its projects' runs into one line each, the biggest run first (a run the human
 //      expanded is never rolled up again, and a lone run, one project's page, never rolls);
 //   3. Ready and Working shorten together, a line at a time from whichever lists more, each down to a
@@ -12,8 +16,10 @@
 //      column beside it shows every one in full), Working how many more are working, and where. On a tie
 //      Ready gives first, for that reason. Opening Working by hand takes it out of this step.
 //
-//   4. last of all, Pinned lists its first pins and counts the rest: it is the human's own shelf and they
-//      keep it short, but a shelf of seven on a 720px screen is still more than the screen.
+//   4. Pinned lists its first pins and counts the rest: it is the human's own shelf and they keep it
+//      short, but a shelf of seven on a 720px screen is still more than the screen;
+//   5. last of all, Waiting gives its floor down to one row, its header and "N more waiting" still in
+//      view. The heavy load (sidebarFit.e2e.test.ts, 7 waiting) overflowed 1280x720 by 13px without it.
 
 /** How many Done-today rows the tail shows before any compression. */
 export const TAIL_MAX = 5
@@ -23,6 +29,8 @@ export const READY_FLOOR = 3
 export const WORKING_FLOOR = 2
 /** Pinned never shortens below this many rows. */
 export const PINNED_FLOOR = 2
+/** Waiting never shortens below this many rows. */
+export const WAITING_FLOOR = 2
 
 export interface BudgetInput {
   /** Done-today rows there are to show. */
@@ -41,6 +49,10 @@ export interface BudgetInput {
   pinned: number
   /** The human opened Pinned: it lists every row. */
   pinnedOpen: boolean
+  /** Waiting rows there are to show. */
+  waiting: number
+  /** The human opened Waiting: it lists every row. */
+  waitingOpen: boolean
 }
 
 export interface Budget {
@@ -54,6 +66,8 @@ export interface Budget {
   workingShown: number
   /** Pinned rows to draw; the rest a "N more pinned" line. */
   pinnedShown: number
+  /** Waiting rows to draw; the rest a "N more waiting" line. */
+  waitingShown: number
 }
 
 function rollable(input: BudgetInput): string[] {
@@ -94,7 +108,16 @@ export function maxLevel(input: BudgetInput): number {
   const lines = rolledLines(input, new Set(order))
   const ready = Math.max(0, input.ready - READY_FLOOR)
   const working = input.workingOpen ? 0 : Math.max(0, lines - WORKING_FLOOR)
-  return tail + order.length + ready + working + pinnedSteps(input)
+  return tail + waitingSteps(input) + order.length + ready + working + pinnedSteps(input) + waitingLastSteps(input)
+}
+
+/** Step 5: Waiting from its floor down to one row. */
+function waitingLastSteps(input: BudgetInput): number {
+  return input.waitingOpen ? 0 : Math.max(0, Math.min(WAITING_FLOOR, input.waiting) - 1)
+}
+
+function waitingSteps(input: BudgetInput): number {
+  return input.waitingOpen ? 0 : Math.max(0, input.waiting - WAITING_FLOOR)
 }
 
 function pinnedSteps(input: BudgetInput): number {
@@ -106,13 +129,17 @@ export function budgetAt(level: number, input: BudgetInput): Budget {
   const tailMax = input.tailOpen ? input.tail : Math.min(TAIL_MAX, input.tail)
   const tailSteps = input.tailOpen ? 0 : tailMax
   const tailShown = tailMax - Math.min(level, tailSteps)
+  const waitSteps = waitingSteps(input)
+  const waitingShown = input.waiting - Math.min(waitSteps, Math.max(0, level - tailSteps))
   const order = rollable(input)
-  const rollSteps = Math.min(order.length, Math.max(0, level - tailSteps))
+  const rollSteps = Math.min(order.length, Math.max(0, level - tailSteps - waitSteps))
   const rolled = new Set(order.slice(0, rollSteps))
   const lines = rolledLines(input, rolled)
-  const shortenSteps = Math.max(0, level - tailSteps - order.length)
+  const shortenSteps = Math.max(0, level - tailSteps - waitSteps - order.length)
   const { ready, working } = shorten(input.ready, lines, input.workingOpen, shortenSteps)
   const taken = input.ready - ready + (lines - working)
-  const pinnedShown = input.pinned - Math.min(pinnedSteps(input), Math.max(0, shortenSteps - taken))
-  return { tailShown, rolled, readyShown: ready, workingShown: working, pinnedShown }
+  const pinSteps = Math.min(pinnedSteps(input), Math.max(0, shortenSteps - taken))
+  const pinnedShown = input.pinned - pinSteps
+  const lastSteps = Math.min(waitingLastSteps(input), Math.max(0, shortenSteps - taken - pinSteps))
+  return { tailShown, rolled, readyShown: ready, workingShown: working, pinnedShown, waitingShown: waitingShown - lastSteps }
 }

@@ -222,16 +222,15 @@ test("the resting card owns the heading, the glyph, the prose and the chips", ()
   assert.match(code, /const prose = awaitingProseBlock\(stated\?\.body\)/)
   assert.match(code, /const unrowed = unrowedWatchRefs\(work, hints\)/, "a PR the table already rows gets no chip — one PR, one place")
   // THE VERBS ARE THE ONLY THINGS THE RUNTIME MAY CHANGE, and each is withheld rather than re-styled: a
-  // thread already bg-snoozed has no rest for the Snooze to park, and a thread that has left the rest its
-  // steps were posted at has nobody waiting on the steps' Done (2026-10-03). A steps card takes no Snooze
-  // at all — the reader is what it waits on — and neither does a `watching` rest (2026-10-05): its worker
-  // already parked it in Snoozed, which is the park the button would make.
+  // thread that has left the rest its steps were posted at has nobody waiting on the steps' Done
+  // (2026-10-03), and "Ask for update" needs a parked rest the human owns. (The card's own Snooze was
+  // removed 2026-10-14.)
   assert.match(code, /const restOwned = thread !== undefined && steps\.length === 0 && showsRestingCard\(thread\) && threadLifecycleAvailability\(thread\)\.snooze/)
-  assert.match(code, /const snoozable = restOwned && thread!\.waitStatus !== "watching"/)
+  assert.doesNotMatch(code, /AwaitingSnooze|snoozeAwaitingBackground/, "the card carries no snooze")
   assert.match(code, /const stepsLive = thread !== undefined && restingOnSteps\(thread, steps\)/)
   // Nothing else may key on the runtime. A second `showsRestingCard` call inside this card is how a
   // heading, a glyph or a truncation rule would start varying with it again.
-  assert.equal(code.match(/showsRestingCard\(/g)?.length, 1, "the runtime reaches the Snooze once")
+  assert.equal(code.match(/showsRestingCard\(/g)?.length, 1, "the runtime reaches the verbs once")
   assert.equal(code.match(/restingOnSteps\(/g)?.length, 1, "…and the steps' Done once")
   assert.doesNotMatch(code, /\.runtime\b/, "and nothing in the card reads the runtime directly")
 })

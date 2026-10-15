@@ -298,9 +298,18 @@ export function isBoardRelevantNtwinePath(roots: ReadonlySet<string>, path: stri
   return path.endsWith(".md") && roots.has(dirname(path))
 }
 
-function futureSnooze(row: Pick<SessionRow, "snoozed_until">, nowMs: number): string | undefined {
+// The human's snooze, while it still holds: a future instant, and — for a plain snooze the human set
+// (snooze_set_at) — no rest of the agent's since it was set. A thread that wakes and works after its
+// snooze is back in view at the rest that ends that work, wherever its own answer puts it, rather than
+// folded away again until the clock runs out (maintainer 2026-10-14: "ensure active threads cant be
+// hidden under snooze easily"). A snooze carrying a follow-up prompt is a scheduled message, and holds to
+// its deadline as before; so does a schedule's run, whose instant the scheduler writes with no stamp.
+function futureSnooze(row: Pick<SessionRow, "snoozed_until" | "snooze_prompt" | "snooze_set_at" | "rested_at">, nowMs: number): string | undefined {
   const parsed = SnoozeUntil.safeParse(row.snoozed_until)
-  return parsed.success && Date.parse(parsed.data) > nowMs ? parsed.data : undefined
+  if (!parsed.success || Date.parse(parsed.data) <= nowMs) return undefined
+  const setAt = Date.parse(row.snooze_set_at ?? "")
+  if (Number.isFinite(setAt) && !row.snooze_prompt?.trim() && Date.parse(row.rested_at ?? "") > setAt) return undefined
+  return parsed.data
 }
 
 // The ONE signal that a rested top-level turn is still working: a live dispatched SUB-AGENT. A child
@@ -434,7 +443,7 @@ export function stampShellBudgets(
 }
 
 // The thread's OWN dispatched work is still live — a sub-agent OR a launched background shell. It drives
-// the resting CARD (deriveAwaitingBackground) and its event-snooze, and deliberately NOT the queue
+// the resting CARD (deriveAwaitingBackground; its event-snooze too, until 2026-10-14), and deliberately NOT the queue
 // excusal: hasLiveBackgroundWork (sub-agents only) is what excuses a rest from the queue, because a
 // detached shell leaves a thread that is a handoff in substance (see deriveNeedsYou). Shells were folded
 // into the excusal on 2026-08-01 and taken back out on 2026-08-04; the CARD spanned both kinds
@@ -998,9 +1007,9 @@ function hasLiveOwnWork(tele: SessionTelemetry | undefined, registeredPrWatches:
     // A PARKED PR WATCHER COUNTS (2026-08-13). It is the same shape of thing as a detached shell: the
     // worker left it running, it will re-invoke the thread on its own, and until it does there is
     // nothing for the human to do. That makes it eligible for the resting card and — the point of
-    // counting it — for that card's event-snooze, which is now the ONE control for hiding a parked
-    // watcher (maintainer: "the user can just use the generic snooze card… now GitHub watchers can be
-    // included in the ranks of those").
+    // counting it, then — for that card's event-snooze, the ONE control for hiding a parked watcher
+    // (maintainer: "the user can just use the generic snooze card… now GitHub watchers can be included
+    // in the ranks of those"). That snooze was removed 2026-10-14; a `watching` park now sits in Waiting.
     hasParkedPrWatch(tele, registeredPrWatches),
   )
 }
@@ -1099,26 +1108,22 @@ export function queuedOnlyForReply(
   return needsYouFor(row) && !needsYouFor({ ...row, seen_at: new Date(nowMs).toISOString() })
 }
 
-// The awaiting-background event-snooze is armed for the CURRENT rest iff the captured rested_at still
-// equals the row's rested_at. rested_at only advances when the top-level turn comes to a NEW rest, so
-// any advance — the exact event of a sub-agent/shell returning and the worker acting on it — auto-clears
-// the snooze and re-surfaces the card. No scheduler, no reaper: the snooze expires itself on next rest.
-// That self-clearing IS the promise the card's Snooze button makes to the human ("until one of the
-// background shells completes, in which case the agent will resume automatically" — maintainer
-// 2026-08-04): a Claude/Codex worker is re-invoked by its own completion notification, and the card comes
-// back the moment that turn ends. A shell that never finishes therefore stays snoozed, which is the point.
+// The done card's Watch is armed for the CURRENT rest iff the captured rested_at still equals the row's
+// rested_at. rested_at only advances when the top-level turn comes to a NEW rest, so the watch's own wake
+// — a turn, then a rest at a different instant — spends it, and the worker's answer to the news decides
+// the thread's place again. The column was also the resting card's "Snooze until new activity" until
+// 2026-10-14, when that snooze and "until all sub-agents return" were removed (maintainer: snooze had
+// become a way to hide a working thread); only Watch writes it now.
 function bgSnoozeArmed(row: Pick<SessionRow, "bg_snooze_rested_at" | "rested_at">): boolean {
   return row.bg_snooze_rested_at != null && row.rested_at != null && row.bg_snooze_rested_at === row.rested_at
 }
 
 // A DONE THE HUMAN CHOSE TO WATCH (2026-10-07). The done card offers "Watch #N" for each pull request or
-// issue it names (router.watchDoneRef): one click arms the watcher and parks THIS rest with the same
-// event-snooze column the resting card's Snooze writes. So the thread is finished AND waiting on GitHub,
-// and the human said which of the two they want to see: it leaves the queue and rests in Snoozed as a
-// `watching` rest, exactly where a worker's own `status: watching` park on a PR would put it, until the
-// watch reports — that wake starts a turn, the next rest is a different instant, and the park is spent,
-// so the worker's answer to the news decides the thread's place again. ntwine parks nothing here on its
-// own: the snooze column is written only by the human's two clicks.
+// issue it names (router.watchDoneRef): one click arms the watcher and parks THIS rest (bgSnoozeArmed).
+// So the thread is finished AND waiting on GitHub, and the human said which of the two they want to see:
+// it leaves the queue and rests in Waiting as a `watching` rest, exactly where a worker's own
+// `status: watching` park on a PR puts it (it sat in Snoozed until 2026-10-14), until the watch reports.
+// ntwine parks nothing here on its own: the column is written only by the human's click.
 //
 // Needs the armed watcher: a done the human parked on a watch that has since settled (merged, closed,
 // dropped) has nothing left to wait on, and it goes back to being a done in the queue.
@@ -1134,9 +1139,9 @@ export function doneParkedOnWatch(
 // A parent that fans out N background sub-agents is re-invoked by EACH return: it wakes, reads the
 // report, and rests again. A rest that is not an honoured park queues (upstream: a partial return may give
 // the human something to act on), so a queued parent re-queues once per child. Two things follow, and
-// the maintainer ruled on both (2026-09-29): the card has to say where the batch stands — which children
-// are still out and which have come back — and the human needs a snooze that waits out the WHOLE batch
-// rather than one that the next return spends (bgSnoozeArmed, which is scoped to one rest by design).
+// the maintainer ruled (2026-09-29) that the card has to say where the batch stands — which children are
+// still out and which have come back. (A snooze that waited out the whole batch rode beside it until
+// 2026-10-14; it hid working threads, and the worker's own park already keeps the thread out of the queue.)
 
 // The direct children still out: running, or tracked but quiet (`stale` — a completion signal we may
 // have lost). Descendants are a rendering concern and never move thread state (isDirectSubAgent).
@@ -1183,53 +1188,6 @@ export function returnedSubAgentsView(tele: SessionTelemetry | undefined): Threa
   return out.length > 0 ? out : undefined
 }
 
-/** Does "snooze until all sub-agents return" still hold this thread?
- *
- *  Armed at an instant (`subagents_snoozed_at`), it holds for as long as some direct sub-agent that was
- *  ALREADY OUT at that instant is still running — across any number of intermediate returns, each of
- *  which still wakes the parent (a sibling returning is not the batch returning). It lets go:
- *
- *  - when every child that was out at the click is back. A child dispatched AFTER the click never holds
- *    it, overlapping or not: it is new work the human has not seen. Until 2026-10-14 a child sent before
- *    the last one returned continued the wait, so an orchestrator that always kept one lane running held
- *    @precompile-design in Snoozed for hours on a batch that had long since come back (maintainer: "if I
- *    consider a thread to be active and an agent happens to be waiting for something, I still don't want
- *    to see it collapsed");
- *  - when the HUMAN has spoken to the thread since (lastHumanAt counts typed turns only, never a child's
- *    report or a wake). Whatever they said supersedes a snooze set before it.
- *
- *  A question, a crash, a limit or a ```done outrank it: deriveNeedsYou checks those first. So does a
- *  `status: needs_input` rest NEWER than the click (subAgentsSnoozeHidesRest) — the rest the human was
- *  looking at when they clicked is hidden, but a later report the worker says needs them is not.
- *
- *  AND ONCE IT LETS GO IT IS SPENT. Whatever brings the thread back into the queue clears the column
- *  (spendSubAgentsSnooze, at the queue clock's entry). Until 2026-10-14 nothing cleared it, and an
- *  outranking rest only outranked it for that rest: @precompile-design, snoozed at 13:58 on a lane that
- *  then ran for five hours, came back to Ready at each `needs_input` report and folded into Snoozed again
- *  at the next `working` rest, three times, with no click (maintainer: "snoozed is a human only state- it
- *  has to be manually triggered"). Back in view, it takes another click to leave it. */
-export function subAgentsSnoozeHolds(row: Pick<SessionRow, "subagents_snoozed_at">, tele: SessionTelemetry | undefined): boolean {
-  const armedMs = Date.parse(row.subagents_snoozed_at ?? "")
-  if (!Number.isFinite(armedMs)) return false
-  const humanMs = Date.parse(tele?.lastHumanAt ?? "")
-  if (Number.isFinite(humanMs) && humanMs > armedMs) return false
-  // A child with no parseable dispatch instant cannot show it was out at the click, so it holds nothing —
-  // the safe side, since letting go only ever returns the thread to view.
-  return (tele?.subAgents ?? []).some((a) => isDirectSubAgent(a) && a.state === "running" && Date.parse(a.startedAt) <= armedMs)
-}
-
-/** The same snooze for a thread that answers `status:` itself, whose rests needsInputQueues decides and
- *  which never reach the legacy line in deriveNeedsYou. Without this the click on a `needs_input` card
- *  hid nothing — that rest stayed queued — and the snooze only took effect at the next `working` rest,
- *  folding into Snoozed a row the human had last seen in Ready. It hides every rest while it holds except
- *  a `needs_input` one written AFTER the click, which is news the human has not seen. */
-function subAgentsSnoozeHidesRest(row: SessionRow, tele: SessionTelemetry | undefined, runtime: RuntimeState): boolean {
-  if (runtime === "exited" || tele?.lastFence?.kind === "done" || !subAgentsSnoozeHolds(row, tele)) return false
-  const fence = tele?.lastFence
-  const asks = fence?.kind === "awaiting" && awaitingNeedsInput(fence.hints) === true
-  return !(asks && Date.parse(tele?.lastAssistantAt ?? "") > Date.parse(row.subagents_snoozed_at ?? ""))
-}
-
 // A declared wait excuses an idle thread from the queue only for a specific external-human gate or a
 // valid future scheduler instant. Legacy PR/CI/session hints, malformed/elapsed timers, and hintless
 // fences are agent-owned work; if the worker nevertheless comes to rest, the queue must surface that
@@ -1238,8 +1196,8 @@ function subAgentsSnoozeHidesRest(row: SessionRow, tele: SessionTelemetry | unde
 // A PR WAIT is DELIBERATELY NOT here (maintainer 2026-07-22): the review/approval/comment watcher
 // keeps its thread a VISIBLE queue handoff rather than parking it, so a PR whose reviews may never
 // arrive can't silently vanish. The scheduler still polls + bumps it on new activity (it keys on the
-// hint, not on this excusal); the human hides it on demand via the "PR watcher armed" card's Snooze
-// button (a user snooze, cleared by the next activity). Mirrors groups.parkedAwaitingHint — keep the
+// hint, not on this excusal). The human could once hide it on demand via the "PR watcher armed" card's
+// Snooze button, and later the resting card's event-snooze; both are gone (the last on 2026-10-14). Mirrors groups.parkedAwaitingHint — keep the
 // two in lockstep.
 function hasParkedExternalWait(tele: SessionTelemetry | undefined, _nowMs: number): boolean {
   // NOTHING EXTERNAL PARKS A THREAD ANY MORE. This carried the two hint kinds that took a thread out of
@@ -1263,8 +1221,8 @@ function hasParkedExternalWait(tele: SessionTelemetry | undefined, _nowMs: numbe
 // It therefore has the fence's lifetime: it stands while the park is the worker's last word and
 // disappears the moment the worker says anything else, which is correct — that is also the instant the
 // scheduler stops watching. The ID is stable across ticks (slug + target) so a row does not remount on
-// every board delta, and there is nothing to DROP: the affordance for hiding one is the snooze the
-// operator already uses for a thread resting on background work.
+// every board delta, and there is nothing to DROP on a row of its own (the resting card's event-snooze
+// hid a thread resting on background work until 2026-10-14).
 export function fenceWatchViews(
   slug: string,
   tele: SessionTelemetry | undefined,
@@ -1368,7 +1326,7 @@ export function fenceWatchViews(
 // call site). Every otherwise-unexcused owned/open thread enters Queue when its top-level worker comes
 // to rest. A user-owned snooze temporarily suppresses every queue reason—including a concrete ask,
 // permission prompt, or crash—then the exact deadline restores the still-current reason. Truthful
-// external waits place ordinary rest in Snoozed without writing lifecycle state.
+// external waits place ordinary rest in Waiting without writing lifecycle state.
 // A follow-up ntwine has delivered but the transcript has not yet reflected: it lives in the delivery
 // ledger as `pending` (injected, no JSONL evidence yet), `enqueued` (positively receipted by Claude
 // Code's own queue) or `delivered` (the transport's receipt proved it went straight into a turn). All
@@ -1447,8 +1405,8 @@ export function deriveNeedsYou(
   deliveryProcessGone = false,
   github: GithubStatusBook = {},
   registeredPrWatches: ReadonlySet<string> = new Set(),
-  // The scheduler's armed timer rows, so a TIMER park can take the event-snooze below exactly as a PR
-  // park does. Supplied by the caller for the same reason `registeredPrWatches` is: only it has the
+  // The scheduler's armed timer rows, so a TIMER park is honoured (hasHonouredPark) and cards exactly as
+  // a PR park does. Supplied by the caller for the same reason `registeredPrWatches` is: only it has the
   // registry, and a declaration alone is not a wait (hasParkedTimerWatch).
   armedTimerIds: ReadonlySet<string> = new Set(),
   // This thread's ARMED `thread_watch` rows. Same reason as the two above — the caller holds storage.
@@ -1546,7 +1504,6 @@ export function deriveNeedsYou(
   // the legacy park rule would have excused it. The cut decides only whether the answer is REQUIRED.
   const answered = tele?.lastFence?.kind === "awaiting" && awaitingNeedsInput(tele.lastFence.hints) !== null
   if (answered || needsInputRequired(row.spawned_at)) {
-    if (subAgentsSnoozeHidesRest(row, tele, runtime)) return false
     return needsInputQueues(row, tele, runtime, nowMs, excuseLiveOwnWork, registeredPrWatches, armedTimerIds)
   }
   // Declared parks are STRONGER excusals than the awaiting-background card below, so they are checked
@@ -1577,9 +1534,10 @@ export function deriveNeedsYou(
   // thread resting behind one has finished its turn in every sense that matters to the operator, and
   // burying it in the running band means it is never seen again. It is a handoff, so it queues.
   //
-  // The layout-shift worry that motivated the 2026-08-01 excusal is answered instead by the SNOOZE on
-  // the card (see the branch below): one click parks it until the shell returns and the worker re-rests.
-  // That is the human's call to make per thread, which an unconditional excusal took away from them.
+  // The layout-shift worry that motivated the 2026-08-01 excusal was answered instead by the SNOOZE on
+  // the card: one click parked it until the shell returned and the worker re-rested — the human's call
+  // per thread, which an unconditional excusal took away from them. That event-snooze was removed on
+  // 2026-10-14; a worker that wants the rest out of the queue now says so with `status:` (needsInputQueues).
   //
   // A DECLARED FENCE outranks the excusal (hence the `!tele?.lastFence` guard), because a fence is the
   // worker's own statement about why it stopped and it earns its own card: a ```done handoff still
@@ -1589,11 +1547,10 @@ export function deriveNeedsYou(
   // (deriveAwaitingBackground drops any fenced thread, so the client reads it as a rested-band row),
   // which is exactly why it must keep its card — the invariant above cuts both ways.
   if (excuseLiveOwnWork && runtime !== "exited" && hasLiveBackgroundWork(tele) && !tele?.lastFence) return false
-  // THE CARD, AND ITS EVENT-SNOOZE. Three shapes reach here: a SHELL-ONLY rest (the common one since
-  // 2026-08-04 — no fence, no live child, a launched shell still going), a fenced thread with live work
-  // of either kind, and deriveAwaitingBackground asking for the FACT rather than the queue
-  // (excuseLiveOwnWork false, which must never consult the queue-owned snooze — hence the nulled column
-  // at its call site). All three card, and all three honour an armed event-snooze for the current rest.
+  // THE CARD. Three shapes reach here: a SHELL-ONLY rest (the common one since 2026-08-04 — no fence, no
+  // live child, a launched shell still going), a fenced thread with live work of either kind, and
+  // deriveAwaitingBackground asking for the FACT rather than the queue (excuseLiveOwnWork false). All
+  // three card. (Until 2026-10-14 all three also honoured the card's event-snooze for the current rest.)
   //
   // An EXITED parent with "running" children is a crash, not this card — the runtime!=="exited" guard
   // drops it to the crash/bare-rest net below (a dead worker's children keep reading "running" until their
@@ -1627,24 +1584,10 @@ export function deriveNeedsYou(
   // AN HONOURED PARK. The worker fenced on waits ntwine can see, and nothing it named has settled — so
   // there is nothing for the human to do until one of them wakes it. See hasHonouredPark.
   if (parkExcuses && hasHonouredPark(tele, nowMs, registeredPrWatches, armedTimerIds)) return false
-  // A TIMER PARK TAKES THE SAME SNOOZE (2026-08-25). A timer park that is NOT honoured (no `for:`, or
-  // run out) — or a bare armed timer with no fence — still queues, and since 2026-08-24 it cards like a PR, with the resting card's event-Snooze as
-  // its one control. But it is not "live own work" (nothing of the thread's is running; the clock is),
-  // so it fell straight past this line to the bare-rest handoff below, which never reads the snooze:
-  // the click was recorded (bg_snooze_rested_at set), the card stayed in the queue, and the client —
-  // reading `bgSnoozed` — un-hid the fence card above the still-showing resting card, so the same wait
-  // rendered twice on one queue card (maintainer 2026-08-25: "I already hit the snooze button… but it's
-  // still in the queue"). Checked against the registry, not the declaration: a fence naming a fired
-  // timer is a bare rest, and a bare rest is not snoozable.
-  //
-  // SNOOZED UNTIL ALL SUB-AGENTS RETURN (2026-09-29). The human's other event-snooze, and the reason it
-  // sits here: it is the one that is NOT spent by the next rest. Each child that comes back still wakes
-  // the parent, which reads the report and rests again — that rest just does not re-queue it while a
-  // sibling is still out. It lets go when none is (see subAgentsSnoozeHolds), and everything above this
-  // line — a question, a crash, a limit, a fresh follow-up — has already outranked it. A ```done does too:
-  // the worker saying it has finished is a better reason to look than the children it left running.
-  if (runtime !== "exited" && tele?.lastFence?.kind !== "done" && subAgentsSnoozeHolds(row, tele)) return false
-  if (runtime !== "exited" && (hasLiveOwnWork(tele, registeredPrWatches) || hasParkedTimerWatch(tele, armedTimerIds)) && tele?.lastFence?.kind !== "done") return !bgSnoozeArmed(row)
+  // A TIMER PARK QUEUES LIKE LIVE OWN WORK (2026-08-25). A timer park that is NOT honoured (no `for:`, or
+  // run out) — or a bare armed timer with no fence — still queues, and cards like a PR. Checked against the
+  // registry, not the declaration: a fence naming a fired timer is a bare rest.
+  if (runtime !== "exited" && (hasLiveOwnWork(tele, registeredPrWatches) || hasParkedTimerWatch(tele, armedTimerIds)) && tele?.lastFence?.kind !== "done") return true
   // A final ```done fence is a CHECKED completion handoff: show its success card in the queue until the
   // human explicitly Archives the thread. Like a question, merely viewing it does not resolve it. The
   // at-rest gate above prevents a stale fence from carding while a follow-up turn is still running.
@@ -1659,11 +1602,11 @@ export function deriveNeedsYou(
 // where the legacy tail has one per kind of wait:
 //
 //  1. `status: working` or `status: watching` (or the older `needs_input: false`) on a park ntwine can
-//     honour keeps the thread OUT of the queue. Which band it then sits in — Running or Snoozed — is
+//     honour keeps the thread OUT of the queue. Which band it then sits in — Working or Waiting — is
 //     deriveWaitStatus's verdict. "Honour" is the scheduler's own reading (awaiting.needsInputParkHolds):
 //     every named item live and the `for:` not yet run out — so a wrong answer cannot hide a thread that
 //     nothing will wake.
-//  2. Any other rest on running work QUEUES, with the resting card and its event-snooze: `needs_input`, a
+//  2. Any other rest on running work QUEUES, with the resting card: `needs_input`, a
 //     fence with no answer (the scheduler bumps it), and a rest with work out and no fence at all (the
 //     sign-off nudge teaches the fence). This is where a live sub-agent, a registered watch and a PR whose
 //     CI is still running used to excuse the thread on ntwine's guess; the worker says so now, or it queues.
@@ -1707,7 +1650,7 @@ function needsInputQueues(
       nowMs,
     )
   ) return false
-  if (runtime !== "exited" && fence?.kind !== "done" && (hasLiveOwnWork(tele, registeredPrWatches) || hasParkedTimerWatch(tele, armedTimerIds))) return !bgSnoozeArmed(row)
+  if (runtime !== "exited" && fence?.kind !== "done" && (hasLiveOwnWork(tele, registeredPrWatches) || hasParkedTimerWatch(tele, armedTimerIds))) return true
   return true
 }
 
@@ -1718,13 +1661,13 @@ function needsInputQueues(
 // own card instead). Kept adjacent to deriveNeedsYou and delegating to it so the two never drift.
 //
 // The QUEUE surface is back as of 2026-08-04, for a SHELL-ONLY rest: those threads queue again
-// (deriveNeedsYou excuses live sub-agents only), so the card renders there with its Snooze. A rest on a
-// live sub-agent is still excused from the queue, so for that shape the drawer and the full-screen page
-// remain the only places this state is stated in words — which is why the card must keep rendering
-// without a queue card behind it, and why the snooze below is dropped.
+// (deriveNeedsYou excuses live sub-agents only), so the card renders there (with its own Snooze until
+// 2026-10-14). A rest on a live sub-agent is still excused from the queue, so for that shape the drawer
+// and the full-screen page remain the only places this state is stated in words — which is why the card
+// must keep rendering without a queue card behind it, and why the column below is dropped.
 //
-// The queue's event-Snooze is deliberately NOT inherited (bg_snooze_rested_at is nulled out below, and
-// so is the "until all sub-agents return" snooze beside it, for the same reason).
+// The done card's Watch is deliberately NOT inherited (bg_snooze_rested_at is nulled out below). The
+// reasoning was written of the card's event-snooze, which shared that column until 2026-10-14:
 // Snoozing is a QUEUE VERB — "stop showing me this card in the queue" — while this flag states a FACT
 // about the thread, and AwaitingBackgroundCard renders that fact on the drawer and the standalone page
 // too, where there is no Snooze affordance and nothing to dismiss. Inheriting the snooze let one queue
@@ -1737,8 +1680,9 @@ function needsInputQueues(
 // SHELL-ONLY is why this went unnoticed at the time: the client's hasLiveOps then read raw sub-agents,
 // so a snoozed thread with a live child kept its spinner in the running band and stayed legibly alive,
 // while a snoozed shell-only one fell all the way through to a rested-band row with nothing behind it
-// anywhere. hasLiveOps now reads THIS flag, which is what makes a snoozed shell-only rest legible again:
-// no queue card, but a running-band row wearing the pulsing dot until the shell returns.
+// anywhere. hasLiveOps now reads THIS flag, which is what made a snoozed shell-only rest legible again:
+// no queue card, but a running-band row wearing the pulsing dot until the shell returned. (No such
+// snooze exists since 2026-10-14.)
 export function deriveAwaitingBackground(
   row: SessionRow,
   tele: SessionTelemetry | undefined,
@@ -1782,12 +1726,12 @@ export function deriveAwaitingBackground(
   // two (maintainer 2026-08-13, choosing this): the awaiting card no longer offers a park action for
   // a PR wait at all — see lib/awaitingPresentation.awaitingParkAction, where the branch that titled it
   // "PR watcher armed" and carried its Snooze is gone. The watcher itself is listed under the prompt box
-  // with the sub-agents and shells, and THIS card carries the one snooze. Without this line the parked
-  // thread would show a titleless fence card and no snooze anywhere.
+  // with the sub-agents and shells, and THIS card states the wait (it also carried the one snooze until
+  // 2026-10-14). Without this line the parked thread would show a titleless fence card and nothing else.
   if (tele?.lastFence?.kind === "done") return false
   // A DECLARED BACKGROUND PARK IS THE SAME EXCEPTION as the PR one directly above, for the same
   // reason: its fence has no park action of its own (awaitingParkAction returns null for `watch:`), so
-  // suppressing this card would leave the thread stating its wait nowhere and offering no snooze.
+  // suppressing this card would leave the thread stating its wait nowhere.
   if (
     tele?.lastFence?.kind === "awaiting" &&
     !hasParkedPrWatch(tele, registeredPrWatches) &&
@@ -1803,14 +1747,14 @@ export function deriveAwaitingBackground(
     !hasHumanSteps(tele)
   ) return false
   // Every OTHER excusal deriveNeedsYou applies still outranks the card (a user wall-clock snooze, a
-  // delivered-but-unobserved follow-up); only the queue-owned event-snooze is dropped,
+  // delivered-but-unobserved follow-up); only the done card's Watch (bg_snooze_rested_at) is dropped,
   // and the queue's live-OWN-WORK excusal is opted out of (excuseLiveOwnWork: false). That opt-out is
   // what keeps this flag meaningful at all: the very threads it describes are precisely the ones that
   // excusal removes from the queue, so inheriting it would make this function always false and blank the
   // drawer and full-screen page for a healthy thread resting on its children or on a shell. Since
   // 2026-08-01 that covers a shell-only rest too — it now has NO queue card at all, so this card in the
   // drawer and on the standalone page is the only place that state is stated in words.
-  return deriveNeedsYou({ ...row, bg_snooze_rested_at: null, subagents_snoozed_at: null }, tele, runtime, hasActionableInteraction, nowMs, limitPause, false, deliveryProcessGone, {}, new Set(), armedTimerIds, armedWatches, openQuestions)
+  return deriveNeedsYou({ ...row, bg_snooze_rested_at: null }, tele, runtime, hasActionableInteraction, nowMs, limitPause, false, deliveryProcessGone, {}, new Set(), armedTimerIds, armedWatches, openQuestions)
 }
 
 // WHICH BAND A REST OUT OF THE QUEUE SITS IN (2026-10-05) — ThreadView.waitStatus. deriveNeedsYou answers
@@ -1824,18 +1768,17 @@ export function deriveAwaitingBackground(
 //    with a spinner. Believed only while something it names is actually MOVING — a live sub-agent, a
 //    shell the fence names or a watch registers, CI that is running and not held at the approval gate —
 //    so a `working` park on a timer or a settled PR reads as the watch it is.
-//  - `watching` — the wait is on the WORLD: a review, a release, a reporter, a poll for a change. Snoozed,
-//    and still. Honoured even beside a live sub-agent, because the contract hands a long wait to a
-//    sub-agent; the child keeps its own spinner on its own row.
+//  - `watching` — the wait is on the WORLD: a review, a release, a reporter, a poll for a change. Waiting
+//    (Snoozed until 2026-10-14), and still. Honoured even beside a live sub-agent, because the contract
+//    hands a long wait to a sub-agent; the child keeps its own spinner on its own row.
 //
 // A fence that answers with the older `needs_input: false`, and a legacy fence with neither line, get
 // ntwine's reading instead: `working` while a live sub-agent or moving CI is out, `watching` otherwise —
 // shells included, since a shell alone cannot say whether it is a test run or a watcher. That is what
-// moves the reported thread, a 23h shell watcher on a pre-cut fence, into Snoozed with no fence change.
+// moved the reported thread, a 23h shell watcher on a pre-cut fence, out of Running with no fence change.
 //
 // ABSENT for every other shape, which the client reads as the old placement: a queued rest (it never
-// spins), a rest that is not at rest, an archived row, a declared `needs_input` the human event-snoozed
-// (the click parks it, not this), and a message on its way to the worker — a follow-up or an answer the
+// spins), a rest that is not at rest, an archived row, and a message on its way to the worker — a follow-up or an answer the
 // transcript has not shown yet, whose row keeps its Running placement until the turn starts.
 export function deriveWaitStatus(
   tele: SessionTelemetry | undefined,
@@ -2385,7 +2328,7 @@ function sessionThreadView(
   const deliveryInFlight = !archived && deriveDeliveryInFlight(row, runtime, needsYou, deliveryProcessGone, answerInFlight || signoffNudgePending, nowMs)
   const awaitingBackground = archived ? false : deriveAwaitingBackground(row, tele, runtime, interactionPresence.needsUser, nowMs, limitPause, deliveryProcessGone, github, registeredPrWatches, armedTimerIds, armedWatches, currentQuestionCount)
   // hasFreshDelivery rather than deliveryInFlight: the spin stops after a minute, and a message still on
-  // its way past that keeps its row where it was rather than parking it in Snoozed. A sign-off nudge on
+  // its way past that keeps its row where it was rather than parking it in Waiting. A sign-off nudge on
   // its way counts the same: the worker is about to be woken.
   const messageInFlight = answerInFlight || signoffNudgePending || hasFreshDelivery(row, deliveryProcessGone)
   const waitStatus = archived ? undefined
@@ -2491,15 +2434,8 @@ function sessionThreadView(
     snoozePrompt: snoozedUntil ? row.snooze_prompt ?? undefined : undefined,
     pinnedAt: row.pinned_at ?? undefined,
     deadline: deadlineViewOf(row),
-    // The event-snooze, as a fact the CHAT can read. `awaitingBackground` still ignores it — that flag
-    // states whether the thread is waiting, which the snooze does not change — so the suppression is a
-    // presentation rule the client applies, not a second opinion about the thread's state.
+    // The done card's Watch is armed on this rest (doneParkedOnWatch), as a fact the card can read.
     bgSnoozed: bgSnoozeArmed(row) || undefined,
-    // The "until all sub-agents return" snooze, only while it is what keeps the thread out of the queue:
-    // not while a question or a crash has already put it back in (needsYou), and not while the parent
-    // is mid-turn on a child's report — that turn spins in Active like any snoozed thread's, and the flag
-    // comes back at its next rest. isSnoozed parks the row in Snoozed on it.
-    subAgentsSnoozed: (!needsYou && runtime === "turn-idle" && subAgentsSnoozeHolds(row, tele)) || undefined,
     // The queued parent's card: which children came back inside the wait still open. See
     // returnedSubAgentsView; with the live `subAgents` above it is the whole batch.
     returnedSubAgents: archived ? undefined : returnedSubAgentsView(tele),
@@ -2583,7 +2519,6 @@ export function heldThreadView(view: ThreadView, row: SessionRow): ThreadView {
     awaitingBackground: false,
     crashed: false,
     deliveryInFlight: undefined,
-    subAgentsSnoozed: undefined,
     providerError: undefined,
     providerFault: undefined,
     limitPause: undefined,
@@ -2803,22 +2738,9 @@ export function createBoard(
       }
     },
     persists: (thread) => thread.kind === "session",
-    save: (thread, at) => {
-      storage.setQueuedAt(thread.id, at)
-      if (at !== null) spendSubAgentsSnooze(thread.id)
-    },
+    save: (thread, at) => storage.setQueuedAt(thread.id, at),
     saveAlive: (at) => storage.setSetting(QUEUE_CLOCK_ALIVE_SETTING, at),
   })
-
-  // A thread entering the queue has let go of "until all sub-agents return", whatever let it go, and the
-  // snooze is spent: only another click parks it again (subAgentsSnoozeHolds). Keyed on the queue
-  // clock's ENTRY, which fires once per arrival on a reading the board can vouch for — never on a row
-  // that was already queued when the human clicked, or one a restart's prime merely shows queued.
-  function spendSubAgentsSnooze(slug: string): void {
-    const row = storage.getSession(slug)
-    if (!row?.subagents_snoozed_at) return
-    storage.setSubAgentsSnoozedAtIfCurrent(slug, row.session_id, row.runtime_generation ?? 0, null)
-  }
 
   // What a needs-decision notification SAYS. A thread held on a request says what the request asks —
   // "Run a command? Creating the lane worktrees" — rather than the progress line its turn printed
@@ -3056,8 +2978,8 @@ export function createBoard(
         return telemetryVouched(tailer.get(t.id))
       },
       standIn: (t) => standIns.has(t.id),
-      // At rest and out of the queue anyway: a live sub-agent, CI, a park, a timer, an event-snooze on a
-      // shell. Two holds have no wake behind them: the human's own snooze, unless it carries a prompt to
+      // At rest and out of the queue anyway: a live sub-agent, CI, a park, a timer, a done the human is
+      // watching. Two holds have no wake behind them: the human's own snooze, unless it carries a prompt to
       // deliver when it ends, and the human's own follow-up, which either starts a turn or was lost.
       parked: (t) =>
         t.kind === "session" && !t.archived && (t.runtime === "turn-idle" || t.runtime === "exited") &&
@@ -3068,7 +2990,7 @@ export function createBoard(
       // What a person did, for a queued thread's place in line (queue-clock.ts: a thread only loses it
       // when someone acts on it). Every follow-up reaches the delivery ledger, and each router path that
       // writes one re-assembles the board before it returns, so one reading always sees it.
-      humanOut: (t) => t.archived || t.snoozedUntil !== undefined || t.bgSnoozed === true || t.subAgentsSnoozed === true || heldByDelivery.has(t.id),
+      humanOut: (t) => t.archived || t.snoozedUntil !== undefined || t.bgSnoozed === true || heldByDelivery.has(t.id),
       // A terminal's prompt is one: the only thing that clears it is the human typing the answer.
       humanGate: (t) =>
         promptingTerminal(t) !== undefined || t.actionableInteraction === true || t.runtime === "perm-prompt" || t.pendingAsk !== undefined,

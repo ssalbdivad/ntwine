@@ -37,6 +37,20 @@ export function waitingPage(url?: string): string {
   return page("ntwine", `<h1>No board is running</h1>${where}`)
 }
 
+/** This app started ntwine, and it is not answering yet — a first launch builds the board first. */
+export function startingPage(): string {
+  return page("ntwine", `<h1>Starting ntwine…</h1><p>It opens here as soon as it is up.</p>`)
+}
+
+/** The server this app started stopped before a board answered. The app keeps looking regardless. */
+export function startFailedPage(log: string): string {
+  return page(
+    "ntwine",
+    `<h1>ntwine couldn't start</h1><p>Its output is in <code>${escapeHtml(log)}</code>.</p>` +
+      `<div class="actions"><button class="primary" onclick="ntwineDesktop.retry()">Try again</button></div>`,
+  )
+}
+
 export function errorPage(options: { title: string; message: string }): string {
   return page(
     "ntwine",

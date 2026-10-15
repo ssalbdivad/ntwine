@@ -20,7 +20,6 @@ import { STALLED_RETRY_MESSAGE, retrySession } from "../lib/retrySession.ts"
 import { deliverProjectFollowUp } from "../lib/projectFollowUp.ts"
 import { useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
 import { formatAutoSnoozedUntil, formatUserSnooze } from "../lib/snooze.ts"
-import { SUBAGENTS_SNOOZE_TOAST } from "../lib/subAgentWait.ts"
 import { ScheduleMark } from "./ScheduleMark.tsx"
 import { formatCompactElapsed } from "../lib/durationLabels.ts"
 import { statusElapsed } from "./ThreadStatusLine.tsx"
@@ -1212,7 +1211,9 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
   if (kind === "parked") {
     const hk = t.lastFence?.kind === "awaiting" ? t.lastFence.hints.find((h) => h.kind === "shell" || h.kind === "agent" || h.kind === "timer")?.kind : undefined
     const ownWork = hk === "shell" || hk === "agent" || (hk === undefined && (t.bgShells ?? []).some((s) => s.state === "running"))
-    return { node: ownWork ? restingShellDot : hourglassMark, tip: popover(t, "At rest", hk === "timer" ? timerWake(t) : null) }
+    // A wait GitHub resolves wears GitHub's mark, as the Snoozed arm below always drew it: a Waiting row on
+    // a PR, and a done the human chose to watch from its card.
+    return { node: waitNamesPr(t) ? githubMark : ownWork ? restingShellDot : hourglassMark, tip: popover(t, "At rest", hk === "timer" ? timerWake(t) : null) }
   }
   if (kind === "snoozed") {
     const hourglass = hourglassMark
@@ -1225,10 +1226,9 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
     // never parks itself — parkedAwaitingHint excludes it so a watch stays a visible queue handoff — so
     // the rows that reach here are the ones parked ANYWAY: one the human snoozed on a wall clock, and,
     // until the 2026-08-15 grammar deleted the kind, one whose worker co-declared a `human:` gate
-    // beside the watch — and, since 2026-08-28, one the human snoozed off the RESTING card (the
-    // event-snooze that replaced the awaiting card's own "PR watcher armed" Snooze on 2026-08-13; it
-    // dropped the queue card without parking the thread until isSnoozed learned to read `bgSnoozed`).
-    // All were previously indistinguishable from a plain timer park.
+    // beside the watch — and, from 2026-08-28 to 2026-10-14, one the human snoozed off the RESTING card
+    // (the event-snooze that replaced the awaiting card's own "PR watcher armed" Snooze on 2026-08-13,
+    // removed 2026-10-14). All were previously indistinguishable from a plain timer park.
     // ONE answer to "does this wait name a PR", shared with the queued arm below (groups.waitNamesPr).
     // It reads the REGISTERED watch as well as the fence, so a row parked on a watch it never fenced
     // stops wearing the clock — the fence-only reading was why the mark looked like a property of the
@@ -1255,21 +1255,8 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
     // A usage-limit park is NOT in this family any more (2026-08-31): a limit kill queues as a failed
     // thread and wears the yellow "limit" mark above. What still reaches this arm with a limitPause set
     // is only a row the OPERATOR also snoozed, and their park is the story the row tells.
-    // THE RESTING CARD'S EVENT-SNOOZE (isSnoozed, 2026-08-28). No instant to name: it expires by itself
-    // the moment the thread next comes to rest, which is when the work it hid has reported back — so
-    // the state reads the way the card's own toast did when it was clicked. A fence, when there is
-    // one, still supplies the clause and the glyph below; a shell-only rest has no fence, and its snooze
-    // wears the shell's blue dot rather than the hourglass, because nothing here is on a clock.
-    // The batch-long twin (subAgentsSnoozed) reads the way its own toast did, for the same reason.
-    const eventSnoozed = t.subAgentsSnoozed === true ? SUBAGENTS_SNOOZE_TOAST : t.bgSnoozed === true ? "Snoozed until the background work returns" : null
     // Canonical blocked+timer status can arrive from an older/pre-session snapshot without a fence.
     if (t.lastFence?.kind !== "awaiting") {
-      // The event-snooze reaches here for a rest on a shell, a timer OR a registered PR watch, and only
-      // the first of those is a shell. A watch the worker never fenced has no hints to read, so the dot
-      // was the default by omission rather than by decision.
-      // A done the human watched from its card (board.doneParkedOnWatch) is that same click on a PR or
-      // issue, and the board calls it `watching`: it reads as the watch it is, not as background work.
-      if (eventSnoozed) return { node: waitNamesPr(t) ? github : restingShellDot, tip: t.waitStatus === "watching" && waitNamesPr(t) ? "Snoozed until its watch reports back" : eventSnoozed }
       const timed = typeof t.revalidate === "string" ? formatAutoSnoozedUntil(t.revalidate) : null
       return { node: hourglass, tip: timed ?? "Auto-snoozed until a scheduled check" }
     }
@@ -1297,7 +1284,7 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
       : hk === "shell" || hk === "agent"
         ? restingShellDot
         : hourglass
-    return { node: mark, tip: popover(t, eventSnoozed ?? "Snoozed", hk === "timer" ? timerWake(t) : null) }
+    return { node: mark, tip: popover(t, "Snoozed", hk === "timer" ? timerWake(t) : null) }
   }
   // At rest (no fence, nothing pending) with the process still ALIVE — a worker that came to rest
   // WITHOUT declaring done or a machine-wait, and with NOTHING it launched still running (that is the

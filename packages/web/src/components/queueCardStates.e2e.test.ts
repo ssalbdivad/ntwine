@@ -23,11 +23,11 @@ import test, { after, before } from "node:test"
 //   11   a rest handing the human `steps:` draws the drawer's steps card ON THE QUEUE CARD — numbered steps
 //        under the worker's title, one Done — and Done replies "Done" into the CARD's project and takes
 //        the card out at once (upstream fe668a8d; the card drew the fence as bare prose until 2026-10-06).
-//   12   a rest on a declared agent terminal draws the resting card, whose event-snooze parks the thread
-//        through the card's project and takes the card out.
-//   12b  `s` then Enter on a card with a sub-agent out snoozes for the first clock preset, never "until all
-//        sub-agents return" (2026-10-14: that row came first and armed @precompile-design unasked), and on
-//        a thread parked on its sub-agents the same keys are Wake now.
+//   12   a rest on a declared agent terminal draws the resting card, with no snooze of its own (removed
+//        2026-10-14): its shell's work is in flight, so the header's clock is disabled too.
+//   12b  a card with a sub-agent out cannot be snoozed: `s` opens nothing and arms nothing (2026-10-14: `s`
+//        then Enter armed "until all sub-agents return" on @precompile-design unasked); on a card with
+//        nothing running, `s` then Enter snoozes for the first clock preset.
 //   13  each question at the rest that asked it (upstream e157817a, 22084580): one asked two rests ago
 //        sits under the reply that asked it, over the newest rest, which is bare and so draws "Reply to
 //        continue" beside the older question; one the newest rest asked sits under it with no such card.
@@ -335,47 +335,51 @@ test("a rest handing the human steps draws the steps card, and Done replies into
   assert.deepEqual(errors, [])
 })
 
-test("a rest on a declared agent terminal draws the resting card, and its snooze parks through the card's project", { skip: !baseUrl, timeout: 60_000 }, async () => {
+test("a rest on a declared agent terminal draws the resting card, and nothing on the card snoozes it", { skip: !baseUrl, timeout: 60_000 }, async () => {
   await open("case=resting")
-  await page!.waitForSelector(`${FIRST} [data-awaiting-background] [data-awaiting-snooze]`)
+  await page!.waitForSelector(`${FIRST} [data-awaiting-background]`)
   const card = await page!.$eval(FIRST, (el) => ({
     rows: [...el.querySelectorAll("[data-awaiting-background] [data-wait-kind]")].map((row) => row.getAttribute("data-wait-kind")),
     text: el.querySelector("[data-awaiting-background]")?.textContent ?? "",
     cards: el.querySelectorAll("[data-awaiting-background]").length,
+    clockDisabled: (el.querySelector("button[data-snooze-menu]") as HTMLButtonElement | null)?.disabled ?? null,
   }))
   assert.equal(card.cards, 1, "the resting card states the fence; the fence draws nothing of its own")
   assert.deepEqual(card.rows, ["shell"], "the declared terminal has its row")
   assert.match(card.text, /nub run test/)
   assert.match(card.text, /the failures so far are all in the auth spec/, "the worker's prose opens the card")
-  await watchLeaving(FIRST)
-  await page!.$eval(`${FIRST} [data-awaiting-snooze] button`, (button) => (button as HTMLButtonElement).click())
-  await page!.waitForFunction(() => !!(window as unknown as { __left?: unknown }).__left, { timeout: 1_000 })
-  await page!.waitForFunction(() => (window as unknown as { __rpc: RpcLog }).__rpc.calls.some((c) => /snoozeAwaitingBackground$/.test(c.path)), { timeout: 5_000 })
-  const snoozes = (await rpcLog()).calls.filter((c) => /snoozeAwaitingBackground$/.test(c.path)).map((c) => c.path)
-  assert.deepEqual(snoozes, ["/_ntwine/fixture-card/rpc/snoozeAwaitingBackground"], "the park went to the card's project")
-  await page!.waitForFunction((sel) => !document.querySelector(sel), { timeout: 2_000 }, FIRST)
-  assert.equal(await leavingOf(NEIGHBOUR), "false")
+  assert.doesNotMatch(card.text, /Snooze/, "the card has no snooze of its own")
+  assert.equal(card.clockDisabled, true, "and the header's clock waits for the work to land")
   assert.deepEqual(errors, [])
 })
 
-test("`s` then Enter snoozes for the first clock preset beside a sub-agent wait, and is Wake now once parked on it", { skip: !baseUrl, timeout: 60_000 }, async () => {
-  const pressSnoozeThenEnter = async () => {
-    await page!.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
-    await page!.keyboard.press("s")
-    await page!.waitForFunction(() => document.activeElement?.closest('[role="menu"]') !== null, { timeout: 2_000 })
-    const focused = await page!.evaluate(() => document.activeElement?.getAttribute("data-value") ?? null)
-    await page!.keyboard.press("Enter")
-    await page!.waitForFunction(() => (window as unknown as { __rpc: RpcLog }).__rpc.calls.some((c) => /nooze[A-Za-z]*$/.test(c.path)), { timeout: 5_000 })
-    const snoozes = (await rpcLog()).calls.filter((c) => /nooze[A-Za-z]*$/.test(c.path))
-    return { focused, snoozes: snoozes.map((c) => ({ rpc: c.path.split("/").pop(), clear: (JSON.parse(c.body ?? "{}") as { clear?: boolean }).clear ?? false })) }
-  }
+test("`s` snoozes nothing on a card with a sub-agent out, and `s` then Enter is the first clock preset otherwise", { skip: !baseUrl, timeout: 60_000 }, async () => {
+  const snoozeCalls = async () => (await rpcLog()).calls.filter((c) => /nooze[A-Za-z]*$/.test(c.path)).map((c) => ({ rpc: c.path.split("/").pop(), until: (JSON.parse(c.body ?? "{}") as { until?: string | null }).until ?? null }))
   await open("case=subagents")
   await page!.waitForSelector(`${FIRST} [data-subagent-wait]`)
-  // CONTROL: the menu does offer the sub-agent snooze, first — the keys must pass over it.
-  assert.deepEqual(await pressSnoozeThenEnter(), { focused: "1h", snoozes: [{ rpc: "setThreadSnooze", clear: false }] })
+  assert.equal(await page!.$eval(`${FIRST} button[data-snooze-menu]`, (b) => (b as HTMLButtonElement).disabled), true, "the clock is disabled while the lane runs")
+  await page!.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page!.keyboard.press("s")
+  await sleep(300)
+  assert.equal(await page!.$('[role="menu"]'), null, "`s` opens no menu")
+  await page!.keyboard.press("Enter")
+  await sleep(300)
+  assert.deepEqual(await snoozeCalls(), [], "and nothing is snoozed")
 
-  await open("case=subagents&snoozed=1")
-  assert.deepEqual(await pressSnoozeThenEnter(), { focused: "wake-now", snoozes: [{ rpc: "snoozeUntilSubAgentsReturn", clear: true }] })
+  // CONTROL: the neighbour has nothing running, and the same keys snooze it for an hour.
+  await page!.evaluate((sel) => { const w = window as unknown as { __rpc: RpcLog }; w.__rpc.calls.length = 0; (document.querySelector(sel) as HTMLElement | null)?.scrollIntoView() }, NEIGHBOUR)
+  await page!.click(`${NEIGHBOUR} [data-xq-card-root]`).catch(() => {})
+  await page!.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page!.keyboard.press("j")
+  await page!.keyboard.press("s")
+  await page!.waitForFunction(() => document.activeElement?.closest('[role="menu"]') !== null, { timeout: 2_000 })
+  assert.equal(await page!.evaluate(() => document.activeElement?.getAttribute("data-value") ?? null), "1h")
+  await page!.keyboard.press("Enter")
+  await page!.waitForFunction(() => (window as unknown as { __rpc: RpcLog }).__rpc.calls.some((c) => /setThreadSnooze$/.test(c.path)), { timeout: 5_000 })
+  const calls = await snoozeCalls()
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0]!.rpc, "setThreadSnooze")
+  assert.ok(Math.abs(Date.parse(calls[0]!.until!) - Date.now() - 3_600_000) < 60_000, "for an hour")
   assert.deepEqual(errors, [])
 })
 

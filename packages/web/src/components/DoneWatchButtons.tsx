@@ -11,7 +11,7 @@ import { CARD_ACTION_RADIUS } from "./TranscriptCard.tsx"
 // A finished worker used to park itself on the PR it touched for months (`watch_pr` for 180d, chosen
 // blind), so threads vanished into Snoozed whether or not anyone wanted to follow them. It now signs off
 // `done`, and following the PR is the human's choice, made here whenever they read the card: the click
-// arms the same watcher the worker tools arm and snoozes the thread until it reports
+// arms the same watcher the worker tools arm and parks the thread in Waiting until it reports
 // (router.watchDoneRef). ntwine parks nothing on the worker's behalf — the click is the human's.
 //
 // OUTLINED, NOT THE WHITE CARD VERB. "Mark as done" is the card's verb and the default answer (it is the
@@ -51,7 +51,7 @@ export function DoneWatchButtons({ thread, refs, onWatched, onWatchFailed }: {
   const api = useThreadApi()
   const [pending, setPending] = useState<string | null>(null)
   const watched = watchedRefs(thread.watches)
-  // Snoozed on its watch right now — the board's verdict (board.doneParkedOnWatch), not this click's.
+  // Waiting on its watch right now — the board's verdict (board.doneParkedOnWatch), not this click's.
   const parked = thread.waitStatus === "watching" && thread.bgSnoozed === true
   const watch = (ref: string, label: string) => {
     setPending(ref)

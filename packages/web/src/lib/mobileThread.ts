@@ -1,5 +1,5 @@
 import type { ThreadView } from "@ntwine/shared"
-import { agentParked, lastActiveLabelAt, sectionOf, sessionIndicatorKind } from "../groups.ts"
+import { agentParked, inWaitingBand, lastActiveLabelAt, sectionOf, sessionIndicatorKind } from "../groups.ts"
 import { ageSpan } from "./activityTime.ts"
 import { formatRuntimeElapsed } from "./durationLabels.ts"
 import { EFFORT_LABEL } from "./options.ts"
@@ -13,20 +13,19 @@ import { EFFORT_LABEL } from "./options.ts"
 // NOT the server's `needsYou` flag. That flag is queue MEMBERSHIP, and every ordinary rest joins the
 // queue now, so keying on it would have spelled every rested thread "Needs you" and emptied the word
 // of meaning. The header says what the board's mark says, one screen later.
-export type MobileThreadState = "needs-you" | "working" | "rested" | "snoozed" | "done"
+export type MobileThreadState = "needs-you" | "working" | "waiting" | "rested" | "snoozed" | "done"
 
 export function mobileThreadState(t: ThreadView): MobileThreadState {
   const kind = sessionIndicatorKind(t)
   if (kind === "needs-input") return "needs-you"
   if (t.runtime === "running" || t.runtime === "spawning") return "working"
   if (kind === "archived") return "done"
-  // THE WORD NAMES THE BAND the desktop board files the row in, so every park in Snoozed says "Snoozed":
-  // the operator's wall-clock snooze, the resting card's event-snooze, and a done the human parked on
-  // "Watch #N" (server doneParkedOnWatch → waitStatus `watching` over the event-snooze). A worker's own
-  // park — a `status: watching` rest — sits in Working since 2026-10-14, and says so. Until 2026-10-07 this read only the wall-clock park — the split the board's AlarmMark
-  // draws, which is a GLYPH choice — so a thread the human had just watched from its done card sat in
-  // the Snoozed band on desktop while the phone header still called it "Rested".
+  // THE WORD NAMES THE BAND the desktop board files the row in (bandOf): Snoozed is the operator's
+  // wall-clock snooze alone, and Waiting is a `watching` rest — a worker's own, or a done the human
+  // parked on "Watch #N" (2026-10-14). Until 2026-10-07 the phone called a watched done "Rested" while
+  // the desktop filed it elsewhere; the two read one derivation since.
   if (sectionOf(t) === "snoozed") return "snoozed"
+  if (inWaitingBand(t)) return "waiting"
   if (agentParked(t)) return "working"
   return "rested"
 }
@@ -34,6 +33,7 @@ export function mobileThreadState(t: ThreadView): MobileThreadState {
 export const MOBILE_STATE_WORD: Record<MobileThreadState, string> = {
   "needs-you": "Needs you",
   working: "Working",
+  waiting: "Waiting",
   rested: "Rested",
   snoozed: "Snoozed",
   done: "Done",

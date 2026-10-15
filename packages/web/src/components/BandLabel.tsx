@@ -1,5 +1,5 @@
 import type { ComponentType } from "react"
-import { Bot, ExternalLink, Inbox, Pin, SquareCheck } from "lucide-react"
+import { Bot, ExternalLink, Hourglass, Inbox, Pin, SquareCheck } from "lucide-react"
 import type { ThreadView } from "@ntwine/shared"
 import { bandOf, type Band } from "../groups.ts"
 import { optimisticallyArchived, useArchivingAt } from "../lib/optimisticArchive.ts"
@@ -29,6 +29,8 @@ export const BANDS: Record<BandKey, { label: string; Icon: ComponentType<{ size?
   pinned: { label: "Pinned", Icon: Pin },
   ready: { label: "Ready", Icon: Inbox },
   working: { label: "Working", Icon: Bot },
+  // An agent's park on something outside the thread (shared inWaitingBand): the hourglass its rows wear.
+  waiting: { label: "Waiting", Icon: Hourglass },
   snoozed: { label: "Snoozed", Icon: SnoozeMark },
   done: { label: "Done", Icon: SquareCheck },
   external: { label: "External", Icon: ExternalLink },

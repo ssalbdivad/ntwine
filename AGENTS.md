@@ -6,6 +6,9 @@ maintainer has explicitly confirmed it in the current conversation.** If a task 
 first, not a call to make. An approval given for one case does not carry over to the next. Detail lives where each line
 points.
 
+**Lines from Colin's original design are flexible where they conflict with better UX** (maintainer 2026-10-14). When one
+stands between the human and a clearly better experience, propose changing it rather than designing around it.
+
 **How a thread hands off (original design; ARCHITECTURE.md § How a thread hands off its state)**
 - The worker's own last word decides its thread's state, and ntwine only checks it. There is no status field: the final
   message is the interface, and its fence language is the state.
@@ -14,16 +17,18 @@ points.
 - A row beats a sentence. What must outlive a message is registered (`done`, `ask`, `watch`), and a wait always takes the
   awaiting fence.
 - A gate can refuse, and it has no bypass. A parameter on the gated call that skips the gate is not a gate.
-- A question is a row with a lifecycle. It stays open until it is answered, dismissed or withdrawn with `unask`; ntwine
-  never retracts one by omission.
+- A question is a row with a lifecycle, and it moves with the conversation (2026-10-14). Once the human types past it, it
+  stays answerable where it was asked but no longer holds the thread: it blocks no `done`, needs no later `questions:`,
+  queues nothing, and is never re-asked or redrawn at the bottom.
 - Every queue item can be answered or archived. Nothing enters the queue just to be dismissed, and a running thread never
   enters it.
 - The worker contract states rules, not rationale. A new rule earns its tokens only if a worker measurably gets it wrong
   without it (header of `packages/server/src/workerPrompt.ts`).
 
 **The board (all projects first, 2026-10-14; § Board nomenclature, `plans/all-projects-first.md`)**
-- Every thread is in exactly one of five rails (Pinned, Ready, Working, Snoozed, Done), and no view may lose that
-  distinction. Pinned, Ready and Working never fold; short of room, they list their first rows and count the rest.
+- Every thread is in exactly one of six rails (Pinned, Ready, Working, Waiting, Snoozed, Done), and no view may lose
+  that distinction. Pinned, Ready, Working and Waiting never fold; short of room, they list their first rows and
+  count the rest. (Waiting joined 2026-10-14, maintainer-confirmed.)
 - All projects at `/` is the default view: ONE list of every project's threads by band, each row wearing its
   project's square, under a dock of the projects themselves. A project's page (`/project/<slug>`) is the same list
   over one project, and a lens the same list over several.
@@ -47,10 +52,12 @@ points.
 - Size work by scope, never in days. "Shipped" means merged.
 - Use `nub` for the toolchain, and write every new script as `.ts`.
 - Never interrupt a running agent (§ Agent completion invariant).
-- Only the human snoozes a thread (2026-10-14). A worker parks on a wait only while its own task still waits on
-  something (a merge the human asked for, CI that could fail it, a release, a reply), and that park stays in
-  Working, in view, never folded into Snoozed. Following a FINISHED thread's PR or issue is the human's choice,
-  made from its done card, never a worker's silent park (2026-10-07: a comment-only push sat 180d in Snoozed).
+- Only the human snoozes a thread, and only to a time (2026-10-14). A worker parks on a wait only while its own task
+  still waits on something (a merge the human asked for, CI that could fail it, a release, a reply), and that park
+  stays in view — in Working, or in Waiting when the wait is on the world — never folded into Snoozed. A working
+  thread cannot be snoozed, and a snooze ends at the agent's next rest. Following a FINISHED thread's PR or issue is
+  the human's choice, made from its done card's Watch (which waits in Waiting), never a worker's silent park
+  (2026-10-07: a comment-only push sat 180d in Snoozed).
 
 # Git: how work lands here
 
@@ -236,15 +243,16 @@ Two more things look like exceptions and are not. node-pty is a ROOT `devDepende
 
 The sidebar's row groups have names the maintainer uses precisely (2026-08-05: *"when I say active, I'm only referring to the things that are currently spinning; the things beneath that, I would refer to as rested, or just items in the queue"*). The UI labels the same bands **Ready** and **Working** (`BANDS` in `web/src/components/BandLabel.tsx`; they read Queue and Running from 2026-10-06 to 2026-10-14), and the two vocabularies map one to one: say Ready and Working in copy; in code, comments and when reporting back say either pair, never both in one sentence. (The quote says "beneath" because Rested sat below Active when it was said; on 2026-08-08 the two bands SWAPPED position — the cue moved up under the prompt box — and the vocabulary did not change with them.)
 
-Every thread ntwine started is in exactly one of five bands, top to bottom:
+Every thread ntwine started is in exactly one of six bands, top to bottom:
 
 - **Pinned** — the human's shelf, above everything. A pinned thread stays here, whatever it is doing, until it is unpinned.
 - **Ready** — the maintainer's **Rested**, the CUE: directly under the pins, the same set as **"the queue"** / "items in the queue", one row per card, each with a right-justified rest time.
 - **Working** — the maintainer's **Active**: the rows below that rule, in practice the ones currently spinning. Never carries a queue card, and never a rest time — the rule is drawn on the CARD, so a thread the server excused from the queue while it rests lands here too, and so does an archived thread whose worker is still running, until it rests (see `ARCHITECTURE.md`).
-- **Snoozed** — the dimmed park band, and the HUMAN's alone (2026-10-14): a wall-clock snooze, the resting card's event-snoozes ("until new activity", "until all sub-agents return", a done card's Watch), and a schedule's next run. A worker's own park — `status: watching`, an armed timer — stays in Working under its wait's mark (shared `isSnoozed` / `agentParked`; maintainer: *"if I consider a thread to be active and an agent happens to be waiting for something, I still don't want to see it collapsed"*). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
+- **Waiting** — an agent at rest on something outside the thread: a review, CI, a release, a reply, a timer — the server's `waitStatus: "watching"`, which a done card's Watch also reads as (shared `inWaitingBand`, 2026-10-14; maintainer: *"a separate category that is always visible under working … when agents are waiting for something external"*). Never folds; it is the first band the list shortens, down to two rows and a count. A park on the thread's own sub-agents or shells stays in Working: it finishes by itself.
+- **Snoozed** — the dimmed park band, and the HUMAN's alone, holding only a TIME (2026-10-14): a wall-clock snooze and a schedule's next run. A working thread cannot be snoozed (router `setThreadSnooze` refuses it), and a plain snooze ends at the agent's next rest (board `futureSnooze`; one carrying a follow-up prompt holds to its time). The resting card's event-snoozes ("until new activity", "until all sub-agents return") parked here until the same day and are gone. A worker's own park is never here (shared `isSnoozed` / `agentParked`; maintainer: *"if I consider a thread to be active and an agent happens to be waiting for something, I still don't want to see it collapsed"*). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
 - **Done** — the archived section.
 
-**External** (agent sessions ntwine did not start) is listed apart, never a sixth band. Every view draws one list (`components/TierList.tsx`): All projects (`/`, the home page), a project's page (`/project/<slug>`) and a lens are the same bands under the same headers over a different set of projects. Pinned, Ready and Working never fold; Snoozed (and Schedules) start folded; Done lists only today's, with History one click away in the center column. Each row wears its project's square on the first row of a run, and a working row's status is inline.
+**External** (agent sessions ntwine did not start) is listed apart, never a seventh band. Every view draws one list (`components/TierList.tsx`): All projects (`/`, the home page), a project's page (`/project/<slug>`) and a lens are the same bands under the same headers over a different set of projects. Pinned, Ready, Working and Waiting never fold; Snoozed (and Schedules) start folded; Done lists only today's, with History one click away in the center column. Each row wears its project's square on the first row of a run, and a working row's status is inline.
 
 The trap is that `sectionOf` (`@ntwine/shared`, re-exported by `groups.ts`) returns `"active"` for Working AND Ready rows alike — that key names the `<section>` holding both bands, not the maintainer's word — and the band keys match those labels, `ready` and `working`. `partitionActive` splits the section (`.running` = Working, `.rested` = Ready), and `inActiveBand` is the one predicate that means Working exactly. Full detail, including why the archived key is `"inactive"` while its label reads Done, in `ARCHITECTURE.md` § Board nomenclature.
 

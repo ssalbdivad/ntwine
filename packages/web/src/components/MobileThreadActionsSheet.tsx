@@ -5,7 +5,7 @@ import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileT
 import { SNOOZE_PROMPT_MAX, type ThreadLinkView, type ThreadView } from "@ntwine/shared"
 import { ThreadProjectScope, useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
 import { showToast, store } from "../store.ts"
-import { displayTitle, futureSnoozedUntil, offersRetry } from "../groups.ts"
+import { displayTitle, futureSnoozedUntil, isActivelyRunning, offersRetry } from "../groups.ts"
 import { prefs } from "../lib/prefs.ts"
 import {
   SNOOZE_PRESETS,
@@ -181,7 +181,10 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
           data="snooze"
           icon={<AlarmClock size={19} />}
           label="Snooze"
-          value={snoozedUntil ? formatSnoozeWake(snoozedUntil) : snoozePresetLabel(snoozePreset)}
+          // A working thread cannot be snoozed (router.setThreadSnooze; the desktop clock disables the same
+          // way, 2026-10-14). A snooze already set still opens, for its Wake now.
+          disabled={!snoozedUntil && isActivelyRunning(thread)}
+          value={snoozedUntil ? formatSnoozeWake(snoozedUntil) : isActivelyRunning(thread) ? "Once it stops working" : snoozePresetLabel(snoozePreset)}
           chevron
           onClick={() => setView("snooze")}
         />
