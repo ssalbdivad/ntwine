@@ -1,8 +1,7 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { BgShellView, EndedShellView, ThreadTerminal, ThreadView } from "@ntwine/shared"
-import { ProcessRow, ThreadProcessStrip } from "./components/ThreadTerminals.tsx"
-import { humanProcess } from "./lib/threadProcesses.ts"
+import { ThreadProcessStrip } from "./components/ThreadTerminals.tsx"
 import { ThreadCheckoutToken } from "./components/ThreadCheckoutToken.tsx"
 import { HumanTerminalHeader, TerminalSheet } from "./components/TerminalSheet.tsx"
 import { TooltipProvider } from "./components/Tooltip.tsx"
@@ -112,12 +111,6 @@ createRoot(document.getElementById("root")!).render(
               <ThreadProcessStrip thread={thread} surface="drawer" onOpen={() => {}} />
             </div>
             <div data-fixture-strip="card" className="rounded-md border border-border bg-panel px-4 py-3">
-              {/* The prompting terminal's own row, as a queue card captions its live screen with it
-                  (TerminalPromptPane) — the screen itself needs a pty, so it is a box here. */}
-              <div data-fixture-caption className="px-1">
-                <ProcessRow process={humanProcess(terminals[0]!)} slug="fixture" here={here} caption onOpen={() => {}} />
-              </div>
-              <div className="mt-1.5 mb-3 h-10 rounded-md border border-attention/40" />
               <ThreadProcessStrip thread={thread} surface="card" onOpen={() => {}} />
             </div>
           </div>

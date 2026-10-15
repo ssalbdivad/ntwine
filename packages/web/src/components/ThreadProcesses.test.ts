@@ -4,7 +4,7 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { BgShellView, ThreadTerminal, ThreadView } from "@ntwine/shared"
-import { ROOT_CHECKOUT_WORD, ProcessRow, QUIET_TITLE, TerminalPromptPane, ThreadProcessStrip, cardProcesses, folderHintTitle, processFolderHint, processTitle } from "./ThreadTerminals.tsx"
+import { ROOT_CHECKOUT_WORD, ProcessRow, QUIET_TITLE, ThreadProcessStrip, cardProcesses, folderHintTitle, processFolderHint, processTitle } from "./ThreadTerminals.tsx"
 import { threadProcesses, type ThreadProcess } from "../lib/threadProcesses.ts"
 import { AGENT_GLYPH_STROKE, CHILD_MARK_SLOT_CLASS } from "../lib/childOps.ts"
 import { BgShellRow } from "./AwaitingBackgroundCard.tsx"
@@ -214,22 +214,6 @@ test("at a narrow width the counter and then the hint's word give way before the
   assert.match(bare, />root<\/span><\/span><\/span><\/div>$/)
 })
 
-// THE CAPTION'S OWN RULE: the prompting terminal's row over its screen (TerminalPromptPane) is there to say WHICH
-// terminal asks, and the attention-bordered screen right under it already says that it is asking — so its
-// `waiting for input` gives way with the hint, before the command. It keeps its age, as every live row does.
-test("a caption row's `waiting for input` gives way before its command; its age never does", () => {
-  const started = new Date(Date.now() - 6 * 60_000 - 30_000).toISOString()
-  const asking = processes({ terminals: [term({ awaitingInput: true, startedAt: started })] })[0]!
-  const caption = renderToStaticMarkup(createElement(ProcessRow, { process: asking, slug: "t", caption: true }))
-  const give = caption.slice(caption.indexOf("data-process-give"), caption.indexOf('<span class="flex shrink-0 items-center gap-1 whitespace-nowrap text-muted-40">'))
-  assert.match(give, /<span data-process-state-text="true" class="text-attention">waiting for input<\/span><span aria-hidden="true" class="text-muted-25">·<\/span>/, "in GIVE, with its own `·`")
-  assert.match(caption.slice(caption.lastIndexOf("whitespace-nowrap text-muted-40")), />6m</)
-  // In a strip, the same terminal's state is a fixed reading, beside its age.
-  const inStrip = row(asking)
-  assert.doesNotMatch(inStrip.slice(inStrip.indexOf("data-process-give"), inStrip.lastIndexOf("whitespace-nowrap text-muted-40")), /waiting for input/)
-  assert.match(inStrip, /text-attention">waiting for input<\/span><span aria-hidden="true" class="text-muted-25">·<\/span><span title="Running for 6m">6m</)
-})
-
 test("the tooltip says whose it is, what it runs, and where it runs", () => {
   const home = "/home/u"
   assert.equal(processTitle(processes({ terminals: [term({ cwd: "/home/u/repo" })] })[0]!, home), "Your terminal — npm run dev\n~/repo")
@@ -251,7 +235,8 @@ test("a card lists only live terminals; the drawer keeps your finished ones", ()
   assert.match(drawer, /exit 2/)
   // …and the card gates its wrapper on the same rows, so a card with only finished runs draws nothing.
   assert.equal(cardProcesses({ terminals: [term({ state: "exited", exitCode: 0 })], bgShells: [] }, NOW).length, 0)
-  assert.deepEqual(cardProcesses({ terminals: [term({ awaitingInput: true })], bgShells: [shell({ state: "stale" })] }, NOW).map((p) => p.state), ["quiet"], "a quiet shell is live; the prompt is its pane's caption, not a strip row")
+  // A terminal at a prompt queues as a card of its own; its parent's strip still lists it, as a way to it.
+  assert.deepEqual(cardProcesses({ terminals: [term({ awaitingInput: true })], bgShells: [shell({ state: "stale" })] }, NOW).map((p) => p.state), ["prompt", "quiet"])
 })
 
 test("a Codex exec's row opens like every other; a transcript-only row has nothing to open", async () => {
@@ -289,13 +274,12 @@ test("a row that has just started reads its age at once, and never in seconds", 
   assert.match(row(processes({ terminals: [term({ startedAt: new Date(Date.now() - 24_000).toISOString() })] })[0]!), />&lt;1m</)
 })
 
-test("the queue card draws the same strip under its reply box, and only the prompting screen above it", async () => {
+test("the queue card draws the same strip under its reply box", async () => {
   const { readFileSync } = await import("node:fs")
   const card = readFileSync(new URL("./AllQueuesCard.tsx", import.meta.url), "utf8")
   // In the terminal count's own panel, beside QueueChildOps' AGENT / FLOW panels (upstream 7a8a8ebe: one
   // panel per count; QueueChildOps draws no shell rows of its own: one row per shell).
   assert.match(card, /<QueueChildOps[\s\S]{0,400}kind === "terminal"[\s\S]{0,120}data-queue-processes=\{thread\.id\}[\s\S]{0,120}<ThreadProcessStrip thread=\{thread\} surface="card"/)
-  assert.match(card, /<TerminalPromptPane thread=\{thread\} onOpen=\{openProcess\} \/>/)
   assert.doesNotMatch(card, /QueueShellStrip|ThreadTerminalsStrip/, "no second strip for either owner")
   // A row opens the drawer only where the drawer stack is the card's own project's.
   assert.match(card, /const openProcess = \(process: ThreadProcess\) => \{\s+const here = focusedProject\(project\.slug\)\s+openInPlace\(project, thread\.id, displayTitle\(thread\)\)\s+if \(here\) openProcessDrawer\(thread\.id, process\)/)
@@ -303,29 +287,6 @@ test("the queue card draws the same strip under its reply box, and only the prom
   // The meta line carries the checkout token between the time and the status, as the drawer header does.
   const meta = card.slice(card.indexOf("<LastActive"), card.indexOf("<ThreadStatusLine"))
   assert.match(meta, /<ThreadCheckoutToken checkout=\{thread\.checkout\} homeDir=\{project\.homeDir\}/)
-})
-
-// THE PROMPT'S CAPTION. The card shows the screen of the terminal that is asking; its row — the strip's own
-// row anatomy — sits directly above that screen and says which terminal it is and where it runs, and the
-// strip under the reply box does not list it a second time.
-test("the card's prompt pane wears its terminal's row as its caption, and the strip skips that terminal", () => {
-  const asking = term({ id: "ask", command: 'read -p "name? " x; echo $x', awaitingInput: true })
-  const thread = { id: "t", watches: [], bgShells: [shell()], terminals: [asking, term({ id: "dev", command: "npm run dev" })] } as Pick<ThreadView, "id" | "terminals" | "bgShells" | "watches" | "checkout">
-  const pane = withQuery(createElement(TerminalPromptPane, { thread, base: "/x" }))
-  const caption = pane.indexOf('data-process-row="t:ask"')
-  assert.ok(caption > -1, "the asking terminal's row is there")
-  assert.ok(caption < pane.indexOf("data-terminal-prompt-pane"), "directly above its screen")
-  assert.match(pane, /<button[^>]*aria-label="Open your terminal: read -p/)
-  assert.match(pane, /text-attention">waiting for input</)
-  const strip = withQuery(createElement(ThreadProcessStrip, { thread, surface: "card" }))
-  assert.doesNotMatch(strip, /t:ask/, "not listed twice")
-  assert.equal(strip.split("data-process-row=").length - 1, 2, "the other terminal and the agent's")
-  // The drawer has no screen of its own, so there the asking terminal keeps its row in the strip.
-  assert.match(withQuery(createElement(ThreadProcessStrip, { thread, surface: "drawer" })), /t:ask/)
-  // A card whose only live terminal is the one asking draws no empty strip under its reply box.
-  assert.equal(cardProcesses({ terminals: [asking], bgShells: [] }, NOW).length, 0)
-  // No prompt, no pane and no caption.
-  assert.equal(withQuery(createElement(TerminalPromptPane, { thread: { ...thread, terminals: [term()] }, base: "/x" })), "")
 })
 
 // THE RESTING CARD'S TERMINAL ROW reads the strip's order (budget, then age) and carries its folder hint on

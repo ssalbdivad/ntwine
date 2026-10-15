@@ -38,11 +38,6 @@ export function runningTerminals(thread: Pick<ThreadView, "terminals">): ThreadT
   return (thread.terminals ?? []).filter((terminal) => terminal.state === "running")
 }
 
-/** A terminal thread's process while it waits at a prompt — what its card draws a live screen for. */
-export function promptingTerminal(thread: Pick<ThreadView, "kind" | "terminal">): ThreadTerminal | undefined {
-  return thread.kind === "terminal" && thread.terminal?.awaitingInput === true ? thread.terminal : undefined
-}
-
 /** The terminal with this id — a terminal thread's own process, or one in a thread's strip. */
 export function terminalOf(thread: Pick<ThreadView, "terminals" | "kind" | "terminal"> | undefined, id: string): ThreadTerminal | undefined {
   if (thread?.kind === "terminal" && thread.terminal?.id === id) return thread.terminal

@@ -34,6 +34,8 @@ import { useLiveSchedule, type DetachedDraft } from "./ScheduleComposer.tsx"
 import { joinComposerValue, splitComposerValue } from "../lib/imagePaths.ts"
 import { resolveDraftDeadline } from "../lib/threadDeadline.ts"
 import { DispatchTimeLimit } from "./DeadlineControl.tsx"
+import { composerTerminalLine } from "../lib/threadTerminals.ts"
+import { TerminalFolderPicker } from "./TerminalFolderPicker.tsx"
 
 /** The directories of the project a prompt box dispatches into, named by its caller (DispatchForm `dirs`). */
 export interface DispatchDirs {
@@ -44,10 +46,11 @@ export interface DispatchDirs {
 // THE prompt box: it starts an agent thread. Shared by every surface that can start one: the rail, the
 // empty board's centered box and the anywhere-modal.
 //
-// It had a second tab until 2026-09-29, TERMINAL, which ran one shell command as a top-level thread of
-// its own. A thread is a prompt now and nothing else; a terminal is opened ON a thread, in the folder its
-// agent is working in (ThreadTerminals.tsx), so it is never a row of its own and never ignores which
-// worktree the agent chose.
+// A `$ cmd` LINE STARTS A TERMINAL THREAD instead (plans/terminal-threads.md, 2026-10-15): `$ nub run dev`
+// runs that command, a bare `$` opens a shell, in the folder the box's picker names — the project root or one
+// of its `.ntwine/worktrees/*` checkouts, which takes the model picker's place while the line is a command.
+// (A Terminal tab did this from 2026-09-23 to 2026-09-29, when a terminal moved onto a thread; it is a thread
+// of its own again, with no tab: the `$` is the switch.)
 export function DispatchForm({
   autoFocus,
   onDispatched,
@@ -170,6 +173,30 @@ function PromptForm({
   // A file on its way into the box: a held Enter waits for no answer while it uploads (ScheduleComposer.tsx).
   const [uploading, setUploading] = useState(false)
   const { resolved, defaultResolved, picked, codexList, claudeList, acpList, loadError: profileLoadError, choose, chooseAcpModel, makeDefault } = useDispatchProfile(pickState)
+  // THE `$` LINE: what it runs (undefined ⇒ the words are a prompt), and the folder the picker names.
+  const terminalLine = useMemo(() => composerTerminalLine(prompt), [prompt])
+  const [terminalDir, setTerminalDir] = useState<string | undefined>(undefined)
+  const terminalKey = projectDir ?? ""
+  const terminalDirFor = useRef(terminalKey)
+  if (terminalDirFor.current !== terminalKey) {
+    // Another project's box: its folders are its own.
+    terminalDirFor.current = terminalKey
+    if (terminalDir !== undefined) setTerminalDir(undefined)
+  }
+  const startTerminal = useMutation({
+    mutationFn: (input: { command?: string; cwd?: string }) => {
+      const project = projectSlug()
+      return rpc.terminalThreadStart(input).then((res) => ({ ...res, project }))
+    },
+    onSuccess: (res) => {
+      onDispatched?.()
+      showToast("Terminal started", { link: { label: "Open terminal", slug: res.id, project: res.project } })
+    },
+    onError: (e, input) => {
+      restoreSubmitted(input.command === undefined ? "$" : `$ ${input.command}`)
+      showToast(`Could not start the terminal: ${(e as Error).message.slice(0, 80)}`)
+    },
+  })
 
   // Per-provider LOCAL credential presence, polled so the submit gate has a fresh value without a
   // round-trip on every keystroke. The gate blocks ONLY on a positive "signed-out" (fails open on
@@ -255,7 +282,8 @@ function PromptForm({
     // What the human said about the draft's schedule ("not a schedule") is part of the draft, under its sibling
     // key: it survives a remount and a reload, and the page box and the `c` dialog over it — one draft — agree.
     draftKey: draftKey.dispatchSchedule(projectDir),
-    prose: promptProse,
+    // A `$` line is a command, never a schedule's words.
+    prose: terminalLine ? "" : promptProse,
     exclude: scheduleExclude,
     promptOf: (cut) => {
       const value = joinComposerValue(cut, promptAttachments.map((a) => a.path))
@@ -324,6 +352,14 @@ function PromptForm({
   // a schedule in them is created, anything else starts the thread through `startNow`, and words with a
   // schedule word the model has not answered for yet leave the box at once and are settled when it does.
   function submit() {
+    // A `$` line runs, whatever the model picker says: it needs no model, no sign-in and no schedule.
+    if (terminalLine) {
+      if (startTerminal.isPending) return
+      submittedScheduleRef.current = ""
+      clearDispatchDraft(projectDir, { keepPick: true })
+      startTerminal.mutate({ ...(terminalLine.command ? { command: terminalLine.command } : {}), ...(terminalDir ? { cwd: terminalDir } : {}) })
+      return
+    }
     if (!prompt.trim() || !resolved || savingSettings) return
     // `/login` and `/logout` are ntwine-owned aliases for the typed provider account actions — they
     // invoke the sign-in / sign-out flow for the SELECTED backend and never become prompt text.
@@ -466,7 +502,17 @@ function PromptForm({
   // keystroke. A keystroke only changes `prompt`; keeping the footer element's identity stable lets
   // React bail out of the whole control subtree, and the
   // element is rebuilt exactly when the default, this box's pick or the model catalogue changes.
+  const terminalMode = terminalLine !== undefined
   const footer = useMemo(() => {
+    // A `$` line needs no model: the strip names where it will run instead.
+    if (terminalMode) {
+      return (
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          {target}
+          <TerminalFolderPicker value={terminalDir} onValueChange={setTerminalDir} />
+        </div>
+      )
+    }
     if (!resolved) {
       return (
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -520,7 +566,7 @@ function PromptForm({
         <DispatchTimeLimit draftKey={limitKey} />
       </div>
     )
-  }, [resolved, defaultResolved, picked, codexList, claudeList, acpList, profileLoadError, choose, chooseAcpModel, makeDefault, target, limitKey])
+  }, [resolved, defaultResolved, picked, codexList, claudeList, acpList, profileLoadError, choose, chooseAcpModel, makeDefault, target, limitKey, terminalMode, terminalDir])
 
   // ⌥⇧↑/↓ in the box: the picker's next effort for the model it shows (lib/keybindings.ts EFFORT_STEP_CHORDS).
   const stepEffort = (step: 1 | -1) => {
@@ -541,8 +587,8 @@ function PromptForm({
         marks={schedule.marks}
         onInputEvent={schedule.onInputEvent}
         onEscape={schedule.onEscape}
-        sendGlyph={schedule.sendGlyph}
-        sendTitle={schedule.sendTitle}
+        sendGlyph={terminalMode ? undefined : schedule.sendGlyph}
+        sendTitle={terminalMode ? "Run in a terminal" : schedule.sendTitle}
         sendPending={schedule.sendPending}
         contextTokens={contextTokens}
         contextSources={contextSources}
@@ -555,7 +601,7 @@ function PromptForm({
         slashSuggestVersion={userCommandsQuery.dataUpdatedAt}
         minHeight={96}
         maxHeight={340}
-        busy={dispatch.isPending || savingSettings}
+        busy={dispatch.isPending || startTerminal.isPending || savingSettings}
         onUploadingChange={setUploading}
         footer={footer}
         onEffortStep={stepEffort}

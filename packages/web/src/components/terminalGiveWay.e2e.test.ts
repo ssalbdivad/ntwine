@@ -18,7 +18,7 @@ const baseUrl = process.env.NTWINE_TERMINAL_GIVE_WAY_E2E_URL
 //
 // So, on the terminals fixture (terminals-unified-fixture.html — the agent in `probe`, rows left at the root),
 // at a desktop, a narrow and a phone width, on every surface that draws a terminal row — the drawer's strip,
-// the card's strip, the card's prompt caption:
+// the card's strip:
 //   1. a row with a hint ALWAYS shows its glyph — no row claims a checkout it is not in;
 //   2. its WORD shows only beside a whole label: the label outranks the word;
 //   3. the agent drawer's header never cuts a number, and its title keeps a real width;
@@ -59,7 +59,7 @@ test("a terminal row's label outranks its folder hint's word, its glyph never le
         const word = row.querySelector("[data-process-checkout-word]")
         const wordShown = shownIn(word, give)
         return {
-          surface: row.closest("[data-fixture-caption]") ? "caption" : row.closest("[data-fixture-strip]")!.getAttribute("data-fixture-strip"),
+          surface: row.closest("[data-fixture-strip]")!.getAttribute("data-fixture-strip"),
           text: (row as HTMLElement).innerText.replace(/\s+/g, " ").trim(),
           cut: label.scrollWidth > label.clientWidth + 0.5,
           hasHint: Boolean(hint),

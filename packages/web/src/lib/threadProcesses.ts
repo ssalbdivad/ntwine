@@ -183,8 +183,7 @@ export function onCard(_thread: Pick<ThreadView, "terminals">): (p: ThreadProces
 }
 
 /** The rows a queue card's strip draws, and what its counts line counts as terminals. The card gates its
- *  strip on this, so a card whose terminals have all finished — or whose only one is the prompt it shows
- *  above — draws no empty inset and counts nothing. `transcriptShells` is the drawer's: the shells read off
+ *  strip on this, so a card whose terminals have all finished draws no empty inset and counts nothing. `transcriptShells` is the drawer's: the shells read off
  *  the transcript, which the board reports none of for a Codex thread (see mergeBackgroundShells). */
 export function cardProcesses(thread: Pick<ThreadView, "terminals" | "bgShells">, now: number, transcriptShells: readonly AgentShell[] = []): ThreadProcess[] {
   return threadProcesses(thread, transcriptShells, { now }).filter(onCard(thread))

@@ -295,7 +295,7 @@ const SEP = <span aria-hidden className="text-muted-25">·</span>
  * this is — a terminal, whether its output streams from a pty (yours) or from the file the harness writes
  * (the agent's). Every row opens the same drawer.
  */
-export function ProcessRow({ process: p, slug, here, lines, watched, caption, onOpen }: {
+export function ProcessRow({ process: p, slug, here, lines, watched, onOpen }: {
   process: ThreadProcess
   slug: string
   /** Where the header says the thread's agent is working (thread.checkout) — the folder hint's reference. */
@@ -303,10 +303,6 @@ export function ProcessRow({ process: p, slug, here, lines, watched, caption, on
   /** The agent row's live line count, when the surface polls for one (the drawer does, a card does not). */
   lines?: number
   watched?: boolean
-  /** The row is a CAPTION — the prompting terminal's own row over its live screen on a queue card
-   *  (TerminalPromptPane). Its `waiting for input` gives way with the hint, before the label: the attention-
-   *  bordered screen directly under it already says so, and the row is there to say WHICH terminal asks. */
-  caption?: boolean
   /** Absent ⇒ a non-interactive row (a transcript-only shell with nothing to open). */
   onOpen?: () => void
 }) {
@@ -379,15 +375,13 @@ export function ProcessRow({ process: p, slug, here, lines, watched, caption, on
   // then the age, rightmost — the column a stack of rows is read down (ChildOpRow's rule).
   const fixed = [
     p.budget ? <span key="budget" data-child-op-budget title={p.budget.title} style={p.budget.tone === "danger" ? { color: PRIMER.fgDanger } : undefined}>{p.budget.text}</span> : null,
-    caption ? null : stateNode,
+    stateNode,
     age ? <span key="age" title={`Running for ${age}`}>{age}</span> : null,
   ].filter((node) => node !== null)
   const hintTitle = hint ? folderHintTitle(hint, projectDir ?? board?.projectDir, board?.homeDir) : undefined
   const HintGlyph = hint ? HINT_GLYPH[hint.kind] : undefined
   // GIVE's items, in reading order. Without a hint each carries the `·` to whatever follows it on the row, and
   // so goes with it; with one, each leads with its own (see WHO GIVES WAY).
-  const givingState = caption ? stateNode : null
-  const stateSep = Boolean(counter || fixed.length > 0)
   const counterSep = fixed.length > 0
 
   return (
@@ -439,7 +433,6 @@ export function ProcessRow({ process: p, slug, here, lines, watched, caption, on
           <span data-process-checkout-word title={hintTitle} className={`${GIVE_ITEM} ml-[0.2em] ${HINT_TONE}`}>
             <span className="max-w-[12ch] truncate">{hint.text}</span>
           </span>
-          {givingState && <span className={`${GIVE_ITEM} ml-1`}>{SEP}{givingState}</span>}
           {counter && (
             <span className={`${GIVE_ITEM} ml-1 text-muted-40`}>
               {SEP}
@@ -451,12 +444,6 @@ export function ProcessRow({ process: p, slug, here, lines, watched, caption, on
         <span data-process-give className={GIVE}>
           {/* The strut: GIVE's first item, which a flex line always keeps, so that everything after it can wrap. */}
           <span aria-hidden className="h-[1lh] w-0" />
-          {givingState && (
-            <span className={GIVE_ITEM}>
-              {givingState}
-              {stateSep ? SEP : null}
-            </span>
-          )}
           {counter && (
             <span className={`${GIVE_ITEM} text-muted-40`}>
               <span data-child-op-counter title="Lines of output so far — open the row to read them">{counter}</span>
@@ -590,8 +577,6 @@ export function startComposerTerminal(api: Api, slug: string, command: string | 
   })
 }
 
-/** Which rows a queue card's strip draws: the live ones (see ThreadProcessStrip), minus the terminal whose
- *  prompt the card already shows with its own row above its screen (TerminalPromptPane). */
 /** Whether a card's thread is the page's focused project's, so its terminal can open over its drawer here. */
 export function focusedProject(slug: string | undefined): boolean {
   const focus = projectSlug()

@@ -190,11 +190,12 @@ test("a running terminal on the thread is asked about, and named, whatever the w
   // A finished one is history in the strip: nothing to stop, nothing to ask.
   assert.equal(completionArchivesImmediately(thread({ runtime: "turn-idle", terminals: [{ ...devServer, state: "exited", exitCode: 0 }] })), true)
 
-  const only = completionHoldSummary(hold({ terminals: [{ label: "npm run dev", state: "running" }], terminalCount: 1 }))
-  assert.equal(only.lead, "A terminal on this thread is still running:")
+  const only = completionHoldSummary(hold({ terminals: [{ id: "npm-run-dev", label: "npm run dev", state: "running" }], terminalCount: 1 }))
+  assert.equal(only.lead, "A terminal this thread started is still running:")
   assert.deepEqual(only.groups.map((g) => [g.kind, g.heading]), [["terminal", "1 terminal"]])
-  assert.deepEqual(only.groups[0].items, [{ label: "npm run dev", stale: false, owner: "human" }])
-  assert.match(only.trailer, /stop them/)
+  // Its slug is what the dialog's stop checkbox sends; Done leaves it running unless ticked.
+  assert.deepEqual(only.groups[0].items, [{ id: "npm-run-dev", label: "npm run dev", stale: false, owner: "human" }])
+  assert.equal(only.trailer, "They keep running after Done. Tick one to stop it.")
 
   const withShell = completionHoldSummary(hold({
     bgShells: [{ label: "Watch CI", state: "running" }],
@@ -215,5 +216,5 @@ test("a running terminal on the thread is asked about, and named, whatever the w
   const cutOff = completionHoldSummary(hold({ turnInFlight: true, cutOff: true, terminals: [{ label: "npm run dev", state: "running" }], terminalCount: 1 }))
   assert.match(cutOff.lead, /cut off mid-turn/)
   assert.deepEqual(cutOff.groups.map((g) => g.heading), ["1 terminal"])
-  assert.match(cutOff.trailer, /stops its terminals/)
+  assert.match(cutOff.trailer, /its terminals keep running unless ticked/)
 })

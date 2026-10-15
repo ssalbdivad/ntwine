@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ThreadTerminal } from "@ntwine/shared"
-import { composerTerminalLine, promptingTerminal, runningTerminals, terminalFailed, terminalStateLabel } from "./threadTerminals.ts"
+import { composerTerminalLine, runningTerminals, terminalFailed, terminalStateLabel } from "./threadTerminals.ts"
 
 const run = (over: Partial<ThreadTerminal>): ThreadTerminal => ({ id: "term-1", command: "npm run dev", cwd: "/repo", state: "exited", runId: 1, startedAt: "2026-09-23T10:00:00.000Z", ...over })
 
@@ -18,10 +18,9 @@ test("a run's label says how it stands, and only a failure of its own is red", (
   assert.equal(terminalFailed(run({ state: "running", exitCode: 1 })), false)
 })
 
-test("a thread's row counts only live terminals, and names the one at a prompt", () => {
+test("a thread's row counts only live terminals", () => {
   const thread = { terminals: [run({ id: "term-a", state: "running" }), run({ id: "term-b", exitCode: 0 }), run({ id: "term-c", state: "running", awaitingInput: true })] }
   assert.deepEqual(runningTerminals(thread).map((t) => t.id), ["term-a", "term-c"])
-  assert.equal(promptingTerminal(thread)?.id, "term-c")
   assert.deepEqual(runningTerminals({}), [])
 })
 
