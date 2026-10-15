@@ -178,7 +178,7 @@ test("a rest with no fence is told how to sign off, and the text names all three
     )
     assert.match(h.delivered[0], /none of\s+them endings/, "and the endings a worker mistakes for one are named")
     assert.match(h.delivered[0], /DO NOT REPEAT YOURSELF/)
-    assert.match(h.delivered[0], /reply with the\s+fence ALONE/)
+    assert.match(h.delivered[0], /sign off with the fence or the registration ALONE and write no prose after it/)
     // The 1-3-sentences shape belongs to a `done` BODY and nowhere else — read as general guidance it
     // made an agent omit most of what had happened (maintainer 2026-08-12, with the screenshot).
     // The 1-3-sentence shape belongs to the `done` entry and nowhere else.
