@@ -1,5 +1,5 @@
 import { subscribe } from "valtio"
-import { store, topRoutedSlug, closeDrawersById, closeLayersDisplacedBy } from "../store.ts"
+import { store, topRoutedSlug, routedLayerSlug, closeDrawersById, closeLayersDisplacedBy } from "../store.ts"
 import { ownedByThisPage } from "./projectOwnership.ts"
 import { innerPath, outerPath } from "./base-path.ts"
 import { homeHref } from "./pageView.ts"
@@ -49,7 +49,7 @@ export function applyPath(path: string): void {
     }
     // Back/forward landed on a thread path: if that thread is somewhere in the stack, unwind ABOVE
     // it and we're done — the surface it asks for is already up.
-    const idx = store.drawers.findIndex((d) => d.kind === "thread" && d.slug === slug && !d.closing)
+    const idx = store.drawers.findIndex((d) => routedLayerSlug(d) === slug)
     // Unwind the layers ABOVE the matched thread through their animated closers (slide-out), not an
     // instant splice — Back/forward must play the same exit animation as backdrop/Esc.
     if (idx !== -1) {
