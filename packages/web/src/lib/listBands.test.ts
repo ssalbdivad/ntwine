@@ -82,12 +82,22 @@ test("a Ready card hidden after the operator acted keeps its row, under Working"
   assert.equal(bands.carded.has("fix-auth"), false)
 })
 
+const watching = (id: string) => ready(id, { needsYou: false, awaitingBackground: true, waitStatus: "watching" })
+
 test("every open thread lands in some band", () => {
-  const p = project("alpha", [ready("a"), ready("b"), ready("c")], [running("d")])
+  const p = project("alpha", [ready("a"), ready("b"), ready("c")], [running("d"), watching("e")])
   for (const hide of [[], ["a"], ["a", "b", "c"]]) {
     const bands = loudBands(p, (key) => hide.some((id) => key === threadKey("alpha", id)), listOverlay("alpha", false, {}, {}, NOW))
-    assert.deepEqual([...ids(bands.pinned), ...ids(bands.ready), ...ids(bands.working)].sort(), ["a", "b", "c", "d"])
+    assert.deepEqual([...ids(bands.pinned), ...ids(bands.ready), ...ids(bands.working), ...ids(bands.waiting)].sort(), ["a", "b", "c", "d", "e"])
   }
+})
+
+test("a rest watching the world is Waiting, not Working", () => {
+  const p = project("alpha", [], [running("build"), watching("deploy")])
+  const bands = loudBands(p, shown, listOverlay("alpha", false, {}, {}, NOW))
+  assert.deepEqual(ids(bands.working), ["build"])
+  assert.deepEqual(ids(bands.waiting), ["deploy"])
+  assert.equal(bands.rows, 2)
 })
 
 test("with nothing recorded, the bands are the poll's", () => {
