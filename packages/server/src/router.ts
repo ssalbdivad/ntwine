@@ -586,11 +586,12 @@ export interface CompletionTerminals {
   stop: () => Promise<void>
 }
 
-// Fold a thread's live terminals into the hold, so the dialog can list them with a stop checkbox each,
-// unticked. They still raise the dialog on their own, whatever the agent is doing: it is the one place the
-// human is asked whether `npm run dev` should go down with the thread — and the answer defaults to no.
+// Fold a thread's live terminals into a hold the agent's own state already raised, so that dialog can list
+// them with a stop checkbox each, unticked. They never raise it on their own: Done detaches them, and they
+// keep running on their own rows (maintainer 2026-10-15: a dev server "should just detach from the thread
+// once I mark it as done").
 function withTerminalHold(hold: CompletionHold | undefined, terminals: CompletionTerminals["live"]): CompletionHold | undefined {
-  if (terminals.length === 0) return hold
+  if (terminals.length === 0 || !hold) return hold
   const base: CompletionHold = hold ?? { turnInFlight: false, unobservable: false, subAgents: [], subAgentCount: 0, bgShells: [], bgShellCount: 0 }
   return {
     ...base,
@@ -646,7 +647,7 @@ export async function completeRegisteredThread(
 
   // A live runtime is asked about when it is still working; a dead one when it never finished. The
   // human's confirmation (`terminateLive`) clears both.
-  // Running TERMINALS are asked about in either case: they are the human's own processes, and Done ends them.
+  // Running TERMINALS ride along on that dialog when it is raised, and are never a reason to raise it.
   const hold = terminateLive
     ? undefined
     : withTerminalHold(live ? completionConfirmationHold(telemetry) : cutOffHold(telemetry), terminals?.live ?? [])

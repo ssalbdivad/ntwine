@@ -179,27 +179,18 @@ test("every owned open queue reason retains enabled lifecycle actions", () => {
   }
 })
 
-// A terminal the human opened on a thread ends with it (server thread-terminals.ts). Done stops it, so
-// the dialog names it — in every state of the worker, a paused or dead one included — and the optimistic
-// dismissal never skips that dialog.
-test("a running terminal on the thread is asked about, and named, whatever the worker is doing", () => {
+// A terminal the thread started outlives its Done (server router.withTerminalHold): it never holds the
+// optimistic dismissal by itself, and rides along, with a stop box, only on a dialog the agent raised.
+test("a running terminal on the thread detaches on Done, and is listed only on the agent's own dialog", () => {
   const devServer = { id: "term-1", command: "npm run dev", cwd: "/repo", state: "running" as const, runId: 1, startedAt: "2026-09-29T10:00:00.000Z" }
-  assert.equal(completionArchivesImmediately(thread({ runtime: "turn-idle", terminals: [devServer] })), false)
-  assert.equal(completionArchivesImmediately(thread({ runtime: "perm-prompt", terminals: [devServer] })), false)
-  assert.equal(completionArchivesImmediately(thread({ pendingAsk: { questions: [] }, terminals: [devServer] })), false)
-  // A finished one is history in the strip: nothing to stop, nothing to ask.
-  assert.equal(completionArchivesImmediately(thread({ runtime: "turn-idle", terminals: [{ ...devServer, state: "exited", exitCode: 0 }] })), true)
+  assert.equal(completionArchivesImmediately(thread({ runtime: "turn-idle", terminals: [devServer] })), true)
+  assert.equal(completionArchivesImmediately(thread({ runtime: "running", terminals: [devServer] })), false, "the mid-turn agent still asks")
 
-  const only = completionHoldSummary(hold({ terminals: [{ id: "npm-run-dev", label: "npm run dev", state: "running" }], terminalCount: 1 }))
-  assert.equal(only.lead, "A terminal this thread started is still running:")
-  assert.deepEqual(only.groups.map((g) => [g.kind, g.heading]), [["terminal", "1 terminal"]])
   // Its slug is what the dialog's stop checkbox sends; Done leaves it running unless ticked.
-  assert.deepEqual(only.groups[0].items, [{ id: "npm-run-dev", label: "npm run dev", stale: false, owner: "human" }])
-  assert.equal(only.trailer, "It keeps running after Done unless you tick Stop.")
-  assert.equal(only.terminalsOnly, true, "nothing of the agent's to end: the dialog asks plain Done")
-  // One the agent started (`ntwinectl terminal start`) wears the agent's mark and keeps its Stop box.
-  const agents = completionHoldSummary(hold({ terminals: [{ id: "nub-run-dev", label: "nub run dev", state: "running", owner: "agent" }], terminalCount: 1 }))
-  assert.deepEqual(agents.groups[0].items, [{ id: "nub-run-dev", label: "nub run dev", stale: false, owner: "agent" }])
+  const midTurn = completionHoldSummary(hold({ turnInFlight: true, terminals: [{ id: "nub-run-dev", label: "nub run dev", state: "running", owner: "agent" }], terminalCount: 1 }))
+  assert.equal(midTurn.lead, "The agent is mid-turn, and a terminal on this thread is still running:")
+  assert.deepEqual(midTurn.groups[0].items, [{ id: "nub-run-dev", label: "nub run dev", stale: false, owner: "agent" }])
+  assert.match(midTurn.trailer, /Terminals keep running unless ticked/)
 
   const withShell = completionHoldSummary(hold({
     bgShells: [{ label: "Watch CI", state: "running" }],

@@ -656,9 +656,10 @@ test("completeRegisteredThread archives an inactive session without a confirmati
   }
 })
 
-// THE TERMINALS A THREAD STARTED outlive its Done (plans/terminal-threads.md): they still raise the dialog,
-// which lists each with a stop checkbox, unticked — and only the ticked ones go down, before Done is recorded.
-test("completeRegisteredThread lists live terminals with their ids, and stops only the ticked ones, before Done", async () => {
+// THE TERMINALS A THREAD STARTED outlive its Done (plans/terminal-threads.md): alone they raise no dialog,
+// and Done detaches them. On a dialog the agent's own state raised, each is listed with a stop checkbox,
+// unticked — and only the ticked ones go down, before Done is recorded.
+test("completeRegisteredThread detaches live terminals; a raised dialog lists them and stops only the ticked ones", async () => {
   const h = harness()
   const dead = {
     killSession: () => { throw new Error("a dead runtime must never be terminated") },
@@ -671,11 +672,19 @@ test("completeRegisteredThread lists live terminals with their ids, and stops on
     stop: async () => { log.push(`stop while ${h.storage.getSession(slug)?.state}`) },
   })
   try {
+    const resting = row("resting-with-terminals")
+    h.storage.upsertSession(resting)
+    const devServer = terminals(resting.slug, [{ id: "term-a", command: "npm run dev" }])
+    assert.deepEqual(await completeRegisteredThread(h.storage, resting, false, dead, tele, undefined, undefined, undefined, devServer), { needsConfirmation: false })
+    assert.deepEqual(log, ["stop while open"], "only the ticked ones are stopped, and none were ticked")
+    assert.equal(h.storage.getSession(resting.slug)?.state, "archived", "a resting worker's Done detaches its terminals")
+    log.length = 0
+
     const saved = row("with-terminals")
     h.storage.upsertSession(saved)
     const running = terminals(saved.slug, [{ id: "term-a", command: "npm run dev" }, { id: "term-b", command: "zsh", shell: true }])
-    const asked = await completeRegisteredThread(h.storage, saved, false, dead, tele, undefined, undefined, undefined, running)
-    assert.equal(asked.needsConfirmation, true, "a resting worker is still asked about while its terminals run")
+    const asked = await completeRegisteredThread(h.storage, saved, false, dead, { ...tele, turn: "in-flight" }, undefined, undefined, undefined, running)
+    assert.equal(asked.needsConfirmation, true, "a cut-off worker is asked about, and its terminals ride along")
     assert.deepEqual(asked.hold?.terminals?.map((t) => [t.id, t.label]), [["term-a", "npm run dev"], ["term-b", "zsh (shell)"]])
     assert.deepEqual(log, [], "nothing is stopped on the ask")
     assert.equal(h.storage.getSession(saved.slug)?.state, "open")

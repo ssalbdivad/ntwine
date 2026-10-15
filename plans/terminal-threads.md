@@ -63,7 +63,8 @@ The handle comes from the command: `$ nub run dev` → `@nub-run-dev`, with a su
   the process group, SIGKILL after 5s, as today) before Done is recorded.
 - A Done terminal reopens by a `$` follow-up or Restart, as an agent thread reopens by a reply.
 - **Marking a parent thread done no longer stops its terminals.** A dev server is meant to outlive the effort that
-  started it. The "End this session?" dialog lists the live terminals the thread started, each with a stop checkbox,
+  started it. Done detaches them without asking (2026-10-15, maintainer). When the agent's own state raises the
+  "End this session?" dialog, it lists the live terminals the thread started too, each with a stop checkbox,
   unticked by default. (Alternative: keep stopping them, which is today's rule. That defeats "start the dev server
   and keep it".)
 

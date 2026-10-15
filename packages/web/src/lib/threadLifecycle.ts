@@ -58,9 +58,7 @@ export function completionArchivesImmediately(thread: ThreadView): boolean {
   // a sub-agent), which only ever errs toward waiting. Checked FIRST: a pending ask on a dead thread is
   // still a dead thread.
   if (thread.runtime === "exited" && thread.crashed) return false
-  // A terminal this thread started and left running is asked about in EVERY state, a paused or dead worker
-  // included: the dialog is where the human can tick it to stop it too (router.withTerminalHold).
-  if (thread.terminals?.some((terminal) => terminal.state === "running")) return false
+  // A terminal this thread started and left running asks nothing: Done detaches it (router.withTerminalHold).
   // Paused-for-a-human states are explicitly safe to stop on the server, regardless of any background work.
   if (thread.runtime === "perm-prompt" || thread.pendingAsk) return true
   // An executing (or still-spawning) turn always prompts.
@@ -97,8 +95,6 @@ export interface CompletionHoldSummary {
   lead: string // the sentence that names WHY Done stopped to ask
   groups: CompletionHoldGroup[]
   trailer: string // what "End session & mark done" will actually do
-  /** Only the human's own terminals hold it: there is no session to end, so the dialog asks plain Done. */
-  terminalsOnly?: true
 }
 
 // The confirm dialog's copy. "This thread is still running" answers nothing the human can act on —
@@ -142,16 +138,8 @@ export function completionHoldSummary(hold: CompletionHold | undefined): Complet
       trailer: "Marking it done will stop the session anyway, then move it to Done.",
     }
   }
-  if (!hold.turnInFlight && groups.length === 0) return generic // defensive: a hold with no evidence
-  // Only terminals hold it: the agent itself is finished, and what Done would end is the human's own.
-  if (!hold.turnInFlight && agentGroups.length === 0) {
-    return {
-      lead: terminals!.heading === "1 terminal" ? "A terminal this thread started is still running:" : "Terminals this thread started are still running:",
-      groups,
-      trailer: terminals!.heading === "1 terminal" ? "It keeps running after Done unless you tick Stop." : "They keep running after Done. Tick one to stop it.",
-      terminalsOnly: true,
-    }
-  }
+  // Defensive: a hold with no evidence of the agent's own (terminals alone never raise one).
+  if (!hold.turnInFlight && agentGroups.length === 0) return generic
   const lead = hold.turnInFlight
     ? agentGroups.length > 0
       ? "The agent is mid-turn, and it still owns background work:"

@@ -274,7 +274,7 @@ export function StateButton({
         }}
         // A cut-off worker has no session left to end; the question is whether an unfinished thread
         // should be filed as done at all (lib/threadLifecycle.ts completionHoldSummary).
-        title={hold?.cutOff ? "Mark an unfinished thread done?" : completionHoldSummary(hold).terminalsOnly ? "Mark as done?" : "End this session?"}
+        title={hold?.cutOff ? "Mark an unfinished thread done?" : "End this session?"}
         className="w-[390px] max-w-[92vw]"
         footer={
           <>
@@ -293,7 +293,7 @@ export function StateButton({
               className="button-outline flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[12px] font-medium text-bg outline-none transition-opacity hover:opacity-90 disabled:opacity-45"
             >
               {pending && <Loader2 size={12} className="animate-spin" />}
-              {hold?.cutOff ? "Mark done anyway" : completionHoldSummary(hold).terminalsOnly ? "Mark as done" : "End session & mark done"}
+              {hold?.cutOff ? "Mark done anyway" : "End session & mark done"}
             </button>
           </>
         }
