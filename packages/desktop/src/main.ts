@@ -43,7 +43,9 @@ import { locateServer, readRecordedServer } from "./server.ts"
  * whoever pinned it (`nub run dd`) is starting that one.
  */
 
-const APP_ID = "dev.ntwine.desktop"
+// Renamed from dev.ntwine.desktop on 2026-10-15: Explorer had cached Electron's icon under that ID while a
+// stray Electron.lnk claimed it, and kept drawing it after the registration was fixed.
+const APP_ID = "dev.ntwine.window"
 const argValue = (name: string) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3)
 const pinnedUrl = process.env.NTWINE_DESKTOP_URL ?? argValue("ntwine-url")
 const here = dirname(fileURLToPath(import.meta.url))
