@@ -16,8 +16,10 @@
 //      column beside it shows every one in full), Working how many more are working, and where. On a tie
 //      Ready gives first, for that reason. Opening Working by hand takes it out of this step.
 //
-//   4. last of all, Pinned lists its first pins and counts the rest: it is the human's own shelf and they
-//      keep it short, but a shelf of seven on a 720px screen is still more than the screen.
+//   4. Pinned lists its first pins and counts the rest: it is the human's own shelf and they keep it
+//      short, but a shelf of seven on a 720px screen is still more than the screen;
+//   5. last of all, Waiting gives its floor down to one row, its header and "N more waiting" still in
+//      view. The heavy load (sidebarFit.e2e.test.ts, 7 waiting) overflowed 1280x720 by 13px without it.
 
 /** How many Done-today rows the tail shows before any compression. */
 export const TAIL_MAX = 5
@@ -106,7 +108,12 @@ export function maxLevel(input: BudgetInput): number {
   const lines = rolledLines(input, new Set(order))
   const ready = Math.max(0, input.ready - READY_FLOOR)
   const working = input.workingOpen ? 0 : Math.max(0, lines - WORKING_FLOOR)
-  return tail + waitingSteps(input) + order.length + ready + working + pinnedSteps(input)
+  return tail + waitingSteps(input) + order.length + ready + working + pinnedSteps(input) + waitingLastSteps(input)
+}
+
+/** Step 5: Waiting from its floor down to one row. */
+function waitingLastSteps(input: BudgetInput): number {
+  return input.waitingOpen ? 0 : Math.max(0, Math.min(WAITING_FLOOR, input.waiting) - 1)
 }
 
 function waitingSteps(input: BudgetInput): number {
@@ -131,6 +138,8 @@ export function budgetAt(level: number, input: BudgetInput): Budget {
   const shortenSteps = Math.max(0, level - tailSteps - waitSteps - order.length)
   const { ready, working } = shorten(input.ready, lines, input.workingOpen, shortenSteps)
   const taken = input.ready - ready + (lines - working)
-  const pinnedShown = input.pinned - Math.min(pinnedSteps(input), Math.max(0, shortenSteps - taken))
-  return { tailShown, rolled, readyShown: ready, workingShown: working, pinnedShown, waitingShown }
+  const pinSteps = Math.min(pinnedSteps(input), Math.max(0, shortenSteps - taken))
+  const pinnedShown = input.pinned - pinSteps
+  const lastSteps = Math.min(waitingLastSteps(input), Math.max(0, shortenSteps - taken - pinSteps))
+  return { tailShown, rolled, readyShown: ready, workingShown: working, pinnedShown, waitingShown: waitingShown - lastSteps }
 }

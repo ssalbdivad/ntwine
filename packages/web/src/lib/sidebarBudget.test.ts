@@ -58,15 +58,19 @@ test("a lone run never rolls: it shortens line by line like Ready", () => {
   assert.deepEqual(at(25, page), { tail: 0, rolled: [], ready: 12, working: 12, pinned: 0 })
 })
 
-test("Waiting gives right after the Done tail, down to its floor, and never to nothing", () => {
+test("Waiting gives right after the Done tail, down to its floor, then last of all to one row", () => {
   const five = { waiting: 5 }
   assert.deepEqual(at(3, five), { tail: 0, rolled: [], ready: 6, working: 11, pinned: 3, waiting: 5 }, "the tail goes first")
   assert.deepEqual(at(6, five), { tail: 0, rolled: [], ready: 6, working: 11, pinned: 3, waiting: 2 }, "then Waiting, a row a level, to its floor")
   assert.deepEqual(at(7, five), { tail: 0, rolled: ["b"], ready: 6, working: 8, pinned: 3, waiting: 2 }, "and only then does Working roll")
-  assert.equal(at(50, five).waiting, 2, "the floor holds however far the level goes")
-  assert.equal(maxLevel(input(five)), 3 + 3 + 3 + 3 + 2 + 1)
+  const last = maxLevel(input(five))
+  assert.equal(last, 3 + 3 + 3 + 3 + 2 + 1 + 1)
+  assert.equal(at(last - 1, five).waiting, 2, "the floor holds through every other step, Pinned's included")
+  assert.equal(at(last - 1, five).pinned, 2)
+  assert.equal(at(last, five).waiting, 1, "the very last step leaves one row, never none")
+  assert.equal(at(last + 10, five).waiting, 1)
   // Opened by hand, it keeps every row and its steps leave the order.
   assert.deepEqual(at(4, { ...five, waitingOpen: true }), { tail: 0, rolled: ["b"], ready: 6, working: 8, pinned: 3, waiting: 5 })
-  // At or under its floor it has no step at all.
-  assert.equal(maxLevel(input({ waiting: 2 })), maxLevel(input()))
+  // A single row has no step at all.
+  assert.equal(maxLevel(input({ waiting: 1 })), maxLevel(input()))
 })
