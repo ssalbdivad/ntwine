@@ -72,7 +72,7 @@ test("the resting card states the wait and offers no snooze", () => {
   const bare = render(thread([agent("running")], []))
   assert.doesNotMatch(bare, /Snooze/)
   // Its one verb is Keep working: a rest with no fence while a sub-agent runs (KeepWorking.test.ts).
-  assert.match(bare, /data-card-actions="true"[^>]*><button[^>]*data-keep-working[^>]*>Keep working<\/button><\/div>/)
+  assert.match(bare, /data-card-actions="true"[^>]*><button[^>]*data-keep-working[^>]*>Continue<\/button><\/div>/)
   assert.match(bare, /Awaiting/)
   assert.match(bare, /data-wait-kind="agent"/)
 })

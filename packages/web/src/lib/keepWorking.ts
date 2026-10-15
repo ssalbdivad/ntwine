@@ -6,10 +6,12 @@ import { awaitingQuestions, awaitingStatus, awaitingSteps, isDirectSubAgent, isK
 // KEEP_WORKING_MESSAGE (shared) through the ordinary reply path and the worker re-parks `working`. ntwine
 // never moves the thread itself: the worker's last word decides where it sits.
 
-/** The button's label, and the marker's verb in the transcript (KeepWorkingMarker). */
-export const KEEP_WORKING_LABEL = "Keep working"
+/** The button's label, and the marker's verb in the transcript (KeepWorkingMarker). It read "Keep
+ *  working" until 2026-10-15 (maintainer: replace it with "Continue"); the code keeps the old name, and
+ *  the message keeps its `<keep-working>` envelope so transcripts already written still draw the marker. */
+export const KEEP_WORKING_LABEL = "Continue"
 /** The one line the human's click leaves in the transcript, on their side of it. */
-export const KEEP_WORKING_MARKER = "Told it to keep working"
+export const KEEP_WORKING_MARKER = "Told it to continue"
 
 /** Every handle a running shell or direct sub-agent answers to — the client's copy of the server's
  *  board.liveWaitHandles, which accepts the launch id, the runtime task id and the label, because a

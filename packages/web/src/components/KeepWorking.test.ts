@@ -35,7 +35,7 @@ const offered = (thread: CardThread, fence?: { body: string; hints: AwaitingHint
 
 test("offered on a needs_input park that names a shell or sub-agent still running, by any handle it answers to", () => {
   assert.equal(offered(resting(tryIt)), true)
-  assert.match(card(resting(tryIt)), /data-keep-working[^>]*>Keep working</)
+  assert.match(card(resting(tryIt)), /data-keep-working[^>]*>Continue</)
   // Named by its label, and a sub-agent named by the task id the runtime handed the worker.
   assert.equal(offered(resting(hints(["shell", "vite dev"], ["status", "needs_input"]))), true)
   assert.equal(offered(resting(hints(["agent", "a1b2c3"], ["status", "needs_input"]), { bgShells: [], subAgents: [lane] })), true)
@@ -89,7 +89,7 @@ test("the queue's sub-agent batch card carries it too, which the queue draws in 
     project: { id: "p1", slug: "demo", projectDir: undefined }, thread, body: "", openThread: () => {},
   })))
   const parked = resting(hints(["agent", "wlx2xkdou"], ["status", "needs_input"]), { bgShells: [], subAgents: [workflowRun] })
-  assert.match(batch(parked), /data-keep-working[^>]*>Keep working</)
+  assert.match(batch(parked), /data-keep-working[^>]*>Continue</)
   assert.equal(batch(resting(hints(["agent", "wlx2xkdou"], ["status", "working"]), { bgShells: [], subAgents: [workflowRun] })).includes("data-keep-working"), false)
   assert.equal(batch({ ...parked, archived: true }).includes("data-keep-working"), false)
 })
@@ -105,7 +105,7 @@ test("the sent message draws as the human's marker, served or optimistic, and ne
   // The envelope pasted inside a message of the human's own is just their message.
   assert.equal(drawsKeepWorkingMarker(user({ text: `look at this:\n${KEEP_WORKING_MESSAGE}` })), false)
   const marker = renderToStaticMarkup(createElement(KeepWorkingMarker, { sourceId: "u1" }))
-  assert.equal(marker.replace(/<[^>]+>/g, ""), "Told it to keep working")
+  assert.equal(marker.replace(/<[^>]+>/g, ""), "Told it to continue")
   assert.match(renderToStaticMarkup(createElement(KeepWorkingMarker, { dimmed: true })), /opacity-50/)
 })
 
