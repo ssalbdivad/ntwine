@@ -370,7 +370,7 @@ export const CARD_BODY = "block min-w-0 text-[13px] leading-5 text-fg/75"
 // title and its body copy, so the eye finds the verb on the one vertical line the whole card is built
 // on — rather than tracking to a right edge whose position moves with the card's width.
 //
-// Explanatory copy for the action (the awaiting card's "Hides card until new activity is detected") goes IMMEDIATELY TO THE RIGHT
+// Explanatory copy for the action (the awaiting card's "Hides card until new activity is detected", until 2026-10-14) goes IMMEDIATELY TO THE RIGHT
 // of its button and is centered against it, so the pair reads as one control with its caption rather
 // than as a sentence the button happens to sit near. `items-center` is what holds that alignment; the
 // explainer takes the leftover width and wraps its own lines there (`flex-1 min-w-0`) instead of

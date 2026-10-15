@@ -1,5 +1,5 @@
 import type { ThreadView } from "@ntwine/shared"
-import { isPinned, orderByInteraction, queued, sectionOf } from "../groups.ts"
+import { inWaitingBand, isPinned, orderByInteraction, queued, sectionOf } from "../groups.ts"
 import { threadKey, type QueuesProject } from "./allQueues.ts"
 import { optimisticallyArchived } from "./optimisticArchive.ts"
 import { optimisticallySteered } from "./steering.ts"
@@ -14,6 +14,8 @@ export interface LoudBands {
   pinned: ThreadView[]
   ready: ThreadView[]
   working: ThreadView[]
+  /** At rest on something outside the thread (shared inWaitingBand), under Working and never folded. */
+  waiting: ThreadView[]
   /** The threads whose card is in the queue — a Ready row, or a pinned one that is Ready — which the cord
    *  across the gutter ties to that card (ThreadConnector). */
   carded: ReadonlySet<string>
@@ -44,7 +46,7 @@ export function listOverlay(
 
 /**
  * A project's work in flight, as its rail banded it: Pinned first (the pin diverts a thread out of every
- * other band, groups.ts sectionThreads), then Ready in queue order, then Working. A Ready card being
+ * other band, groups.ts sectionThreads), then Ready in queue order, then Working, then Waiting. A Ready card being
  * finished (`hidden`) moves its row to Working until the poll catches up — never off the list; one open
  * in a drawer keeps its row, marked open.
  *
@@ -68,7 +70,9 @@ export function loudBands(project: QueuesProject, hidden: (key: string) => boole
   // (a permission approved on a resting thread's card left @3-0 queued server-side, cardless and rowless)
   // took the thread off the list entirely. The row waits under Working instead: the human's act is in
   // flight, which is what that band says, and the next poll puts it wherever the server does.
-  const working = orderByInteraction(flight.filter((t) => (queued(t) ? hidden(threadKey(project.id, t.id)) : sectionOf(t) === "active")))
+  const out = flight.filter((t) => (queued(t) ? hidden(threadKey(project.id, t.id)) : sectionOf(t) === "active"))
+  const working = orderByInteraction(out.filter((t) => queued(t) || !inWaitingBand(t)))
+  const waiting = orderByInteraction(out.filter((t) => !queued(t) && inWaitingBand(t)))
   const carded = new Set([...pinned.filter(queued), ...ready].map((t) => t.id))
-  return { pinned, ready, working, carded, rows: pinned.length + ready.length + working.length }
+  return { pinned, ready, working, waiting, carded, rows: pinned.length + ready.length + working.length + waiting.length }
 }

@@ -82,12 +82,13 @@ test("false on a park ntwine can honour keeps the thread out of the queue — an
   assert.equal(deriveAwaitingBackground(row(), t, "turn-idle", false, NOW), true)
 })
 
-test("true queues it while the work keeps running, and the card's event-snooze still hides it for this rest", () => {
+test("true queues it while the work keeps running", () => {
   const t = tele({ subAgents: [LIVE_AGENT], ...agentPark("true") })
   assert.equal(needsYou(row(), t), true)
   assert.equal(deriveAwaitingBackground(row(), t, "turn-idle", false, NOW), true, "it cards as the wait, with the live work listed")
-  assert.equal(needsYou(row({ bg_snooze_rested_at: AT }), t), false, "the human's snooze for this rest")
-  assert.equal(needsYou(row({ bg_snooze_rested_at: "2026-01-01T00:00:00.000Z" }), t), true, "a snooze from an earlier rest has expired")
+  // The resting card's "Snooze until new activity" hid this rest until 2026-10-14; it is gone, and the
+  // column it wrote no longer hides anything but a done the human chose to watch.
+  assert.equal(needsYou(row({ bg_snooze_rested_at: AT }), t), true, "a stale until-new-activity arming hides nothing")
 })
 
 test("no answer, or one that is neither true nor false, queues — it is never a park", () => {

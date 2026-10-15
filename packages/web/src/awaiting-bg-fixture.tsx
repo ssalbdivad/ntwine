@@ -11,8 +11,7 @@ import "./styles.css"
 
 // Browser QA for the RESTING CARD (components/AwaitingBackgroundCard.tsx) in the thread drawer: a thread
 // that came to rest while its OWN background work is still live and no human ask is outstanding renders
-// the informational banner + the event "Snooze" button and its explainer. snoozeAwaitingBackground is
-// mocked so nothing real is hit. This fixture mounted the board's queue card until that card was deleted
+// the informational banner and the rows it waits on (its event "Snooze" was removed 2026-10-14). This fixture mounted the board's queue card until that card was deleted
 // with the single-project board (2026-09-28); the card is the same component on both, so it moved to the
 // drawer, the virtualized path both production callers mount.
 //
@@ -27,7 +26,7 @@ import "./styles.css"
 const SLUG = "awaiting-bg-demo"
 const params = new URLSearchParams(location.search)
 // ?watch=1 — the PR-WATCH PARK, which reaches this card as of 2026-08-13: its awaiting fence no longer
-// offers a park action, so this card is where the wait is stated and its event-snooze is the one control.
+// offers a park action, so this card is where the wait is stated.
 // ?watch=both — a thread holding a shell AND a watcher, so the sentence has to name both kinds.
 // ?watch=one — ONE green, mergeable PR and nothing else. The shape the maintainer actually meets on a
 // real board, and the one they were looking at when they called the old three-line row busy (2026-08-14).
@@ -218,11 +217,6 @@ window.fetch = async (input, init) => {
   }
   if (url.pathname === "/_ntwine/rpc/threadTranscript" || url.pathname === "/_ntwine/rpc/threadTranscriptEarlier") {
     return new Response(JSON.stringify({ result: transcriptPage }), { headers: { "content-type": "application/json" } })
-  }
-  if (url.pathname === "/_ntwine/rpc/snoozeAwaitingBackground") {
-    window.dispatchEvent(new CustomEvent("fixture-rpc", { detail: { rpc: "snoozeAwaitingBackground", body: JSON.parse(String(init?.body ?? "{}")) } }))
-    // A void mutation serializes as {result:null} (rpc/server.ts) — mirror that so the web client parses success.
-    return new Response(JSON.stringify({ result: null }), { headers: { "content-type": "application/json" } })
   }
   // Ask for update (2026-10-03): announced for a harness to count, answered as a void mutation.
   if (url.pathname === "/_ntwine/rpc/requestParkCheckIn") {

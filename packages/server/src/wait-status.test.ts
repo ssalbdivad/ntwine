@@ -148,11 +148,9 @@ test("`watching` beside a live sub-agent is honoured — the child is watching t
   assert.deepEqual(place(row(), t), { needsYou: false, waitStatus: "watching" })
 })
 
-test("`needs_input` queues, and a queued rest never carries a band — event-snoozed or not", () => {
+test("`needs_input` queues, and a queued rest never carries a band", () => {
   const t = tele({ bgShells: [LIVE_SHELL], ...fence({ kind: "shell", value: "bzvtnt3ig" }, FOR_2H, status("needs_input")) })
   assert.deepEqual(place(row(), t), { needsYou: true, waitStatus: undefined })
-  // The human's snooze off the resting card takes it out of the queue; the CLICK parks it, not this.
-  assert.deepEqual(place(row({ bg_snooze_rested_at: AT }), t), { needsYou: false, waitStatus: undefined })
 })
 
 test("the older `needs_input: false`, and a legacy fence with neither line, get ntwine's reading", () => {

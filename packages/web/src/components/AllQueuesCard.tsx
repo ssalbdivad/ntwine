@@ -53,7 +53,7 @@ import { ThreadStatusLine } from "./ThreadStatusLine.tsx"
 import { Composer } from "./Composer.tsx"
 import { fetchThreadSkills, fetchUserCommands, mergeSlashItems, useUserCommands } from "../hooks/useUserCommands.ts"
 import { InteractionStack } from "./InteractionCards.tsx"
-import { AwaitingSubAgentsCard, SubAgentWaitSnoozeItems } from "./AwaitingSubAgentsCard.tsx"
+import { AwaitingSubAgentsCard } from "./AwaitingSubAgentsCard.tsx"
 import { AwaitingBackgroundCard, showsRestingCard, WaitRowOpenContext } from "./AwaitingBackgroundCard.tsx"
 import { drawsSubAgentWaitCard, showsSubAgentWait } from "../lib/subAgentWait.ts"
 import { useThreadComposerControls } from "../hooks/useThreadComposerControls.tsx"
@@ -597,7 +597,6 @@ function CardArticle({
               projectName={project.name}
               onSnoozed={onLeave}
               onUnsnoozed={onUnsnoozed}
-              snoozeEventItems={showsSubAgentWait(thread) && <SubAgentWaitSnoozeItems thread={thread} onSnoozed={onLeave} onUndone={onUnsnoozed} />}
               onArchived={onSent}
               onDismissCancel={onReturn}
               onCompleted={onLanded}
@@ -690,13 +689,13 @@ function CardArticle({
           {parts?.fences.map((fence, index) => fence.kind === "done"
             ? <FenceBody key={index} body={fence.body} project={project} thread={thread} />
             : drawsSubAgentWait
-              ? <AwaitingSubAgentsCard key={index} project={project} thread={thread} body={fence.body} openThread={() => openInPlace(project, thread.id, displayTitle(thread))} onSnoozed={onLeave} onUndone={onUnsnoozed} />
+              ? <AwaitingSubAgentsCard key={index} project={project} thread={thread} body={fence.body} openThread={() => openInPlace(project, thread.id, displayTitle(thread))} />
               : restingShown ? null
               : <CardAwaiting key={index} project={project} thread={thread} fence={{ body: fence.body, hints: fence.hints }} onLeave={onLeave} onSent={onSent} onLanded={onLanded} onReturn={onReturn} />)}
           {/* THE RESTING CARD (upstream TodosView AwaitingBackgroundBanner), whenever the thread is at rest on
               its own declared wait — a fence or not, since a rest on agent terminals alone queues with no
-              fence at all. It carries the wait table, the steps and their Done, and the event-snooze, each
-              of which takes this card out the way a reply does. Held until the handoff is read, as the
+              fence at all. It carries the wait table and the steps and their Done (and, until 2026-10-14, the
+              event-snooze), each of which takes this card out the way a reply does. Held until the handoff is read, as the
               gates below are: it carries buttons, and the full handoff landing above it would move them. */}
           {restingShown && (handoff.data || handoff.isError) && (
             <CardAwaiting project={project} thread={thread} onLeave={onLeave} onSent={onSent} onLanded={onLanded} onReturn={onReturn} />
@@ -1112,8 +1111,7 @@ function CardSettledStack({ questions, className }: { questions: readonly Settle
  *   • the steps' Done is an ordinary reply, sent into the card's project (lib/projectFollowUp.ts, the
  *     reply box's own send). The card LEAVES on the click — upstream's optimistic exit (TodosView
  *     AwaitingBackgroundBanner) — stays gone while the reply is on the wire, and comes back if it fails;
- *   • the event-snooze takes it out the same way (AwaitingSnooze `onSnoozed`);
- *   • its Snooze, Stop and Ask for update read the card's client through the ThreadProjectScope here;
+ *   • its Stop and Ask for update read the card's client through the ThreadProjectScope here;
  *   • a row opens its thread in place, and the row's own drawer over it only when the card's project is
  *     the one in focus (WaitRowOpenContext) — the terminal rows' route (`openProcess` above).
  */
@@ -1152,8 +1150,6 @@ function CardAwaiting({ project, thread, fence, onLeave, onSent, onLanded, onRet
           onReplied={onSent}
           onReplyFailed={onReturn}
           replySteps={replySteps}
-          onSnoozed={onLeave}
-          onSnoozeFailed={onReturn}
         />
       </WaitRowOpenContext.Provider>
     </ThreadProjectScope>

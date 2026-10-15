@@ -734,7 +734,7 @@ export async function deleteExpiredDoneThreads(
 /**
  * Every folder a thread that is still open work in this project is working in — for the idle-worktree
  * sweep's in-use check (worktree-sweep.ts check 3). Open work is every thread but an unpinned Done one
- * at rest: Running, Queue, Pinned and Snoozed, plus a Done thread whose worker is still finishing (which
+ * at rest: Running, Queue, Pinned, Waiting and Snoozed, plus a Done thread whose worker is still finishing (which
  * the board files under Running). A thread with no section (an external session) counts too: it can
  * only keep a worktree.
  *
@@ -4086,8 +4086,14 @@ export function createRouter(ctx: AppContext) {
           ctx.board.refresh()
           return
         }
-        // `until: null` is Wake now: setSnoozedUntil clears the instant and the bump it owed together.
-        ctx.storage.setSnoozedUntil(input.slug, input.until, input.prompt ?? null)
+        // A WORKING THREAD IS NOT SNOOZED (2026-10-14): one running a turn, or at rest with its own
+        // sub-agents or shells still out, has work in flight, and a snooze would fold it away while that
+        // work lands (maintainer: "ensure active threads cant be hidden under snooze easily"). A park on the
+        // world — a `watching` rest — is not motion (shared isActivelyRunning), and can be snoozed.
+        if (input.until !== null && isActivelyRunning(thread)) throw new Error("Can't snooze while it's working")
+        // `until: null` is Wake now: setSnoozedUntil clears the instant and the bump it owed together. The
+        // stamp is what ends a plain snooze at the agent's next rest (board.futureSnooze).
+        ctx.storage.setSnoozedUntil(input.slug, input.until, input.prompt ?? null, input.until === null ? null : new Date().toISOString())
         ctx.board.refresh()
       },
     }),
@@ -4476,14 +4482,15 @@ export function createRouter(ctx: AppContext) {
     // touched (a 180d `watch_pr` per thread, chosen blind, was how threads vanished into Snoozed); it
     // signs off `done` naming them, and the card offers "Watch #N" for each. This is that click: the same
     // `pr_watch` registry `ntwinectl watch-pr` arms, polled by the same scheduler loop, plus the human's own park of
-    // THIS rest — the event-snooze column the resting card's Snooze writes — so the thread rests in
-    // Snoozed until the watch reports, which wakes the worker like any watcher wake.
+    // THIS rest — the `bg_snooze_rested_at` column, which the resting card's Snooze also wrote until
+    // 2026-10-14 — so the thread rests in Waiting until the watch reports, which wakes the worker like any
+    // watcher wake.
     //
     // It differs from addOwnPrWatch in exactly what makes it the human's act rather than the worker's:
     //  - the row is `registered_by: human`, so it does not gate the worker's `done` (it is not the
     //    worker's outstanding wait) and its wake tells the worker whose watch it is (scheduler);
     //  - it does NOT clear the done: the finished thread stays finished, its card stays readable from
-    //    Snoozed, and the board reads done + this park as a watch (board.doneParkedOnWatch);
+    //    Waiting, and the board reads done + this park as a watch (board.doneParkedOnWatch);
     //  - PR or issue is FOUND OUT, not declared — prose cannot say which `#N` is — by asking `gh pr view`
     //    first (the probe `watch-pr` registration uses) and `gh issue view` second;
     //  - no `for:` to choose: it runs to the ceiling, and a merge or close settles it before that.
@@ -5192,31 +5199,6 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // Event-snooze the awaiting-background card: capture the CURRENT rest instant so the board hides the
-    // card until rested_at advances — the exact moment the thread's own sub-agent/shell returns and the
-    // worker comes to a new rest. No deadline, no scheduler, no reaper: the session stays alive (it is
-    // ALREADY resting) and the snooze expires itself on the next rest. Session-guarded so a stale tab
-    // cannot snooze whatever now owns the slug.
-    //
-    // `clear` is the queue card's Undo (2026-09-29): the card fades on the click, and a mis-click on a
-    // snooze with no deadline would otherwise leave the thread parked until its work happens to report.
-    snoozeAwaitingBackground: mutation({
-      input: z.object({ slug: ThreadSlug, sessionId: z.string().min(1), clear: z.boolean().optional() }).strict(),
-      handler: async ({ input }) => {
-        const row = currentOwnedSession(input.slug, input.sessionId)
-        if (input.clear) {
-          ctx.storage.setBgSnoozeRestedAtIfCurrent(input.slug, row.session_id, row.runtime_generation ?? 0, null)
-          ctx.board.refresh()
-          return
-        }
-        if (!row.rested_at) throw new Error("This thread is not at rest; nothing to snooze")
-        if (!ctx.storage.setBgSnoozeRestedAtIfCurrent(input.slug, row.session_id, row.runtime_generation ?? 0, row.rested_at)) {
-          throw new Error("This thread changed before it could be snoozed")
-        }
-        ctx.board.refresh()
-      },
-    }),
-
     // ASK FOR AN UPDATE — the resting card's verb for a parked thread. A park on sub-agents already wakes
     // its worker every 30 minutes to check in (AGENT_PARK_FOR_MAX_MS); this is the same wake on demand, so the
     // human need not wait out the interval to hear where a long orchestration stands. The scheduler mints it
@@ -5236,34 +5218,6 @@ export function createRouter(ctx: AppContext) {
           throw new Error("This thread already has a message on its way")
         }
         ctx.scheduler.requestCheckIn(input.slug, restedAt)
-      },
-    }),
-
-    // SNOOZE UNTIL ALL SUB-AGENTS RETURN — the event-snooze above, widened from ONE rest to the whole
-    // batch. That one is spent by the parent's next rest, and a parent resting on N background children
-    // rests N times, so a human snoozing it met the card again after every return. This arms the instant
-    // instead, and the board holds the thread out of the queue while some direct sub-agent has been running
-    // ever since (board.subAgentsSnoozeHolds): each return still wakes the parent, and only the last one —
-    // or a question, a crash, a done, or the human speaking to it — brings the card back.
-    //
-    // Refused with nothing running: there would be no batch to wait out, and the arming would be inert
-    // anyway. `clear` is the card's Undo.
-    snoozeUntilSubAgentsReturn: mutation({
-      input: z.object({ slug: ThreadSlug, sessionId: z.string().min(1), clear: z.boolean().optional() }).strict(),
-      handler: async ({ input }) => {
-        const row = currentOwnedSession(input.slug, input.sessionId)
-        const generation = row.runtime_generation ?? 0
-        if (input.clear) {
-          ctx.storage.setSubAgentsSnoozedAtIfCurrent(input.slug, row.session_id, generation, null)
-          ctx.board.refresh()
-          return
-        }
-        const running = (ctx.tailer.get(input.slug)?.subAgents ?? []).some((agent) => isDirectSubAgent(agent) && agent.state === "running")
-        if (!running) throw new Error("No sub-agent is running; there is nothing to wait for")
-        if (!ctx.storage.setSubAgentsSnoozedAtIfCurrent(input.slug, row.session_id, generation, new Date().toISOString())) {
-          throw new Error("This thread changed before it could be snoozed")
-        }
-        ctx.board.refresh()
       },
     }),
 
@@ -6048,7 +6002,7 @@ export function createRouter(ctx: AppContext) {
      * opening one. A project with no board here has no honest queue, so it is absent
      * rather than empty; the client joins this with `projectsList` and says so.
      *
-     * OPEN THREADS, NOT JUST QUEUED ONES. The page draws each project's Running and Snoozed rows beside
+     * OPEN THREADS, NOT JUST QUEUED ONES. The page draws each project's Working, Waiting and Snoozed rows beside
      * its queue, the way the project's own rail does, so it needs them — and banding is the client's
      * job, done with the same pure `groups.ts` functions the rail uses, so the two cannot disagree about
      * which band a thread is in. Done rows are a COUNT: that band grows without bound. The pinned ones
@@ -6617,7 +6571,7 @@ const HUMAN_THREAD_ACTS = [
   "followUp", "unqueueFollowUp", "deliverQueuedNow", "setThreadPermission", "setThreadProfile", "upgradeThreadModel",
   "archiveThread", "markRead", "threadSeen", "setThreadState", "completeThread", "markComplete", "setThreadStatus",
   "dismissThread", "setThreadSnooze", "setThreadPinned", "setThreadRecurringPrompt", "setThreadHeartbeat",
-  "snoozeAwaitingBackground", "watchDoneRef", "snoozeUntilSubAgentsReturn", "requestParkCheckIn", "answerQuestions", "dismissQuestions", "holdQuestionDefault", "renameThread",
+  "watchDoneRef", "requestParkCheckIn", "answerQuestions", "dismissQuestions", "holdQuestionDefault", "renameThread",
   "killAgent", "subAgentSteer", "subAgentStop", "stopBackgroundOp", "interactionResolve",
   "interactionCancel", "terminalStart", "terminalRun", "openThreadFolder", "reviewInEditor", "updateHeldPrompt", "startHeldThread",
   "setThreadDeadline",

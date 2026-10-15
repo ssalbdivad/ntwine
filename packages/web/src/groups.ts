@@ -6,6 +6,7 @@ import {
   hasLiveOps,
   hasLiveSubAgents,
   inActiveBand,
+  inWaitingBand,
   isActivelyRunning,
   isDeclaredAwaiting,
   isSnoozed,
@@ -25,7 +26,7 @@ import {
 // The band predicates live in @ntwine/shared so the server counts the rail's running badge with the
 // same rule the sidebar bands on. Re-exported here, where every web caller already imports them.
 // `needsAction` (the queue's ask definition) moved there too, so the server can count a project's asks.
-export { agentParked, doneButRunning, futureSnoozedUntil, isActivelyRunning, isSnoozed, needsAction, prChecksRunning, sectionOf, type SectionKey }
+export { agentParked, doneButRunning, futureSnoozedUntil, inWaitingBand, isActivelyRunning, isSnoozed, needsAction, prChecksRunning, sectionOf, type SectionKey }
 import { canRetry } from "./lib/status.ts"
 
 // Shared listing logic: the queue definition (needsAction), the sidebar's status-keyed sections
@@ -420,9 +421,10 @@ export function isPinned(t: ThreadView): boolean {
 // A PR WAIT IS DELIBERATELY ABSENT: the review/approval/comment watcher must NOT park in Snoozed. A worker
 // that opens a PR and watches it stays a VISIBLE queue handoff (a PR whose reviews may never arrive must
 // not silently vanish into the dimmed band — maintainer 2026-07-22); the scheduler still polls and bumps
-// it, and the human opts into hiding it via the RESTING card's event-snooze, which drops the card until
-// the thread comes to a new rest (2026-08-13 — that card is where a parked watcher is now stated and
-// controlled; the awaiting card no longer offers a park action for it). Admitting one here would
+// it. The human could opt into hiding it via the RESTING card's event-snooze, which dropped the card until
+// the thread came to a new rest (2026-08-13 to 2026-10-14; that card is still where a parked watcher is
+// stated, and the awaiting card offers no park action for it). A worker's `status: watching` park now
+// keeps it out of the queue, in Waiting. Admitting one here would
 // re-introduce exactly the auto-Snoozed danger this split was built to remove. (The key is `prs:` since the
 // 2026-08-24 YAML cutover; both spellings this paragraph was written against — the singular `pr:`, and the
 // `pr-watch:` before it — are retired, see RETIRED_AWAITING_KINDS. The WIRE kind stays singular, which is
@@ -472,9 +474,9 @@ function restedQueueHandoff(t: ThreadView): boolean {
 // "if a thread has rested and the only thing remaining is background shells, we should put it into the
 // queue"), so `needsYou` drops its row below the rule into the rested band — and the dot stays, because
 // it is the one thing that tells that row apart from an ordinary bare rest at a glance. Snoozing the
-// card parks it in the dimmed Snoozed band (isSnoozed reads `bgSnoozed`). Until 2026-08-28 the snooze
-// sent it back to the running band with the same dot — "still alive, no longer asking" — and the
-// maintainer read that as a row the snooze had not touched at all.
+// card parked it in the dimmed Snoozed band from 2026-08-28 until the card's event-snooze was removed on
+// 2026-10-14. Before that the snooze sent it back to the running band with the same dot — "still alive,
+// no longer asking" — and the maintainer read that as a row the snooze had not touched at all.
 //
 // A LIVE SUB-AGENT IS DELIBERATELY EXCLUDED (maintainer, same day: "this should not show up if there
 // are sub-agents"), and the two are genuinely different states rather than two flavours of one. A
@@ -538,8 +540,8 @@ function restingOnLiveBackgroundWork(t: ThreadView): boolean {
 
 /** DOES THIS REST SPIN? Only when its worker called it `working` and the server found the work moving —
  *  ThreadView.waitStatus (board.deriveWaitStatus, 2026-10-05). The spinner means that and nothing else:
- *  a QUEUED rest never carries the field, so a queue row never spins, and a `watching` rest is Snoozed
- *  and still. Each at-rest arm that used to spin on its own reading — the shell's dot, the octocat over
+ *  a QUEUED rest never carries the field, so a queue row never spins, and a `watching` rest sits in
+ *  Waiting, still. Each at-rest arm that used to spin on its own reading — the shell's dot, the octocat over
  *  running checks — keeps its glyph and asks this whether the frame around it moves (maintainer
  *  2026-10-03: a watcher thread "shouldn't show up as actively running"). */
 export function restIsWorking(t: Pick<ThreadView, "waitStatus" | "runtime">): boolean {
@@ -684,14 +686,9 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // on any surface, on three different projects, and all three were user-snoozed with a pending ask.
   // Gated on isSnoozed so its carve-outs still hold — a running turn and a live sub-agent keep their
   // spinner, because motion is a fact about the process that a park does not change — and on
-  // futureSnoozedUntil so ONLY the operator's own wall-clock park takes this branch: a declared wait or
-  // an event-snooze leaves the thread QUEUED server-side, where the ask is reachable and the [?] is true.
+  // futureSnoozedUntil so ONLY the operator's own wall-clock park takes this branch: a declared wait
+  // leaves the thread QUEUED server-side, where the ask is reachable and the [?] is true.
   if (futureSnoozedUntil(t) !== undefined && isSnoozed(t)) return "snoozed"
-  // SNOOZED UNTIL ALL SUB-AGENTS RETURN is the other park that must outrank the spinner below: its row
-  // has live children by definition, so `working` would claim it on every rest, in the Snoozed band the
-  // human just put it in. The server only sets the flag while nothing queues the thread, so no ask mark
-  // below can be true of it; mid-turn it is dropped, and the row spins in Active like any snoozed one.
-  if (t.subAgentsSnoozed === true && isSnoozed(t)) return "snoozed"
 
   const explicitlyNeedsInput = Boolean(
     t.actionableInteraction ||
@@ -706,7 +703,7 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // SUB-AGENT whose return will re-invoke it, while the parent is NOT yet a handoff. A rested, queued
   // thread falls through to the at-rest ellipsis below no matter how many sub-agents it still has out —
   // see restedQueueHandoff. A shell-only rest is carved out because it is never motion at all; the dot
-  // below is its mark, and without this clause an event-snoozed one would still spin.
+  // below is its mark, and without this clause one out of the queue would still spin.
   if (activelyRunning && !restedQueueHandoff(t) && !restingOnBackgroundWork(t)) return "working"
   // A REGISTERED question (an open thread_question row, arriving as `questions`) is as concrete an ask
   // as any of the explicit flags above, but it deliberately sits BELOW the working branch: a worker
@@ -845,21 +842,22 @@ export function partitionActive(active: readonly ThreadView[]): { running: Threa
 }
 
 // THE BAND A THREAD'S STATE PUTS IT IN, by the names the rail's headers print rather than the section
-// keys above: READY is the cue (it has a queue card), WORKING the band below the rule, then SNOOZED,
-// DONE, and EXTERNAL for a terminal session ntwine does not own. The same derivation the rail's bands
+// keys above: READY is the cue (it has a queue card), WORKING the band below the rule, WAITING an agent's
+// park on the world under it (2026-10-14, shared inWaitingBand), then SNOOZED, DONE, and EXTERNAL for a
+// terminal session ntwine does not own. The same derivation the rail's bands
 // run, so a surface that names the band — the drawer header's stamp — can never disagree with the band
 // the row actually sits in.
 //
 // It IGNORES THE PIN on purpose. A pin moves the row, never the state (see isPinned): a pinned thread
 // that is spinning is still Working, and the stamp says what the thread is doing, not where the human
 // shelved it. Legacy `.ntwine` rows have no band (null), as they have no row.
-export type Band = "ready" | "working" | "snoozed" | "done" | "external"
+export type Band = "ready" | "working" | "waiting" | "snoozed" | "done" | "external"
 export function bandOf(t: ThreadView): Band | null {
   if (t.kind === "session" && t.foreign === true) return "external"
   const section = sectionOf(t)
   if (section === "inactive") return "done"
   if (section === "snoozed") return "snoozed"
-  if (section === "active") return inActiveBand(t) ? "working" : "ready"
+  if (section === "active") return !inActiveBand(t) ? "ready" : inWaitingBand(t) ? "waiting" : "working"
   return null
 }
 

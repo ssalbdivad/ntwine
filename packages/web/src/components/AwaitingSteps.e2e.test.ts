@@ -72,7 +72,7 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
         steps: [...el.querySelectorAll("[data-awaiting-steps] .ntwine-step-text")].map((t) => (t as HTMLElement).innerText.trim()),
         code: [...el.querySelectorAll("[data-awaiting-steps] li code")].map((c) => c.textContent),
         strong: [...el.querySelectorAll("[data-awaiting-steps] li strong")].map((c) => c.textContent),
-        snooze: !!el.querySelector("[data-awaiting-snooze]"),
+        footer: !!el.querySelector("[data-awaiting-actions]"),
         buttons: [...el.querySelectorAll("button:not([role=checkbox])")].map((b) => (b as HTMLElement).innerText.trim()),
         ticks: [...el.querySelectorAll("[data-awaiting-steps] button[role=checkbox]")].map((b) => b.getAttribute("aria-label")),
         textBoxes: el.querySelectorAll("textarea, input").length,
@@ -92,7 +92,7 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
     ], "every step, in the order the worker wrote them")
     assert.deepEqual(card.code, ["npm login --auth-type=web", "npm whoami", "acme-bot"], "a step is markdown: its code spans are code")
     assert.deepEqual(card.strong, ["acme-bot"])
-    assert.equal(card.snooze, false, "the reader is the wait, so there is nothing to snooze until")
+    assert.equal(card.footer, false, "the steps' Done is the only verb, so the card draws no footer of its own")
     assert.deepEqual(card.buttons, ["Done"], "one verb — a failed step is the human's own message, in the prompt box")
     assert.deepEqual(card.ticks, ["Step 1", "Step 2", "Step 3"], "every step is a checkbox the reader ticks")
     assert.equal(card.textBoxes, 0, "and no text box of the card's own beside the prompt box")

@@ -4,7 +4,8 @@
 // hold, end to end through the board the browser bands from:
 //   - it arms the same `pr_watch` row the worker tools arm (one poller), marked as the human's;
 //   - PR or issue is found out by the two registration probes, never guessed from prose;
-//   - the thread leaves the queue and rests in Snoozed as a `watching` rest, done card intact;
+//   - the thread leaves the queue and rests in Waiting as a `watching` rest, done card intact (it rested
+//     in Snoozed until 2026-10-14, when Snoozed became a time the human picks and nothing else);
 //   - the park belongs to THIS rest: the worker's next rest decides the place again;
 //   - it is not the worker's wait, so it neither supersedes nor gates the worker's `done`.
 import { test } from "node:test"
@@ -12,7 +13,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { isSnoozed, sectionOf, type Settings, type ThreadView } from "@ntwine/shared"
+import { inWaitingBand, isSnoozed, sectionOf, type Settings, type ThreadView } from "@ntwine/shared"
 import { createBoard } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { createRouter } from "./router.ts"
@@ -73,7 +74,7 @@ function row(over: Partial<SessionRow> = {}): SessionRow {
 const watch = (h: ReturnType<typeof harness>, target = "acme/app#1685") =>
   h.router.watchDoneRef.handler({ input: { slug: "t", sessionId: "sess-t", target } })
 
-test("a done thread is in the queue until the human watches its PR, then it rests in Snoozed as a watch", async () => {
+test("a done thread is in the queue until the human watches its PR, then it rests in Waiting as a watch", async () => {
   const h = harness()
   try {
     // The control: the done card queues on its own.
@@ -95,8 +96,8 @@ test("a done thread is in the queue until the human watches its PR, then it rest
     const after = h.view()
     assert.equal(after.needsYou, false, "out of the queue")
     assert.equal(after.waitStatus, "watching")
-    assert.equal(sectionOf(after), "snoozed")
-    assert.equal(isSnoozed(after), true)
+    assert.equal(inWaitingBand(after), true)
+    assert.equal(isSnoozed(after), false, "Waiting, in view — not folded into Snoozed")
     assert.equal(after.lastFence?.kind, "done", "the done card is still the thread's last word")
     assert.ok((after.watches ?? []).some((w) => w.kind === "github" && w.target === "acme/app#1685" && w.state === "armed"))
   } finally { h.close() }
@@ -106,7 +107,7 @@ test("the park is THIS rest's: the worker's next rest puts the thread back where
   const h = harness()
   try {
     await watch(h)
-    assert.equal(sectionOf(h.view()), "snoozed")
+    assert.equal(inWaitingBand(h.view()), true)
     // The watch woke the worker and it rested again with a new done: a new rest, the park is spent, and
     // the human sees the news in the queue.
     const later = new Date(Date.parse(REST) + 60_000).toISOString()
@@ -128,7 +129,7 @@ test("a number that is not a PR is probed as an issue, and armed as one", async 
     const [armed] = h.storage.listPrWatches("t", { armedOnly: true })
     assert.equal(armed.kind, "issue")
     assert.match(armed.id, /^isw_/)
-    assert.equal(sectionOf(h.view()), "snoozed")
+    assert.equal(inWaitingBand(h.view()), true)
   } finally { h.close() }
 })
 
@@ -177,7 +178,7 @@ test("the human's watch neither supersedes a registered done nor gates the worke
     await watch(h)
     const v = h.view()
     assert.equal(v.lastFence?.kind, "done", "a human's watch leaves the done standing")
-    assert.equal(sectionOf(v), "snoozed")
+    assert.equal(inWaitingBand(v), true)
     const done = await h.router.markOwnDone.handler({ input: { slug: "t", body: "Fixed the red CI." } })
     assert.equal(done.done, true, "the human's watch is not the worker's outstanding wait")
 
