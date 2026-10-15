@@ -110,7 +110,7 @@ Here's what ntwine has added so far:
 - **First-run tour.** A new browser opens on All projects with a short tour of the page. **Take the tour** in ⌘K replays it.
 - **Schedules.** Type "every weekday at 9am triage new issues" and the prompt box reads the schedule as you type. Each run starts a fresh thread.
 - **Time limits.** Give a thread `2h` or `15:30`. The agent plans the best result it can deliver by then, its sub-agents get a share, and the card counts down. Running out never interrupts a turn.
-- **Thread terminals.** Press `t` on a thread, or start a prompt with `$ npm test`, to get a shell in the folder its agent works in. It stops when the thread is done.
+- **Terminals.** Start a prompt with `$ npm run dev` to run it as a thread of its own, in the project or one of its worktrees. Press `t` on a thread for one in the folder its agent works in. It sits in Working while it runs, comes to Ready when it waits for input or fails, and keeps running through an ntwine restart.
 - **Home.** A board for work that doesn't belong to a project yet, like cloning a repo or asking about your machine. It's the switcher's last choice.
 - **A VS Code, Cursor and Windsurf extension.** ntwine lives in the editor's sidebar. Your selection goes along with your message (⌘L), agents can read what you have open, and a thread's changes open as a multi-file diff.
 - **Keyboard first.** Single-key shortcuts for the queue, listed under `?`, and every one is rebindable.
