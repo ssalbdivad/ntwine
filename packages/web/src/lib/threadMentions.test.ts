@@ -46,6 +46,19 @@ test("mentionCandidates: open threads by recency, then done ones; no self, exter
   assert.deepEqual(mentionCandidates(board, "b").map((c) => c.handle), ["shell-budgets", "budget-report"], "the thread being written into is not offered")
 })
 
+// A TERMINAL THREAD is offered and linked by its `@handle` like any other thread (maintainer 2026-10-15:
+// "Terminal threads still have to have names that are addressable like any other thread"); it used to be
+// called by its command, which is not a name, so the typeahead left it out.
+test("mentionCandidates: a terminal thread is offered by its handle; one from before handles is not", () => {
+  const term = (id: string, handle?: string) => thread({
+    id, kind: "terminal", title: "nub run dev",
+    terminal: { id, command: "nub run dev", cwd: "/p", state: "running", runId: 1, startedAt: "2026-10-15T10:00:00Z", ...(handle ? { handle } : {}) },
+  })
+  const all = mentionCandidates([term("term-1", "nub-run-dev"), term("term-0")])
+  assert.deepEqual(all.map((c) => [c.slug, c.handle]), [["term-1", "nub-run-dev"]])
+  assert.equal(resolveMention(all, "@nub-run-dev")?.slug, "term-1")
+})
+
 test("mentionQueryAt: an @ at a word boundary before the caret, never an email address", () => {
   assert.deepEqual(mentionQueryAt("ask @she", 8), { start: 4, query: "she" })
   assert.deepEqual(mentionQueryAt("@", 1), { start: 0, query: "" })

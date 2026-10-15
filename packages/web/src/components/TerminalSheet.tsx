@@ -97,6 +97,27 @@ export function TerminalSubtitle({ cwd, checkout, homeDir }: { cwd: string; chec
   )
 }
 
+/** A named terminal's drawer subtitle: `$ nub run dev` in mono, then its folder (TerminalSubtitle). The command
+ *  gives way first — the name above already says which program it is — and the folder keeps its last part.
+ *  The command is sized from zero (`w-0 grow`, as TerminalSubtitle's head is) so the line's min-content stays
+ *  the folder's kept part: as a plain shrinking run its whole width was the line's min-content, and under 28rem
+ *  (SheetHeader `subtitleKeeps`) it pushed the reading off the line and ran under the actions (420px). Under 28rem
+ *  it is not drawn at all: the line is then the reading and the folder, which squeezed to `wai…` and `$ …`
+ *  beside it; the command is the line's tooltip there, and on the screen below. */
+function TerminalCommandSubtitle({ terminal, homeDir }: { terminal: ThreadTerminal; homeDir: string | undefined }): ReactNode {
+  return (
+    <span data-terminal-subtitle-line className="flex min-w-0 items-baseline" title={`$ ${terminal.command}`}>
+      <span data-terminal-subtitle-command className="w-0 min-w-[2em] max-w-max grow truncate font-mono-keep text-[9.5px] @max-[28rem]:hidden" title={terminal.command}>{`$ ${terminal.command}`}</span>
+      {terminal.cwd ? (
+        <>
+          <span className="shrink-0 whitespace-pre @max-[28rem]:hidden"> · </span>
+          <TerminalSubtitle cwd={terminal.cwd} checkout={terminal.checkout} homeDir={homeDir} />
+        </>
+      ) : null}
+    </span>
+  )
+}
+
 // A HEADER ACTION'S LABEL: the words where there is room, the glyph where there is not. Both drawers'
 // headers are size containers (the wrapper around each SheetHeader), and under 28rem — a phone, or a
 // narrow split — two or three worded buttons took all the width and left the TITLE 0px wide beside them
@@ -246,11 +267,12 @@ export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pendi
   return (
     <div className="@container shrink-0">
       <SheetHeader
-        title={terminal?.command ?? "Terminal"}
-        // A command is set in mono wherever it appears (ThreadTerminals ProcessRow): the row you
-        // click and the drawer it opens name one thing in one typeface.
-        titleMono={Boolean(terminal)}
-        subtitle={terminal?.cwd ? <TerminalSubtitle cwd={terminal.cwd} checkout={terminal.checkout} homeDir={homeDir} /> : fallbackSubtitle}
+        // Titled by its NAME, its `@handle`, as a thread's drawer is: the row you click and the drawer it opens
+        // name one thing. The command it runs leads the subtitle, in mono as every surface sets a command. A
+        // terminal from before handles existed is titled by its command instead, in that same mono.
+        title={terminal?.handle ?? terminal?.command ?? "Terminal"}
+        titleMono={Boolean(terminal && !terminal.handle)}
+        subtitle={terminal?.handle ? <TerminalCommandSubtitle terminal={terminal} homeDir={homeDir} /> : terminal?.cwd ? <TerminalSubtitle cwd={terminal.cwd} checkout={terminal.checkout} homeDir={homeDir} /> : fallbackSubtitle}
         subtitleKeeps={Boolean(terminal?.cwd)}
         icon={<SquareTerminal aria-hidden size={14} className="shrink-0 text-muted-60" data-terminal-owner="human" />}
         meta={terminal ? <TerminalStateMeta terminal={terminal} /> : undefined}

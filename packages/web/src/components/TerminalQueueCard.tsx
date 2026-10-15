@@ -49,21 +49,26 @@ export function TerminalCardArticle({ project, thread, onLeave, onReturn, onSent
     <article
       data-xq-card-root
       data-terminal-card={thread.id}
-      aria-label={terminal.command}
+      aria-label={terminal.handle ?? terminal.command}
       className={`ntwine-card-body flex min-w-0 max-w-full flex-col ${BLOCK_RADIUS} border border-border-strong bg-panel shadow-lg shadow-shadow-ink/25`}
     >
       <header className="flex items-center gap-3 rounded-t-xl border-b border-border/60 px-5 py-3.5">
         {chip && <ProjectMark project={project} onChoose={onChoose} />}
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-[15px] font-semibold leading-snug" title={terminal.command}>
-            {/* The command is its name, in the face it is typed in; the title is the drawer's door, `o` presses it. */}
+          <h3 className="truncate text-[15px] font-semibold leading-snug" title={`$ ${terminal.command}`}>
+            {/* Its name (its `@handle`), as every card is titled, after the mono `$` its row wears; a row from
+                before handles existed is titled by its command. The title is the drawer's door, `o` presses it. */}
             <a href={href} onClick={openHere} data-command="open" className="rounded-sm outline-none hover:underline hover:underline-offset-2 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
-              <span aria-hidden className="font-mono-keep text-[14px] font-normal leading-none text-muted-55">$ </span>
-              <span className="font-mono-keep text-[14px] leading-none">{terminal.command}</span>
+              <span aria-hidden className="font-mono-keep text-[14px] font-normal leading-none text-muted-55">{terminal.handle ? "$" : "$ "}</span>
+              {terminal.handle
+                ? <span data-terminal-card-name>{` ${terminal.handle}`}</span>
+                : <span className="font-mono-keep text-[14px] leading-none">{terminal.command}</span>}
             </a>
           </h3>
           <div data-facts-line className={`mt-0.5 ${FACTS_LINE_CLASS} text-[11px] leading-tight text-muted-75`}>
             {chip && <Fact><ProjectChip project={project} onChoose={onChoose} square={false} /></Fact>}
+            {/* The line it runs, now that the title is its name: in mono, as every surface sets a command. */}
+            {terminal.handle && <Fact give="8em"><FactSep /><span data-terminal-card-command className="min-w-0 truncate font-mono-keep text-[10.5px]" title={terminal.command}>{terminal.command}</span></Fact>}
             <Fact><FactSep /><span data-terminal-card-state className={tone}>{said}</span></Fact>
             <Fact><LastActive at={queueLabelAt(thread)} label={queueLabelWord(thread)} fallbackAt={thread.spawnedAt} lead={<FactSep />} className="min-w-0 truncate" /></Fact>
             {folder && <Fact give="6em"><FactSep /><span className="min-w-0 truncate" title={terminal.cwd}>{folder}</span></Fact>}

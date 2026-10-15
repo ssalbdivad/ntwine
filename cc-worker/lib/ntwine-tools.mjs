@@ -1302,7 +1302,7 @@ async function readThread(args) {
     const drives = t.driving ? "you drive it" : t.controller === "human" || !t.controller ? "the user drives it" : `@${t.controller} drives it`
     const by = t.startedBy === "human" || !t.startedBy ? "the user" : `@${t.startedBy}`
     return (
-      `@${r.handle} — a terminal running \`${t.command}\` in ${t.cwd}, ${terminalStands(t)}${r.state === "done" ? ", marked done" : ""}; started by ${by}, ${drives}.` +
+      `@${r.handle} — a terminal${r.project ? ` in the ${r.project} project` : ""} running \`${t.command}\` in ${t.cwd}, ${terminalStands(t)}${r.state === "done" ? ", marked done" : ""}; started by ${by}, ${drives}.` +
       (t.screen.trim() ? `\n\n${codeFence(t.screen, "")}` : "\n\nIts screen is empty.")
     )
   }
