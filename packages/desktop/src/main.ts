@@ -18,15 +18,18 @@ import { dirname, join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import { appPath, classifyNavigation, startAddress } from "./navigation.ts"
-import { errorPage, loadingPage, waitingPage } from "./pages.ts"
-import { locateServer } from "./server.ts"
+import { readServerLaunch, startServer, type ServerLaunch } from "./launch.ts"
+import { errorPage, loadingPage, startFailedPage, startingPage, waitingPage } from "./pages.ts"
+import { locateServer, readRecordedServer } from "./server.ts"
 
 /**
  * ntwine in an Electron window, for the dev loop: a Chromium window onto the board `nub run dev` serves,
  * and as little else as possible.
  *
- * It never starts or runs a server. It joins the one that is up (server.ts), and when none is it waits
- * for one, so the window can be opened before the board and survive the board restarting under it.
+ * It joins the server that is up (server.ts), and when none is it waits for one, so the window can be
+ * opened before the board and survive the board restarting under it. It starts one too, once, when the
+ * search first finds none (launch.ts), so a window pinned to the taskbar is all it takes after a reboot;
+ * the board it starts outlives it.
  * Because the page is the board's own, Vite HMR reaches it exactly as it reaches a browser tab, and the
  * dev supervisor's control-plane recycles look like any other dropped connection.
  *
@@ -36,8 +39,8 @@ import { locateServer } from "./server.ts"
  *
  * `NTWINE_DESKTOP_URL=http://127.0.0.1:<port>` (or `--ntwine-url=`, which is how scripts/dev.ts hands it
  * to a Windows Electron started from WSL, where no Linux variable reaches) skips the search and shows
- * that origin — a second dev board, a disposable stack, or a board across the WSL boundary, which this
- * process could not search for: the owner records live in the Linux home.
+ * that origin — a second dev board, or a disposable stack. A pinned window never starts a server:
+ * whoever pinned it (`nub run dd`) is starting that one.
  */
 
 const APP_ID = "dev.ntwine.desktop"
@@ -45,6 +48,8 @@ const argValue = (name: string) => process.argv.find((arg) => arg.startsWith(`--
 const pinnedUrl = process.env.NTWINE_DESKTOP_URL ?? argValue("ntwine-url")
 const here = dirname(fileURLToPath(import.meta.url))
 const isMac = process.platform === "darwin"
+/** How to start ntwine here, and on Windows how to search for it (scripts/dev.ts writes it). */
+const launch = readServerLaunch(join(here, "server.json"))
 
 app.setName("ntwine")
 // NOT Electron's default for an app named ntwine: on macOS that is ~/Library/Application Support/ntwine,
@@ -194,18 +199,39 @@ async function resolveServer(): Promise<string> {
       await delay(1_000)
     }
   }
+  // A Windows window searches the Linux home through \\wsl.localhost: its own home holds no record.
+  const roots = process.platform === "win32" ? launch?.roots : undefined
   for (;;) {
-    const found = await locateServer()
-    if (found) return found
+    const found = await locateServer(roots ? { roots, readOwner: () => readRecordedServer(roots) } : {})
+    if (found) {
+      started = { state: "answered" }
+      return found
+    }
+    if (started === undefined && launch) started = startNtwine(launch)
     showWaiting()
     await delay(1_000)
   }
 }
 
+/**
+ * The server this app started: "running" until it exits, "failed" if it exits before a board answers.
+ * The search goes on in both, since a failure is often a board the operator started at the same
+ * moment, which the launcher joined rather than started. Once a board has answered it is "answered"
+ * for good: a board that stops later was stopped by someone, and the window waits rather than fight it.
+ */
+let started: { state: "running" | "failed" | "answered" } | undefined
+
+function startNtwine(launch: ServerLaunch): NonNullable<typeof started> {
+  console.log(`[desktop] no board answering; starting ntwine in ${launch.repo}`)
+  const status: NonNullable<typeof started> = { state: "running" }
+  startServer(launch, () => { status.state = "failed" })
+  return status
+}
+
 /** Every window on one of this app's own pages shows the waiting one — each poll, so a window that
  * started connecting since (a second failed load, a new window) gets it too. */
 function showWaiting(): void {
-  const waiting = waitingPage(pinnedUrl)
+  const waiting = started?.state === "running" ? startingPage() : started?.state === "failed" ? startFailedPage(launch!.log) : waitingPage(pinnedUrl)
   for (const win of ownPages()) {
     if (win.webContents.getURL() !== waiting) void win.loadURL(waiting).catch(() => {})
   }
@@ -391,7 +417,10 @@ if (!app.requestSingleInstanceLock()) {
   })
   ipcMain.on("ntwine-desktop:retry", (event) => {
     const win = fromOwnPage(event)
-    if (win) void connect(win)
+    if (!win) return
+    // "Try again" after a failed start means start it again.
+    if (started?.state === "failed") started = undefined
+    void connect(win)
   })
 
   app.on("window-all-closed", () => {

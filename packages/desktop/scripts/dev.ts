@@ -16,15 +16,18 @@
 // (scripts/windows.ts); `--wslg` runs the Linux one there instead.
 //
 // Pass `--url=http://127.0.0.1:<port>` to show a particular board (NTWINE_DESKTOP_URL); without it the
-// window joins whichever board of ours answers (server.ts). Extra arguments go to Electron.
+// window joins whichever board of ours answers (server.ts), and starts one when none does (launch.ts).
+// Extra arguments go to Electron.
 import { spawn, type ChildProcess } from "node:child_process"
-import { copyFileSync, mkdirSync, rmSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
-import { dirname, join, resolve } from "node:path"
+import { tmpdir } from "node:os"
+import { delimiter, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { context, type BuildOptions, type Plugin } from "esbuild"
-import { locateServer } from "../src/server.ts"
-import { isWsl, prepareWindowsElectron } from "./windows.ts"
+import { ntwinePathsNow } from "@ntwine/server/ntwine-paths"
+import type { ServerLaunch } from "../src/launch.ts"
+import { isWsl, prepareWindowsElectron, toWindowsPath } from "./windows.ts"
 
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const dist = join(pkg, "dist")
@@ -44,10 +47,7 @@ const env: NodeJS.ProcessEnv = { ...process.env, ...(pinnedUrl ? { NTWINE_DESKTO
 delete env.ELECTRON_RUN_AS_NODE
 
 const windows = onWindows ? await prepareWindowsElectron() : undefined
-// A Windows Electron cannot search for the board (the owner records are in the Linux home), so it is
-// found here, once, and pinned. Nothing up yet means the default port: the window waits for it.
-const windowsUrl = windows ? pinnedUrl ?? await locateServer() ?? "http://127.0.0.1:9393" : undefined
-if (windowsUrl) console.log(`[desktop] Windows Electron onto ${windowsUrl}`)
+if (windows) console.log(`[desktop] Windows Electron onto ${pinnedUrl ?? "whichever board of ours answers"}`)
 
 rmSync(dist, { recursive: true, force: true })
 mkdirSync(dist, { recursive: true })
@@ -56,6 +56,23 @@ mkdirSync(dist, { recursive: true })
 // by assets/logo-ntwine/final.ts --install, so neither can drift from the favicon.
 copyFileSync(join(pkg, "..", "web", "public", "icon-512.png"), join(dist, "icon.png"))
 copyFileSync(join(pkg, "icon.ico"), join(dist, "icon.ico"))
+// What the window needs to start ntwine when none is running (src/launch.ts) and, from Windows, to look
+// for it. This terminal's PATH, less what `nub run` put on it (package bins, a node shim in the temp
+// directory), is the one nub and the board's agents get.
+const path = (process.env.PATH ?? "").split(delimiter).filter((dir) => dir && !dir.includes("node_modules") && !dir.startsWith(tmpdir())).join(delimiter)
+const nub = path.split(delimiter).map((dir) => join(dir, "nub")).find((file) => existsSync(file))
+const distro = process.env.WSL_DISTRO_NAME
+if (nub && (!windows || distro)) {
+  const roots = ntwinePathsNow()
+  const launch: ServerLaunch = {
+    repo: resolve(pkg, "..", ".."),
+    nub,
+    path,
+    log: join(roots.state, "desktop-server.log"),
+    ...(windows ? { distro, roots: { data: toWindowsPath(roots.data), state: toWindowsPath(roots.state) } } : {}),
+  }
+  writeFileSync(join(dist, "server.json"), JSON.stringify(launch))
+} else if (windows && !pinnedUrl) console.log("[desktop] no WSL distro or nub found: the window can neither find nor start a board; pass --url=")
 
 let electron: ChildProcess | undefined
 let quitting = false
@@ -63,7 +80,7 @@ let pendingRestart: NodeJS.Timeout | undefined
 
 function launch(): void {
   const child = windows
-    ? windows.start(dist, [`--ntwine-url=${windowsUrl}`, ...electronArgs])
+    ? windows.start(dist, [...(pinnedUrl ? [`--ntwine-url=${pinnedUrl}`] : []), ...electronArgs])
     : spawn(electronBinary, [pkg, ...electronArgs], { env, stdio: "inherit" })
   electron = child
   child.on("exit", (code, signal) => {
