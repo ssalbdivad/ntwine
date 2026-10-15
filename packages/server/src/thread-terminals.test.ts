@@ -211,7 +211,10 @@ both("a parent's strip lists the terminals it started until each is Done, and it
   const build = await start("exit 0")
   const other = await start("sleep 60", "other-thread")
   await exitedTerm(runner, build.id)
-  assert.deepEqual(runner.byThread().get(PARENT)?.map((t) => t.id), [server.id], "the clean exit is Done, off the strip")
+  // The clean exit is Done on its own row, and still in its parent's strip until it is marked done.
+  assert.deepEqual(runner.byThread().get(PARENT)?.map((t) => t.id), [server.id, build.id])
+  await runner.setState(build.id, "archived")
+  assert.deepEqual(runner.byThread().get(PARENT)?.map((t) => t.id), [server.id])
   assert.deepEqual(runner.live(PARENT).map((t) => t.id), [server.id])
   assert.equal(term(runner, server.id)!.parent, PARENT)
   assert.equal(term(runner, server.id)!.startedBy, "human")

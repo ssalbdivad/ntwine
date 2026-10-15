@@ -93,7 +93,7 @@ export interface TerminalRunner {
   /** The /term transport's gate: non-null iff this id is one of this project's terminals. */
   attach(id: string): TerminalAttachment | null
   has(id: string): boolean
-  /** Every terminal not yet Done, grouped by the thread it was started from — the parent's strip. */
+  /** Every terminal not marked done, grouped by the thread it was started from — the parent's strip. */
   byThread(): Map<string, ThreadTerminal[]>
   /** Every terminal thread with its process — what the board draws as rows. */
   terminals(): { row: ThreadTerminalRow; terminal: ThreadTerminal }[]
@@ -509,11 +509,6 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
     }
   }
 
-  /** Done as the board files it: marked so, or finished cleanly (see terminalThreadView). */
-  function done(row: ThreadTerminalRow): boolean {
-    return row.state === "archived" || terminalOutcome(view(row)) === "finished"
-  }
-
   // Every stop at once: two dev servers should not wait out one grace, then the other.
   async function stopMany(ids: readonly string[]): Promise<void> {
     await Promise.all(ids.map((id) => stopRun(runs.get(id))))
@@ -649,8 +644,9 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
     byThread() {
       const out = new Map<string, ThreadTerminal[]>()
       for (const row of rows().values()) {
-        // Done (marked so, or finished cleanly) leaves the parent's strip; it is in Done on its own row.
-        if (!row.parent_slug || done(row)) continue
+        // A finished run stays in its parent's strip — the drawer folds it with the other finished ones, and a
+        // card lists only live ones — until the human marks it done, which is the strip's dismissal.
+        if (!row.parent_slug || row.state === "archived") continue
         const list = out.get(row.parent_slug) ?? []
         list.push(view(row))
         out.set(row.parent_slug, list)
