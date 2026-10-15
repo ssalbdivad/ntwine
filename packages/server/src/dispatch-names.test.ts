@@ -52,16 +52,7 @@ function harness(answers: string[]) {
       return next
     },
   })
-  const mints: Promise<void>[] = []
-  const threadNamer: ThreadNamer = {
-    ...inner,
-    available: inner.available,
-    mint: (...args) => {
-      const run = inner.mint(...args)
-      mints.push(run)
-      return run
-    },
-  }
+  const threadNamer: ThreadNamer = inner
   const dispatcher = createDispatcher({
     project,
     storage,
@@ -71,7 +62,8 @@ function harness(answers: string[]) {
     codexAppServer,
     threadNamer,
   })
-  const settle = () => Promise.all(mints)
+  // Every mint the dispatches set off, which run for the rows' writes (ensureNamed), not at dispatch's call.
+  const settle = () => Promise.all(storage.allSessions().map((row) => inner.named(row.slug)))
   return { storage, dispatcher, prompts, developerInstructions, settle }
 }
 

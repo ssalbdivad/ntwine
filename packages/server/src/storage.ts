@@ -756,6 +756,10 @@ export interface Storage extends ScheduleStore {
   // between callers (see the cache note at the implementation) — read them, never mutate them.
   allSessions(): readonly SessionRow[]
   subscribeSessionLifecycle(listener: (event: SessionLifecycleEvent) => void): () => void
+  /** Every upsertSession, after it commits, with the row as stored. The one place every thread's row
+   *  comes into existence or starts, which is why the namer's guarantee hangs here (thread-names.ts
+   *  ensureNamed). */
+  subscribeSessionWrites(listener: (row: SessionRow) => void): () => void
   upsertSession(row: SessionRow): void
   markRead(slug: string, at?: string): void
   setUnread(slug: string, unread: boolean): void
@@ -3002,10 +3006,14 @@ export function createStorage(source: string | Database, projectId: string): Sto
     return undefined
   })
 
+  const writeListeners = new Set<(row: SessionRow) => void>()
   const upsertSession = (row: SessionRow) => {
     validateSessionIdentity(row)
     const event = upsertSessionTxn(row)
     if (event) emitSessionLifecycle(event)
+    if (writeListeners.size === 0) return
+    const stored = selOne.get(row.slug)
+    if (stored) for (const listener of [...writeListeners]) listener(stored)
   }
 
   const forgetSession = (slug: string) => {
@@ -3030,6 +3038,10 @@ export function createStorage(source: string | Database, projectId: string): Sto
     subscribeSessionLifecycle(listener) {
       lifecycleListeners.add(listener)
       return () => lifecycleListeners.delete(listener)
+    },
+    subscribeSessionWrites(listener) {
+      writeListeners.add(listener)
+      return () => writeListeners.delete(listener)
     },
     retireOp: (slug, sessionId, opId) => void putRetiredOp.run(slug, sessionId, opId, new Date().toISOString()),
     retiredOps: (slug, sessionId) => new Set(getRetiredOps.all(slug, sessionId).map((r) => r.op_id)),
@@ -3467,6 +3479,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
       if (closed) return
       closed = true
       lifecycleListeners.clear()
+      writeListeners.clear()
       interactions.dispose()
       // A shared connection belongs to ntwine-db.ts, which closes it once every tenant is gone.
       if (owned) db.close()

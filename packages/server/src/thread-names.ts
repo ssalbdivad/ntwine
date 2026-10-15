@@ -359,7 +359,8 @@ function nameFromSource(source: string): string {
 }
 
 export interface ThreadNamerDeps {
-  storage: Pick<Storage, "allSessions" | "setMintedTitle">
+  /** With `subscribeSessionWrites`, every row written is named (ensureNamed) — the guarantee. */
+  storage: Pick<Storage, "allSessions" | "setMintedTitle"> & Partial<Pick<Storage, "subscribeSessionWrites">>
   /** The open threads of every OTHER project this server has open (`openThreadsElsewhere`) — names are
    *  unique across all of them (see the header). Absent ⇒ this project alone. */
   elsewhere?: () => readonly NamedThread[]
@@ -368,7 +369,19 @@ export interface ThreadNamerDeps {
   /** A persisted name changed; refresh the board. */
   onNamed?: () => void
   log?: (message: string) => void
+  /** How long a mint may take, from the moment it is asked for, before the request's own words name the
+   *  thread instead (MINT_WINDOW_MS). */
+  windowMs?: number
 }
+
+// EVERY THREAD HAS A NAME (2026-10-15). A name is what the human and other threads reference it by, so
+// a thread without one is the failure this module exists to prevent, not a state to render politely.
+// Nothing about the model is guaranteed — it can be switched off (NTWINE_THREAD_NAMER=0), fail, or sit
+// behind a queue of other mints — so a mint is bounded: past this window, or the moment the model fails
+// or is absent, the request's own words (`nameFromSource`) name the thread, held to the same uniqueness
+// rule. The window is inside the 60s "Spinning up a thread…" placeholder (web groups.ts SPIN_UP_MS), so
+// the placeholder always ends on a name. Which writes are guaranteed a name: ensureNamed.
+export const MINT_WINDOW_MS = 30_000
 
 export interface ThreadNamer {
   /** Whether a model is wired — the mint and the AI rename need one; uniqueness does not. */
@@ -389,6 +402,14 @@ export interface ThreadNamer {
    *  name already in its taken list — the model then picks a distinct name itself rather than colliding
    *  and falling back. Resolves when this mint is settled (tests await it). */
   mint(slug: string, sessionId: string, source: string): Promise<void>
+  /** THE ONE GUARANTEE that a written row has a name: nothing when it has one (a caller's title, a human's,
+   *  a name kept across a held start), else a mint from the source `expect` recorded for this session, the
+   *  held prompt, or the row's own title. Called for EVERY session write (storage subscribeSessionWrites,
+   *  wired in context.ts) and for every open row at boot, so a path that writes a row cannot forget it. */
+  ensureNamed(row: Pick<SessionRow, "slug" | "session_id" | "title" | "title_auto" | "title_locked" | "title_agent" | "lazy_prompt" | "archived" | "state">): void
+  /** What the next write of this session should be named FROM — a dispatch's whole prompt, which the row
+   *  does not keep. Consumed by that write's ensureNamed. */
+  expect(slug: string, sessionId: string, source: string): void
   /** Resolves once `slug`'s mint (if one is pending) has settled, at once when none is. `spawn_thread`
    *  waits on it so the caller is handed the new thread's `@handle` rather than a link to a slug. */
   named(slug: string): Promise<void>
@@ -410,7 +431,10 @@ export function createThreadNamer(deps: ThreadNamerDeps): ThreadNamer {
       mentioned.has(handleKey(candidate)) || nameHolder(candidate, here, exceptSlug, there) !== undefined)
   }
   let mintChain: Promise<void> = Promise.resolve()
-  const pendingMints = new Map<string, Promise<void>>()
+  const pendingMints = new Map<string, { sessionId: string; run: Promise<void> }>()
+  const expected = new Map<string, string>()
+  const sessionKey = (slug: string, sessionId: string) => `${slug}\0${sessionId}`
+  const windowMs = deps.windowMs ?? MINT_WINDOW_MS
 
   async function name(source: string, exceptSlug?: string): Promise<string> {
     const complete = deps.complete
@@ -439,35 +463,86 @@ export function createThreadNamer(deps: ThreadNamerDeps): ThreadNamer {
     return distinct(lastCandidate ?? nameFromSource(source), source, exceptSlug)
   }
 
-  return {
+  // The row is gone, replaced by another session, or carries a name already.
+  const alreadyNamed = (slug: string, sessionId: string): boolean => {
+    const row = deps.storage.allSessions().find((r) => r.slug === slug)
+    return !row || row.session_id !== sessionId || rowThreadName(row) !== undefined
+  }
+  // Mint a name and persist it, unless something already named the thread. Always lands one: the model's
+  // within the window, else the request's own words (MINT_WINDOW_MS). The first name to land stands
+  // (setMintedTitle's CAS), so a model answer arriving after the fallback changes nothing.
+  function mint(slug: string, sessionId: string, source: string): Promise<void> {
+    let settled = false
+    const land = (final: string) => {
+      if (settled) return
+      settled = true
+      if (deps.storage.setMintedTitle(slug, sessionId, final)) deps.onNamed?.()
+    }
+    const fallback = (why: string) => {
+      if (settled) return
+      if (why) deps.log?.(`naming ${slug} ${why}; named it from its request`)
+      land(distinct(nameFromSource(source), source, slug))
+    }
+    // No model: the name lands with the row, synchronously.
+    if (!deps.complete) {
+      fallback("")
+      return Promise.resolve()
+    }
+    const turn = mintChain.then(async () => {
+      // Named while this mint waited behind others — by the window, a caller, a human, a Codex marker:
+      // the model is not asked at all.
+      if (settled || alreadyNamed(slug, sessionId)) { settled = true; return }
+      try {
+        const minted = await name(source, slug)
+        // Re-checked at the WRITE, synchronously with it: whatever landed while the model was
+        // answering (a Codex marker, a human rename, another thread's name) is seen here.
+        if (!settled) land(holder(minted, slug) ? distinct(minted, source, slug) : minted)
+      } catch (error) {
+        fallback(`failed: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    })
+    mintChain = turn
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const window = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        fallback(`took longer than ${Math.round(windowMs / 1000)}s`)
+        resolve()
+      }, windowMs)
+      timer.unref?.()
+    })
+    const run = Promise.race([turn, window]).finally(() => clearTimeout(timer))
+    pendingMints.set(slug, { sessionId, run })
+    void run.then(() => { if (pendingMints.get(slug)?.run === run) pendingMints.delete(slug) })
+    return run
+  }
+
+  const namer: ThreadNamer = {
     get available() { return deps.complete !== undefined },
     threads,
     holder,
     promptNames,
     distinct,
     name,
-    mint(slug, sessionId, source) {
-      const run = mintChain.then(async () => {
-        if (!deps.complete) return
-        try {
-          const minted = await name(source, slug)
-          // Re-checked at the WRITE, synchronously with it: whatever landed while the model was
-          // answering (a Codex marker, a human rename, another thread's name) is seen here.
-          const final = holder(minted, slug) ? distinct(minted, source, slug) : minted
-          if (deps.storage.setMintedTitle(slug, sessionId, final)) deps.onNamed?.()
-        } catch (error) {
-          deps.log?.(`naming ${slug} failed: ${error instanceof Error ? error.message : String(error)}`)
-        }
-      })
-      mintChain = run
-      pendingMints.set(slug, run)
-      void run.then(() => { if (pendingMints.get(slug) === run) pendingMints.delete(slug) })
-      return run
+    mint,
+    ensureNamed(row) {
+      const key = sessionKey(row.slug, row.session_id)
+      const source = expected.get(key)
+      expected.delete(key)
+      if (row.archived === 1 || row.state === "archived" || rowThreadName(row) !== undefined) return
+      if (pendingMints.get(row.slug)?.sessionId === row.session_id) return
+      void mint(row.slug, row.session_id, source?.trim() || row.lazy_prompt?.trim() || row.title?.trim() || row.slug)
     },
-    named: (slug) => pendingMints.get(slug) ?? Promise.resolve(),
+    expect(slug, sessionId, source) {
+      expected.set(sessionKey(slug, sessionId), source)
+    },
+    named: (slug) => pendingMints.get(slug)?.run ?? Promise.resolve(),
     async status({ name: current, conversation }) {
       if (!deps.complete) throw new Error("No model is available to write a status")
       return cleanThreadStatus(await deps.complete(statusRequest(current, conversation)))
     },
   }
+  // THE CHOKEPOINT: every thread's row is born or started through upsertSession, whatever the path —
+  // so naming hangs on that write, not on each path remembering to mint.
+  deps.storage.subscribeSessionWrites?.((row) => namer.ensureNamed(row))
+  return namer
 }
