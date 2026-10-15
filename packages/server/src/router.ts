@@ -1195,11 +1195,12 @@ const REPLY_MIN_CHARS = 200
 /** Has the worker written NOTHING the human can read since their last message — no prose but fences and
  *  one-line narration between tool calls? Asked at `done`, whose reply then demands the result outright.
  *
- *  WHY (@thread-addressing, 2026-10-15): asked a question mid-task, a worker fixed it with two others, ran
- *  `done`, and ended on "The details on all three fixes are above." No details existed anywhere: the turn
- *  held three quiet parks, a one-line "Looks right.", and the card — which renders BELOW the final message,
- *  but which the worker had just written and so read as above it. The generic reply ("if that prose does not
- *  already hold the result…") left the judgement to the worker, which judged wrong. This one it can read. */
+ *  WHY (@thread-addressing, 2026-10-15): asked a question mid-task, a worker fixed it with two others, wrote
+ *  its summary in the same message as `ntwinectl done`, and ended on "The details on all three fixes are
+ *  above." The human saw no details: the transcript held that summary as a non-empty `thinking` block, not
+ *  as text. Opus 5.5 does this to prose that shares a message with a tool call (460 of 13,753 messages
+ *  over 2026-10-12..15, every one a tool call with no text block), never to a message with no tool call.
+ *  The worker cannot see the loss, so it is told here, from what was actually recorded. */
 export function nothingWrittenSinceHuman(messages: readonly TranscriptMessage[]): boolean {
   let anchor = -1
   for (let i = messages.length - 1; i >= 0; i--) {

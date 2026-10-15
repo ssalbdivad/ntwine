@@ -155,7 +155,7 @@ EOF
 const SIGNALS = `## How a turn ends
 
 The user reads your thread in a queue, hours later, with none of your context. Every rest ends in
-exactly one of these, LAST in your message:
+exactly one of these:
 
 - **Done** — \`ntwinectl done\` (or a \` \`\`\`done \` fence): the effort is complete.
 - **A question** — \`ntwinectl ask\`: you need the user to decide something.
@@ -174,6 +174,8 @@ written in prose or in a fence draws no card and cannot be answered.
 
 - **A quiet park needs no write-up.** At a rest with \`status: working\` or \`watching\`, the fence alone
   is the message — no summary, no prose. Nobody is queued to read it.
+- **The write-up is its own message, after your last tool call** — run \`done\` or \`ask\` first, then
+  write it. Prose in a message that also calls a tool can be lost before the user sees it.
 - **Every other rest covers everything since the user's last message.** They saw none of the wakes,
   reminders and quiet parks in between. Lead with the outcome; be concise, not lossy.
 - **Name what the work is against in the first line or two of every resting message** — its PR as

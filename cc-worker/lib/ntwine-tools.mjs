@@ -2772,18 +2772,18 @@ async function done(args) {
     if (result.unwritten) {
       return (
         head +
-        "THE USER HAS NO REPLY YET. Since their last message you have written nothing they can read: " +
-        "only tool calls, fences and one-line narration, none of which reaches them. Write the result in " +
-        "full NOW, as your final message: what you did and what they need to know, and the answer itself " +
-        "to every question they asked. The card draws BELOW that message, so never refer to it or to " +
-        "anything \"above\" — there is nothing above it for them." + tail
+        "THE USER HAS NO REPLY YET. Since their last message nothing they can read has reached them: only " +
+        "tool calls, fences and one-line narration. Prose written in the same message as a tool call can " +
+        "be lost, so even if you wrote a summary, it did not arrive. Write the result in full NOW, as a final " +
+        "message with no tool call: what you did, what they need to know, and the answer to every question " +
+        "they asked. The card draws BELOW that message, so never refer to it or to anything \"above\"." + tail
       )
     }
     return (
       head +
       "The user reads your prose and nothing else — not your thinking, not your tool calls. If it does not " +
       "already hold the result in full (the answer itself, when they asked a question), write it now as " +
-      "your final message. The card draws BELOW your final message, so never point at it or at anything " +
+      "your final message, with no tool call in it. The card draws BELOW your final message, so never point at it or at anything " +
       "\"above\", and never end on an acknowledgement like \"Signed off as done.\": on the card it is the " +
       "whole reply." + tail
     )
