@@ -868,14 +868,15 @@ export function Composer({
   const wantsSkills = Boolean(slashSuggest) && holdsSlashToken(prose)
   // A new `/` (its position is its identity) asks again; so does a restored draft that holds a finished
   // `/name` to tint, and a list the caller has changed (`slashSuggestVersion`, which nulls it above).
+  // Keyed on the `/` alone: a caller's `slashSuggest` need not be stable, and a new identity is no new `/`.
   useEffect(() => {
     if (slash) askSkills()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per `/`, not per keystroke inside it
-  }, [slash?.start, slashSuggest])
+  }, [slash?.start])
   useEffect(() => {
     if ((wantsSkills || slash) && skillItems === null && !skillsPending) askSkills()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- askSkills is a fresh closure every render
-  }, [wantsSkills, slash !== undefined, skillItems, skillsPending, slashSuggest])
+  }, [wantsSkills, slash !== undefined, skillItems, skillsPending])
   const suggestions = useMemo(() => {
     if (!slash || !skillItems || dismissedFor === prose) return []
     return matchSlashItems(skillItems, slash.query, slash.start === opensAt)

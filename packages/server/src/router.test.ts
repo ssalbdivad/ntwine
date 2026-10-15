@@ -935,6 +935,37 @@ function restartHarness(subAgents: { state: string }[] = []) {
   return { h, slug, calls }
 }
 
+// A resting thread's session is hibernated after an hour idle, so its harness has no skill list to give.
+// The `/` menu then gets the last list that thread gave, else its project's latest on the same backend —
+// persisted, so a restart still has one — marked stale; with no list ever seen it still fails.
+test("threadSkills answers a thread with no running session from the last list seen", async () => {
+  const h = harness()
+  for (const slug of ["awake", "asleep"]) {
+    h.storage.upsertSession(row(slug))
+    h.storage.setBackend(slug, "claude")
+    h.storage.setClaudeRuntime(slug, "broker")
+  }
+  const running = new Set(["awake"])
+  ;(h.ctx as { claudeBroker?: unknown }).claudeBroker = {
+    listSkills: async ({ threadSlug }: { threadSlug: string }) => {
+      if (!running.has(threadSlug)) throw new Error("This thread's Claude session is not running")
+      return [{ name: "ntwine-stack", description: "Boot a stack", source: "project" }]
+    },
+  }
+  try {
+    await assert.rejects(() => h.router.threadSkills.handler({ input: { slug: "asleep" } }), /not running/, "nothing seen yet: still a failure")
+    const live = await h.router.threadSkills.handler({ input: { slug: "awake" } })
+    assert.deepEqual(live, { skills: [{ name: "ntwine-stack", description: "Boot a stack", source: "project" }] })
+    running.delete("awake")
+    assert.deepEqual(await h.router.threadSkills.handler({ input: { slug: "awake" } }), { ...live, stale: true }, "its own last list")
+    assert.deepEqual(await h.router.threadSkills.handler({ input: { slug: "asleep" } }), { ...live, stale: true }, "a sibling's")
+    const restarted = createRouter(h.ctx)
+    assert.deepEqual(await restarted.threadSkills.handler({ input: { slug: "asleep" } }), { ...live, stale: true }, "across a restart")
+  } finally {
+    h.storage.close()
+  }
+})
+
 // A row promoted from the External band by a build that stamped NO permission mode used to hand the
 // bridge `undefined`, which a cold attach turns into Claude's `default` — the prompt-on-everything mode
 // the worker's perm-policy hook defers call by call, so every Edit parked on a card (observed
