@@ -53,6 +53,7 @@ export type ActionId =
   | "thread.editor"
   | "thread.menu"
   | "thread.spinoff"
+  | "thread.continue"
   | "app.newThread"
   | "app.newProject"
   | "app.palette"
@@ -96,8 +97,10 @@ export const ACTIONS: readonly ActionDef[] = [
   // is Snooze, and not ⇧S, which the rule below would have given it (David 2026-09-30: "i dont like
   // shift"). Free on a card: ↑/↓ scroll it, and the browser claims → only with a modifier held.
   { id: "thread.spinoff", label: "Spinoff", group: "queue", defaultChord: "arrowright" },
-  { id: "app.newThread", label: "New thread", group: "anywhere", defaultChord: "c" },
-  { id: "app.newProject", label: "New project", group: "anywhere", defaultChord: "n" },
+  // A usage-limit pause's "Continue now" (ChatView.tsx LimitPauseNotice), the way `d` is Mark as done.
+  { id: "thread.continue", label: "Continue now", group: "queue", defaultChord: "c" },
+  { id: "app.newThread", label: "New thread", group: "anywhere", defaultChord: "n" },
+  { id: "app.newProject", label: "New project", group: "anywhere", defaultChord: "p" },
   { id: "app.palette", label: "Jump to a thread", group: "anywhere", defaultChord: "mod+k" },
   // Sidebar only since 2026-10-14: there ⌘I adds the editor's selection first (App.tsx); in a browser
   // Thread details is too rare for a chord and stays in the ⋯ menu (maintainer).

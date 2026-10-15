@@ -268,8 +268,7 @@ const REPLY_BOXES = ["queueComposer", "chatComposer", "subAgentComposer", "termi
  *  which lets a page fall back to its own reading of the key (AllQueues.tsx: `e` with no card). */
 export function runThreadCommand(command: ThreadCommand): boolean {
   const surface = currentThreadSurface()
-  // `continue` shares `c` with New thread (App.tsx), so with nothing in front of it the key is New thread's.
-  if (!surface) return command === "continue" ? false : openForCommand(command)
+  if (!surface) return openForCommand(command)
   if (command === "reply") return focusReplyBox(surface)
   // `~=`: one control can carry several commands, space-separated — the ⋯ trigger answers for its menu
   // and for the items inside it, which exist only while it is open.
@@ -315,6 +314,7 @@ const BUILT_INS: Partial<Record<ActionId, Handler>> = {
   "thread.editor": () => runThreadCommand("editor"),
   "thread.menu": () => runThreadCommand("menu"),
   "thread.spinoff": () => runThreadCommand("spinoff"),
+  "thread.continue": () => runThreadCommand("continue"),
   "app.shortcuts": () => {
     store.showShortcuts = !store.showShortcuts
   },

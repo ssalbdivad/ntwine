@@ -9,7 +9,7 @@ import { detectPlatform } from "./lib/keybindings.ts"
 import { openDispatch } from "./lib/newThreadDoor.ts"
 import { useBoard } from "./hooks.ts"
 import { closeDrawerAnimated } from "./lib/overlays.ts"
-import { runThreadCommand, useShortcut } from "./lib/keyboardRuntime.ts"
+import { useShortcut } from "./lib/keyboardRuntime.ts"
 import { clampPinnedPage, pageScrollY, pinPageAt } from "./lib/pageScrollLock.ts"
 import { startRouter } from "./lib/router.ts"
 import { projectSlug } from "./lib/base-path.ts"
@@ -241,8 +241,8 @@ export function App() {
   // the runtime handles the card keys (j/k, e, h, r, f) against whatever the reader is looking at.
   //   NOTE: no ⌘N. It is the BROWSER's new-window shortcut — reserved, and ours to leave alone.
   //   Hijacking it either loses to the browser outright (a plain tab never delivers the event) or, in
-  //   a standalone/PWA window, steals a system shortcut the user expects. New thread is `c` instead
-  //   (Gmail's compose), plus ⌘K → "New thread", and the always-visible prompt box.
+  //   a standalone/PWA window, steals a system shortcut the user expects. New thread is a plain `n`
+  //   instead, plus ⌘K → "New thread", and the always-visible prompt box.
   //   Esc — overlays first (palette/modal/settings), then the drawer stack topmost-first. That chain
   //   belongs to <DrawerStack>, and it is deliberately NOT rebindable: Esc is how every layer in the app is left.
   //   Enter / Shift-Enter / ⌘-Enter belong to the composer (lib/composerKeyboard.ts).
@@ -279,11 +279,7 @@ export function App() {
   useShortcut("app.settings", () => {
     store.showSettings = true
   })
-  // `c` presses the thread's own "Continue now" when it shows one (a usage-limit pause), the way `d` presses
-  // Mark as done; anywhere else it is New thread.
-  useShortcut("app.newThread", () => {
-    if (!runThreadCommand("continue")) openDispatch()
-  })
+  useShortcut("app.newThread", () => openDispatch())
 
   const board = useBoard()
 

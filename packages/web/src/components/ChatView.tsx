@@ -4458,7 +4458,7 @@ export function LimitPauseCard({ slug, pause }: { slug: string; sessionId: strin
  *  through the page's own project (LimitPauseCard above), a queue card through the card's project
  *  (AllQueuesCard). One component, so a paused thread reads identically in the drawer and in the queue. */
 export function LimitPauseNotice({ pause, onContinue, continuing }: { pause: NonNullable<ThreadViewData["limitPause"]>; onContinue: () => void; continuing: boolean }) {
-  const continueKeys = useShortcutLabel("app.newThread")
+  const continueKeys = useShortcutLabel("thread.continue")
   return (
     <TranscriptCard data-limit-pause tone="caution" icon={Hourglass} label={limitPauseTitle(pause)}>
       {/* The provider's own "You've hit your session limit · resets …" line sits directly above this

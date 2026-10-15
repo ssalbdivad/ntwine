@@ -30,11 +30,12 @@ test("the default keys are the ones the sheet promises", () => {
     [key({ key: "d", code: "KeyD" }), "thread.done"],
     [key({ key: "s", code: "KeyS" }), "thread.snooze"],
     [key({ key: "r", code: "KeyR" }), "thread.reply"],
-    [key({ key: "c", code: "KeyC" }), "app.newThread"],
+    [key({ key: "c", code: "KeyC" }), "thread.continue"],
+    [key({ key: "n", code: "KeyN" }), "app.newThread"],
     [key({ key: "t", code: "KeyT" }), "thread.terminal"],
     [key({ key: "e", code: "KeyE" }), "thread.editor"],
     [key({ key: "m", code: "KeyM" }), "thread.menu"],
-    [key({ key: "n", code: "KeyN" }), "app.newProject"],
+    [key({ key: "p", code: "KeyP" }), "app.newProject"],
     [key({ key: "o", code: "KeyO" }), "thread.open"],
     [key({ key: "ArrowRight", code: "ArrowRight" }), "thread.spinoff"],
     [key({ key: "?", code: "Slash", shiftKey: true }), "app.shortcuts"],
@@ -47,9 +48,9 @@ test("the default keys are the ones the sheet promises", () => {
 })
 
 // THE RULE (keybindings.ts header): a single-letter default is the initial of a word in its action's
-// label. These three break it on purpose — movement is placed by position and C is the web's compose —
+// label. These two break it on purpose — movement is placed by position —
 // and nothing else may, so a new action cannot quietly bring back a letter that has to be memorized.
-const NOT_AN_INITIAL = new Set(["queue.next", "queue.prev", "app.newThread"])
+const NOT_AN_INITIAL = new Set(["queue.next", "queue.prev"])
 
 test("every single-letter default is its action's initial, bar the listed exceptions", () => {
   for (const action of ACTIONS) {
