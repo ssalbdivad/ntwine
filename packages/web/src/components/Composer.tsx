@@ -583,28 +583,43 @@ export function Composer({
     return () => intake.set(null)
   }, [intake])
 
-  // Auto-grow on every value change. A first layout pass
-  // can precede font settlement or a narrow drawer's final width, leaving scrollHeight stale and the
-  // last wrapped line hidden beneath the in-box controls. Recheck on the next frame and when fonts
-  // settle so the textarea always owns enough height for its actual wrapped content.
+  // Auto-grow: ONE snap per value change (below), and the rechecks that do not depend on the text — the
+  // next frame, font settlement, a width change — armed once per mount here.
+  //
+  // A first layout pass can precede font settlement or a narrow drawer's final width, leaving
+  // scrollHeight stale and the last wrapped line hidden beneath the in-box controls; the next frame and
+  // `fonts.ready` catch that, and the ResizeObserver catches a later rewrap. None of them is about the
+  // keystroke, and until 2026-10-16 all of them sat in the value effect, so every keystroke re-armed
+  // them: a snap now, a snap on the next frame, a snap on `fonts.ready` (whose getter alone flushes
+  // style), a fresh ResizeObserver and a `clientWidth` read. Three flushes of two forced layouts each,
+  // per character. On a phone-shaped page at 4x CPU throttle that was ~37ms of every keystroke
+  // (flushSnaps ~28ms, the `fonts.ready` getter ~9ms) and the prompt box lagged visibly.
+  //
+  // A queue card the browser is skipping (lib/cardVisibility.ts) snaps once it is drawn instead: reading
+  // `scrollHeight` there would lay that card out just to answer, one card at a time across the queue.
+  // `skipWait` holds that pending callback so a keystroke while it waits does not register a second.
+  const skipWait = useRef<(() => void) | undefined>(undefined)
+  const maxHeightRef = useRef(maxHeight)
+  maxHeightRef.current = maxHeight
+  const resizeRef = useRef(() => {})
+  resizeRef.current = () => {
+    const el = taRef.current
+    if (!el) return
+    if (inSkippedCard(el)) {
+      skipWait.current ??= whenCardRendered(el, () => {
+        skipWait.current = undefined
+        resizeRef.current()
+      })
+      return
+    }
+    snapHeight(el, maxHeightRef.current)
+  }
+  useLayoutEffect(() => {
+    resizeRef.current()
+  }, [value, maxHeight, Boolean(footer)])
   useLayoutEffect(() => {
     let active = true
-    // A queue card the browser is skipping (lib/cardVisibility.ts) snaps once it is drawn instead: reading
-    // `scrollHeight` there would lay that card out just to answer, one card at a time across the queue.
-    let waiting: (() => void) | undefined
-    const resize = () => {
-      const el = taRef.current
-      if (!el || !active) return
-      if (inSkippedCard(el)) {
-        waiting ??= whenCardRendered(el, () => {
-          waiting = undefined
-          resize()
-        })
-        return
-      }
-      snapHeight(el, maxHeight)
-    }
-    resize()
+    const resize = () => { if (active) resizeRef.current() }
     const frame = requestAnimationFrame(resize)
     void document.fonts?.ready.then(resize)
     const el = taRef.current
@@ -631,7 +646,8 @@ export function Composer({
     if (el) observer?.observe(el)
     return () => {
       active = false
-      waiting?.()
+      skipWait.current?.()
+      skipWait.current = undefined
       cancelAnimationFrame(frame)
       if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame)
       observer?.disconnect()
@@ -639,8 +655,8 @@ export function Composer({
     // Footer PRESENCE (not node identity) is the layout signal: it flips the textarea's bottom
     // padding class. Some call sites rebuild the footer JSX every parent render (each board tick on
     // an open thread), and depending on the node itself tore down and rebuilt the ResizeObserver +
-    // fonts.ready hook on every one of those renders for zero layout change.
-  }, [value, maxHeight, Boolean(footer)])
+    // fonts.ready hook on every one of those renders for zero layout change. Never `value`: see above.
+  }, [maxHeight, Boolean(footer)])
 
   // THE TOKEN BACKDROP: a metrics-identical mirror of the prose, absolutely positioned behind the
   // (transparent-backgrounded) textarea. Because the mirror carries the same font, padding, line
