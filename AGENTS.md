@@ -7,23 +7,12 @@ first, not a call to make. An approval given for one case does not carry over to
 points.
 
 **How a thread hands off (ARCHITECTURE.md § How a thread hands off its state)**
-- The worker's own last word decides its thread's state, and ntwine only checks it. There is no status field: the final
-  message is the interface, and its fence language is the state.
-- ntwine never answers, withdraws, parks or queues on a worker's behalf. The few deliberate exceptions are listed in
-  § Where ntwine acts on a clock or with a model, and adding one needs confirmation.
-- A row beats a sentence. What must outlive a message is registered (`done`, `ask`, `watch`), and a wait always takes the
-  awaiting fence.
-- A gate can refuse, and it has no bypass. A parameter on the gated call that skips the gate is not a gate.
 - A question is a row with a lifecycle, and it moves with the conversation (2026-10-14). Once the human types past it, it
   stays answerable where it was asked but no longer holds the thread: it blocks no `done`, needs no later `questions:`,
   queues nothing, and is never re-asked or redrawn at the bottom.
 - Every thread has a name that can be referenced, from the moment it starts, whichever path started it (2026-10-15,
   maintainer-confirmed: "should avoid that scenario at all costs"). Naming is guaranteed at one chokepoint, with a
   deterministic fallback when the model's name never arrives. A started thread with no name is a bug.
-- Every queue item can be answered or archived. Nothing enters the queue just to be dismissed, and a running thread never
-  enters it.
-- The worker contract states rules, not rationale. A new rule earns its tokens only if a worker measurably gets it wrong
-  without it (header of `packages/server/src/workerPrompt.ts`).
 
 **The board (all projects first, 2026-10-14; § Board nomenclature, `plans/all-projects-first.md`)**
 - Every thread is in exactly one of six rails (Pinned, Ready, Working, Waiting, Snoozed, Done), and no view may lose
@@ -35,7 +24,6 @@ points.
 - The list never scrolls. It gives things up in a fixed order until it fits (`lib/sidebarBudget.ts`), and what the
   human opened is never taken back. `packages/web/src/sidebarFit.e2e.test.ts` holds it at upstream's heavy load
   (17 projects, ~70 threads).
-- Density over decoration, and few settings.
 - One server serves every project. Nothing ntwine runs on its own uses a pty or tmux; the one pty is a terminal a
   human or an agent asked for, and it runs in its own detached host.
 - ntwine brings no model of its own: the few calls it makes itself (names, status lines, Auto effort,
