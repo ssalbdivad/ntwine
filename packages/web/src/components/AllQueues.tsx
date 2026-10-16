@@ -572,7 +572,7 @@ export function AllQueuesPage() {
               // pb-1.5: a band header (Sidebar BAND_HEADER) is a 15px box whose 11px name, pushed down by its
               // pt-1, paints ~4.7px below it. Last in the list, that ink fell outside this scroller and was
               // cut in half (a folded Schedules header, 2026-10-07); the padding gives it room.
-              <div data-xq-rail className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden pb-1.5">
+              <div data-xq-rail className="flex min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden pb-1.5">
                 {list}
               </div>
             )}

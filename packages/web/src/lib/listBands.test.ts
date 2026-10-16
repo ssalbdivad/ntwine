@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ThreadView } from "@ntwine/shared"
 import { threadKey, type QueuesProject } from "./allQueues.ts"
-import { doneEarlier, listOverlay, loudBands } from "./listBands.ts"
+import { doneDays, doneOpenByDefault, listOverlay, loudBands } from "./listBands.ts"
 
 // The project list's rows move the moment the operator acts, not a poll later: a reply, an answer or a
 // Retry sets the thread to work (lib/steering.ts), a drawer's Mark as done files it (lib/optimisticArchive.ts).
@@ -120,31 +120,33 @@ test("a pinned thread that is Done is still a Pinned row — the pin outranks Do
   assert.equal(bands.rows, 3, "it counts as a row, so a project whose only pin is Done still lists it")
 })
 
-// Monday 2026-10-12, 09:00 local: the day before was a Sunday nobody worked.
+// Monday 2026-10-12, 09:00 local.
 const MONDAY = new Date(2026, 9, 12, 9).getTime()
-const restedOn = (id: string, at: Date, over: Partial<ThreadView> = {}) =>
-  ({ id, kind: "session", state: "archived", status: "done", lastAssistantAt: at.toISOString(), ...over }) as unknown as ThreadView
-const withDone = (id: string, recentDone: ThreadView[]) => ({ ...project(id, []), recentDone }) as unknown as QueuesProject
+const restedOn = (id: string, at: Date) => ({ id, lastAssistantAt: at.toISOString() }) as unknown as ThreadView
+const days = (threads: ThreadView[]) => doneDays(threads, (t) => t, MONDAY).map((day) => `${day.label}: ${ids(day.rows).join(" ")}`)
 
-test("a short day is topped up with the last day that finished anything, a weekend skipped", () => {
-  const alpha = withDone("alpha", [
+test("Done is grouped by day for the last week, then one Older group", () => {
+  const threads = [
     restedOn("today", new Date(2026, 9, 12, 8)),
-    restedOn("fri-late", new Date(2026, 9, 9, 22)),
-    restedOn("thu", new Date(2026, 9, 8, 15)),
-    restedOn("fri-pinned", new Date(2026, 9, 9, 23), { pinnedAt: "2026-10-09T00:00:00.000Z" }),
-  ])
-  const beta = withDone("beta", [restedOn("fri-early", new Date(2026, 9, 9, 7))])
-  const earlier = doneEarlier([alpha, beta], MONDAY, 4)
-  assert.equal(earlier?.label, new Date(2026, 9, 9).toLocaleDateString(undefined, { weekday: "long" }))
-  // Friday's alone, newest first, across projects; Thursday and the pin are not part of it.
-  assert.deepEqual(earlier?.threads.map(({ project, t }) => `${project.id}:${t.id}`), ["alpha:fri-late", "beta:fri-early"])
-  assert.deepEqual(doneEarlier([alpha, beta], MONDAY, 1)?.threads.map(({ t }) => t.id), ["fri-late"])
-  assert.equal(doneEarlier([alpha, beta], MONDAY, 0), null)
+    restedOn("sun-late", new Date(2026, 9, 11, 23, 59)),
+    restedOn("fri", new Date(2026, 9, 9, 15)),
+    // Tuesday, six days back, is still named; Monday a week back is Older.
+    restedOn("tue", new Date(2026, 9, 6, 12)),
+    restedOn("last-mon", new Date(2026, 9, 5, 23)),
+    restedOn("sept", new Date(2026, 8, 1, 12)),
+  ]
+  const friday = new Date(2026, 9, 9).toLocaleDateString(undefined, { weekday: "long" })
+  const tuesday = new Date(2026, 9, 6).toLocaleDateString(undefined, { weekday: "long" })
+  assert.deepEqual(days(threads), ["Today: today", "Yesterday: sun-late", `${friday}: fri`, `${tuesday}: tue`, "Older: last-mon sept"])
 })
 
-test("the day before is Yesterday, and a day past a week back is History's", () => {
-  const sunday = withDone("alpha", [restedOn("sun", new Date(2026, 9, 11, 23, 59))])
-  assert.equal(doneEarlier([sunday], MONDAY, 5)?.label, "Yesterday")
-  const stale = withDone("alpha", [restedOn("old", new Date(2026, 9, 4, 12))])
-  assert.equal(doneEarlier([stale], MONDAY, 5), null)
+test("the newest day opens, and the next ones while fewer than five rows are open; Older never does", () => {
+  const at = (day: number, n: number) => Array.from({ length: n }, (_, i) => restedOn(`d${day}-${i}`, new Date(2026, 9, day, 8 - i)))
+  const open = (threads: ThreadView[]) => [...doneOpenByDefault(doneDays(threads, (t) => t, MONDAY))]
+  // One today and three yesterday is four rows: Friday opens too.
+  assert.deepEqual(open([...at(12, 1), ...at(11, 3), ...at(9, 2), ...at(8, 1)]), [new Date(2026, 9, 12).toDateString(), new Date(2026, 9, 11).toDateString(), new Date(2026, 9, 9).toDateString()])
+  // A full today stands alone.
+  assert.deepEqual(open([...at(12, 5), ...at(11, 3)]), [new Date(2026, 9, 12).toDateString()])
+  // Nothing this week: Older stays folded.
+  assert.deepEqual(open(at(1, 3)), [])
 })

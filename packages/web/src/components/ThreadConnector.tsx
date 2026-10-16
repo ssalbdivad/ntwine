@@ -106,6 +106,7 @@ interface Rail {
  * TierList.tsx and Sidebar.tsx). Only rows that TOUCH are strung together, so whatever sits between two of
  * them — a thread's sub-agents — cuts the cord there. Rows
  * scrolled out of the list count too: a cord runs on past the list's edge and is cut there, as the rows are.
+ * Done scrolls on its own inside the list (TierList.tsx), so a run in it is cut at Done's edge as well.
  */
 function readRail(dpr: number): Rail | null {
   const list = document.querySelector<HTMLElement>("[data-xq-rail]")
@@ -114,13 +115,20 @@ function readRail(dpr: number): Rail | null {
   const icons: DOMRect[] = []
   let x = NaN
   let centres: number[] = []
+  let clip: DOMRect | undefined
   // Once in each gap, halfway between the two icons' centres, and on to the middle of the icon at either
   // end, where the strands meet and stop, hidden.
   const tie = () => {
-    if (centres.length > 1) cords.push({ crossings: centres.slice(1).map((c, i) => (centres[i]! + c) / 2), span: [centres[0]!, centres.at(-1)!] })
+    if (centres.length > 1) {
+      const top = Math.max(centres[0]!, clip?.top ?? -Infinity)
+      const end = Math.min(centres.at(-1)!, clip?.bottom ?? Infinity)
+      const crossings = centres.slice(1).map((c, i) => (centres[i]! + c) / 2).filter((c) => c > top && c < end)
+      if (crossings.length > 0) cords.push({ crossings, span: [top, end] })
+    }
     centres = []
   }
   for (const project of list.querySelectorAll<HTMLElement>("[data-xq-rail-project]")) {
+    clip = project.closest("[data-xq-done-days]")?.getBoundingClientRect()
     let bottom = NaN
     for (const row of project.querySelectorAll<HTMLElement>(":scope > [data-xq-project-row], :scope > [data-xq-band-label], :scope > [data-xq-thread-row]")) {
       const slot = row.querySelector<HTMLElement>("[data-xq-indicator]")
@@ -135,7 +143,8 @@ function readRail(dpr: number): Rail | null {
       // The icon itself where the slot holds one; an empty slot (a Done row draws its check in an overlay
       // above it) stands for the icon painted over it.
       const icon = (slot.firstElementChild ?? slot).getBoundingClientRect()
-      icons.push(icon)
+      // Scrolled out of Done, its cut-out would bite whatever the list draws there instead.
+      if (!clip || (icon.bottom > clip.top && icon.top < clip.bottom)) icons.push(icon)
       centres.push(icon.top + icon.height / 2)
     }
     tie()

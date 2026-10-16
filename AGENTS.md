@@ -21,8 +21,9 @@ points.
 - All projects at `/` is the default view: ONE list of every project's threads by band, each row wearing its
   project's square, under a dock of the projects themselves. A project's page (`/project/<slug>`) is the same list
   over one project, and a lens the same list over several.
-- The list never scrolls. It gives things up in a fixed order until it fits (`lib/sidebarBudget.ts`), and what the
-  human opened is never taken back. `packages/web/src/sidebarFit.e2e.test.ts` holds it at upstream's heavy load
+- The list never scrolls, except Done (2026-10-16, maintainer-confirmed): Done is every finished thread by day,
+  collapsible, and scrolls on its own in the room the bands above leave. The rest gives things up in a fixed order
+  until it fits (`lib/sidebarBudget.ts`), and what the human opened is never taken back. `packages/web/src/sidebarFit.e2e.test.ts` holds it at upstream's heavy load
   (17 projects, ~70 threads).
 - One server serves every project. Nothing ntwine runs on its own uses a pty or tmux; the one pty is a terminal a
   human or an agent asked for, and it runs in its own detached host.
@@ -242,7 +243,7 @@ Every thread ntwine started is in exactly one of six bands, top to bottom:
 - **Snoozed** — the dimmed park band, and the HUMAN's alone, holding only a TIME (2026-10-14): a wall-clock snooze and a schedule's next run. A working thread cannot be snoozed (router `setThreadSnooze` refuses it), and a plain snooze ends at the agent's next rest (board `futureSnooze`; one carrying a follow-up prompt holds to its time). The resting card's event-snoozes ("until new activity", "until all sub-agents return") parked here until the same day and are gone. A worker's own park is never here (shared `isSnoozed` / `agentParked`; maintainer: *"if I consider a thread to be active and an agent happens to be waiting for something, I still don't want to see it collapsed"*). A limit pause was a member until 2026-08-31; it queues as a failed thread now. It was called **Held** until 2026-08-26; the group key moved with the label, so `sectionOf` returns `"snoozed"` and nothing reads `"held"` any more.
 - **Done** — the archived section.
 
-**External** (agent sessions ntwine did not start) is listed apart, never a seventh band. Every view draws one list (`components/TierList.tsx`): All projects (`/`, the home page), a project's page (`/project/<slug>`) and a lens are the same bands under the same headers over a different set of projects. Pinned, Ready, Working and Waiting never fold; Snoozed (and Schedules) start folded; Done lists only today's, with History one click away in the center column. Each row wears its project's square on the first row of a run, and a working row's status is inline.
+**External** (agent sessions ntwine did not start) is listed apart, never a seventh band. Every view draws one list (`components/TierList.tsx`): All projects (`/`, the home page), a project's page (`/project/<slug>`) and a lens are the same bands under the same headers over a different set of projects. Pinned, Ready, Working and Waiting never fold; Snoozed (and Schedules) start folded; Done lists each of the last week's days that finished anything, folded but for the newest (and the next while fewer than five rows are open), then Older, and scrolls on its own; History, one click away in the center column, carries each thread's ledger and search. Each row wears its project's square on the first row of a run, and a working row's status is inline.
 
 The trap is that `sectionOf` (`@ntwine/shared`, re-exported by `groups.ts`) returns `"active"` for Working AND Ready rows alike — that key names the `<section>` holding both bands, not the maintainer's word — and the band keys match those labels, `ready` and `working`. `partitionActive` splits the section (`.running` = Working, `.rested` = Ready), and `inActiveBand` is the one predicate that means Working exactly. Full detail, including why the archived key is `"inactive"` while its label reads Done, in `ARCHITECTURE.md` § Board nomenclature.
 

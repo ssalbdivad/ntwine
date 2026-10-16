@@ -3,6 +3,7 @@ import { inWaitingBand, isPinned, orderByInteraction, queued, sectionOf } from "
 import { threadKey, type QueuesProject } from "./allQueues.ts"
 import { optimisticallyArchived } from "./optimisticArchive.ts"
 import { optimisticallySteered } from "./steering.ts"
+import { timeBreakLabel } from "./timeBreaks.ts"
 
 // THE LIST'S LOUD BANDS — a project's work in flight, as the tier list lists it (components/TierList.tsx).
 // Pure, so the banding and the optimism over it are tested without a component around them.
@@ -96,32 +97,60 @@ export function doneToday(project: QueuesProject, now: number): ThreadView[] {
   return project.recentDone.filter((t) => !isPinned(t) && restedAt(t) >= today)
 }
 
-/** How far back the tail looks for the last day that finished anything: a Monday reaches Friday, not past a week. */
-const EARLIER_DAYS = 7
+
+/** How many days the Done tier names before the rest are Older: today and the six before it, a weekday each. */
+export const DONE_DAYS = 7
+/** Opened by default, newest first, until this many rows are open: a short today brings yesterday with it. */
+export const DONE_OPEN_ROWS = 5
+
+export interface DoneDay<T> {
+  /** The local day (`Date#toDateString`), or `"older"`. */
+  key: string
+  /** Today, Yesterday, a weekday, or Older — History's own day names (lib/timeBreaks.ts). */
+  label: string
+  rows: T[]
+}
 
 /**
- * THE DAY BEFORE, while today is short (maintainer 2026-10-16: "a new day shows a pretty empty set of threads").
- * Under Done today's rows the tail lists the most recent EARLIER local day that finished anything, newest
- * first, for the rows today leaves free of `room` — none once today fills it. A weekend is skipped, so
- * Monday morning shows Friday. `label` reads "Yesterday", or the weekday past that. Pins aside, as Done
- * today's. Read from the poll's `recentDone`, which carries a project's 20 newest; a day it has cut off is
- * History's.
+ * THE DONE TIER'S DAYS (maintainer 2026-10-16: "display each recent day but they're collapsible … an older at
+ * the bottom"). `rows` newest rest first; each of the last `DONE_DAYS` local days that finished anything is
+ * a group, and everything before them is one Older group at the end.
  */
-export function doneEarlier(projects: readonly QueuesProject[], now: number, room: number): { label: string; threads: { project: QueuesProject; t: ThreadView }[] } | null {
-  if (room <= 0) return null
-  const today = startOfToday(now)
-  const done = projects
-    .flatMap((project) => project.recentDone.filter((t) => !isPinned(t)).map((t) => ({ project, t, at: restedAt(t) })))
-    .filter(({ at }) => at > 0 && at < today)
-    .sort((a, b) => b.at - a.at)
-  const newest = done[0]
-  if (!newest) return null
-  const day = startOfToday(newest.at)
-  const back = new Date(today)
-  back.setDate(back.getDate() - EARLIER_DAYS)
-  if (day < back.getTime()) return null
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const label = day === yesterday.getTime() ? "Yesterday" : new Date(day).toLocaleDateString(undefined, { weekday: "long" })
-  return { label, threads: done.filter(({ at }) => at >= day).slice(0, room).map(({ project, t }) => ({ project, t })) }
+export function doneDays<T>(rows: readonly T[], thread: (row: T) => ThreadView, now: number): DoneDay<T>[] {
+  const first = doneDaysStart(now)
+  const days: DoneDay<T>[] = []
+  const older: T[] = []
+  for (const row of rows) {
+    const at = restedAt(thread(row))
+    if (at < first) {
+      older.push(row)
+      continue
+    }
+    const key = new Date(at).toDateString()
+    const last = days.at(-1)
+    if (last?.key === key) last.rows.push(row)
+    else days.push({ key, label: timeBreakLabel(new Date(at).toISOString(), "day", new Date(now)).day ?? key, rows: [row] })
+  }
+  if (older.length > 0) days.push({ key: "older", label: "Older", rows: older })
+  return days
+}
+
+/** Where the Done tier's named days start: local midnight `DONE_DAYS - 1` days back. Older is before it. */
+export function doneDaysStart(now: number): number {
+  const first = new Date(startOfToday(now))
+  first.setDate(first.getDate() - (DONE_DAYS - 1))
+  return first.getTime()
+}
+
+/** The days open before the human folds any: the newest, and the next ones while fewer than
+ *  `DONE_OPEN_ROWS` rows are open. Older never opens by itself. */
+export function doneOpenByDefault(days: readonly DoneDay<unknown>[]): Set<string> {
+  const open = new Set<string>()
+  let rows = 0
+  for (const day of days) {
+    if (day.key === "older" || (open.size > 0 && rows >= DONE_OPEN_ROWS)) break
+    open.add(day.key)
+    rows += day.rows.length
+  }
+  return open
 }

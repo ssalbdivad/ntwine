@@ -6,25 +6,31 @@
 // TOP TO BOTTOM: Pinned, Ready (in the queue's own order, so a row faces its card), Working (each project's
 // threads together, the project's square on the first of them and the cord tying the rest), Waiting (an
 // agent's park on something outside the thread — a review, CI, a reply — always in view, 2026-10-14),
-// Snoozed (the human's own snoozes, folded), and Done today (a short tail, with History one click away; a short day
-// is topped up with the last earlier day's under its own line, listBands.ts doneEarlier). The project is
+// Snoozed (the human's own snoozes, folded), and Done (every finished thread, by day, with History one click away).
+// The project is
 // an ATTRIBUTE of a row — its square in the gutter — never a heading: at the heavy load (17 projects, 70 open
 // threads) the headings alone cost a third of the column.
 //
-// THE LIST NEVER SCROLLS. It measures itself and gives things up in a fixed order until it fits
-// (lib/sidebarBudget.ts): the Done tail first, every row of it even when opened, then Waiting down to its first rows, then Working rolls its biggest projects into a line each,
+// THE LIST NEVER SCROLLS, EXCEPT DONE. Done is each of the last week's days that finished anything, folded to a
+// line with its count, then Older (maintainer 2026-10-16: "all thread history is directly visible if someone
+// wants to expand it"); it scrolls on its own inside whatever room the bands above it leave, down to its
+// header, and Older pages in History's own listing as it is scrolled. The rest measures itself and gives things up in a fixed order until it fits
+// (lib/sidebarBudget.ts): Waiting down to its first rows, then Working rolls its biggest projects into a line each,
 // then Ready and Working list their first rows and count the rest (Ready's are all in the queue beside it
 // anyway), and last Pinned does the same.
-// What the human opened by hand is never taken back, except Done: a finished row never outlasts a live one. While the pointer is over the list nothing is
+// What the human opened by hand is never taken back. While the pointer is over the list nothing is
 // re-budgeted (lib/listHold.ts), so a row never moves out from under it.
 //
-// What is NOT here, and where it went: External sessions and every Done thread past today are the center
+// What is NOT here, and where it went: External sessions and each Done thread's ledger are the center
 // column's History (lib/centerTab.ts), and the project rows' "…" menus are the dock's (ProjectDock.tsx). The
 // schedules of the projects in view are the last band, folded.
+import { useInfiniteQuery } from "@tanstack/react-query"
+import { ChevronRight } from "lucide-react"
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { useLocation } from "react-router"
 import { useSnapshot } from "valtio"
 import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
+import { rpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { displayTitle, isPinned, isSnoozed, queued } from "../groups.ts"
 import { squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
@@ -33,11 +39,11 @@ import { setCenterTab } from "../lib/centerTab.ts"
 import { setTierFold, useTierFolds } from "../lib/crossProject.ts"
 import { holdLayout, type HeldSection, type HeldSlot } from "../lib/heldLayout.ts"
 import { actedOnHere } from "../lib/humanActs.ts"
-import { doneEarlier, doneToday, listOverlay, loudBands, restedAt, startOfToday } from "../lib/listBands.ts"
+import { doneDays, doneDaysStart, doneOpenByDefault, listOverlay, loudBands, restedAt, startOfToday } from "../lib/listBands.ts"
 import { useListHold } from "../lib/listHold.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { useArchivingAt } from "../lib/optimisticArchive.ts"
-import { budgetAt, maxLevel, TAIL_MAX, WAITING_FLOOR, type Budget, type BudgetInput } from "../lib/sidebarBudget.ts"
+import { budgetAt, maxLevel, WAITING_FLOOR, type Budget, type BudgetInput } from "../lib/sidebarBudget.ts"
 import { prefs } from "../lib/prefs.ts"
 import { recentOf } from "../lib/recentThreads.ts"
 import { useSteeredAt } from "../lib/steering.ts"
@@ -88,6 +94,7 @@ export function TierList({
   const held = useListHold()
   const now = useNowMs()
   const scopes = useRowScopes(projects, onQueuedRow)
+  const history = useDoneHistory(projects, now)
   // The page project's board is live in the store; only its rows can be up in a drawer on this page.
   const boardSlug = (snap.board as BoardSnapshot | null)?.projectSlug
   const openKey = useMemo(() => {
@@ -103,7 +110,20 @@ export function TierList({
     const working: Entry[] = []
     const waiting: Entry[] = []
     const snoozed: Entry[] = []
-    const done: Entry[] = []
+    // Done is the poll's newest finished threads, live, over History's pages of the rest. A paged thread
+    // that has since been reopened is open in the poll, and is not Done.
+    const done = new Map<string, Entry>()
+    const open = new Set<string>()
+    for (const project of projects) {
+      for (const t of [...project.queued, ...project.running, ...project.snoozed]) open.add(threadKey(project.id, t.id))
+      for (const t of project.recentDone) if (!isPinned(t)) done.set(threadKey(project.id, t.id), { key: threadKey(project.id, t.id), project, t })
+    }
+    const byId = new Map(projects.map((project) => [project.id, project]))
+    for (const { projectId, thread: t } of history.entries) {
+      const project = byId.get(projectId)
+      const key = threadKey(projectId, t.id)
+      if (project && !isPinned(t) && !open.has(key) && !done.has(key)) done.set(key, { key, project, t })
+    }
     for (const project of projects) {
       const onPage = project.slug === focus && project.slug === boardSlug
       const loud = loudBands(project, hidden, listOverlay(project.id, onPage, steeredAt, archivingAt))
@@ -114,18 +134,12 @@ export function TierList({
       working.push(...loud.working.map(entry))
       waiting.push(...loud.waiting.map(entry))
       snoozed.push(...project.snoozed.filter((t) => !isPinned(t) && isSnoozed(t)).map(entry))
-      done.push(...doneToday(project, now).map(entry))
     }
     pinned.sort((a, b) => (a.t.pinnedAt ?? "").localeCompare(b.t.pinnedAt ?? "") || a.key.localeCompare(b.key))
     const at = new Map(queueOrder.map((key, index) => [key, index]))
     ready.sort((a, b) => (at.get(a.key) ?? Infinity) - (at.get(b.key) ?? Infinity))
-    done.sort((a, b) => restedAt(b.t) - restedAt(a.t))
-    // A short day is topped up with the last earlier day's, under its own line (listBands.ts doneEarlier).
-    const earlier = doneEarlier(projects, now, TAIL_MAX - done.length)
-    for (const { project, t } of earlier?.threads ?? []) done.push({ key: threadKey(project.id, t.id), project, t })
-    return { pinned, ready, working, waiting, snoozed, done, earlierLabel: earlier?.label ?? null }
-    // `now` moves every 30s; Done today needs no finer clock than that.
-  }, [projects, focus, boardSlug, hidden, steeredAt, archivingAt, queueOrder, now])
+    return { pinned, ready, working, waiting, snoozed, done: [...done.values()].sort((a, b) => restedAt(b.t) - restedAt(a.t)) }
+  }, [projects, focus, boardSlug, hidden, steeredAt, archivingAt, queueOrder, history.entries])
 
   // ---- Held while the pointer is over the list (lib/heldLayout.ts) -------------------------------------
   const byKey = useMemo(() => new Map(tiersOf(live).flat().map((entry) => [entry.key, entry])), [live])
@@ -155,11 +169,9 @@ export function TierList({
   }
 
   // ---- The budget -------------------------------------------------------------------------------------
-  const open = (tier: "snoozed" | "done" | "working" | "waiting" | "pinned" | "schedules") => folds.has(tier)
+  const open = (tier: "snoozed" | "working" | "waiting" | "pinned" | "schedules") => folds.has(tier)
   const expanded = useMemo(() => new Set([...folds].filter((key) => key.startsWith("run:")).map((key) => key.slice(4))), [folds])
   const input: BudgetInput = {
-    tail: slots("done").length,
-    tailOpen: open("done"),
     runs: runs.map((run) => ({ id: run.id, size: run.slots.length })),
     expanded,
     ready: slots("ready").length,
@@ -221,12 +233,20 @@ export function TierList({
     return out
   }
 
-  // Done today's rows, then the earlier day's that top it up: a held row keeps its place by when it rested.
+  // DONE, BY DAY. A held row keeps its place by when it rested. Older counts every Done thread the week's days
+  // do not, loaded or not: the projects' own counts say how many there are.
+  const days = doneDays(slots("done"), (slot) => slot.item.t, now)
+  const dated = days.filter((day) => day.key !== "older")
+  const olderRows = days.find((day) => day.key === "older")?.rows ?? []
+  const doneTotal = Math.max(slots("done").length, projects.reduce((sum, project) => sum + project.doneCount, 0))
+  const olderCount = Math.max(olderRows.length, doneTotal - dated.reduce((sum, day) => sum + day.rows.length, 0))
+  const [dayFolds, setDayFolds] = useState<Readonly<Record<string, boolean>>>({})
+  const openByDefault = doneOpenByDefault(days)
+  const dayOpen = (key: string) => dayFolds[key] ?? openByDefault.has(key)
+  const toggleDay = (key: string) => setDayFolds((folds) => ({ ...folds, [key]: !dayOpen(key) }))
   const startOfDay = startOfToday(now)
-  const doneSlots = slots("done")
-  const doneTodaySlots = doneSlots.filter((slot) => restedAt(slot.item.t) >= startOfDay)
-  const doneEarlierSlots = doneSlots.filter((slot) => restedAt(slot.item.t) < startOfDay)
-  const doneRose = useDoneArrivals(listRef, doneTodaySlots)
+  const doneRose = useDoneArrivals(listRef, slots("done").filter((slot) => restedAt(slot.item.t) >= startOfDay))
+  const olderSentinel = useLoadMore(dayOpen("older") && history.more, history.loadMore)
 
   const pinned = slots("pinned")
   const ready = slots("ready")
@@ -236,11 +256,6 @@ export function TierList({
   // The snoozed threads opened in the last half hour stay listed under the folded header (prefs
   // `showRecentThreads`); Done today already lists the finished ones.
   const recentSnoozed = showRecentThreads ? recentOf(snoozed, (slot) => slot.item.t.id, now) : []
-  const done = doneSlots
-  const doneTodayShown = doneTodaySlots.slice(0, budget.tailShown)
-  const doneEarlierShown = doneEarlierSlots.slice(0, budget.tailShown - doneTodayShown.length)
-  // Nothing finished today: the earlier day is the header itself, and needs no line of its own.
-  const doneLabel = doneTodaySlots.length > 0 || !live.earlierLabel ? "Done today" : live.earlierLabel === "Yesterday" ? "Done yesterday" : `Done ${live.earlierLabel}`
   const working = runs.reduce((sum, r) => sum + r.slots.length, 0)
   const waiting = slots("waiting")
   const waitingShown = waiting.slice(0, budget.waitingShown)
@@ -251,7 +266,7 @@ export function TierList({
   const schedules = scheduled.reduce((sum, project) => sum + project.schedules!.count, 0)
 
   return (
-    <div ref={listRef} data-xq-tiers className="flex min-w-0 flex-col">
+    <div ref={listRef} data-xq-tiers className="flex min-h-0 min-w-0 flex-col">
       {pinned.length > 0 && (
         <section aria-label="Pinned" data-xq-tier="pinned" data-xq-tier-count={pinned.length}>
           <SectionHeader band="pinned" count={pinned.length} />
@@ -333,12 +348,12 @@ export function TierList({
           {runsOf(open("snoozed") ? snoozed : recentSnoozed, "snoozed")}
         </section>
       )}
-      {done.length > 0 && (
-        <section aria-label={doneLabel} data-xq-tier="done" data-xq-tier-count={done.length} className={TIER_GAP}>
+      {doneTotal > 0 && (
+        // The one band that scrolls: it takes what room the bands above leave, and gives it all back first.
+        <section aria-label="Done" data-xq-tier="done" data-xq-tier-count={doneTotal} className={`${TIER_GAP} flex min-h-0 flex-col`}>
           <SectionHeader
             band="done"
-            label={doneLabel}
-            count={doneTodaySlots.length || doneEarlierSlots.length}
+            count={doneTotal}
             roll={doneRose}
             tail={
               <button type="button" data-xq-open-history onClick={() => setCenterTab("history")} className="relative -mx-1 rounded px-1 outline-none transition-colors hover:bg-hover-strong hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
@@ -346,25 +361,21 @@ export function TierList({
               </button>
             }
           />
-          {runsOf(doneTodayShown, "done")}
-          {/* Squeezed to its header, the tail drops this line too: the count and History say the rest. An
-              earlier day's rows are dropped without one; they were only ever a top-up. */}
-          {budget.tailShown > 0 && doneTodaySlots.length > doneTodayShown.length && (
-            <MoreRow
-              count={doneTodaySlots.length - doneTodayShown.length}
-              label={`${doneTodaySlots.length - doneTodayShown.length} more today`}
-              detail={[...new Set(doneTodaySlots.slice(doneTodayShown.length).map((slot) => slot.item.project.name))].join(", ")}
-              // Opened and still squeezed, the rest of today is in History.
-              onClick={() => (open("done") ? setCenterTab("history") : setTierFold("done", true))}
-            />
-          )}
-          {doneEarlierShown.length > 0 && doneTodayShown.length > 0 && live.earlierLabel && (
-            <div data-xq-done-earlier className="py-0.5 pl-[44px] pr-1.5 text-[11.5px] leading-[19px] text-muted-50">
-              {live.earlierLabel}
-            </div>
-          )}
-          {runsOf(doneEarlierShown, "done")}
-          {open("done") && budget.tailShown > TAIL_MAX && <ShowFewer onClick={() => setTierFold("done", false)} />}
+          <div data-xq-done-days className="min-h-0 overflow-y-auto overflow-x-hidden">
+            {dated.map((day) => (
+              <Fragment key={day.key}>
+                <DoneDayLine label={day.label} count={day.rows.length} open={dayOpen(day.key)} onToggle={() => toggleDay(day.key)} />
+                {dayOpen(day.key) && runsOf(day.rows, "done")}
+              </Fragment>
+            ))}
+            {olderCount > 0 && (
+              <>
+                <DoneDayLine label="Older" count={olderCount} open={dayOpen("older")} onToggle={() => toggleDay("older")} />
+                {dayOpen("older") && runsOf(olderRows, "done")}
+                {dayOpen("older") && history.more && <div ref={olderSentinel} aria-hidden className="h-px" />}
+              </>
+            )}
+          </div>
         </section>
       )}
       {scheduled.length > 0 && (
@@ -427,7 +438,7 @@ const TIER_GAP = "mt-2"
 function useBudgetLevel(listRef: RefObject<HTMLDivElement | null>, input: BudgetInput, held: boolean, extra: string): number {
   const [level, setLevel] = useState(0)
   const [room, setRoom] = useState(0)
-  const signature = `${input.tail}|${input.tailOpen}|${input.ready}|${input.workingOpen}|${input.pinned}|${input.pinnedOpen}|${input.waiting}|${input.waitingOpen}|${input.runs.map((r) => `${r.id}:${r.size}`).join(",")}|${[...input.expanded].join(",")}|${room}|${extra}`
+  const signature = `${input.ready}|${input.workingOpen}|${input.pinned}|${input.pinnedOpen}|${input.waiting}|${input.waitingOpen}|${input.runs.map((r) => `${r.id}:${r.size}`).join(",")}|${[...input.expanded].join(",")}|${room}|${extra}`
   const settled = useRef<string | null>(null)
   const max = maxLevel(input)
   // The scroll box's height moves with the window and with the prompt box above the list growing a line.
@@ -546,6 +557,68 @@ function RollBack({ project, onRoll }: { project: QueuesProject; onRoll: () => v
       </button>
     </div>
   )
+}
+
+/** A day of Done, folded to its name and count: the chevron in the indicator column, the name where a title starts. */
+function DoneDayLine({ label, count, open, onToggle }: { label: string; count: number; open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      data-xq-done-day={label}
+      aria-expanded={open}
+      onClick={onToggle}
+      className="flex w-full min-w-0 items-baseline gap-2 rounded-md pb-0.5 pl-5 pr-1.5 pt-1 text-left text-[11.5px] leading-[19px] text-muted-60 outline-none transition-colors hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60"
+    >
+      <span aria-hidden className={`flex w-4 shrink-0 justify-center self-center text-muted-50 transition-[rotate] ${open ? "rotate-90" : ""}`}>
+        <ChevronRight size={11} />
+      </span>
+      <span>{label}</span>
+      <span className="-ml-0.5 tabular-nums text-muted-50">{count}</span>
+    </button>
+  )
+}
+
+/** Done threads per page of History's listing. */
+const DONE_PAGE = 50
+
+/**
+ * The Done threads past the poll's newest, a page at a time from History's own listing (`projectsDone`), over
+ * the projects in view. Pages load by themselves until the week's days are whole; past them, only as Older
+ * is scrolled.
+ */
+function useDoneHistory(projects: readonly QueuesProject[], now: number) {
+  const lensKey = projects.map((project) => project.id).join("\n")
+  const pages = useInfiniteQuery({
+    queryKey: ["projectsDone", "tiers", lensKey],
+    queryFn: ({ pageParam }) => rpc.projectsDone({ limit: DONE_PAGE, projectIds: lensKey ? lensKey.split("\n") : [], ...(pageParam ? { before: pageParam } : {}) }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextBefore,
+    staleTime: 60_000,
+  })
+  const entries = useMemo(() => pages.data?.pages.flatMap((page) => page.entries) ?? [], [pages.data])
+  const oldest = entries.at(-1)
+  const more = pages.hasNextPage && !pages.isFetchingNextPage
+  const weekLoaded = !!oldest && restedAt(oldest.thread) < doneDaysStart(now)
+  const { fetchNextPage } = pages
+  useEffect(() => {
+    if (more && !weekLoaded) void fetchNextPage()
+  }, [more, weekLoaded, fetchNextPage])
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
+  return { entries, more: !!pages.hasNextPage, loadMore }
+}
+
+/** Calls `load` when the returned ref's element nears the screen — the bottom of Older, inside Done's own scroll. */
+function useLoadMore(armed: boolean, load: () => void): (el: HTMLDivElement | null) => void {
+  const latest = useRef(load)
+  latest.current = load
+  const [el, setEl] = useState<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!el || !armed) return
+    const observer = new IntersectionObserver((seen) => { if (seen.some((s) => s.isIntersecting)) latest.current() }, { rootMargin: "200px 0px" })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [el, armed])
+  return setEl
 }
 
 /** Under a tier the human opened past its budget: the way back to the budget's list. */

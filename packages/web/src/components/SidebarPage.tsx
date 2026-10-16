@@ -140,7 +140,7 @@ export function SidebarPage({
       ) : (
         // The list in the box's own column, as on the desktop: its rows' 20px marker gutter starts 2px
         // outside the box's border, and the scrollbar is the inner surfaces' 7px one, in its own gutter.
-        <div data-xq-rail="sidebar" className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-8">
+        <div data-xq-rail="sidebar" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden pb-8">
           {list(active)}
           {empty !== null && <p data-xq-sidebar-empty className="mt-6 text-balance px-2 text-center text-[13px] text-muted">{empty}</p>}
         </div>

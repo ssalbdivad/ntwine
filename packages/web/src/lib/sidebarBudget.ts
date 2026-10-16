@@ -4,11 +4,10 @@
 // The list measures itself and raises a COMPRESSION LEVEL until it fits; this file says what each level
 // means. Lowest priority goes first:
 //
-//   1. the Done-today tail shortens, one row at a time, to its header — EVERY row of it when the human
-//      opened Done. Nothing that is spinning or needs the human gives up a line while a row that is
-//      finished still shows (maintainer 2026-10-15: "queue/working truncation should never occur before
-//      done today truncation"). Opening Done is a persisted fold, so exempting it let one old click
-//      shorten Ready under a full Done list for good;
+//   0. Done is not a step: it scrolls inside whatever room the bands above it leave, down to its header
+//      (maintainer 2026-10-16, TierList.tsx), so it has always given every line before anything here
+//      gives one (maintainer 2026-10-15: "queue/working truncation should never occur before done today
+//      truncation");
 //   1b. Waiting shortens, a row at a time, to its floor, and says how many more are waiting (unless the
 //      human opened it). Its rows are at rest on something outside the thread, so they give before any
 //      thread that is spinning or that needs the human — but never to nothing: the band is always in
@@ -25,8 +24,6 @@
 //   5. last of all, Waiting gives its floor down to one row, its header and "N more waiting" still in
 //      view. The heavy load (sidebarFit.e2e.test.ts, 7 waiting) overflowed 1280x720 by 13px without it.
 
-/** How many Done-today rows the tail shows before any compression. */
-export const TAIL_MAX = 5
 /** Ready never shortens below this many rows. */
 export const READY_FLOOR = 3
 /** Working never shortens below this many lines. */
@@ -37,10 +34,6 @@ export const PINNED_FLOOR = 2
 export const WAITING_FLOOR = 2
 
 export interface BudgetInput {
-  /** Done-today rows there are to show. */
-  tail: number
-  /** The human opened Done: it lists every row while there is room, and still gives first. */
-  tailOpen: boolean
   /** Working's runs, one per project, in the order drawn. */
   runs: readonly { id: string; size: number }[]
   /** Runs the human expanded. */
@@ -60,8 +53,6 @@ export interface BudgetInput {
 }
 
 export interface Budget {
-  /** Done-today rows to draw. */
-  tailShown: number
   /** Working runs drawn as one line, by id. */
   rolled: ReadonlySet<string>
   /** Ready rows to draw; the rest are a "N more in the queue" line. */
@@ -107,17 +98,11 @@ function shorten(ready: number, working: number, workingOpen: boolean, steps: nu
 
 /** The highest level that still compresses something: past it, the list scrolls. */
 export function maxLevel(input: BudgetInput): number {
-  const tail = tailMax(input)
   const order = rollable(input)
   const lines = rolledLines(input, new Set(order))
   const ready = Math.max(0, input.ready - READY_FLOOR)
   const working = input.workingOpen ? 0 : Math.max(0, lines - WORKING_FLOOR)
-  return tail + waitingSteps(input) + order.length + ready + working + pinnedSteps(input) + waitingLastSteps(input)
-}
-
-/** Done-today rows before any compression: all of them once the human opened Done. Each is a step. */
-function tailMax(input: BudgetInput): number {
-  return input.tailOpen ? input.tail : Math.min(TAIL_MAX, input.tail)
+  return waitingSteps(input) + order.length + ready + working + pinnedSteps(input) + waitingLastSteps(input)
 }
 
 /** Step 5: Waiting from its floor down to one row. */
@@ -135,19 +120,17 @@ function pinnedSteps(input: BudgetInput): number {
 
 /** What the list draws at a compression level (0 = everything). */
 export function budgetAt(level: number, input: BudgetInput): Budget {
-  const tailSteps = tailMax(input)
-  const tailShown = tailSteps - Math.min(level, tailSteps)
   const waitSteps = waitingSteps(input)
-  const waitingShown = input.waiting - Math.min(waitSteps, Math.max(0, level - tailSteps))
+  const waitingShown = input.waiting - Math.min(waitSteps, level)
   const order = rollable(input)
-  const rollSteps = Math.min(order.length, Math.max(0, level - tailSteps - waitSteps))
+  const rollSteps = Math.min(order.length, Math.max(0, level - waitSteps))
   const rolled = new Set(order.slice(0, rollSteps))
   const lines = rolledLines(input, rolled)
-  const shortenSteps = Math.max(0, level - tailSteps - waitSteps - order.length)
+  const shortenSteps = Math.max(0, level - waitSteps - order.length)
   const { ready, working } = shorten(input.ready, lines, input.workingOpen, shortenSteps)
   const taken = input.ready - ready + (lines - working)
   const pinSteps = Math.min(pinnedSteps(input), Math.max(0, shortenSteps - taken))
   const pinnedShown = input.pinned - pinSteps
   const lastSteps = Math.min(waitingLastSteps(input), Math.max(0, shortenSteps - taken - pinSteps))
-  return { tailShown, rolled, readyShown: ready, workingShown: working, pinnedShown, waitingShown: waitingShown - lastSteps }
+  return { rolled, readyShown: ready, workingShown: working, pinnedShown, waitingShown: waitingShown - lastSteps }
 }
