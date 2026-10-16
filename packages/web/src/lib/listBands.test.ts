@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ThreadView } from "@ntwine/shared"
 import { threadKey, type QueuesProject } from "./allQueues.ts"
-import { listOverlay, loudBands } from "./listBands.ts"
+import { doneEarlier, listOverlay, loudBands } from "./listBands.ts"
 
 // The project list's rows move the moment the operator acts, not a poll later: a reply, an answer or a
 // Retry sets the thread to work (lib/steering.ts), a drawer's Mark as done files it (lib/optimisticArchive.ts).
@@ -118,4 +118,33 @@ test("a pinned thread that is Done is still a Pinned row — the pin outranks Do
   assert.deepEqual(ids(bands.ready), [])
   assert.deepEqual([...bands.carded], ["open-pin"], "a Done pin has no card to tie to")
   assert.equal(bands.rows, 3, "it counts as a row, so a project whose only pin is Done still lists it")
+})
+
+// Monday 2026-10-12, 09:00 local: the day before was a Sunday nobody worked.
+const MONDAY = new Date(2026, 9, 12, 9).getTime()
+const restedOn = (id: string, at: Date, over: Partial<ThreadView> = {}) =>
+  ({ id, kind: "session", state: "archived", status: "done", lastAssistantAt: at.toISOString(), ...over }) as unknown as ThreadView
+const withDone = (id: string, recentDone: ThreadView[]) => ({ ...project(id, []), recentDone }) as unknown as QueuesProject
+
+test("a short day is topped up with the last day that finished anything, a weekend skipped", () => {
+  const alpha = withDone("alpha", [
+    restedOn("today", new Date(2026, 9, 12, 8)),
+    restedOn("fri-late", new Date(2026, 9, 9, 22)),
+    restedOn("thu", new Date(2026, 9, 8, 15)),
+    restedOn("fri-pinned", new Date(2026, 9, 9, 23), { pinnedAt: "2026-10-09T00:00:00.000Z" }),
+  ])
+  const beta = withDone("beta", [restedOn("fri-early", new Date(2026, 9, 9, 7))])
+  const earlier = doneEarlier([alpha, beta], MONDAY, 4)
+  assert.equal(earlier?.label, new Date(2026, 9, 9).toLocaleDateString(undefined, { weekday: "long" }))
+  // Friday's alone, newest first, across projects; Thursday and the pin are not part of it.
+  assert.deepEqual(earlier?.threads.map(({ project, t }) => `${project.id}:${t.id}`), ["alpha:fri-late", "beta:fri-early"])
+  assert.deepEqual(doneEarlier([alpha, beta], MONDAY, 1)?.threads.map(({ t }) => t.id), ["fri-late"])
+  assert.equal(doneEarlier([alpha, beta], MONDAY, 0), null)
+})
+
+test("the day before is Yesterday, and a day past a week back is History's", () => {
+  const sunday = withDone("alpha", [restedOn("sun", new Date(2026, 9, 11, 23, 59))])
+  assert.equal(doneEarlier([sunday], MONDAY, 5)?.label, "Yesterday")
+  const stale = withDone("alpha", [restedOn("old", new Date(2026, 9, 4, 12))])
+  assert.equal(doneEarlier([stale], MONDAY, 5), null)
 })

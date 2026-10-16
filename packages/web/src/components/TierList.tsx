@@ -6,7 +6,8 @@
 // TOP TO BOTTOM: Pinned, Ready (in the queue's own order, so a row faces its card), Working (each project's
 // threads together, the project's square on the first of them and the cord tying the rest), Waiting (an
 // agent's park on something outside the thread — a review, CI, a reply — always in view, 2026-10-14),
-// Snoozed (the human's own snoozes, folded), and Done today (a short tail, with History one click away). The project is
+// Snoozed (the human's own snoozes, folded), and Done today (a short tail, with History one click away; a short day
+// is topped up with the last earlier day's under its own line, listBands.ts doneEarlier). The project is
 // an ATTRIBUTE of a row — its square in the gutter — never a heading: at the heavy load (17 projects, 70 open
 // threads) the headings alone cost a third of the column.
 //
@@ -32,7 +33,7 @@ import { setCenterTab } from "../lib/centerTab.ts"
 import { setTierFold, useTierFolds } from "../lib/crossProject.ts"
 import { holdLayout, type HeldSection, type HeldSlot } from "../lib/heldLayout.ts"
 import { actedOnHere } from "../lib/humanActs.ts"
-import { doneToday, listOverlay, loudBands, restedAt } from "../lib/listBands.ts"
+import { doneEarlier, doneToday, listOverlay, loudBands, restedAt, startOfToday } from "../lib/listBands.ts"
 import { useListHold } from "../lib/listHold.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { useArchivingAt } from "../lib/optimisticArchive.ts"
@@ -56,6 +57,8 @@ interface Entry {
 }
 
 type Tier = "pinned" | "ready" | "working" | "waiting" | "snoozed" | "done"
+const TIERS = ["pinned", "ready", "working", "waiting", "snoozed", "done"] as const satisfies readonly Tier[]
+const tiersOf = (live: Record<Tier, Entry[]>) => TIERS.map((tier) => live[tier])
 
 export function TierList({
   projects,
@@ -117,16 +120,19 @@ export function TierList({
     const at = new Map(queueOrder.map((key, index) => [key, index]))
     ready.sort((a, b) => (at.get(a.key) ?? Infinity) - (at.get(b.key) ?? Infinity))
     done.sort((a, b) => restedAt(b.t) - restedAt(a.t))
-    return { pinned, ready, working, waiting, snoozed, done }
+    // A short day is topped up with the last earlier day's, under its own line (listBands.ts doneEarlier).
+    const earlier = doneEarlier(projects, now, TAIL_MAX - done.length)
+    for (const { project, t } of earlier?.threads ?? []) done.push({ key: threadKey(project.id, t.id), project, t })
+    return { pinned, ready, working, waiting, snoozed, done, earlierLabel: earlier?.label ?? null }
     // `now` moves every 30s; Done today needs no finer clock than that.
   }, [projects, focus, boardSlug, hidden, steeredAt, archivingAt, queueOrder, now])
 
   // ---- Held while the pointer is over the list (lib/heldLayout.ts) -------------------------------------
-  const byKey = useMemo(() => new Map(Object.values(live).flat().map((entry) => [entry.key, entry])), [live])
+  const byKey = useMemo(() => new Map(tiersOf(live).flat().map((entry) => [entry.key, entry])), [live])
   const drawn = useRef<HeldSection<Entry>[]>([])
   const sections = holdLayout({
     prev: drawn.current,
-    target: (["pinned", "ready", "working", "waiting", "snoozed", "done"] as const).map((id) => ({ id, items: live[id] })),
+    target: TIERS.map((id) => ({ id, items: live[id] })),
     keyOf: (entry) => entry.key,
     frozen: held,
     moved: (key) => {
@@ -138,7 +144,7 @@ export function TierList({
   drawn.current = sections
   const slots = (tier: Tier) => sections.find((section) => section.id === tier)?.slots ?? []
   // The tier each thread is in NOW: a held row is drawn in its old place but as what it is.
-  const tierNow = new Map((Object.keys(live) as Tier[]).flatMap((tier) => live[tier].map((entry) => [entry.key, tier] as const)))
+  const tierNow = new Map(TIERS.flatMap((tier) => live[tier].map((entry) => [entry.key, tier] as const)))
 
   // Working, as runs of one project's rows.
   const runs: Run[] = []
@@ -164,7 +170,7 @@ export function TierList({
     waitingOpen: open("waiting"),
   }
   const listRef = useRef<HTMLDivElement>(null)
-  const childRows = subAgentRows ? Object.values(live).flat().map((entry) => entry.t.subAgents?.length ?? 0).join(",") : ""
+  const childRows = subAgentRows ? tiersOf(live).flat().map((entry) => entry.t.subAgents?.length ?? 0).join(",") : ""
   const level = useBudgetLevel(listRef, input, held, childRows)
   const budget = budgetAt(level, input)
   const rest = workingRest(runs, budget, expanded)
@@ -215,7 +221,12 @@ export function TierList({
     return out
   }
 
-  const doneRose = useDoneArrivals(listRef, slots("done"))
+  // Done today's rows, then the earlier day's that top it up: a held row keeps its place by when it rested.
+  const startOfDay = startOfToday(now)
+  const doneSlots = slots("done")
+  const doneTodaySlots = doneSlots.filter((slot) => restedAt(slot.item.t) >= startOfDay)
+  const doneEarlierSlots = doneSlots.filter((slot) => restedAt(slot.item.t) < startOfDay)
+  const doneRose = useDoneArrivals(listRef, doneTodaySlots)
 
   const pinned = slots("pinned")
   const ready = slots("ready")
@@ -225,7 +236,11 @@ export function TierList({
   // The snoozed threads opened in the last half hour stay listed under the folded header (prefs
   // `showRecentThreads`); Done today already lists the finished ones.
   const recentSnoozed = showRecentThreads ? recentOf(snoozed, (slot) => slot.item.t.id, now) : []
-  const done = slots("done")
+  const done = doneSlots
+  const doneTodayShown = doneTodaySlots.slice(0, budget.tailShown)
+  const doneEarlierShown = doneEarlierSlots.slice(0, budget.tailShown - doneTodayShown.length)
+  // Nothing finished today: the earlier day is the header itself, and needs no line of its own.
+  const doneLabel = doneTodaySlots.length > 0 || !live.earlierLabel ? "Done today" : live.earlierLabel === "Yesterday" ? "Done yesterday" : `Done ${live.earlierLabel}`
   const working = runs.reduce((sum, r) => sum + r.slots.length, 0)
   const waiting = slots("waiting")
   const waitingShown = waiting.slice(0, budget.waitingShown)
@@ -319,11 +334,11 @@ export function TierList({
         </section>
       )}
       {done.length > 0 && (
-        <section aria-label="Done today" data-xq-tier="done" data-xq-tier-count={done.length} className={TIER_GAP}>
+        <section aria-label={doneLabel} data-xq-tier="done" data-xq-tier-count={done.length} className={TIER_GAP}>
           <SectionHeader
             band="done"
-            label="Done today"
-            count={done.length}
+            label={doneLabel}
+            count={doneTodaySlots.length || doneEarlierSlots.length}
             roll={doneRose}
             tail={
               <button type="button" data-xq-open-history onClick={() => setCenterTab("history")} className="relative -mx-1 rounded px-1 outline-none transition-colors hover:bg-hover-strong hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
@@ -331,17 +346,24 @@ export function TierList({
               </button>
             }
           />
-          {runsOf(done.slice(0, budget.tailShown), "done")}
-          {/* Squeezed to its header, the tail drops this line too: the count and History say the rest. */}
-          {budget.tailShown > 0 && done.length > budget.tailShown && (
+          {runsOf(doneTodayShown, "done")}
+          {/* Squeezed to its header, the tail drops this line too: the count and History say the rest. An
+              earlier day's rows are dropped without one; they were only ever a top-up. */}
+          {budget.tailShown > 0 && doneTodaySlots.length > doneTodayShown.length && (
             <MoreRow
-              count={done.length - budget.tailShown}
-              label={`${done.length - budget.tailShown} more today`}
-              detail={[...new Set(done.slice(budget.tailShown).map((slot) => slot.item.project.name))].join(", ")}
+              count={doneTodaySlots.length - doneTodayShown.length}
+              label={`${doneTodaySlots.length - doneTodayShown.length} more today`}
+              detail={[...new Set(doneTodaySlots.slice(doneTodayShown.length).map((slot) => slot.item.project.name))].join(", ")}
               // Opened and still squeezed, the rest of today is in History.
               onClick={() => (open("done") ? setCenterTab("history") : setTierFold("done", true))}
             />
           )}
+          {doneEarlierShown.length > 0 && doneTodayShown.length > 0 && live.earlierLabel && (
+            <div data-xq-done-earlier className="py-0.5 pl-[44px] pr-1.5 text-[11.5px] leading-[19px] text-muted-50">
+              {live.earlierLabel}
+            </div>
+          )}
+          {runsOf(doneEarlierShown, "done")}
           {open("done") && budget.tailShown > TAIL_MAX && <ShowFewer onClick={() => setTierFold("done", false)} />}
         </section>
       )}

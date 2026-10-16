@@ -95,3 +95,33 @@ export function doneToday(project: QueuesProject, now: number): ThreadView[] {
   const today = startOfToday(now)
   return project.recentDone.filter((t) => !isPinned(t) && restedAt(t) >= today)
 }
+
+/** How far back the tail looks for the last day that finished anything: a Monday reaches Friday, not past a week. */
+const EARLIER_DAYS = 7
+
+/**
+ * THE DAY BEFORE, while today is short (maintainer 2026-10-16: "a new day shows a pretty empty set of threads").
+ * Under Done today's rows the tail lists the most recent EARLIER local day that finished anything, newest
+ * first, for the rows today leaves free of `room` — none once today fills it. A weekend is skipped, so
+ * Monday morning shows Friday. `label` reads "Yesterday", or the weekday past that. Pins aside, as Done
+ * today's. Read from the poll's `recentDone`, which carries a project's 20 newest; a day it has cut off is
+ * History's.
+ */
+export function doneEarlier(projects: readonly QueuesProject[], now: number, room: number): { label: string; threads: { project: QueuesProject; t: ThreadView }[] } | null {
+  if (room <= 0) return null
+  const today = startOfToday(now)
+  const done = projects
+    .flatMap((project) => project.recentDone.filter((t) => !isPinned(t)).map((t) => ({ project, t, at: restedAt(t) })))
+    .filter(({ at }) => at > 0 && at < today)
+    .sort((a, b) => b.at - a.at)
+  const newest = done[0]
+  if (!newest) return null
+  const day = startOfToday(newest.at)
+  const back = new Date(today)
+  back.setDate(back.getDate() - EARLIER_DAYS)
+  if (day < back.getTime()) return null
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const label = day === yesterday.getTime() ? "Yesterday" : new Date(day).toLocaleDateString(undefined, { weekday: "long" })
+  return { label, threads: done.filter(({ at }) => at >= day).slice(0, room).map(({ project, t }) => ({ project, t })) }
+}
