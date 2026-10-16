@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { tmpdir } from "node:os"
 import test from "node:test"
 import { parkExpiredWakeMessage, parseParkWake, questionAnswerMessage, SIGNOFF_NUDGE_MESSAGE, type BoardSnapshot, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
-import { createRouter, handoffOf, nothingWrittenSinceHuman } from "./router.ts"
+import { createRouter, handoffOf, nothingWrittenSinceHuman, signedOffInPlace } from "./router.ts"
 import type { AppContext } from "./context.ts"
 import type { BoardManager } from "./board.ts"
 import type { Project } from "./project.ts"
@@ -385,4 +385,19 @@ test("a worker has written nothing for the human when only fences and one-liners
   assert.equal(nothingWrittenSinceHuman([asked, msg("assistant", `**Fixed** — ${"the drawer stays open from All projects and from a link; ".repeat(4)}769e375c on main.`)]), false)
   // A wake is not the human's message, so it does not reset what they have been told.
   assert.equal(nothingWrittenSinceHuman([asked, msg("assistant", "Para one.\n\nPara two."), msg("user", "Agent finished", { wake: true }), msg("assistant", "Done.")]), false)
+})
+
+// @lru-cache (2026-10-16): the dispatch prompt answered, the nudge, a `done` and nothing else. The message
+// before the nudge is the reply, so `done` ends the turn rather than inviting "…is in my previous reply".
+test("a done that is the whole reply to the sign-off nudge stands on the message before it", () => {
+  const tool = (command: string) => ({ name: "Bash", detail: command, command }) as TranscriptMessage["tools"][number]
+  const answered = [msg("user", "explain lru cache"), msg("assistant", "An LRU cache evicts the entry unused longest.\n\nIn JS a `Map` does it.")]
+  const nudge = msg("user", `${SIGNOFF_NUDGE_MESSAGE}\n\n(It is now 12:38.)`, { wake: true })
+  assert.equal(signedOffInPlace([...answered, nudge, msg("assistant", "", { tools: [tool("ntwinectl done --body-file - <<'EOF'\nAnswered.\nEOF")] })]), true)
+  assert.equal(signedOffInPlace([...answered, nudge, msg("assistant", "", { tools: [tool("export PATH=/x/bin:$PATH; ntwinectl done --body-file -")] })]), true, "behind the PATH prefix workers write")
+  // Work after the nudge, or words, owe a write-up of their own (@precompile-design made its call there).
+  assert.equal(signedOffInPlace([...answered, nudge, msg("assistant", "", { tools: [tool("git log -1")] }), msg("assistant", "", { tools: [tool("ntwinectl done --body-file -")] })]), false)
+  assert.equal(signedOffInPlace([...answered, nudge, msg("assistant", "I kept the guards.", { tools: [tool("ntwinectl done --body-file -")] })]), false)
+  // A done with no nudge before it is an ordinary sign-off.
+  assert.equal(signedOffInPlace([...answered, msg("assistant", "", { tools: [tool("ntwinectl done --body-file -")] })]), false)
 })

@@ -344,7 +344,7 @@ test("question: a rest after a typed message is not nudged about the question ty
 
 // A REPLY IN A CONVERSATION IS ITS OWN HANDOFF (2026-10-13). Prose answering a message the human typed
 // after the dispatch prompt is not a bare rest; the dispatch turn's own bare rest still is.
-test("nudge: a bare reply to a later typed message is left alone, a bare reply to the dispatch prompt is not", async () => {
+test("nudge: a bare reply to a later typed message is left alone, a bare reply to the dispatch prompt only when it ran no tool", async () => {
   const h = harness()
   h.storage.upsertSession(row("c"))
   const t0 = h.clock.ms
@@ -355,10 +355,17 @@ test("nudge: a bare reply to a later typed message is left alone, a bare reply t
   assert.equal(h.resumes.length, 0, "the human's move")
 
   h.storage.upsertSession(row("d"))
-  h.tele.set("d", { ...tele(), firstHumanAt: iso(t0), lastHumanAt: iso(t0), lastUserAt: iso(t0), lastAssistantAt: iso(t0 + 2_000) })
+  h.tele.set("d", { ...tele(), firstHumanAt: iso(t0), lastHumanAt: iso(t0), lastUserAt: iso(t0), lastToolCallAt: iso(t0 + 1_000), lastAssistantAt: iso(t0 + 2_000) })
   await s.tick()
   assert.equal(h.resumes.length, 1)
   assert.match(h.resumes[0].message, /You rested without a fence/)
+
+  // @lru-cache, 2026-10-16: a dispatch prompt answered in prose alone, with no tool run since it, has
+  // nothing left to abandon — its nudge bought only a filler done card and a message pointing at the first.
+  h.storage.upsertSession(row("e"))
+  h.tele.set("e", { ...tele(), firstHumanAt: iso(t0), lastHumanAt: iso(t0), lastUserAt: iso(t0), lastToolCallAt: iso(t0 - 1_000), lastAssistantAt: iso(t0 + 2_000) })
+  await s.tick()
+  assert.deepEqual(h.resumes.map((r) => r.slug), ["d"], "the answered dispatch prompt is left alone")
   h.storage.close()
 })
 

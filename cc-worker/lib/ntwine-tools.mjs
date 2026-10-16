@@ -2779,6 +2779,12 @@ async function done(args) {
         "they asked. The card draws BELOW that message, so never refer to it or to anything \"above\"." + tail
       )
     }
+    if (result.standing) {
+      return (
+        "Marked done. Your message before the reminder is the reply the user reads, with this card under it. " +
+        "End your turn now and write nothing more: any message after this one is a second read that adds nothing."
+      )
+    }
     return (
       head +
       "The user reads your prose and nothing else — not your thinking, not your tool calls. If it does not " +

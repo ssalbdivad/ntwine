@@ -1206,6 +1206,27 @@ const isParagraphs = (text: string): boolean => /\S\s*\n\s*\n\s*\S/.test(text.tr
  *  shows …, `749a37b` on `main`."). Below it sit "Looks right. Waiting on the naming agent." and its kin. */
 const REPLY_MIN_CHARS = 200
 
+/** Is this `done` the WHOLE reply to the sign-off nudge: since the nudge, no prose and no tool but ntwine's
+ *  own, after a rest that said something? Then the message before the nudge is the reply, and `done`
+ *  tells the worker to end its turn rather than inviting another message. Asking for one there, however
+ *  it was worded, got "The LRU cache explanation is in my previous reply, and no files were changed."
+ *  (@lru-cache, 2026-10-16) — a second message that only points at the first. */
+export function signedOffInPlace(messages: readonly TranscriptMessage[]): boolean {
+  let nudge = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!
+    if (m.role !== "user" || m.kind) continue
+    if (parseRecurringPrompt(m.displayText ?? m.text)?.kind === "signoff") nudge = i
+    break
+  }
+  if (nudge === -1) return false
+  const ntwineOwn = (t: TranscriptMessage["tools"][number]) =>
+    t.name.startsWith("mcp__ntwine__") || /^(?:export PATH=\S+;\s*)?ntwinectl\s/.test((t.command ?? t.detail ?? "").trim())
+  const after = messages.slice(nudge + 1).filter((m) => m.role === "assistant" && !m.kind)
+  if (after.some((m) => m.text.trim() !== "" || !m.tools.every(ntwineOwn))) return false
+  return messages.slice(0, nudge).some((m) => m.role === "assistant" && !m.kind && m.text.trim() !== "")
+}
+
 /** Has the worker written NOTHING the human can read since their last message — no prose but fences and
  *  one-line narration between tool calls? Asked at `done`, whose reply then demands the result outright.
  *
@@ -5471,10 +5492,13 @@ export function createRouter(ctx: AppContext) {
         ctx.board.refresh()
         // Read after the write so a transcript that cannot be read never costs the worker its done.
         let unwritten = false
+        let standing = false
         try {
-          unwritten = nothingWrittenSinceHuman(readLatestThreadTranscriptPage(ctx.project, ctx.storage, input.slug, ctx.backendFor).messages)
+          const messages = readLatestThreadTranscriptPage(ctx.project, ctx.storage, input.slug, ctx.backendFor).messages
+          unwritten = nothingWrittenSinceHuman(messages)
+          standing = !unwritten && signedOffInPlace(messages)
         } catch {}
-        return { done: true, blockingQuestions: [], blockingWatches: [], ...(unwritten ? { unwritten } : {}) }
+        return { done: true, blockingQuestions: [], blockingWatches: [], ...(unwritten ? { unwritten } : {}), ...(standing ? { standing } : {}) }
       },
     }),
 

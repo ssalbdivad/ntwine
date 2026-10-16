@@ -4179,6 +4179,9 @@ export const MarkOwnDoneResult = z.object({
   /** Set on a done when the worker has written no prose the human can read since their last message
    *  (router nothingWrittenSinceHuman), so the reply demands the result rather than leaving it a judgement. */
   unwritten: z.literal(true).optional(),
+  /** Set on a done that is the whole reply to the sign-off nudge (router signedOffInPlace): the message
+   *  before the nudge is the reply, so the worker ends its turn with nothing more. */
+  standing: z.literal(true).optional(),
 }).strict()
 export type MarkOwnDoneResult = z.infer<typeof MarkOwnDoneResult>
 

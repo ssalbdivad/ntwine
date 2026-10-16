@@ -786,9 +786,9 @@ export function carriedQuestionRows(rows: readonly ThreadQuestionRow[], tele: Pi
 }
 
 /** Is this rest a reply in a live conversation: it answers a turn the human TYPED after the dispatch
- *  prompt, and no question is open? Then the prose IS the handoff and the next move is the human's, so
- *  the sign-off nudge stays silent and the rest queues as it stands (the contract: "A mid-conversation
- *  turn carries NO fence").
+ *  prompt — or the dispatch prompt itself, with no tool call since — and no question is open? Then the
+ *  prose IS the handoff and the next move is the human's, so the sign-off nudge stays silent and the
+ *  rest queues as it stands (the contract: "A mid-conversation turn carries NO fence").
  *
  *  WHY (2026-10-13, standard-schema @ecosystem-fit): walking an audit's suggestions with the maintainer
  *  one at a time, a worker registered nine cards in one sitting — every reply to "explain why" or "I'm
@@ -800,7 +800,13 @@ export function carriedQuestionRows(rows: readonly ThreadQuestionRow[], tele: Pi
 function conversationalReply(tele: SessionTelemetry, rows: readonly ThreadQuestionRow[]): boolean {
   if (!tele.lastHumanAt || !tele.lastUserAt || !tele.firstHumanAt) return false
   const human = Date.parse(tele.lastHumanAt)
-  if (human < Date.parse(tele.lastUserAt) || human <= Date.parse(tele.firstHumanAt)) return false
+  if (human < Date.parse(tele.lastUserAt)) return false
+  // THE DISPATCH TURN is asked for a sign-off — the abandonment case the nudge exists for — unless it ran
+  // no tool at all: a prompt answered in prose alone ("explain lru cache") has nothing left to abandon.
+  // Nudging it bought the human a done card reading "Answered in chat; no files changed." and a second
+  // message reading "The LRU cache explanation is in my previous reply" (@lru-cache, 2026-10-16).
+  const toolSince = tele.lastToolCallAt !== undefined && Date.parse(tele.lastToolCallAt) >= human
+  if (human <= Date.parse(tele.firstHumanAt) && toolSince) return false
   return heldQuestionRows(rows, tele).length === 0
 }
 
