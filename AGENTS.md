@@ -174,8 +174,9 @@ the fewest words that do that. It never recites internal machinery: no worker-co
 card", "registered wait", "sign-off", "handoff", "fence"), no scheduler behaviour ("ntwine nudges it"), no process
 mechanics ("the process exited"). Pick the message that is most USEFUL at that moment and stop; the
 mechanism belongs in a code comment. Before: "The worker stopped without a done card, a question or a
-registered wait. ntwine nudges it for one; a reply here also wakes it." After: a one-line card,
-"Reply to continue." (David 2026-09-29.)
+registered wait. ntwine nudges it for one; a reply here also wakes it." After: no card at all — the
+one-line "Reply to continue." it became (David 2026-09-29) told the human nothing the prompt box did not,
+and went too (2026-10-16).
 
 # Copy capitalization: sentence case, never title case
 

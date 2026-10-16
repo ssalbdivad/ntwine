@@ -383,7 +383,7 @@ test("`s` snoozes nothing on a card with a sub-agent out, and `s` then Enter is 
   assert.deepEqual(errors, [])
 })
 
-test("each question sits at the rest that asked it, and a bare newest rest still says so beside an older one", { skip: !baseUrl, timeout: 60_000 }, async () => {
+test("each question sits at the rest that asked it, never under a bare newest rest", { skip: !baseUrl, timeout: 60_000 }, async () => {
   await open("case=questions")
   await page!.waitForSelector(`${FIRST} [data-registered-questions]`)
   await page!.waitForSelector(`${NEIGHBOUR} [data-registered-questions]`)
@@ -400,13 +400,13 @@ test("each question sits at the rest that asked it, and a bare newest rest still
   }, marks)
   assert.deepEqual(
     await order(FIRST, ["Both rollouts are ready", "CI is green on main"]),
-    ["Both rollouts are ready", "questions:Which rollout", "CI is green on main", "rested:bare"],
-    "asked two rests ago: under the reply that asked it, and the bare rest after it draws its own card",
+    ["Both rollouts are ready", "questions:Which rollout", "CI is green on main"],
+    "asked two rests ago: under the reply that asked it, not under the bare rest after it",
   )
   assert.deepEqual(
     await order(NEIGHBOUR, ["Found the race"]),
     ["Found the race", "questions:Keep the retry wrapper"],
-    "the newest rest's own question ends it, under everything it said, with no rested card",
+    "the newest rest's own question ends it, under everything it said",
   )
   const reads = (await rpcLog()).calls.filter((c) => /\/rpc\/threadTranscript$/.test(c.path)).map((c) => c.path)
   assert.ok(reads.length >= 2, "each card read its transcript")

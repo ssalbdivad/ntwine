@@ -235,22 +235,6 @@ export function placeQuestions<Q extends Pick<RegisteredQuestionView, "id"> & { 
   return { placed, placedIds }
 }
 
-/** Does any of these open questions render at the CURRENT rest — asked there, claimed there by a fence's
- *  `questions:`, or placed there by a marker? Only then is a question that rest's ending. One asked at an
- *  earlier rest that nothing here names stays where it was asked (questionAnchor), so a bare rest beside
- *  it is still a bare rest and says so (RestedCard). */
-export function questionsAtCurrentRest<Q extends Pick<RegisteredQuestionView, "id"> & { askedAt: string }>(
-  messages: readonly AnchorMessage[],
-  questions: readonly Q[],
-): boolean {
-  if (questions.length === 0) return false
-  const tail = messages.length - 1
-  for (const anchor of questionsByAnchor(messages, questions).keys()) if (anchor >= tail) return true
-  const start = restStart(messages, tail)
-  for (const at of placeQuestions(messages, questions).placed.keys()) if (at >= start) return true
-  return false
-}
-
 /** The placement as a surface that draws messages from `start` onward can honour it: a card placed by a
  *  marker in a message ABOVE `start` has no message to render in, so it leaves `placed` and goes back to
  *  its anchor group, which that surface draws at the top of what it shows — card and Send together. The

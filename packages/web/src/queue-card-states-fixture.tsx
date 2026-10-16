@@ -51,8 +51,8 @@ import "./styles.css"
 //   ?case=questions            each card's question at the rest that asked it (upstream e157817a, 22084580). The
 //                              first card's was asked two rests ago, the rest after it is a CI wake's bare
 //                              reply: the question sits under the reply that asked it, and the bare rest
-//                              draws "Rested without a sign-off". The second card's question is its newest
-//                              rest's own: under the handoff, no rested card. Both read their transcript
+//                              ends on its own prose. The second card's question is its newest
+//                              rest's own: under the handoff. Both read their transcript
 //                              through the card's project (threadTranscript).
 //   ?case=facts                a card whose header facts line carries a context reading (narrow-width check).
 //     &chip=1                  …led by its project, as on a page showing All projects.

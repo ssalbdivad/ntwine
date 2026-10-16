@@ -741,10 +741,7 @@ function CardArticle({
               paused thread looks the same wherever it is read. Until 2026-10-02 the card drew none: it
               showed whatever line the agent wrote last, and the pause was only a mark on the rail. */}
           {isLimitPaused(thread) && thread.limitPause && <QueueLimitPause project={project} thread={thread} pause={thread.limitPause} onSent={onSent} onLanded={onLanded} onFailed={onReturn} />}
-          {/* The bare rest's card, beside an OLDER question too: only one this rest asked, claimed or kept
-              is its ending (questionsAtCurrentRest). Without the transcript, any open question counts —
-              the reading from before 2026-10-05 (showsRestedCard). */}
-          {!liveTurn && showsRestedCard(thread, text, messages ? slots?.here : undefined) && <RestedCard thread={thread} />}
+          {!liveTurn && showsRestedCard(thread) && <RestedCard />}
         </div>
         )}
 

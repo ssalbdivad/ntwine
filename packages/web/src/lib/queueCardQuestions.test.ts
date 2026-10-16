@@ -23,14 +23,12 @@ test("a question asked two rests ago stays at its rest, and the bare rest after 
   const slots = handoffQuestionSlots(messages, [question("qst_old", 1)], [])
   assert.deepEqual(names(slots.between), ["qst_old"], "drawn under the rest that asked it")
   assert.deepEqual(names(slots.tail), [], "never pulled under the newest rest")
-  assert.equal(slots.here, false, "so the newest rest is a bare rest, and the rested card draws")
 })
 
 test("a question the newest rest asked is its sign-off, under the handoff", () => {
   const messages = [human(0), worker(1), wake(2), worker(3)]
   const slots = handoffQuestionSlots(messages, [question("qst_new", 3)], [])
   assert.deepEqual(names(slots.tail), ["qst_new"])
-  assert.equal(slots.here, true)
 })
 
 test("a later fence that names the question under `questions:` brings it to that rest", () => {
@@ -38,7 +36,6 @@ test("a later fence that names the question under `questions:` brings it to that
   const messages = [human(0), worker(1), wake(2), worker(3, claim)]
   const slots = handoffQuestionSlots(messages, [question("qst_old", 1)], [])
   assert.deepEqual(names(slots.tail), ["qst_old"])
-  assert.equal(slots.here, true)
 })
 
 test("a question from before the human's last turn flushes above the bubble, as upstream's window flushes it", () => {
@@ -48,7 +45,6 @@ test("a question from before the human's last turn flushes above the bubble, as 
   const slots = handoffQuestionSlots(messages, [question("qst_before", 1)], [])
   assert.deepEqual(names(slots.above), ["qst_before"])
   assert.deepEqual(names(slots.tail), [])
-  assert.equal(slots.here, false)
 })
 
 test("the human's turn is THEIR turn: an answer delivered as a wake is one, a plain wake is not", () => {
@@ -66,7 +62,6 @@ test("a placement marker decides the rest, and a marker above the bubble gives t
   // Asked at the first rest, placed again by a marker in the NEWEST rest's handoff: it moves there.
   const moved = handoffQuestionSlots([human(0), worker(1), wake(2), worker(3, marker("qst_aaaa1111"))], [question("qst_aaaa1111", 1)], [])
   assert.deepEqual(names(moved.tail), ["qst_aaaa1111"])
-  assert.equal(moved.here, true)
   // Placed in a message ABOVE the human's last turn, which this card does not draw (placedFrom).
   const above = handoffQuestionSlots([human(0), worker(1, marker("qst_bbbb2222")), human(2, "Next."), worker(3)], [question("qst_bbbb2222", 1)], [])
   assert.deepEqual(names(above.above), ["qst_bbbb2222"], "back at its anchor, above the bubble, not lost")

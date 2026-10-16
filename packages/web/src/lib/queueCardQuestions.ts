@@ -6,8 +6,7 @@
 // handoffOf. Until 2026-10-06 it drew every open question under that newest rest, which is the bug upstream
 // fixed in e157817a: a question asked two rests ago, under a newest rest that says nothing about it, read
 // as that rest's sign-off — the "pending questions supersede how the agent actually signed off" report
-// (upstream 2026-10-05, e157817a) — and it hid the bare rest's own card, "Reply to continue"
-// (RestedCard), which a bare rest is owed (22084580).
+// (upstream 2026-10-05, e157817a).
 //
 // The position is the DRAWER'S, computed by the same readers ChatView uses — questionAnchor's
 // questionsByAnchor (the rest that asked it, or a later one whose fence claims it under `questions:`),
@@ -37,7 +36,7 @@
 import type { RegisteredQuestionView } from "@ntwine/shared"
 import { type AnchorMessage, questionsByAnchor, restEnd } from "./questionAnchor.ts"
 import { lastHumanTurnIndex, type HumanTurnLike } from "./messagePresentation.ts"
-import { placedFrom, placeQuestions, questionsAtCurrentRest } from "./questionShadow.ts"
+import { placedFrom, placeQuestions } from "./questionShadow.ts"
 import { settledQuestionPositions, type SettledPositionable } from "./settledQuestions.ts"
 
 export type HandoffSlot = "above" | "between" | "tail"
@@ -48,24 +47,20 @@ export interface HandoffQuestionSlots<Q, S> {
   tail: Q[]
   settledBetween: S[]
   settledTail: S[]
-  /** Does an open question render at the newest rest (questionsAtCurrentRest)? Only then is it that rest's
-   *  ending — a bare rest beside an older question still draws the rested card (RestedCard). */
-  here: boolean
 }
 
 type Message = AnchorMessage & HumanTurnLike
 
 /**
  * Sort the thread's open and answered questions into the handoff's three places, by the rest each belongs
- * to. `here` is computed over the same open set the drawer reads, so the rested card agrees with the
- * drawer's (ChatView questionsHere).
+ * to.
  */
 export function handoffQuestionSlots<Q extends Pick<RegisteredQuestionView, "id"> & { askedAt: string }, S extends SettledPositionable>(
   messages: readonly Message[],
   open: readonly Q[],
   settled: readonly S[],
 ): HandoffQuestionSlots<Q, S> {
-  const slots: HandoffQuestionSlots<Q, S> = { above: [], between: [], tail: [], settledBetween: [], settledTail: [], here: questionsAtCurrentRest(messages, open) }
+  const slots: HandoffQuestionSlots<Q, S> = { above: [], between: [], tail: [], settledBetween: [], settledTail: [],  }
   if (messages.length === 0) {
     // No transcript to place them in: the newest rest, where the card drew them before (and never lost one).
     slots.tail.push(...open)

@@ -8,9 +8,9 @@ import { showsRestedCard } from "./components/RestedCard.tsx"
 
 test("a provider failure is an error card, never a missing sign-off or executable provider markup", () => {
   const error = { code: "cyber_policy", message: "<script>alert(1)</script>\n```done\nnot a sign-off\n```", at: "2026-09-06T15:31:27.526Z" }
-  const thread = { kind: "session", runtime: "turn-idle", needsYou: true, lastAssistantAt: error.at, providerError: error } as ThreadView
-  assert.equal(showsRestedCard(thread, ""), false)
-  assert.equal(showsRestedCard({ ...thread, providerError: undefined }, ""), true)
+  const thread = { kind: "session", runtime: "exited", crashed: true, needsYou: true, lastAssistantAt: error.at, providerError: error } as ThreadView
+  assert.equal(showsRestedCard(thread), false)
+  assert.equal(showsRestedCard({ ...thread, providerError: undefined }), true)
   const html = renderToStaticMarkup(createElement(ProviderErrorCard, { error }))
   assert.match(html, /Codex request failed/)
   assert.match(html, /cyber_policy/)

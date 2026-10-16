@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { allFencesShadowed, fenceRestatesRegistered, fenceStandsFor, markerIdsIn, placedFrom, placeQuestions, questionsAtCurrentRest, registeredStandingAt } from "./questionShadow.ts"
+import { allFencesShadowed, fenceRestatesRegistered, fenceStandsFor, markerIdsIn, placedFrom, placeQuestions, registeredStandingAt } from "./questionShadow.ts"
 import { type MessageSegment, splitQuestionBlocks } from "./questionBlocks.ts"
 
 // The pair from the 2026-08-28 report, verbatim: the registration (a plain string — the `ask` schema
@@ -217,16 +217,6 @@ test("a placement above a surface's window is dropped there, so the card rejoins
   assert.equal(windowed.placedIds.size, 0, "so the anchor path draws the card, at the top of the window")
   assert.deepEqual([...placedFrom(full, 1).placed.keys()], [1], "a placement inside the window stays")
   assert.equal(placedFrom(full, 0), full, "no window, nothing to drop")
-})
-
-test("questionsAtCurrentRest: a question carried from an older rest is not the current rest's ending until something here names it", () => {
-  assert.equal(questionsAtCurrentRest(STALE, [QUESTION]), false, "asked and placed at the older rest, named nowhere since")
-  const claimed = STALE.map((m, i) => (i === 3 ? { ...m, text: CLAIM(QUESTION.id) } : m))
-  assert.equal(questionsAtCurrentRest(claimed, [QUESTION]), true, "a fence here names it")
-  const marked = STALE.map((m, i) => (i === 3 ? { ...m, text: MARKER(QUESTION.id) } : m))
-  assert.equal(questionsAtCurrentRest(marked, [QUESTION]), true, "a marker here places it")
-  assert.equal(questionsAtCurrentRest(STALE, [{ ...QUESTION, askedAt: at(25) }]), true, "asked at this rest")
-  assert.equal(questionsAtCurrentRest(STALE, []), false)
 })
 
 test("a claiming rest that also writes the marker places the card in its own prose", () => {

@@ -33,7 +33,7 @@ test("the card is the last rung of the one ladder, after the resting card", () =
   // body goes through registeredDoneBody, which drops the ledger once the human has written past it
   // (292eb6f3) — a raw `lastFence.body` here would redraw the full summary under every follow-up answer.
   assert.match(chat, /case "registered-done":\n\s*return <FenceCard fenceKind="done" body=\{registeredDoneBody\(thread!\.lastFence!\)\} hints=\{\[\]\} \/>/)
-  assert.match(chat, /case "rested":\n\s*return <RestedCard thread=\{thread!\} \/>/)
+  assert.match(chat, /case "rested":\n\s*return <RestedCard \/>/)
 })
 
 test("every gate is the ladder's own answer, so the slot opens exactly when a rung renders", () => {
