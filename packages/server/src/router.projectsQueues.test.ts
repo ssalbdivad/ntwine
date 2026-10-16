@@ -160,7 +160,7 @@ test("an \"Ask for update\" click is the human's turn, quoted by its head line a
   assert.equal(handoff.asked, requested.split("\n")[0])
   assert.equal(parseParkWake(handoff.asked!)?.kind, "requested", "the card can still tell it is the click")
   assert.equal(handoff.text, "Progress since my last note: the second review pass is running.")
-  assert.equal(handoff.answer, undefined)
+  assert.equal(handoff.earlier, undefined)
   // The expiry the same park reaches on its own clock is ntwine's, not the human's.
   const expired = handoffOf([msg("user", "Go."), msg("user", parkExpiredWakeMessage([], true), { wake: true }), msg("assistant", "Still going.")])
   assert.equal(expired.asked, "Go.")
@@ -206,7 +206,7 @@ test("a reply to the sign-off nudge carries the message it signs off, so 'nothin
   assert.equal(fresh.text, "Done.")
 })
 
-test("wakes that rest after the human's answer keep that answer on the card, as its own part", () => {
+test("wakes that rest after the human's answer keep that answer on the card, and every rest after it that queued", () => {
   const nudge = msg("user", `${SIGNOFF_NUDGE_MESSAGE}\n\n(It is now 14:49.)`, { wake: true })
   // @yes-0-1-0, 2026-10-01, in the shape the transcript projects: the question answered, the sign-off
   // nudge, a shell wake (only a `wake` boundary, no user message), then a CI wake.
@@ -231,19 +231,22 @@ test("wakes that rest after the human's answer keep that answer on the card, as 
     rest,
   ])
   assert.equal(handoff.asked, "Where was the Buffer case?")
-  assert.equal(handoff.answer, "It's `putPrivateObject`.\n\n```awaiting\nprs: [a/b#1]\nfor: 3d\n---\nCI.\n```", "the rest that answered, nudge reply and all, not the narration before it")
-  assert.equal(handoff.text, "Every check is green; nothing has changed.", "the newest rest; the wake reply between is dropped")
+  assert.deepEqual(handoff.earlier?.map((rest) => rest.text), [
+    "It's `putPrivateObject`.\n\n```awaiting\nprs: [a/b#1]\nfor: 3d\n---\nCI.\n```",
+    "Asked about the merge.",
+  ], "the rest that answered, nudge reply and all, not the narration before it; then the wake's reply")
+  assert.equal(handoff.text, "Every check is green; nothing has changed.")
   // No wake after the answer: the newest rest IS the answer, and the narration before it is not one.
   const plain = handoffOf([msg("user", "Where?"), msg("assistant", "Looking."), msg("assistant", "Here."), rest, nudge, msg("assistant", "Nothing to add."), rest])
-  assert.equal(plain.answer, undefined)
+  assert.equal(plain.earlier, undefined)
   assert.equal(plain.text, "Here.\n\nNothing to add.")
   // A wake the worker answered without saying anything leaves nothing to separate.
   const silent = handoffOf([msg("user", "Where?"), msg("assistant", "Here."), msg("user", "CI went green", { wake: true }), msg("assistant", "")])
-  assert.equal(silent.answer, undefined)
+  assert.equal(silent.earlier, undefined)
   assert.equal(silent.text, "Here.")
 })
 
-test("a wake mid-turn does not end the answer, and an answer that signed off done says so", () => {
+test("a wake mid-turn does not end a rest, and a done after it never takes it back", () => {
   // @project-filter, 2026-10-14, in the shape the transcript projects: the stack shell finished while the
   // turn was still running, the write-up came after it, then the same shell's completion woke the worker
   // again and it rested on a one-line done.
@@ -260,22 +263,84 @@ test("a wake mid-turn does not end the answer, and an answer that signed off don
     msg("assistant", "```done\n- **Stopped the disposable stack**.\n```"),
     rest,
   ])
-  assert.equal(handoff.answer, writeUp)
-  assert.equal(handoff.answerDone, true)
-  // A registered done counts as a sign-off; an answer that parked does not.
-  const registered = handoffOf([
-    msg("user", "Go."),
-    msg("assistant", "Landed it."),
-    msg("assistant", "", { tools: [{ name: "Bash", detail: "ntwinectl done --body-file -" } as TranscriptMessage["tools"][number]] }),
+  assert.deepEqual(handoff.earlier?.map((r) => r.text), [writeUp])
+  // @precompile-design, 2026-10-16: the examples the human asked for, a bump's one-liner, then the sign-off
+  // nudge answered with a done. The examples are the card's whole point, and stay on it.
+  const examples = "Four example Types.\n\n| | 1 |\n| --- | --- |\n| arktype | ok |\n\n```awaiting\nquestions: [qst_1]\n```"
+  const precompile = handoffOf([
+    msg("user", "give an example of each approach"),
+    msg("assistant", "All verified."),
+    msg("assistant", examples, { at: "2026-10-16T12:46:00.000Z" }),
     rest,
-    wake,
-    msg("assistant", "Stopped the stack."),
+    msg("assistant", "The examples above are my full answer."),
+    rest,
+    msg("user", `${SIGNOFF_NUDGE_MESSAGE}\n\n(It is now 08:48.)`, { wake: true }),
+    msg("assistant", "", { tools: [{ name: "Bash", detail: "ntwinectl done --body-file -" } as TranscriptMessage["tools"][number]] }),
+    msg("assistant", "Everything is on `precompile`, not merged."),
     rest,
   ])
-  assert.equal(registered.answerDone, true)
-  const parked = handoffOf([msg("user", "Go."), msg("assistant", "Scouts are reading."), rest, wake, msg("assistant", "```done\n- Shipped.\n```"), rest])
-  assert.equal(parked.answer, "Scouts are reading.")
-  assert.equal(parked.answerDone, undefined)
+  assert.deepEqual(precompile.earlier, [{ text: examples, at: "2026-10-16T12:46:00.000Z" }])
+  assert.equal(precompile.text, "The examples above are my full answer.\n\nEverything is on `precompile`, not merged.")
+})
+
+test("a quiet park after the answer never queued, so it is not carried; the answer is, even when it parked", () => {
+  const rest = msg("assistant", "Agent rested", { kind: "event", boundary: "rest" })
+  const park = (note: string) => msg("assistant", `${note}\n\n\`\`\`awaiting\nagents: [a1]\nstatus: working\nfor: 30m\n\`\`\``)
+  const expired = msg("user", parkExpiredWakeMessage([], true), { wake: true })
+  const handoff = handoffOf([
+    msg("user", "Go."),
+    park("Scouts are reading."),
+    rest,
+    expired,
+    park("Progress: two of six scouts are back."),
+    rest,
+    expired,
+    msg("assistant", "**Fixed** — landed.\n\n```done\n- Shipped.\n```"),
+    rest,
+  ])
+  assert.deepEqual(handoff.earlier?.map((r) => r.text.split("\n")[0]), ["Scouts are reading."])
+})
+
+// THE CARD ONLY GROWS until the human speaks again (router handoffOf). Replays generated transcripts one
+// rest at a time and checks that every card that could have been on the queue — any rest but a quiet
+// park — is still wholly on every later card. A rule that picks which earlier rest is "useful" fails here.
+test("no later rest takes back prose a queued card showed", () => {
+  let seed = 7
+  const random = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31)
+  const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(random() * xs.length)]!
+  const rest = msg("assistant", "Agent rested", { kind: "event", boundary: "rest" })
+  const wakeLine = msg("assistant", "Agent terminal finished", { kind: "event", boundary: "wake" })
+  const nudge = msg("user", `${SIGNOFF_NUDGE_MESSAGE}\n\n(It is now 09:00.)`, { wake: true })
+  const doneTool = msg("assistant", "", { tools: [{ name: "Bash", detail: "ntwinectl done --body-file -" } as TranscriptMessage["tools"][number]] })
+  for (let run = 0; run < 200; run++) {
+    const messages: TranscriptMessage[] = [msg("user", "TASK:\nGo.")]
+    let shown: string[] = []
+    for (let r = 0; r < 8; r++) {
+      const n = `${run}.${r}`
+      const opener = pick(["none", "wake", "ci", "nudge", "expired"] as const)
+      if (opener === "wake") messages.push(wakeLine)
+      if (opener === "ci") messages.push(msg("user", "CI PASSED on a/b#1", { wake: true }))
+      if (opener === "nudge" && r > 0) messages.push(nudge)
+      if (opener === "expired") messages.push(msg("user", parkExpiredWakeMessage([], true), { wake: true }))
+      if (random() < 0.5) messages.push(msg("assistant", `Narrating ${n}.`))
+      if (random() < 0.3) messages.push(msg("assistant", `Answer ${n}, first paragraph.\n\nSecond paragraph.`), wakeLine)
+      const ending = pick(["bare", "done", "registered", "quiet", "fenceOnly", "needs"] as const)
+      const at = `2026-10-16T09:${String(r).padStart(2, "0")}:00.000Z`
+      if (ending === "registered") messages.push(doneTool)
+      messages.push(msg("assistant", {
+        bare: `Reply ${n}.`,
+        done: `**Fixed** ${n}.\n\n\`\`\`done\n- Shipped ${n}.\n\`\`\``,
+        registered: `Wrote up ${n}.`,
+        quiet: `Progress ${n}.\n\n\`\`\`awaiting\nagents: [a1]\nstatus: working\nfor: 30m\n\`\`\``,
+        fenceOnly: "```awaiting\nprs: [a/b#1]\nstatus: watching\nfor: 1d\n```",
+        needs: `Pick one ${n}.\n\n\`\`\`awaiting\nquestions: [qst_${r}]\n\`\`\``,
+      }[ending], { at }), rest)
+      const handoff = handoffOf(messages)
+      const card = [...(handoff.earlier ?? []).map((e) => e.text), handoff.text ?? ""].join("\n\n")
+      for (const piece of shown) assert.ok(card.includes(piece), `run ${run}, rest ${r} (${ending} after ${opener}) dropped:\n${piece}\n\nfrom:\n${card}`)
+      if (ending !== "quiet" && ending !== "fenceOnly") shown = [...(handoff.earlier ?? []).map((e) => e.text), handoff.text ?? ""]
+    }
+  }
 })
 
 test("an answer written before the work it starts rides the rest's card; narration between tool calls does not", () => {

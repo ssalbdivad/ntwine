@@ -271,7 +271,7 @@ import { isBrokerClaudeRow, isHeldRow, isScheduleHeldRow, TODO_HOLDER, type Comm
 import { COMMAND_WATCH_FALLBACK } from "./command-watch.ts"
 import { createHeldThreadStarter, type HeldStartProfile } from "./held-start.ts"
 import { scheduleProcedures } from "./schedule-router.ts"
-import { unwrapShellCommand, type SessionTelemetry } from "./tailer.ts"
+import { parseSignalFence, unwrapShellCommand, type SessionTelemetry } from "./tailer.ts"
 import { postToAgentInbox, setChildDeadline, workflowSessionDir } from "./agent-inbox.ts"
 import { backgroundShellLineCount, readBackgroundShellOutput } from "./background-shell-output.ts"
 import { projectRetiredBackgroundOps, retiredOpsFor } from "./transcript.ts"
@@ -279,7 +279,7 @@ import { clearProjectIcon, customIconPath, findById, forgetProject, listProjects
 import { HOME_WORKSPACE_NAME, isHomeWorkspace, listWorkspaces, reorderWorkspaces } from "./home-workspace.ts"
 import { basename, dirname, isAbsolute, relative } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, ProjectQueue, ProjectRailCounts, ProjectsDoneInput, ProjectsDonePage, ThreadSearchEntry, ThreadsSearchInput, isActivelyRunning, type ProjectThreadEntry, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
+import { ProjectCard, ProjectQueue, ProjectRailCounts, ProjectsDoneInput, ProjectsDonePage, ThreadSearchEntry, ThreadsSearchInput, isActivelyRunning, type ProjectThreadEntry, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, awaitingNeedsInput, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
 import { EditorComposeInputSchema, EditorReviewTargetSchema, EditorSnapshotSchema, type EditorKind, type EditorReviewTarget, type EditorStateCheckout, type FilePosition } from "@ntwine/shared"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
@@ -1076,8 +1076,8 @@ function mergeSubAgentSteers(messages: TranscriptMessage[], steers: SubAgentStee
 const HANDOFF_ASKED_MAX = 1200
 
 /**
- * The two messages a queue card is built from, out of a transcript window: the human's LAST TURN, and
- * the last assistant message AFTER it that says anything — the board card's own anchor
+ * What a queue card is built from, out of a transcript window: the human's LAST TURN, every rest after
+ * it (below), and the last assistant message AFTER it that says anything — the board card's own anchor
  * (web lib/messagePresentation.ts `lastHumanTurnIndex`), so the card on All queues and the card on the
  * board open on the same exchange.
  *
@@ -1112,7 +1112,9 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   // (@disk-usage, 2026-10-07). So an earlier message in the SAME turn joins the rest when it runs to more
   // than one paragraph. A one-paragraph line ("Looking.", "Reading the cursor.") is the narration a
   // worker writes between tool calls, and stays off the card as before. The turn ends, walking back, at
-  // the human's or any other non-nudge user message, and at a rest, wake or compaction line.
+  // the human's or any other non-nudge user message, and at a rest, wake or compaction line — a wake line
+  // only where no rest is marked, as below.
+  const marksRests = messages.some((m) => m.boundary === "rest")
   const restEndingAt = (end: number): { texts: string[]; start: number } => {
     const texts = [messages[end]!.text]
     let start = end
@@ -1127,7 +1129,7 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
       } else if (m.role === "user") {
         if (!isNudge(m)) break
         bridged = true
-      } else if (m.boundary && !bridged) break
+      } else if (m.boundary && !bridged && !(m.boundary === "wake" && marksRests)) break
     }
     return { texts, start }
   }
@@ -1137,13 +1139,20 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   }
   const reply = replyAt === -1 ? undefined : messages[replyAt]!
   const latest = reply ? restEndingAt(replyAt) : undefined
-  // THE ANSWER TO THE HUMAN, WHEN WAKES RESTED AFTER IT. The human's turn is answered by the FIRST rest
-  // after it. A later wake (a shell finishing, CI going green, a PR comment) gets its own reply, and taking
-  // only the newest one made the card quote the human's question over a CI status line, the answer
-  // reachable only by opening the thread (@yes-0-1-0, 2026-10-01: "where was the case…" answered, then a
-  // shell wake and a CI wake each rested on "nothing has changed"). So the card carries that first rest
-  // too; the replies to wakes in between are dropped, because the newest one already says where things
-  // stand. A turn ends at its `rest` boundary — unless the sign-off nudge follows it, whose reply is the
+  // EVERY REST SINCE THE HUMAN'S TURN THAT THE CARD COULD HAVE SHOWN, oldest first, before the newest.
+  // THE CARD ONLY GROWS until the human speaks again: a later rest never takes back prose an earlier one
+  // put in front of them. Every rule that picked ONE earlier rest to keep — the first, "unless a done
+  // follows", "unless that answer signed off done" — eventually dropped the one that mattered: on
+  // @yes-0-1-0 (2026-10-01) the answer sat behind a CI status line, on @project-filter (2026-10-14)
+  // behind "Stopped the disposable stack", and on @precompile-design (2026-10-16) the examples the human
+  // had just read vanished when the worker signed off done (maintainer: "an updated status clobbers
+  // something useful that is being displayed"). So nothing here judges which rest is useful.
+  //
+  // What is left out is only what never queued: a QUIET PARK (`status: working`/`watching`) kept the
+  // thread off the queue, so no card ever showed it — except the FIRST rest, which is the reply to what
+  // the human asked and may park on work still running. Fences are state, not content: the card draws
+  // only the newest rest's (web allQueues `handoffParts`), and these carry their text whole for it to
+  // strip. A turn ends at its `rest` boundary — unless the sign-off nudge follows it, whose reply is the
   // same rest — or at the next wake, which a shell or sub-agent wake marks only as a `wake` boundary.
   //
   // A WAKE LINE ENDS THE TURN ONLY WHERE NO REST IS MARKED. A background shell that finishes while the
@@ -1152,21 +1161,24 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   // dropping it: bright when selected" and the write-up after the wake was nowhere on it. Wherever the
   // projection marks rests, the rest is the turn's end and a wake before it is part of the turn.
   const nextSpoken = (from: number) => messages.slice(from).find((m) => !m.kind)
-  const marksRests = messages.some((m) => m.boundary === "rest")
-  let answer: string | undefined
-  let answerDone = false
-  for (let i = anchor + 1, end = -1; i < (latest?.start ?? 0); i++) {
+  // A rest the nudge bridges into its reply queued if EITHER half did: a bare rest is on the queue
+  // before the nudge's reply parks quietly.
+  const earlier: { text: string; at?: string }[] = []
+  for (let i = anchor + 1, end = -1, queued = false; i < (latest?.start ?? 0); i++) {
     const m = messages[i]!
     if (says(m)) { end = i; continue }
     if (end === -1) continue
     const next = m.boundary === "rest" ? nextSpoken(i + 1) : undefined
     const turnEnds = (m.boundary === "rest" && !(next && next.role === "user" && isNudge(next))) ||
       (m.boundary === "wake" && !marksRests) || (m.role === "user" && !isNudge(m))
-    if (turnEnds) {
-      answer = restEndingAt(end).texts.join("\n\n")
-      answerDone = messages.slice(anchor + 1, i).some(signsOffDone)
-      break
+    if ((m.boundary === "rest" || turnEnds) && !isQuietPark(messages[end]!.text)) queued = true
+    if (!turnEnds) continue
+    if (earlier.length === 0 || queued) {
+      const at = messages[end]!.at
+      earlier.push({ text: restEndingAt(end).texts.join("\n\n"), ...(at ? { at } : {}) })
     }
+    end = -1
+    queued = false
   }
   const asked = anchor === -1 ? undefined : messages[anchor]!
   const askedRaw = asked ? (asked.displayText ?? asked.text).trim() : undefined
@@ -1175,15 +1187,17 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   const askedText = askedRaw && isUpdateRequest(askedRaw) ? askedRaw.split("\n")[0]! : askedRaw
   return {
     ...(reply ? { text: latest!.texts.join("\n\n"), at: reply.at } : {}),
-    ...(answer ? { answer, ...(answerDone ? { answerDone } : {}) } : {}),
+    ...(earlier.length ? { earlier } : {}),
     ...(askedText ? { asked: askedText.length > HANDOFF_ASKED_MAX ? `${askedText.slice(0, HANDOFF_ASKED_MAX - 1)}…` : askedText, askedAt: asked!.at } : {}),
   }
 }
 
-/** A message that signs its turn off done: a ```done fence in its text, or an `ntwinectl done` it ran. */
-const signsOffDone = (m: TranscriptMessage): boolean =>
-  (m.role === "assistant" && /^```done\b/m.test(m.text)) ||
-  m.tools.some((t) => /\bntwinectl\s+done\b/.test(t.command ?? t.detail ?? ""))
+/** A rest that kept its thread off the queue: an awaiting fence answering `working` or `watching` — the
+ *  board's own reading of the same fence, so "the card could have shown it" means what the queue meant. */
+const isQuietPark = (text: string): boolean => {
+  const fence = parseSignalFence(text)
+  return fence?.kind === "awaiting" && awaitingNeedsInput(fence.hints) === false
+}
 
 /** More than one paragraph: an answer or a write-up, as against a line of narration between tool calls. */
 const isParagraphs = (text: string): boolean => /\S\s*\n\s*\n\s*\S/.test(text.trim())

@@ -293,16 +293,15 @@ export function handoffParts(text: string, registered: readonly Pick<RegisteredQ
 }
 
 /**
- * The prose of the human's ANSWER (router handoffOf `answer`: the first rest after their turn, when wakes
- * rested after it), or "" when the newest rest supersedes it. A `done` is the whole stretch's write-up, so
- * an earlier rest above it can only be stale: on 2026-10-01 a card opened on "The six scouts are still
- * reading the codebase" over the finished integration's done card. The answer earns its place only over
- * a newest rest that is a status line after a wake — the CI-went-green case it was added for. An answer
- * that signed off done itself (`answerDone`) IS the write-up, and a done after it is a postscript to a
- * wake: on @project-filter (2026-10-14) "Stopped the disposable stack" hid the whole answer.
+ * The prose of every rest before the newest (router handoffOf `earlier`), each keyed by when it was
+ * written so its block keeps its place — and whether the human opened it — as newer rests land below.
+ * ALL of it, whatever the newest rest says: a later done or status line never takes back prose the card
+ * already showed (@precompile-design, 2026-10-16: the examples the human was reading vanished when the
+ * worker signed off done). Only their fences go, since the newest rest's state supersedes theirs.
  */
-export function answerProse(answer: string | undefined, newest: Pick<HandoffParts, "fences"> | null, registeredDone: boolean, registered: readonly Pick<RegisteredQuestionView, "id" | "spec">[] = [], answerDone = false): string {
-  if (!answer) return ""
-  if (!answerDone && (registeredDone || newest?.fences.some((fence) => fence.kind === "done"))) return ""
-  return handoffParts(answer, registered).prose
+export function earlierProse(earlier: readonly { text: string; at?: string }[] | undefined, registered: readonly Pick<RegisteredQuestionView, "id" | "spec">[] = []): { key: string; prose: string }[] {
+  return (earlier ?? []).flatMap((rest, index) => {
+    const prose = handoffParts(rest.text, registered).prose
+    return prose ? [{ key: rest.at ?? `earlier-${index}`, prose }] : []
+  })
 }

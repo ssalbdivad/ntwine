@@ -8365,14 +8365,12 @@ export type ThreadSearchEntry = z.infer<typeof ThreadSearchEntry>
  * assistant message of the latest transcript window, verbatim, plus the human's own last message so a
  * card can say what the agent was answering. Both absent when the thread has not spoken.
  *
- * `answer` is the worker's reply to `asked` when wakes rested after it, so `text` — the newest rest —
- * answers a wake rather than the human (router.ts `handoffOf`). Absent when `text` is the reply.
- * `answerDone` says that answer's own rest signed off done, so a later done is a postscript to it.
+ * `earlier` is every rest between `asked` and `text` that a card could have shown, oldest first, so a
+ * newer rest never takes one back (router.ts `handoffOf`). Absent when `text` is the only one.
  */
 export const ThreadHandoff = z.object({
   text: z.string().optional(),
-  answer: z.string().optional(),
-  answerDone: z.boolean().optional(),
+  earlier: z.array(z.object({ text: z.string(), at: z.string().optional() })).optional(),
   at: z.string().optional(),
   asked: z.string().optional(),
   askedAt: z.string().optional(),

@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ProjectCard, ProjectQueue, ThreadView } from "@ntwine/shared"
-import { answerProse, handoffParts, isBusy, mergedQueue, queuesProjects, threadKey, liveQueue, overlayQueues } from "./allQueues.ts"
+import { earlierProse, handoffParts, isBusy, mergedQueue, queuesProjects, threadKey, liveQueue, overlayQueues } from "./allQueues.ts"
 
 function thread(id: string, over: Partial<ThreadView> = {}): ThreadView {
   return {
@@ -234,14 +234,17 @@ test("a project the poll answered unchanged keeps its object, so the list can sk
   assert.notEqual(second[1], first[1])
 })
 
-test("a done supersedes the earlier answer; a status line after a wake does not", () => {
-  const answer = "The six scouts are still reading the codebase."
-  assert.equal(answerProse(answer, handoffParts("**Fixed** — landed.\n\n```done\n- Shipped it.\n```"), false), "", "a fenced done")
-  assert.equal(answerProse(answer, handoffParts("**Fixed** — landed."), true), "", "a registered done")
-  assert.equal(answerProse(answer, handoffParts("Every check is green; nothing has changed."), false), answer)
-  assert.equal(answerProse(`${answer}\n\n\`\`\`awaiting\nfor: 1h\n---\nScouts.\n\`\`\``, handoffParts("Still green."), false), answer, "its own fences are dropped")
-  assert.equal(answerProse(undefined, null, false), "")
-  // An answer that was itself a done is the write-up; the done after a wake is its postscript.
-  assert.equal(answerProse("**Fixed.** A grid.\n\n```done\n- Made it.\n```", handoffParts("```done\n- Stopped the stack.\n```"), false, [], true), "**Fixed.** A grid.")
-  assert.equal(answerProse("**Fixed.** A grid.", handoffParts("Stopped the stack."), true, [], true), "**Fixed.** A grid.", "under a registered done too")
+test("every earlier rest keeps its prose, whatever the newest says, and only its fences go", () => {
+  // @precompile-design, 2026-10-16: the examples the human was reading were dropped from the card when the
+  // worker's next rest signed off done. Nothing here sees the newest rest, so nothing it says can.
+  const examples = "Four example Types.\n\n| | 1 |\n| --- | --- |\n| arktype | ok |\n\n```awaiting\nquestions: [qst_1]\n```"
+  assert.deepEqual(earlierProse([
+    { text: examples, at: "2026-10-16T12:46:00.000Z" },
+    { text: "```awaiting\nprs: [a/b#1]\nstatus: watching\nfor: 3d\n```", at: "2026-10-16T12:47:00.000Z" },
+    { text: "Asked about the merge." },
+  ]), [
+    { key: "2026-10-16T12:46:00.000Z", prose: "Four example Types.\n\n| | 1 |\n| --- | --- |\n| arktype | ok |" },
+    { key: "earlier-2", prose: "Asked about the merge." },
+  ], "a fence-only rest has nothing to show, and a rest with no time is keyed by its place")
+  assert.deepEqual(earlierProse(undefined), [])
 })

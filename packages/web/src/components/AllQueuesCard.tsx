@@ -30,7 +30,7 @@ import { ThreadMenu, ThreadTerminalButton } from "./ThreadMenu.tsx"
 import { displayTitle, offersRetry, queueLabelAt, queueLabelWord } from "../groups.ts"
 import { ScheduleMark } from "./ScheduleMark.tsx"
 import { useMentionCandidates, useOwnMention } from "../hooks/useMentionCandidates.ts"
-import { answerProse, handoffParts, projectMarkdownScope, sameProjectAddress, squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
+import { earlierProse, handoffParts, projectMarkdownScope, sameProjectAddress, squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { draftKey, draftStore, useDraftValues } from "../lib/drafts.ts"
 import { buildMessageWithContext, type ComposerContextItem } from "../lib/composerContext.ts"
 import { restoreContextItems, takeContextItems, useStagedContextSources, useStagedContextTokens } from "../lib/stagedContext.ts"
@@ -363,21 +363,19 @@ function CardArticle({
   })
   const text = handoff.data?.text
   const parts = useMemo(() => (text ? handoffParts(text, thread.questions) : null), [text, thread.questions])
-  // The reply to the human's message when wakes rested after it (router handoffOf): its prose alone, since
-  // its fences were superseded by the newest rest's — and none of it under a done, which says it all,
-  // unless the answer signed off done itself.
-  const answer = handoff.data?.answer
+  // Every rest since the human's message before the newest (router handoffOf): their prose, never their
+  // fences, which the newest rest's supersede — and never dropped for anything the newest one says.
+  const earlier = handoff.data?.earlier
   const registeredDone = showsRegisteredDoneCard(thread, text)
-  const answerDone = handoff.data?.answerDone ?? false
-  const answered = useMemo(() => answerProse(answer, parts, registeredDone, thread.questions, answerDone), [answer, parts, registeredDone, thread.questions, answerDone])
+  const earlierRests = useMemo(() => earlierProse(earlier, thread.questions), [earlier, thread.questions])
   // Does the awaiting card list the children, or the ops column under the reply box (QueueChildOps)?
   const drawsSubAgentWait = drawsSubAgentWaitCard(thread, parts?.fences)
   // Is the thread at rest on its own declared wait, so the RESTING card states it (CardAwaiting)? The
   // drawer's predicate, unchanged — except where the sub-agent batch card is already stating the wait.
   const restingShown = showsRestingCard(thread) && !drawsSubAgentWait
   const cardReply = useCardReply(project, thread, onLanded)
-  // EACH QUESTION AT THE REST THAT ASKED IT (upstream e157817a, 22084580). This card is three rests at
-  // most — the one before the human's bubble, the one its `answer` replies with, the newest — and a
+  // EACH QUESTION AT THE REST THAT ASKED IT (upstream e157817a, 22084580). This card is the rest before the
+  // human's bubble, the rests after it (`earlier`, whose questions share one slot), and the newest — and a
   // question belongs to whichever its rest is, by the drawer's own readers over the thread's transcript
   // (lib/queueCardQuestions.ts). It drew every open question under the newest rest until 2026-10-06, so an
   // ask two rests old read as the newest rest's sign-off and hid the rested card that bare rest is owed.
@@ -640,25 +638,28 @@ function CardArticle({
           {handoff.data?.asked && (parseParkWake(handoff.data.asked)?.kind === "requested"
             ? <UpdateRequestedMarker />
             : <AskedBubble text={parseScheduledRunPrompt(handoff.data.asked)?.prompt || handoff.data.asked} />)}
-          {answered && (
-            <ClampedBody resetKey={thread.lastAssistantAt ?? ""}>
-              <Prose md={answered} />
-            </ClampedBody>
-          )}
-          {/* A question of a rest between the human's turn and the newest — the one the prose above
-              answered with, or one the handoff skips — under that prose and over the newest. Answered
-              ones first, as the drawer stacks a slot. */}
-          {slots && <CardSettledStack questions={slots.settledBetween} />}
-          {slots && <RegisteredQuestionStack key={`between-${restKey}`} thread={thread} questions={slots.between} keepAnswered />}
-          {/* Only the PROSE clamps. The fence card under it is the handoff's ledger — what shipped, or
-              what it is waiting on — and the rested notice is its state; both are the glance. */}
-          {parts ? (
-            parts.prose && (
-              <ClampedBody resetKey={thread.lastAssistantAt ?? ""}>
+          {/* THE PROSE OF EVERY REST SINCE THE HUMAN'S MESSAGE, oldest first, in ONE keyed list: a block is
+              keyed by when its rest was written, so when a newer rest lands the newest block moves up into
+              the earlier ones as the SAME block, still open if the human opened it. Nothing a later rest
+              says takes one back (router handoffOf). A question of a rest between the human's turn and the
+              newest sits under the earlier prose and over the newest, answered ones first, as the drawer
+              stacks a slot. Only the PROSE clamps. The fence card under it is the handoff's ledger — what
+              shipped, or what it is waiting on — and the rested notice is its state; both are the glance. */}
+          {[
+            ...earlierRests.map((rest) => (
+              <ClampedBody key={rest.key}>
+                <Prose md={rest.prose} />
+              </ClampedBody>
+            )),
+            slots && <CardSettledStack key="settled-between" questions={slots.settledBetween} />,
+            slots && <RegisteredQuestionStack key={`between-${restKey}`} thread={thread} questions={slots.between} keepAnswered />,
+            parts?.prose && (
+              <ClampedBody key={restKey || "newest"}>
                 <Prose md={parts.prose} />
               </ClampedBody>
-            )
-          ) : !handoff.data && (thread.lastAssistant || handoff.isError) ? (
+            ),
+          ]}
+          {parts ? null : !handoff.data && (thread.lastAssistant || handoff.isError) ? (
             // The server's own 200-character preview (`lastAssistant`), until the whole message lands: a card that shows
             // the gist at once beats one that is blank for a round trip. Only UNTIL it lands: a handoff
             // with no text is a worker that has not answered the human's last turn, and the preview is
@@ -1190,17 +1191,14 @@ function FenceBody({ body, project, thread }: { body: string; project: QueuesPro
 /**
  * The glance, and the first step of the drill-down: a long handoff is clipped to its opening lines with
  * a fade, and "Show more" opens the rest in place. Short ones are never clipped and show no control.
+ *
+ * One block per rest, keyed by its time. A NEW rest is a new block and starts clipped — opening the last
+ * one is not a vote to open every one after it — while the block it follows keeps whatever state it had.
  */
-function ClampedBody({ resetKey, children }: { resetKey: string; children: ReactNode }) {
+function ClampedBody({ children }: { children: ReactNode }) {
   const inner = useRef<HTMLDivElement>(null)
   const [overflows, setOverflows] = useState(false)
   const [open, setOpen] = useState(false)
-  const [seenKey, setSeenKey] = useState(resetKey)
-  // A NEW handoff starts clipped again: opening the last one is not a vote to open every one after it.
-  if (seenKey !== resetKey) {
-    setSeenKey(resetKey)
-    setOpen(false)
-  }
   useLayoutEffect(() => {
     const el = inner.current
     if (!el) return

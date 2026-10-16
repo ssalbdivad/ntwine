@@ -175,10 +175,17 @@ const LONG = Array.from({ length: 14 }, (_, i) => `Paragraph ${i + 1} of a long 
 // Under the clamp, and long enough to wrap onto more lines when the column narrows.
 const midHandoff = (id: string) => `A mid-length handoff for ${id}: ${"the change landed, the tests pass, and one follow-up is left for review before it can be marked done. ".repeat(3)}`
 
+// `?case=earlier-under-done`: @precompile-design, 2026-10-16. The worker answers with examples long enough
+// to clamp; `window.__restAgain()` then rests it again on a done, as the sign-off did. The examples must
+// stay on the card, and stay open if the human opened them.
+const EXAMPLES = `Four example Types, each run through arktype and through today's build.\n\n| | 1 | 2 | 3 |\n| --- | --- | --- | --- |\n| arktype | \`b: {n: 8}\` | \`[{n:4},{n:4}]\` | \`b: "1"\` |\n| Today's rules | build fails | builds | \`b: 1\` |\n| Precondition | \`b: {n: 4}\` | halved twice | \`b: 1\` |\n\n${LONG}`
+const SIGNED_OFF = "Everything is on `precompile`, not merged. I kept today's case-by-case guards.\n\n```done\n- **Kept the guards**: an example of each alternative is in my last message.\n```"
+let rested = 0
+
 interface Scenario {
   threads: ThreadViewModel[]
   text: (id: string) => string
-  /** The rest of the handoff (`answer`, …) beyond the newest rest's text, by thread. */
+  /** The rest of the handoff (`earlier`, …) beyond the newest rest's text, by thread. */
   handoff?: (id: string) => Partial<ThreadHandoff>
   /** The thread's transcript, for a card that reads one (hooks/useCardTranscript.ts). */
   transcript?: (id: string) => TranscriptMessage[]
@@ -229,10 +236,16 @@ function scenario(): Scenario {
           thread("flaky-ci", "Deflake the auth integration suite", { questions: [NEW_QUESTION], lastAssistantAt: ago(5) }),
         ],
         text: (id) => (id === "rotate-key" ? BARE_REST : CI_ASK),
-        handoff: (id) => (id === "rotate-key" ? { answer: ROLLOUT_ASK, at: ago(2), askedAt: ago(30) } : { at: ago(5), askedAt: ago(20) }),
+        handoff: (id) => (id === "rotate-key" ? { earlier: [{ text: ROLLOUT_ASK, at: ago(25) }], at: ago(2), askedAt: ago(30) } : { at: ago(5), askedAt: ago(20) }),
         transcript: (id) => (id === "rotate-key"
           ? [said("user", ASKED, 30), said("assistant", ROLLOUT_ASK, 25), said("user", "CI finished on main: all checks passed.", 3, { wake: true }), said("assistant", BARE_REST, 2)]
           : [said("user", "Find out why the auth suite flakes.", 20), said("assistant", CI_ASK, 5)]),
+      }
+    case "earlier-under-done":
+      return {
+        threads: [thread("rotate-key", "Precompile design", { lastAssistantAt: ago(3) })],
+        text: () => (rested ? SIGNED_OFF : EXAMPLES),
+        handoff: () => (rested ? { earlier: [{ text: EXAMPLES, at: ago(3) }], at: ago(0) } : { at: ago(3) }),
       }
     case "registered-done":
       return {
@@ -426,6 +439,10 @@ function Queue() {
   dropThread = (id) => {
     setQueued((list) => list.filter((t) => t.id !== id))
     setReadAt(Date.now())
+  }
+  ;(window as unknown as { __restAgain: () => void }).__restAgain = () => {
+    rested++
+    setQueued((list) => list.map((t) => ({ ...t, lastAssistantAt: new Date().toISOString() })))
   }
   landRead = (startedAt) => {
     setQueued((list) => [...list])

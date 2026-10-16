@@ -2,7 +2,7 @@
 // off the thread's transcript with the drawer's own readers.
 //
 // The card opens on the handoff, not the transcript (AllQueuesCard): the human's last turn as their bubble,
-// the reply to it when wakes rested after it (`answer`), and the newest rest (`text`) — router.ts
+// every rest after it the card could have shown (`earlier`), and the newest rest (`text`) — router.ts
 // handoffOf. Until 2026-10-06 it drew every open question under that newest rest, which is the bug upstream
 // fixed in e157817a: a question asked two rests ago, under a newest rest that says nothing about it, read
 // as that rest's sign-off — the "pending questions supersede how the agent actually signed off" report
@@ -22,8 +22,8 @@
 //     2026-10-14 a question the human TYPED past never reaches this module (the card passes held ones
 //     only), so what lands here is a held one older than the human's last turn — asked before an answer
 //     they gave on another card, which counts as their turn here (lastHumanTurnIndex).
-//   • BETWEEN — a rest after the human's turn that is not the newest: the rest the `answer` prose is the
-//     reply of, or one the handoff skips (a wake's reply). It draws under the answer prose, over the newest.
+//   • BETWEEN — a rest after the human's turn that is not the newest: one of the `earlier` rests, or one
+//     the handoff skips (a quiet park). It draws under the earlier rests' prose, over the newest.
 //   • TAIL — the newest rest: under the handoff, where the card's stack has always been.
 //
 // A MARKER PLACES A CARD AT ITS REST'S END on this view, not mid-prose. The handoff's prose is clamped

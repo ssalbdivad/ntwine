@@ -414,6 +414,24 @@ test("each question sits at the rest that asked it, and a bare newest rest still
   assert.deepEqual(errors, [])
 })
 
+test("a later rest never takes back what the card showed, and an opened answer stays open", { skip: !baseUrl, timeout: 60_000 }, async () => {
+  // @precompile-design, 2026-10-16: the examples the human was reading vanished when the worker signed off done.
+  await open("case=earlier-under-done")
+  await page!.$eval(`${FIRST} [data-xq-show-more]`, (button) => (button as HTMLButtonElement).click())
+  await page!.evaluate(() => (window as unknown as { __restAgain: () => void }).__restAgain())
+  await page!.waitForFunction((sel) => document.querySelector(sel)?.textContent?.includes("Everything is on"), {}, FIRST)
+  const card = await page!.$eval(FIRST, (el) => ({
+    blocks: [...el.querySelectorAll<HTMLElement>(".md-body")].map((b) => b.innerText.split("\n")[0]),
+    open: [...el.querySelectorAll("[data-xq-show-more]")].map((b) => b.getAttribute("aria-expanded")),
+    done: el.textContent?.includes("Kept the guards") ?? false,
+  }))
+  assert.equal(card.blocks[0], "Four example Types, each run through arktype and through today's build.", "the examples, still first")
+  assert.ok(card.blocks.some((b) => b.startsWith("Everything is on")), "the newest rest's prose under them")
+  assert.ok(card.done, "and its done card")
+  assert.deepEqual(card.open, ["true"], "the examples the human opened stay open; the short newest rest needs no clamp")
+  assert.deepEqual(errors, [])
+})
+
 test("Show earlier messages opens the drawer, not the card, and collapse folds the card to its header and back", { skip: !baseUrl, timeout: 60_000 }, async () => {
   await open("")
   const link = await page!.$eval(FIRST, (el) => {
