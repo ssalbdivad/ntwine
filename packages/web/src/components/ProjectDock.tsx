@@ -9,7 +9,7 @@
 //                    remove — what each project row's "…" carried before the list stopped having them
 //   drag, ⌥←/⌥→      the machine-wide order, which the dock and the prompt box's picker both read
 //
-// A project on the BACKBURNER (its menu's "Move to the backburner") draws no square. The pot after the
+// A project on the BACKBURNER (its menu's "Move to the backburner") draws no square. The burner after the
 // squares, there only while one is, lists them: a row opens its page, Restore puts its square back.
 //
 // A square says, without a hover: how many of its threads are Ready (the accent badge, the one number that
@@ -21,7 +21,7 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
-import { CookingPot, LayoutGrid, Plus, X } from "lucide-react"
+import { LayoutGrid, Plus, X } from "lucide-react"
 import type { ProjectCard } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
@@ -42,7 +42,7 @@ export function ProjectDock({
   inline = false,
 }: {
   projects: readonly QueuesProject[]
-  /** The projects on the backburner, which get no square — only a row in the pot's menu. */
+  /** The projects on the backburner, which get no square — only a row in the burner's menu. */
   backburnered?: readonly QueuesProject[]
   hidden: (key: string) => boolean
   home: string | undefined
@@ -194,9 +194,25 @@ export function ProjectDock({
   )
 }
 
+/**
+ * Heat rising off a burner, in lucide's grid and stroke (16px, 1.5px absolute = 2.25 units of 24) so it
+ * sits beside the All glyph as one family. Lucide has no stove, and its cooking pot read as a trash can
+ * (maintainer 2026-10-16).
+ */
+function BurnerGlyph() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 20h18" />
+      <path d="M7.5 16.5c-1.5-1.5-1.5-3 0-4.5s1.5-3 0-4.5-1.5-3 0-4.5" />
+      <path d="M12 16.5c-1.5-1.5-1.5-3 0-4.5s1.5-3 0-4.5-1.5-3 0-4.5" />
+      <path d="M16.5 16.5c-1.5-1.5-1.5-3 0-4.5s1.5-3 0-4.5-1.5-3 0-4.5" />
+    </svg>
+  )
+}
+
 const MENU_ITEM = "flex cursor-default items-center rounded px-2 py-1.5 text-[12.5px] text-fg outline-none data-[highlighted]:bg-panel-2"
 
-/** The backburner's pot: every backburnered project, each opening its page or coming back to the dock. */
+/** The backburner: every backburnered project, each opening its page or coming back to the dock. */
 function Backburner({ projects, onProject }: { projects: readonly QueuesProject[]; onProject: (slug: string) => void }) {
   const restore = useBackburner()
   const label = `Backburner: ${projects.length} ${projects.length === 1 ? "project" : "projects"}`
@@ -211,7 +227,7 @@ function Backburner({ projects, onProject }: { projects: readonly QueuesProject[
           className="flex shrink-0 rounded-[5px] text-muted outline-none transition-colors hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 data-[state=open]:text-fg"
         >
           <span className="flex items-center justify-center" style={{ width: SQUARE, height: SQUARE }}>
-            <CookingPot size={16} strokeWidth={1.5} absoluteStrokeWidth aria-hidden />
+            <BurnerGlyph />
           </span>
         </button>
       </RadixDropdown.Trigger>
@@ -238,7 +254,7 @@ function Backburner({ projects, onProject }: { projects: readonly QueuesProject[
                     data-xq-backburner-restore={project.slug}
                     className={`${MENU_ITEM} shrink-0 text-muted data-[highlighted]:text-fg`}
                     onSelect={(event) => {
-                      // Restoring one leaves the menu open for the next; the last one takes the pot away.
+                      // Restoring one leaves the menu open for the next; the last one takes the burner away.
                       if (projects.length > 1) event.preventDefault()
                       restore.mutate({ project: project.card!, on: false })
                     }}
