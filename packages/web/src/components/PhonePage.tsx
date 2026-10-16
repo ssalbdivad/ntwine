@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
+import { memo, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
 import * as RadixDialog from "@radix-ui/react-dialog"
 import { useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
@@ -12,7 +12,7 @@ import { displayTitle, futureSnoozedUntil, lastActiveLabelAt, queued, queueLabel
 import { ageSpan, spanUntil } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { projectSlug } from "../lib/base-path.ts"
-import { squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
+import { sameProjectAddress, squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { setTierFold, useTierFolds } from "../lib/crossProject.ts"
 import { setLens, useLens } from "../lib/lens.ts"
 import { listOverlay } from "../lib/listBands.ts"
@@ -175,11 +175,28 @@ function ThreadMark({ kind, userSnoozed, moving }: { kind: SessionIndicatorKind;
  * In All projects the row wears its PROJECT'S SQUARE in the gutter, as the desktop list's rows do: the
  * project is an attribute of a row, never a heading.
  */
-function ThreadRow({ row, band, last, withProject, onLongPress }: { row: PhoneRow; band: PhoneBand; last: boolean; withProject: boolean; onLongPress: () => void }) {
+type ThreadRowProps = { row: PhoneRow; band: PhoneBand; last: boolean; withProject: boolean; onLongPress: (row: PhoneRow) => void }
+
+// MEMOIZED, so a board delta re-renders the row whose thread moved and no other (2026-10-16). Every delta
+// rebuilds the bands — a fresh `row` per thread, and the focus's project object rebuilt with its thread
+// lists — so by identity all of them re-rendered on each one: 13 rows x 13 deltas in 10s on a phone while
+// ONE thread streamed. The thread compares by identity (a board snapshot keeps an unchanged thread's
+// object, and the optimistic overlays return it as is), the project by what the row reads of it
+// (sameProjectAddress, as the queue cards do), and the clock is the row's own subscription (useNowMs).
+const ThreadRow = memo(ThreadRowView, (a: ThreadRowProps, b: ThreadRowProps) =>
+  a.row.thread === b.row.thread &&
+  a.row.key === b.row.key &&
+  sameProjectAddress(a.row.project, b.row.project) &&
+  a.band === b.band &&
+  a.last === b.last &&
+  a.withProject === b.withProject &&
+  a.onLongPress === b.onLongPress)
+
+function ThreadRowView({ row, band, last, withProject, onLongPress }: ThreadRowProps) {
   const { project, thread: t } = row
   const now = useNowMs()
   const open = useOpenThreadInPlace()
-  const press = useLongPress(onLongPress)
+  const press = useLongPress(() => onLongPress(row))
   const kind = sessionIndicatorKind(t)
   // A rest time dates a HANDOFF, so a row that is still going has nothing to date — the rail's own rule,
   // read off the MARK (upstream MobileBoard): a row that reads at-rest carries the time that goes with it.
@@ -590,7 +607,7 @@ function PhoneThreads({ projects, shown, viewed, focusedSlug, hidden, loading, e
   const title = focused ? (viewed?.name ?? focusedSlug) : "All projects"
   const open = bands.pinned.length + bands.ready.length + bands.working.length + bands.waiting.length
   const rows = (band: PhoneBand, list: readonly PhoneRow[]) =>
-    list.map((row, index) => <ThreadRow key={row.key} row={row} band={band} last={index === list.length - 1} withProject={!focused} onLongPress={() => setActionsFor(row)} />)
+    list.map((row, index) => <ThreadRow key={row.key} row={row} band={band} last={index === list.length - 1} withProject={!focused} onLongPress={setActionsFor} />)
   const loud = (band: "pinned" | "ready" | "working" | "waiting") =>
     bands[band].length > 0 ? (
       <section key={band} aria-label={BANDS[band].label} data-mobile-tier={band}>

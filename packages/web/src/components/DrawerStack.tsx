@@ -1,8 +1,8 @@
 import { useEffect } from "react"
 import { useSnapshot } from "valtio"
 import { store, threadBySlug } from "../store.ts"
-import { useBoard } from "../hooks.ts"
 import { displayTitle } from "../groups.ts"
+import type { BoardSnapshot } from "@ntwine/shared"
 import { closeDrawerAnimated, closeSettingsAnimated } from "../lib/overlays.ts"
 import { dismissOpenSelect } from "../lib/selectOverlay.ts"
 import { ThreadSheet } from "./ThreadSheet.tsx"
@@ -28,7 +28,6 @@ import { ErrorBoundary, DrawerErrorSheet } from "./ErrorBoundary.tsx"
 // — tying z to the non-closing count let a closing ThreadSheet outrank a drawer opened above it.
 export function DrawerStack() {
   const snap = useSnapshot(store)
-  const board = useBoard()
 
   // Esc unwinding. Exactly ONE of these is ever live per page, so the whole overlay precedence chain
   // lives here rather than being split across window listeners that would both fire on the same
@@ -96,13 +95,17 @@ export function DrawerStack() {
         ) : d.kind === "file" ? (
           <FileReaderDrawer key={d.id} id={d.id} path={d.path ?? d.slug} title={d.label ?? d.slug} scope={d.scope} depth={i} widthDepth={widthDepth} />
         ) : (
+          // The board is read HERE, on the one path that needs it, and not at the top: valtio counts an
+          // object read by reference, with none of its fields touched, as changed by ANY change inside it,
+          // so a top-level `useBoard()` re-rendered the whole stack — every open drawer, its transcript and
+          // its prompt box — on every delta of every thread (2026-10-16, a phone while another thread streamed).
           <ThreadDrawer
             key={d.id}
             id={d.id}
             slug={d.slug}
             depth={i}
             widthDepth={widthDepth}
-            title={(() => { const t = threadBySlug(board, d.slug); return t ? displayTitle(t) : d.slug })()}
+            title={(() => { const t = threadBySlug(snap.board as BoardSnapshot | null, d.slug); return t ? displayTitle(t) : d.slug })()}
           />
         )
         // A drawer that throws while rendering used to blank the whole window — the board it was

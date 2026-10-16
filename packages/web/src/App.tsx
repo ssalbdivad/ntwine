@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router"
 import { useSnapshot } from "valtio"
 import { useQuery } from "@tanstack/react-query"
@@ -7,7 +7,6 @@ import { embedded, hostTerminalHint } from "./lib/embed.ts"
 import { addEditorContextByKey } from "./lib/editorContext.ts"
 import { detectPlatform } from "./lib/keybindings.ts"
 import { openDispatch } from "./lib/newThreadDoor.ts"
-import { useBoard } from "./hooks.ts"
 import { closeDrawerAnimated } from "./lib/overlays.ts"
 import { useShortcut } from "./lib/keyboardRuntime.ts"
 import { clampPinnedPage, pageScrollY, pinPageAt } from "./lib/pageScrollLock.ts"
@@ -69,7 +68,12 @@ function maybeShowSignInHint() {
  * drawer's project), which is what lets a thread of any project open in place with the whole drawer stack.
  * A project's own board shared this shell until 2026-09-28, when it went with the project view.
  */
-export function App() {
+// MEMOIZED, and its standing surfaces below held as one element: neither takes a prop, so nothing a
+// re-render of this shell could hand them is news to them. Each subscribes to exactly what it draws. Before
+// 2026-10-16 every re-render here re-rendered the whole page and the open drawer under it, transcript and
+// prompt box included — and this shell re-renders on every supervisor poll (`dataUpdatedAt` moves on each)
+// and every render of the route above it, ~3 full-tree renders per 10s on a phone at rest.
+export const App = memo(function App() {
   const snap = useSnapshot(store)
   // The page project. The shell is not keyed by it (the page must survive a focus change), so anything
   // that has to follow the project names it.
@@ -281,17 +285,32 @@ export function App() {
   })
   useShortcut("app.newThread", () => openDispatch())
 
-  const board = useBoard()
-
   // Settle a parked `/thread/<slug>` URL once the page project's board has landed — a cold deep link
   // opens its drawer painted open on the render the board first arrives. Deliberately an EFFECT and not a
   // store subscription, so it runs after the page commits. (resolveRoutedThread no-ops unless there is a
   // parked slug AND a board.)
-  useEffect(() => { resolveRoutedThread() }, [board, snap.routeThreadSlug])
+  //
+  // The board is read ONLY while a slug is parked. Reading `snap.board` unconditionally subscribed this
+  // shell to every board delta — valtio counts an object read by reference, with none of its fields
+  // touched, as changed whenever anything inside it changes — so every tick of any thread re-rendered
+  // App and, under it, the whole page and the open drawer: 13 commits of the entire tree in 10s on a
+  // phone while one other thread streamed (2026-10-16). With nothing parked the effect has nothing to
+  // do, so skipping those runs changes nothing.
+  const boardWhileParked = snap.routeThreadSlug ? snap.board : null
+  useEffect(() => { resolveRoutedThread() }, [boardWhileParked, snap.routeThreadSlug])
 
   // The window title is set by what is showing: the page names its view (AllQueues.tsx), and index.html's
   // "ntwine" stands elsewhere. No effect here — it would run after the page's on
   // mount and overwrite it.
+
+  // Prop-less, so built once: see the note on App.
+  const page = useMemo(() => (
+    <ErrorBoundary label="the cross-project page">
+      <AllQueuesPage />
+    </ErrorBoundary>
+  ), [])
+  const layers = useMemo(() => <><DrawerStack /><PendingThreadSheet /></>, [])
+  const chrome = useMemo(() => <><CommandPalette /><RunningTimeLimitHost /></>, [])
 
   return (
     <>
@@ -309,18 +328,14 @@ export function App() {
           StatusRow along the top of the page's prompt box. Everything flows; the PAGE is the one and only
           scroll container. The page lays itself out for a phone too (a single column): there is no
           separate mobile shell. */}
-      <ErrorBoundary label="the cross-project page">
-        <AllQueuesPage />
-      </ErrorBoundary>
+      {page}
 
       {/* The side-drawer STACK, and the Escape chain that unwinds it. See DrawerStack.tsx. */}
-      <DrawerStack />
-      <PendingThreadSheet />
+      {layers}
       {snap.showSettings && <SettingsDrawer offerUpdate />}
       {snap.showNewThread && <NewThreadDialog onClose={() => { store.showNewThread = false }} />}
-      <CommandPalette />
-      <RunningTimeLimitHost />
+      {chrome}
     </div>
     </>
   )
-}
+})

@@ -131,8 +131,13 @@ export function ThreadComposerBox({
     [slug, qc, projectDir, terminalHere],
   )
   // `@` mentions offer every OTHER thread on the board — this one cannot usefully point at itself.
-  const mentions = useMentionCandidates(slug)
-  const ownMention = useOwnMention(slug)
+  // LIVE ONLY ONCE THE DRAFT HOLDS AN `@`, as on the queue card (AllQueuesCard ReplyBox), which is the only
+  // time the menu or a mention's tint can draw. A live list walks the whole board, ordered by activity, so
+  // until 2026-10-16 every delta of ANY thread re-rendered the open thread's prompt box — 13 renders in 10s
+  // on a phone while one other thread streamed. The keystroke that types the `@` brings them in.
+  const mentionsLive = message.includes("@")
+  const mentions = useMentionCandidates(slug, undefined, mentionsLive)
+  const ownMention = useOwnMention(slug, undefined, mentionsLive)
   const [logoutFor, setLogoutFor] = useState<AccountBackend | null>(null)
   const api = useThreadApi()
 

@@ -8,13 +8,13 @@ import { store, openThread, openNewThread, pushDrawer, pushScheduleDrawer, topTh
 import { scheduleKeys, scheduleNextLabel } from "../lib/schedules.ts"
 import { useNowMs } from "../lib/liveClock.ts"
 import { rpc } from "../api/rpc.ts"
-import { useBoard, asThreads } from "../hooks.ts"
+import { asThreads } from "../hooks.ts"
 import { sortThreads, displayName, displayTitle } from "../groups.ts"
 import { isCrossProjectPath } from "../lib/base-path.ts"
 import { aboveDrawersZ } from "../lib/overlaySurface.ts"
 import { startTour } from "../lib/tour.ts"
 import { useOpenThreadInPlace } from "./AllQueuesCard.tsx"
-import type { ScheduleView, ThreadSearchEntry } from "@ntwine/shared"
+import type { BoardSnapshot, ScheduleView, ThreadSearchEntry } from "@ntwine/shared"
 
 // Cmd+K palette: fuzzy-jump to any thread (over title + slug, grouped like the sidebar) plus the
 // common actions. cmdk owns the filtering; we set each item's `value` to the text we want matched.
@@ -28,7 +28,6 @@ import type { ScheduleView, ThreadSearchEntry } from "@ntwine/shared"
 // pauses the thread's trap, its content takes the pointer, Tab loops inside it, and Escape is its own.
 export function CommandPalette() {
   const snap = useSnapshot(store)
-  const board = useBoard()
   const [search, setSearch] = useState("")
   // The palette's one sub-page: "Schedules", every project's (ARCHITECTURE.md § Scheduled threads). Backspace on
   // an empty query climbs back out, cmdk's own convention for pages.
@@ -47,6 +46,9 @@ export function CommandPalette() {
   }, [snap.showPalette])
 
   if (!snap.showPalette) return null
+  // Read only once the palette is open: a closed palette that read the board by reference re-rendered on
+  // every delta of every thread (see DrawerStack).
+  const board = snap.board as BoardSnapshot | null
 
   const threads = sortThreads(asThreads(board?.threads ?? []))
   // "Current thread" = the topmost open thread drawer (there is no nav selection anymore).
