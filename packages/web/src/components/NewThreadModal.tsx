@@ -35,7 +35,7 @@ import { useLiveSchedule, type DetachedDraft } from "./ScheduleComposer.tsx"
 import { joinComposerValue, splitComposerValue } from "../lib/imagePaths.ts"
 import { resolveDraftDeadline } from "../lib/threadDeadline.ts"
 import { DispatchTimeLimit } from "./DeadlineControl.tsx"
-import { composerTerminalLine } from "../lib/threadTerminals.ts"
+import { composerTerminalLine, TERMINAL_SLASH_ITEM } from "../lib/threadTerminals.ts"
 import { TerminalFolderPicker } from "./TerminalFolderPicker.tsx"
 
 /** The directories of the project a prompt box dispatches into, named by its caller (DispatchForm `dirs`). */
@@ -114,7 +114,7 @@ function PromptForm({
   // ntwine's own `/todo` (lib/todoLine.ts), which the submit reads before any user command of that name.
   const userCommandsQuery = useUserCommands()
   const userCommands = userCommandsQuery.data?.commands
-  const slashSuggest = useMemo(() => () => Promise.resolve([TODO_SLASH_ITEM, ...userCommandItems((userCommands ?? []).filter((c) => c.name !== TODO_SLASH_ITEM.name))]), [userCommands])
+  const slashSuggest = useMemo(() => () => Promise.resolve([TODO_SLASH_ITEM, TERMINAL_SLASH_ITEM, ...userCommandItems((userCommands ?? []).filter((c) => c.name !== TODO_SLASH_ITEM.name && c.name !== TERMINAL_SLASH_ITEM.name))]), [userCommands])
   const expandedPrompt = (text: string) => expandUserCommandDraft(text, userCommands ?? []) ?? text
   const boardDir = useProjectDir()
   const projectDir = dirs ? dirs.projectDir : boardDir

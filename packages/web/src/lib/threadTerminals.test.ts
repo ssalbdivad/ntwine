@@ -28,6 +28,9 @@ test("the composer's `$` line opens a terminal, and nothing that merely starts w
   assert.deepEqual(composerTerminalLine("$ npm test"), { command: "npm test" })
   assert.deepEqual(composerTerminalLine("  $   git status  "), { command: "git status" })
   assert.deepEqual(composerTerminalLine("$"), {})
+  assert.deepEqual(composerTerminalLine("/terminal npm test"), { command: "npm test" })
+  assert.deepEqual(composerTerminalLine("/terminal"), {})
+  assert.equal(composerTerminalLine("/terminals are slow"), undefined)
   // A message to the agent, not a command.
   assert.equal(composerTerminalLine("$5 a month is too much"), undefined)
   assert.equal(composerTerminalLine("$PATH is wrong"), undefined)

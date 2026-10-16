@@ -21,7 +21,7 @@ import { useDeliverQueuedNow } from "../lib/deliverQueuedNow.ts"
 import { useQueryClient } from "@tanstack/react-query"
 import type { TranscriptData } from "../hooks.ts"
 import { RegisteredAnsweringContext } from "./RegisteredQuestionCards.tsx"
-import { composerTerminalLine } from "../lib/threadTerminals.ts"
+import { composerTerminalLine, TERMINAL_SLASH_ITEM } from "../lib/threadTerminals.ts"
 import { composerTodoLine, TODO_SLASH_ITEM } from "../lib/todoLine.ts"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { startComposerTerminal } from "./ThreadTerminals.tsx"
@@ -124,9 +124,11 @@ export function ThreadComposerBox({
   const userCommandsQuery = useUserCommands()
   const userCommands = userCommandsQuery.data?.commands
   // The thread's harness skills and the operator's own user commands, as one menu (useUserCommands.ts).
+  // `/terminal` only where the submit below honors a `$` line, so the menu never offers what would go to the agent.
+  const terminalHere = surface === "chatComposer" && thread?.kind === "session" && !thread.foreign
   const slashSuggest = useMemo(
-    () => () => Promise.all([fetchThreadSkills(slug), fetchUserCommands(qc, projectDir)]).then(([skills, commands]) => [TODO_SLASH_ITEM, ...mergeSlashItems(skills, commands).filter((item) => item.name !== TODO_SLASH_ITEM.name)]),
-    [slug, qc, projectDir],
+    () => () => Promise.all([fetchThreadSkills(slug), fetchUserCommands(qc, projectDir)]).then(([skills, commands]) => [TODO_SLASH_ITEM, ...(terminalHere ? [TERMINAL_SLASH_ITEM] : []), ...mergeSlashItems(skills, commands).filter((item) => item.name !== TODO_SLASH_ITEM.name && item.name !== TERMINAL_SLASH_ITEM.name)]),
+    [slug, qc, projectDir, terminalHere],
   )
   // `@` mentions offer every OTHER thread on the board — this one cannot usefully point at itself.
   const mentions = useMentionCandidates(slug)

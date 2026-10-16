@@ -1,4 +1,4 @@
-import type { ThreadTerminal, ThreadView } from "@ntwine/shared"
+import type { ThreadSkill, ThreadTerminal, ThreadView } from "@ntwine/shared"
 
 // TERMINAL THREADS — ptys a human or an agent started (server thread-terminals.ts). Each is a thread of its own
 // (`ThreadView.kind: "terminal"`, its process in `ThreadView.terminal`): a row, a card when it needs you, a
@@ -48,12 +48,21 @@ export function terminalOf(thread: Pick<ThreadView, "terminals" | "kind" | "term
  * The thread composer's `$` line (ThreadComposerBox): `$ npm test` opens a terminal on the thread running
  * that command, and a bare `$` opens an interactive shell. One line only, and the `$` must stand alone
  * before the command, so a message that merely STARTS with a price or a variable (`$5 a month`, `$PATH is
- * wrong`) still goes to the agent. Undefined ⇒ the text is a message.
+ * wrong`) still goes to the agent. `/terminal` is the same line spelled so the `/` menu can offer it, since a
+ * `$` nobody has been told about is undiscoverable. Undefined ⇒ the text is a message.
  */
 export function composerTerminalLine(text: string): { command?: string } | undefined {
   const line = text.trim()
-  if (line === "$") return {}
   if (line.includes("\n")) return undefined
-  const match = /^\$\s+(\S.*)$/.exec(line)
+  if (line === "$" || line === "/terminal") return {}
+  const match = /^(?:\$|\/terminal)\s+(\S.*)$/.exec(line)
   return match ? { command: match[1]!.trim() } : undefined
+}
+
+/** The `/` menu's row for the `$` line: a command, so it is offered only as the draft's first token. */
+export const TERMINAL_SLASH_ITEM: ThreadSkill = {
+  name: "terminal",
+  description: "Run a command in a new terminal",
+  source: "ntwine",
+  command: true,
 }
