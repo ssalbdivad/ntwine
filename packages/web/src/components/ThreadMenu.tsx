@@ -8,7 +8,7 @@ import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
 import { useCommandHandler, useShortcutLabel } from "../lib/keyboardRuntime.ts"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu.tsx"
 import { Dialog } from "./ui/Dialog.tsx"
-import { displayName, displayTitle } from "../groups.ts"
+import { displayName, displayTitle, queueKeyAt } from "../groups.ts"
 import { startComposerTerminal } from "./ThreadTerminals.tsx"
 import { ThreadInfoDialog } from "./ThreadInfoDialog.tsx"
 import { TimeLimitDialog } from "./DeadlineControl.tsx"
@@ -151,7 +151,8 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
   // it. `h` rides the trigger as `p` does; in a drawer there is no queue card to hold, so it answers nothing.
   const holdKey = card && ownSession && projectId ? threadKey(projectId, slug) : undefined
   const held = useHeldInQueue(holdKey)
-  const toggleHold = () => { if (holdKey) toggleHeldInQueue(holdKey) }
+  // Held at the place its card stands in the queue's own order, which a reload draws it back at.
+  const toggleHold = () => { if (holdKey) toggleHeldInQueue(holdKey, queueKeyAt(thread)) }
   useCommandHandler(trigger, toggleHold, "hold")
   const holdKeys = useShortcutLabel("thread.hold")
   const editorKeys = useShortcutLabel("thread.editor")

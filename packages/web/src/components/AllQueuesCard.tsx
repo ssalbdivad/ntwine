@@ -85,6 +85,7 @@ import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
 import { setHeldInQueue, useHeldInQueue } from "../lib/queueHold.ts"
+import { HeldLiveTurn } from "./HeldLiveTurn.tsx"
 import { useShortcutLabel } from "../lib/keyboardRuntime.ts"
 import { BLOCK_RADIUS, BLOCK_RADIUS_INNER_BOTTOM, CardActions, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 import { DoneWatchButtons, doneWatchable, useDoneWatchRefs } from "./DoneWatchButtons.tsx"
@@ -429,6 +430,12 @@ function CardArticle({
   // only putting the thread away ends the hold — released FIRST, so the card then fades the ordinary way.
   const heldInQueue = useHeldInQueue(key)
   const releaseHold = () => setHeldInQueue(key, false)
+  // …and while its thread works, the card streams the turn as the drawer does (HeldLiveTurn) in place of
+  // the handoff, which says nothing new until the rest. Kept through the moment the rest's handoff is
+  // still loading (the previous one is only a placeholder), so the words just streamed do not give way
+  // to the old reply and then come back.
+  const working = thread.runtime === "running" || thread.runtime === "spawning"
+  const liveTurn = heldInQueue && thread.held === undefined && (working || handoff.isPlaceholderData)
 
   // THE DOCK'S STICKY RANGE STOPS AT THE HEADER (upstream 01953049, on its board card). The dock's
   // containing block is the whole card, and `bottom-0` alone let it rise to the card's top edge: a card
@@ -636,6 +643,8 @@ function CardArticle({
           </a>
           {/* A question from a rest older than the human's bubble, flushed first as upstream's window
               flushes it — everything below the bubble is newer than it. */}
+          {liveTurn && <HeldLiveTurn project={project} thread={thread} running={working} />}
+          {!liveTurn && <>
           {slots && <RegisteredQuestionStack key={`above-${restKey}`} thread={thread} questions={slots.above} keepAnswered />}
           {/* A scheduled run's first message opens with ntwine's header for the worker; the card shows only the
               saved prompt under it, the human's own words — the title's repeat glyph already says where the
@@ -709,6 +718,7 @@ function CardArticle({
               the same handoff text, so a worker that fenced AND registered gets one card, the fenced one.
               Held until the handoff is read, or a fenced done would draw here first and then swap. */}
           {(handoff.data || handoff.isError) && registeredDone && <FenceBody body={registeredDoneBody(thread.lastFence!)} project={project} thread={thread} />}
+          </>}
           {/* THE GATE: a turn parked on a request — "Run a command?", a native question, an MCP form —
               with its real buttons, under the prose that led to it. It is the whole reason such a card
               is in the queue, and this card drew none of it until 2026-09-28: a thread held on a
@@ -734,7 +744,7 @@ function CardArticle({
           {/* The bare rest's card, beside an OLDER question too: only one this rest asked, claimed or kept
               is its ending (questionsAtCurrentRest). Without the transcript, any open question counts —
               the reading from before 2026-10-05 (showsRestedCard). */}
-          {showsRestedCard(thread, text, messages ? slots?.here : undefined) && <RestedCard thread={thread} />}
+          {!liveTurn && showsRestedCard(thread, text, messages ? slots?.here : undefined) && <RestedCard thread={thread} />}
         </div>
         )}
 

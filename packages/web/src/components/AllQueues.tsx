@@ -55,7 +55,7 @@ import { useBoard } from "../hooks.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
 import { stableQueue, type QueueSlot } from "../lib/stableQueue.ts"
-import { isHeldInQueue, setHeldInQueue, useQueueHolds } from "../lib/queueHold.ts"
+import { isHeldInQueue, placeHeld, setHeldInQueue, useQueueHolds, type QueueHolds } from "../lib/queueHold.ts"
 import { actedOnHere } from "../lib/humanActs.ts"
 import { useSteeredAt } from "../lib/steering.ts"
 import { pinOverlayQueues, usePinOverrides } from "../lib/optimisticPin.ts"
@@ -66,7 +66,7 @@ import { pageScrollY } from "../lib/pageScrollLock.ts"
 import { isPageKey, registerQueueCursor, releaseAutoOpened, runThreadCommand, useShortcut } from "../lib/keyboardRuntime.ts"
 import { runExternalOpen } from "../lib/externalOpen.ts"
 import { PROJECT_STEP_CHORDS, detectPlatform, formatChord, parseChord } from "../lib/keybindings.ts"
-import { displayTitle } from "../groups.ts"
+import { displayTitle, queueKeyAt } from "../groups.ts"
 import { AllQueuesCard, useOpenThreadInPlace } from "./AllQueuesCard.tsx"
 import { HistoryView } from "./HistoryView.tsx"
 import { ProjectDock } from "./ProjectDock.tsx"
@@ -333,14 +333,15 @@ export function AllQueuesPage() {
   // HELD IN QUEUE (lib/queueHold.ts): a card the human is chatting in stays in the queue while its thread
   // works. Its thread is listed among the queue's own entries — the LIVE thread, so the card follows the
   // worker and then its rest — and stableQueue keeps every listed card where it was drawn, on screen or
-  // off. (A fresh draw, after a reload, puts one still at work at the bottom.)
+  // off. A fresh draw (a reload) puts each held card back at the place it was held at (placeHeld).
   const holds = useQueueHolds()
   const heldWorking = shown.flatMap((project) =>
     project.running.filter((thread) => holds.has(threadKey(project.id, thread.id))).map((thread) => ({ project, thread })),
   )
   const workingHeld = new Set(heldWorking.map(entryKey))
   useReleaseFinishedHolds(projects, holds)
-  const ordered = [...mergedQueue(shown), ...heldWorking].filter(({ project, thread }) => !leaving.hidden(threadKey(project.id, thread.id)))
+  const ordered = placeHeld([...mergedQueue(shown), ...heldWorking], holds, entryKey, (entry) => queueKeyAt(entry.thread))
+    .filter(({ project, thread }) => !leaving.hidden(threadKey(project.id, thread.id)))
   const prevSlots = useRef<QueueSlot<QueueEntry>[]>([])
   const orderedAs = useRef(viewKey(view))
   if (orderedAs.current !== viewKey(view)) {
@@ -1318,13 +1319,13 @@ export function useLeavingCards(projects: QueuesProject[], readAt: number | unde
  * this catches the rest. Read only off a project this server has open, so a project still loading after a
  * reload does not read as every held thread gone.
  */
-function useReleaseFinishedHolds(projects: readonly QueuesProject[], holds: ReadonlySet<string>): void {
+function useReleaseFinishedHolds(projects: readonly QueuesProject[], holds: QueueHolds): void {
   useEffect(() => {
     if (holds.size === 0) return
     for (const project of projects) {
       if (!project.open) continue
       const open = new Set([...project.queued, ...project.running].map((thread) => threadKey(project.id, thread.id)))
-      for (const key of holds) if (key.startsWith(`${project.id}/`) && !open.has(key)) setHeldInQueue(key, false)
+      for (const key of holds.keys()) if (key.startsWith(`${project.id}/`) && !open.has(key)) setHeldInQueue(key, false)
     }
   }, [projects, holds])
 }

@@ -317,7 +317,8 @@ export function orderQueue(threads: readonly ThreadView[]): ThreadView[] {
   })
 }
 
-function queueKeyAt(t: ThreadView): number {
+/** A thread's place in the queue's own order (orderQueue): when it entered the queue. */
+export function queueKeyAt(t: ThreadView): number {
   const queued = Date.parse(t.queuedAt ?? "")
   return Number.isFinite(queued) ? queued : lastActiveAt(t)
 }
