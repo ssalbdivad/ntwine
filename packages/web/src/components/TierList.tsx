@@ -246,6 +246,7 @@ export function TierList({
   const toggleDay = (key: string) => setDayFolds((folds) => ({ ...folds, [key]: !dayOpen(key) }))
   const startOfDay = startOfToday(now)
   const doneRose = useDoneArrivals(listRef, slots("done").filter((slot) => restedAt(slot.item.t) >= startOfDay))
+  const doneFolded = folds.has(DONE_FOLDED)
   const olderSentinel = useLoadMore(dayOpen("older") && history.more, history.loadMore)
 
   const pinned = slots("pinned")
@@ -355,13 +356,17 @@ export function TierList({
             band="done"
             count={doneTotal}
             roll={doneRose}
+            // Open unless the human folded it: its own key, set while folded, so an old "done" fold (the
+            // Done-today tail's "more", until 2026-10-16) cannot fold it.
+            collapsed={doneFolded}
+            onToggle={() => setTierFold(DONE_FOLDED, !doneFolded)}
             tail={
               <button type="button" data-xq-open-history onClick={() => setCenterTab("history")} className="relative -mx-1 rounded px-1 outline-none transition-colors hover:bg-hover-strong hover:text-fg/80 focus-visible:ring-1 focus-visible:ring-focus-ink-60">
                 History
               </button>
             }
           />
-          <div data-xq-done-days className="min-h-0 overflow-y-auto overflow-x-hidden">
+          {!doneFolded && <div data-xq-done-days className="min-h-0 overflow-y-auto overflow-x-hidden">
             {dated.map((day) => (
               <Fragment key={day.key}>
                 <DoneDayLine label={day.label} count={day.rows.length} open={dayOpen(day.key)} onToggle={() => toggleDay(day.key)} />
@@ -375,7 +380,7 @@ export function TierList({
                 {dayOpen("older") && history.more && <div ref={olderSentinel} aria-hidden className="h-px" />}
               </>
             )}
-          </div>
+          </div>}
         </section>
       )}
       {scheduled.length > 0 && (
@@ -577,6 +582,9 @@ function DoneDayLine({ label, count, open, onToggle }: { label: string; count: n
     </button>
   )
 }
+
+/** The fold key Done's header sets while Done is folded. */
+const DONE_FOLDED = "done:folded"
 
 /** Done threads per page of History's listing. */
 const DONE_PAGE = 50
