@@ -526,6 +526,7 @@ export interface Api {
   // `renameDirectory` — the folder itself, to a sibling of the same name. The dialog offers that
   // checkbox only when the folder is already named after the project, and leaves it off.
   projectRename(input: { id: string; name: string; renameDirectory?: boolean }): Promise<ProjectCard>
+  projectBackburner(input: { id: string; backburner: boolean }): Promise<ProjectCard>
   settingsGet(): Promise<Settings>
   settingsSet(input: Settings): Promise<Settings>
   // Takes an empty object, not nothing: the router declares `input: z.object({})` (a mutation always
@@ -706,6 +707,7 @@ export const PROCEDURES = {
   projectIconSet: "mutation",
   projectIconClear: "mutation",
   projectRename: "mutation",
+  projectBackburner: "mutation",
   settingsGet: "query",
   settingsSet: "mutation",
   settingsReset: "mutation",

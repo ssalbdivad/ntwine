@@ -8187,6 +8187,8 @@ export const ProjectCard = z.object({
   iconStatus: z.enum(["icon", "none", "unknown"]),
   /** An operator's uploaded icon, rather than one the scan found. Drives what the menu offers. */
   iconIsCustom: z.boolean().optional(),
+  /** On the backburner: All projects, the dock and the prompt box's picker leave it out until it is restored. */
+  backburner: z.literal(true).optional(),
   /**
    * The built-in HOME workspace rather than a registered project: the prompt box's target for work
    * that belongs to no project, run in the operator's home folder. `path` is

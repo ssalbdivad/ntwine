@@ -883,6 +883,7 @@ function projectCard(entry: RegistryEntry, stale: boolean): ProjectCard {
     // Home has no folder of its own to scan — it draws a house, and asking for its icon is a 404.
     iconStatus: isHomeWorkspace(entry.id) ? "none" : projectIconStatus(entry),
     iconIsCustom: entry.iconSource === "custom" ? true : undefined,
+    ...(entry.backburner ? { backburner: true as const } : {}),
     ...(isHomeWorkspace(entry.id) ? { home: true as const } : {}),
   }
 }
@@ -892,7 +893,7 @@ function enclosingProject(dir: string, home: string): RegistryEntry | undefined 
   const canonical = canonicalDir(dir)
   let best: RegistryEntry | undefined
   for (const entry of readRegistry(home).projects) {
-    if (isHomeWorkspace(entry.id) || entry.archived) continue
+    if (isHomeWorkspace(entry.id)) continue
     const rel = relative(entry.path, canonical)
     if (!rel || rel.startsWith("..") || isAbsolute(rel)) continue
     if (!best || entry.path.length > best.path.length) best = entry
@@ -3056,7 +3057,7 @@ export function createRouter(ctx: AppContext) {
     const tenants = new Map((ctx.activeTenants?.() ?? []).map((t) => [t.project.id, t]))
     const candidates = new Map<string, SpawnProject>()
     for (const entry of listWorkspaces()) {
-      if (entry.stale || entry.archived) continue
+      if (entry.stale) continue
       const open = tenants.get(entry.id)?.project
       candidates.set(entry.id, { id: entry.id, slug: entry.slug, name: entry.name ?? basename(entry.path), dir: open ? workDirOf(open) : entry.path })
     }
@@ -6835,6 +6836,22 @@ export function createRouter(ctx: AppContext) {
           await ctx.teardownProject?.(entry.id, {})
         }
         const updated = renameProject(entry.id, { name: name === basename(path) ? null : name, slug: name })
+        if (!updated) throw new Error("No such project.")
+        return projectCard(updated, !existsSync(updated.path))
+      },
+    }),
+
+    /**
+     * Put a project on the backburner, or take it off (RegistryEntry.backburner). Nothing about the
+     * project itself changes — its board stays open and its workers run on; only where All projects, the
+     * dock and the prompt box's picker show it.
+     */
+    projectBackburner: mutation({
+      input: z.object({ id: z.string().min(1), backburner: z.boolean() }).strict(),
+      output: ProjectCard,
+      handler: async ({ input }) => {
+        if (isHomeWorkspace(input.id)) throw new Error(`${HOME_WORKSPACE_NAME} is built into ntwine, so it cannot go on the backburner.`)
+        const updated = renameProject(input.id, { backburner: input.backburner })
         if (!updated) throw new Error("No such project.")
         return projectCard(updated, !existsSync(updated.path))
       },

@@ -203,6 +203,11 @@ export function AllQueuesPage() {
   const focusProject = projects.find((project) => project.slug === focus)
   const runningThreads = useMemo(() => projects.flatMap((project) => project.running), [projects])
   const viewed = view.kind === "project" ? projects.find((project) => project.slug === view.slug) : undefined
+  // THE BACKBURNER (ProjectActions.tsx useBackburner): projects kept but out of the way. All projects, the
+  // dock, the prompt box's picker and ⌥↑/⌥↓ read `deck`, which leaves them out; only the backburner's own
+  // menu in the dock lists them. A backburnered project's own page is still that project, square and all.
+  const deck = useMemo(() => projects.filter((project) => !project.card?.backburner || project.id === viewed?.id), [projects, viewed?.id])
+  const backburnered = useMemo(() => projects.filter((project) => project.card?.backburner && project.id !== viewed?.id), [projects, viewed?.id])
   // Showing All projects, an `@handle` in agent prose links to any open project's thread.
   const crossProjectMentions = view.kind === "all" ? queues.data : null
   useEffect(() => setCrossProjectMentions(crossProjectMentions), [crossProjectMentions])
@@ -221,7 +226,7 @@ export function AllQueuesPage() {
   // without leaving it: the draft goes with it as it does with a pick, and the caret stays put. Heard on
   // the column head, below which both of the box's tabs sit.
   const stepProject = (step: 1 | -1, box?: HTMLTextAreaElement): boolean => {
-    const next = stepPick(pickOrder(projects), focus, step)
+    const next = stepPick(pickOrder(deck), focus, step)
     if (!next) return false
     if (box) {
       setFocusComposerFor({
@@ -308,13 +313,13 @@ export function AllQueuesPage() {
   const hidden = (key: string) => leaving.hidden(key)
   // Registered projects this server has not opened (still being opened after a boot, served by another
   // ntwine, or failed to open): their queues are unknown, so "nothing in any queue" would be a claim.
-  const unopened = projects.filter((project) => !project.open && !project.stale).length
+  const unopened = deck.filter((project) => !project.open && !project.stale).length
   // What the view shows, in the list and the queue alike: its one project, or every project. A view
   // naming a project this machine does not list is the route's to correct (routes.tsx), so for the moment
   // before it does, the page shows nothing rather than every project.
   // A LENS narrows All projects to the projects picked in the dock (lib/lens.ts); one project is its page.
   const lens = useLens()
-  const shown = focused ? (viewed ? [viewed] : []) : lens ? projects.filter((project) => lens.has(project.id)) : projects
+  const shown = focused ? (viewed ? [viewed] : []) : lens ? deck.filter((project) => lens.has(project.id)) : deck
   const centerTab = useCenterTab()
   const openInPlace = useOpenThreadInPlace()
   const [, repaint] = useState(0)
@@ -448,7 +453,7 @@ export function AllQueuesPage() {
   // desktop page, where it is the page's title and its view chooser at once (2026-10-14), and over the list
   // in an editor's sidebar, which has no status row. THE LIST is the tiers (TierList.tsx), whichever the
   // view — a project's page is the same list with one project in it.
-  const dockProps = { projects, hidden: leaving.hidden, home, onAll: (from: QueuesProject | undefined) => chooseView.all(from), onProject: (slug: string) => chooseView.project(slug) }
+  const dockProps = { projects: deck, backburnered, hidden: leaving.hidden, home, onAll: (from: QueuesProject | undefined) => chooseView.all(from), onProject: (slug: string) => chooseView.project(slug) }
   const dock = <ProjectDock {...dockProps} />
   const list = <TierList projects={shown} activeKey={activeKey} hidden={leaving.hidden} onQueuedRow={land} queueOrder={queueKeys} subAgentRows={focused} />
 
@@ -458,7 +463,7 @@ export function AllQueuesPage() {
   if (sidebar) {
     return (
       <SidebarPage
-        projects={projects}
+        projects={deck}
         shown={shown}
         viewed={viewed}
         focusedSlug={view.kind === "project" ? view.slug : undefined}
@@ -507,7 +512,7 @@ export function AllQueuesPage() {
   if (phone) {
     return (
       <PhonePage
-        projects={projects}
+        projects={deck}
         shown={shown}
         viewed={viewed}
         focusedSlug={view.kind === "project" ? view.slug : undefined}
@@ -702,12 +707,15 @@ function ProjectPicker({ projects, focus, onPick }: { projects: QueuesProject[];
   const current = projects.find((project) => project.slug === focus)
   const name = current?.name ?? focus ?? "a project"
   // A project whose directory is gone cannot take a thread; it stays on the rail, saying why.
-  const choices = projects.filter((project) => !project.stale && !project.card?.home)
-  const steps = stepPick(pickOrder(projects), focus, 1) !== undefined
+  // The backburner's projects are not offered (AllQueuesPage `deck`), though the box can still be aimed
+  // at one — by `#slug` — and then names it.
+  const offered = projects.filter((project) => !project.card?.backburner)
+  const choices = offered.filter((project) => !project.stale && !project.card?.home)
+  const steps = stepPick(pickOrder(offered), focus, 1) !== undefined
   // The Home workspace, for the work that belongs to no project yet: last, under a rule, with the folder
   // it runs in, because "Home" alone does not say that its agents start outside every project. Last is
   // also where stepping from the box reaches it (pickOrder).
-  const homeChoice = projects.find((project) => !project.stale && project.card?.home)
+  const homeChoice = offered.find((project) => !project.stale && project.card?.home)
   // Every square ⌥↑/⌥↓ can step to, fetched and decoded now, so each step draws its icon on arrival.
   useEffect(() => {
     for (const project of projects) if (!project.stale) warmProjectIcon(project.card ?? fallbackCard(project))

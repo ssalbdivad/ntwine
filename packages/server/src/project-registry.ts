@@ -46,8 +46,14 @@ export interface RegistryEntry {
    * launcher from 2026-09-30 on has run here.
    */
   lastLaunchedAt?: string
-  /** Hidden from the project list without forgetting it — throwaway repos should not be permanent fixtures. */
-  archived?: boolean
+  /**
+   * On the backburner: kept, but out of the way. All projects leaves its threads out of the list and the
+   * queue, the dock draws no square for it (only the backburner's own menu lists it), and the prompt box's
+   * picker does not offer it. Its own page still shows everything. Running `ntwine` in it takes it off
+   * the backburner, as a launch is the operator saying they are working there again. (Replaced a dormant
+   * `archived` flag nothing ever set, 2026-10-16.)
+   */
+  backburner?: boolean
   /**
    * Absolute path to this project's icon — inside the project when detected, inside its state dir
    * when the operator uploaded one. Cached here so drawing a rail of forty squares is one file read;
@@ -295,7 +301,10 @@ export function registerProject(
   const at = (input.now ?? (() => new Date()))().toISOString()
   const touch = (entry: RegistryEntry) => {
     entry.lastOpenedAt = at
-    if (input.launched) entry.lastLaunchedAt = at
+    if (input.launched) {
+      entry.lastLaunchedAt = at
+      delete entry.backburner
+    }
   }
   const byId = registry.projects.find((p) => p.id === input.id)
 
@@ -679,7 +688,7 @@ export function resolveProjectIcon(
 export function renameProject(
   id: string,
   /** `name: null` clears the display override, so the card follows the directory's basename again. */
-  update: { slug?: string; name?: string | null; archived?: boolean },
+  update: { slug?: string; name?: string | null; backburner?: boolean },
   home = homedir(),
 ): RegistryEntry | undefined {
   const registry = readRegistry(home)
@@ -695,7 +704,8 @@ export function renameProject(
   }
   if (update.name === null) delete entry.name
   else if (update.name !== undefined) entry.name = update.name
-  if (update.archived !== undefined) entry.archived = update.archived
+  if (update.backburner === true) entry.backburner = true
+  else if (update.backburner === false) delete entry.backburner
   writeRegistry(registry, home)
   return entry
 }

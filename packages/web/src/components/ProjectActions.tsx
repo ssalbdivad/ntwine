@@ -111,6 +111,7 @@ function ProjectMenuBody({
   const [deleting, setDeleting] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
+  const backburner = useBackburner()
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["projectsList"] })
   const report = (cause: unknown) => showToast(cause instanceof Error ? cause.message : String(cause), { duration: 7000 })
   const upload = useMutation({
@@ -220,6 +221,9 @@ function ProjectMenuBody({
             <RadixDropdown.Item className={MENU_ITEM} onSelect={() => setRenaming(true)}>
               Rename…
             </RadixDropdown.Item>
+            <RadixDropdown.Item data-project-backburner className={MENU_ITEM} onSelect={() => backburner.mutate({ project, on: !project.backburner })}>
+              {project.backburner ? "Take off the backburner" : "Move to the backburner"}
+            </RadixDropdown.Item>
             <RadixDropdown.Item
               className="cursor-default rounded px-2 py-1.5 text-[12.5px] text-danger outline-none data-[highlighted]:bg-danger-fill/10 data-[highlighted]:text-danger-soft"
               onSelect={() => setDeleting(true)}
@@ -235,6 +239,36 @@ function ProjectMenuBody({
       {deleting ? <DeleteProjectDialog project={project} home={home} onClose={() => setDeleting(false)} /> : null}
     </>
   )
+}
+
+/**
+ * Put a project on the backburner or take it off (server RegistryEntry.backburner). The `projectsList`
+ * cache is written at once, so its square leaves the dock — or comes back — on the click; a failure
+ * puts back what was there.
+ */
+export function useBackburner() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ project, on }: { project: ProjectCard; on: boolean }) => rpc.projectBackburner({ id: project.id, backburner: on }),
+    onMutate: async ({ project, on }) => {
+      await queryClient.cancelQueries({ queryKey: ["projectsList"] })
+      const before = queryClient.getQueryData<ProjectCard[]>(["projectsList"])
+      if (before) {
+        queryClient.setQueryData<ProjectCard[]>(["projectsList"], before.map((card) => {
+          if (card.id !== project.id) return card
+          const { backburner: _, ...rest } = card
+          return on ? { ...rest, backburner: true as const } : rest
+        }))
+      }
+      return { before }
+    },
+    onSuccess: (_card, { project, on }) => showToast(on ? `Moved ${project.name} to the backburner` : `Took ${project.name} off the backburner`),
+    onError: (cause, _vars, context) => {
+      if (context?.before) queryClient.setQueryData(["projectsList"], context.before)
+      showToast(cause instanceof Error ? cause.message : String(cause), { duration: 7000 })
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["projectsList"] }),
+  })
 }
 
 /** The last path segment, on either separator: the registry stores native paths and Windows uses `\\`. */

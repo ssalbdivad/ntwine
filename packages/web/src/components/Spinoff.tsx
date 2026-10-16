@@ -99,8 +99,10 @@ function SpinoffDialog({ thread, open, onOpenChange }: { thread: ThreadView & { 
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   // WHERE THE NEW THREAD STARTS (2026-09-30: "spinoff threads should be able to be created cross
   // project"). This thread's project unless the human picks another open one; undefined is "here".
-  const projects = useOpenProjects(open)
-  const home = projects.find((p) => p.dir === projectDir)
+  const open_ = useOpenProjects(open)
+  const home = open_.find((p) => p.dir === projectDir)
+  // The backburner's projects are not offered (AllQueues.tsx `deck`), though this thread's own still is.
+  const projects = open_.filter((p) => !p.card.backburner || p.id === home?.id)
   const [targetId, setTargetId] = useState<string | undefined>(undefined)
   const target = targetId && targetId !== home?.id ? projects.find((p) => p.id === targetId) : undefined
   const routeOwnRow = useRouteOwnRow()

@@ -282,8 +282,23 @@ test("rename is the escape hatch, and it refuses a reserved or taken slug", () =
     assert.equal(findBySlug("work-stuff", home)?.id, A)
     assert.throws(() => renameProject(A, { slug: "rpc" }, home), /reserved/)
     assert.throws(() => renameProject(A, { slug: "two" }, home), /already uses/)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
 
-    assert.equal(renameProject(A, { archived: true }, home)?.archived, true)
+test("the backburner holds through a re-registration, and a launch takes the project off it", () => {
+  const home = sandbox()
+  try {
+    const dir = project(home, "one", A)
+    registerProject({ dir, id: A }, home)
+    assert.equal(renameProject(A, { backburner: true }, home)?.backburner, true)
+    registerProject({ dir, id: A }, home)
+    assert.equal(findBySlug("one", home)?.backburner, true)
+    registerProject({ dir, id: A, launched: true }, home)
+    assert.equal(findBySlug("one", home)?.backburner, undefined)
+    renameProject(A, { backburner: true }, home)
+    assert.equal(renameProject(A, { backburner: false }, home)?.backburner, undefined)
   } finally {
     rmSync(home, { recursive: true, force: true })
   }

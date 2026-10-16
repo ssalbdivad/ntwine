@@ -9,6 +9,9 @@
 //                    remove — what each project row's "…" carried before the list stopped having them
 //   drag, ⌥←/⌥→      the machine-wide order, which the dock and the prompt box's picker both read
 //
+// A project on the BACKBURNER (its menu's "Move to the backburner") draws no square. The pot after the
+// squares, there only while one is, lists them: a row opens its page, Restore puts its square back.
+//
 // A square says, without a hover: how many of its threads are Ready (the accent badge, the one number that
 // wants you), and whether any is working (a tick under it). Outside the view — another project's page, or
 // not in the lens — it is dimmed, not hidden: every project is always one click away.
@@ -17,19 +20,21 @@
 // projects until 2026-10-14, and was dropped as a second copy of this.
 import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { LayoutGrid, Plus, X } from "lucide-react"
+import * as RadixDropdown from "@radix-ui/react-dropdown-menu"
+import { CookingPot, LayoutGrid, Plus, X } from "lucide-react"
 import type { ProjectCard } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
 import { deleteLens, saveLens, savedNameOf, setLens, useLens, useSavedLenses } from "../lib/lens.ts"
 import { usePageView } from "../lib/pageView.ts"
-import { ProjectMenu, useAddProject } from "./ProjectActions.tsx"
+import { ProjectMenu, useAddProject, useBackburner } from "./ProjectActions.tsx"
 import { ProjectSquare } from "./ProjectSquare.tsx"
 
 const SQUARE = 20
 
 export function ProjectDock({
   projects,
+  backburnered = [],
   hidden,
   home,
   onAll,
@@ -37,6 +42,8 @@ export function ProjectDock({
   inline = false,
 }: {
   projects: readonly QueuesProject[]
+  /** The projects on the backburner, which get no square — only a row in the pot's menu. */
+  backburnered?: readonly QueuesProject[]
   hidden: (key: string) => boolean
   home: string | undefined
   /** Back to All projects, from the project the page was on. */
@@ -169,6 +176,7 @@ export function ProjectDock({
             </span>
           )
         })}
+        {backburnered.length > 0 && <Backburner projects={backburnered} onProject={onProject} />}
         <button
           type="button"
           data-xq-dock-add
@@ -183,6 +191,67 @@ export function ProjectDock({
         </button>
       </div>
     </div>
+  )
+}
+
+const MENU_ITEM = "flex cursor-default items-center rounded px-2 py-1.5 text-[12.5px] text-fg outline-none data-[highlighted]:bg-panel-2"
+
+/** The backburner's pot: every backburnered project, each opening its page or coming back to the dock. */
+function Backburner({ projects, onProject }: { projects: readonly QueuesProject[]; onProject: (slug: string) => void }) {
+  const restore = useBackburner()
+  const label = `Backburner: ${projects.length} ${projects.length === 1 ? "project" : "projects"}`
+  return (
+    <RadixDropdown.Root>
+      <RadixDropdown.Trigger asChild>
+        <button
+          type="button"
+          data-xq-dock-backburner={projects.length}
+          aria-label={label}
+          title={label}
+          className="flex shrink-0 rounded-[5px] text-muted outline-none transition-colors hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60 data-[state=open]:text-fg"
+        >
+          <span className="flex items-center justify-center" style={{ width: SQUARE, height: SQUARE }}>
+            <CookingPot size={16} strokeWidth={1.5} absoluteStrokeWidth aria-hidden />
+          </span>
+        </button>
+      </RadixDropdown.Trigger>
+      <RadixDropdown.Portal>
+        <RadixDropdown.Content
+          align="start"
+          sideOffset={6}
+          className="z-[220] min-w-[200px] max-w-[300px] rounded-lg border border-border bg-panel p-1 shadow-xl shadow-shadow-ink/40"
+        >
+          <RadixDropdown.Label className="px-2 pb-1.5 pt-1 text-[11px] text-muted-55">Backburner</RadixDropdown.Label>
+          {projects.map((project) => {
+            const ready = project.queued.length
+            return (
+              <div key={project.id} data-xq-backburner-row={project.slug} className="flex min-w-0 items-center gap-0.5">
+                <RadixDropdown.Item className={`${MENU_ITEM} min-w-0 flex-1 gap-2`} onSelect={() => onProject(project.slug)}>
+                  <span className={project.stale ? "grayscale" : ""}>
+                    <ProjectSquare project={project.card ?? squareCard(project)} size={14} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                  {ready > 0 && <span className="shrink-0 text-[11px] tabular-nums text-muted-70">{ready} ready</span>}
+                </RadixDropdown.Item>
+                {project.card && (
+                  <RadixDropdown.Item
+                    data-xq-backburner-restore={project.slug}
+                    className={`${MENU_ITEM} shrink-0 text-muted data-[highlighted]:text-fg`}
+                    onSelect={(event) => {
+                      // Restoring one leaves the menu open for the next; the last one takes the pot away.
+                      if (projects.length > 1) event.preventDefault()
+                      restore.mutate({ project: project.card!, on: false })
+                    }}
+                  >
+                    Restore
+                  </RadixDropdown.Item>
+                )}
+              </div>
+            )
+          })}
+        </RadixDropdown.Content>
+      </RadixDropdown.Portal>
+    </RadixDropdown.Root>
   )
 }
 
