@@ -37,6 +37,7 @@ test("the default keys are the ones the sheet promises", () => {
     [key({ key: "m", code: "KeyM" }), "thread.menu"],
     [key({ key: "p", code: "KeyP" }), "thread.pin"],
     [key({ key: "P", code: "KeyP", shiftKey: true }), "app.newProject"],
+    [key({ key: "h", code: "KeyH" }), "thread.hold"],
     [key({ key: "o", code: "KeyO" }), "thread.open"],
     [key({ key: "ArrowRight", code: "ArrowRight" }), "thread.spinoff"],
     [key({ key: "?", code: "Slash", shiftKey: true }), "app.shortcuts"],

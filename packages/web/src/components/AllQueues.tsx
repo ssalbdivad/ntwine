@@ -55,6 +55,7 @@ import { useBoard } from "../hooks.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
 import { stableQueue, type QueueSlot } from "../lib/stableQueue.ts"
+import { isHeldInQueue, setHeldInQueue, useQueueHolds } from "../lib/queueHold.ts"
 import { actedOnHere } from "../lib/humanActs.ts"
 import { useSteeredAt } from "../lib/steering.ts"
 import { pinOverlayQueues, usePinOverrides } from "../lib/optimisticPin.ts"
@@ -329,7 +330,17 @@ export function AllQueuesPage() {
   // from the phone, its project closed — is held there as a ghost; one the human put away from here —
   // finished, replied to, snoozed — leaves the ordinary way, held only while it fades. Changing the view is
   // the human choosing a different queue, so it starts over from the queue's own order.
-  const ordered = mergedQueue(shown).filter(({ project, thread }) => !leaving.hidden(threadKey(project.id, thread.id)))
+  // HELD IN QUEUE (lib/queueHold.ts): a card the human is chatting in stays in the queue while its thread
+  // works. Its thread is listed among the queue's own entries — the LIVE thread, so the card follows the
+  // worker and then its rest — and stableQueue keeps every listed card where it was drawn, on screen or
+  // off. (A fresh draw, after a reload, puts one still at work at the bottom.)
+  const holds = useQueueHolds()
+  const heldWorking = shown.flatMap((project) =>
+    project.running.filter((thread) => holds.has(threadKey(project.id, thread.id))).map((thread) => ({ project, thread })),
+  )
+  const workingHeld = new Set(heldWorking.map(entryKey))
+  useReleaseFinishedHolds(projects, holds)
+  const ordered = [...mergedQueue(shown), ...heldWorking].filter(({ project, thread }) => !leaving.hidden(threadKey(project.id, thread.id)))
   const prevSlots = useRef<QueueSlot<QueueEntry>[]>([])
   const orderedAs = useRef(viewKey(view))
   if (orderedAs.current !== viewKey(view)) {
@@ -393,7 +404,7 @@ export function AllQueuesPage() {
   // Counted from what the page SHOWS: a card the operator just finished is gone from the count at once,
   // and a header still counting it read "1 in the queue" over an empty page until the next poll. A ghost
   // is not waiting on anyone. A card whose drawer is open still is, and still counts.
-  const ready = queue.filter((slot) => !slot.ghost && !leaving.isLeaving(slot.key)).length
+  const ready = queue.filter((slot) => !slot.ghost && !leaving.isLeaving(slot.key) && !workingHeld.has(slot.key)).length
   // THE TAB NAMES ITS VIEW. Someone who keeps one tab per project (the original design's way of
   // working, and how its one-project-per-page board titled its tabs) tells them apart by title and favicon alone, so a
   // focused tab reads "<project> — ntwine" and its favicon counts that project's queue (lib/faviconBadge.ts);
@@ -618,7 +629,7 @@ export function AllQueuesPage() {
             ) : queue.length > 0 ? (
               queue.map((slot, index) => (
                 <Fragment key={slot.key}>
-                  <QueueCardOf entry={leaving.isHeld(slot.key) || engaged.has(slot.key) ? heldEntry(projects, slot.item) : slot.item} ghost={slot.ghost} status={leaving.isHeld(slot.key) ? heldStatus(projects, slot.item, "Working on your answer") : engaged.has(slot.key) && !leaving.isLeaving(slot.key) ? heldStatus(projects, slot.item, "Working") : undefined} concealed={inDrawer.has(slot.key)} leaving={leaving} chip={!focused} />
+                  <QueueCardOf entry={leaving.isHeld(slot.key) || engaged.has(slot.key) ? heldEntry(projects, slot.item) : slot.item} ghost={slot.ghost} status={leaving.isHeld(slot.key) ? heldStatus(projects, slot.item, "Working on your answer") : (workingHeld.has(slot.key) || engaged.has(slot.key)) && !leaving.isLeaving(slot.key) ? heldStatus(projects, slot.item, "Working") : undefined} concealed={inDrawer.has(slot.key)} leaving={leaving} chip={!focused} />
                   {/* The rule between two cards: a sibling that FOLLOWS its card, so
                       styles.css fades it with the card when that one leaves. */}
                   {index < queue.length - 1 && <hr className="my-10 border-0 border-t border-border/60" />}
@@ -1220,6 +1231,9 @@ export function useLeavingCards(projects: QueuesProject[], readAt: number | unde
     let entry = callbacks.current.get(key)
     if (!entry) {
       const leave = () => {
+        // A card HELD IN QUEUE (lib/queueHold.ts) stays where it is, and the caret stays in its box for the
+        // next reply. Putting it away (done, snooze) releases the hold first, so those still leave.
+        if (isHeldInQueue(key)) return
         held.current.delete(key)
         // THE CARET LEAVES WITH THE CARD. Sending a reply leaves it in the emptied box, and a card whose
         // box has the keyboard is kept drawn live (AllQueues `typingKey`). A check that the card was not
@@ -1253,6 +1267,7 @@ export function useLeavingCards(projects: QueuesProject[], readAt: number | unde
           })
         },
         sent: () => {
+          if (isHeldInQueue(key)) return
           setFlying(key, true)
           leave()
         },
@@ -1295,6 +1310,23 @@ export function useLeavingCards(projects: QueuesProject[], readAt: number | unde
     isHeld: (key) => held.current.has(key) && asking.has(key),
     hold: (key) => handles(key).hold,
   }
+}
+
+/**
+ * A hold (lib/queueHold.ts) ends once its thread is put away by any hand — snoozed, or finished from the
+ * drawer, another tab or the phone: the card's own Done and Snooze release it before the card fades, and
+ * this catches the rest. Read only off a project this server has open, so a project still loading after a
+ * reload does not read as every held thread gone.
+ */
+function useReleaseFinishedHolds(projects: readonly QueuesProject[], holds: ReadonlySet<string>): void {
+  useEffect(() => {
+    if (holds.size === 0) return
+    for (const project of projects) {
+      if (!project.open) continue
+      const open = new Set([...project.queued, ...project.running].map((thread) => threadKey(project.id, thread.id)))
+      for (const key of holds) if (key.startsWith(`${project.id}/`) && !open.has(key)) setHeldInQueue(key, false)
+    }
+  }, [projects, holds])
 }
 
 /** Below the page's stacking point (`max-[800px]`), where the columns stack. */

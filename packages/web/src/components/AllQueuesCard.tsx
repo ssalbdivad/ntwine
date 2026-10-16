@@ -20,7 +20,7 @@
 // page's socket, and on this page all three name the FOCUSED project, which is usually not the card's.
 import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Check, CheckCheck, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react"
+import { Anchor, Check, CheckCheck, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react"
 import { useNavigate } from "react-router"
 import { expandUserCommandDraft, heldQuestionViews, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
@@ -59,7 +59,7 @@ import { drawsSubAgentWaitCard, showsSubAgentWait } from "../lib/subAgentWait.ts
 import { useThreadComposerControls } from "../hooks/useThreadComposerControls.tsx"
 import { UpdateRequestedMarker } from "./NtwineWake.tsx"
 import { SpinoffButton, SpinoffOf } from "./Spinoff.tsx"
-import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
+import { HEADER_ICON_CLASS, HEADER_ICON_SQUARE } from "../lib/headerIcon.ts"
 import { LastActive } from "./LastActive.tsx"
 import { HeldThreadComposer, TodoStarters } from "./HeldThreadBox.tsx"
 import { ProjectSquare } from "./ProjectSquare.tsx"
@@ -84,6 +84,8 @@ import { TerminalCardArticle } from "./TerminalQueueCard.tsx"
 import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
+import { setHeldInQueue, useHeldInQueue } from "../lib/queueHold.ts"
+import { useShortcutLabel } from "../lib/keyboardRuntime.ts"
 import { BLOCK_RADIUS, BLOCK_RADIUS_INNER_BOTTOM, CardActions, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 import { DoneWatchButtons, doneWatchable, useDoneWatchRefs } from "./DoneWatchButtons.tsx"
 import { useFileDropZone, useFileIntakeHandle, type SurfaceFileDrop } from "../lib/fileDrop.ts"
@@ -423,6 +425,10 @@ function CardArticle({
   }
   const answeringScope = useMemo(() => ({ api, projectDir: project.projectDir, projectId: project.id }), [api, project.projectDir, project.id])
   const key = threadKey(project.id, thread.id)
+  // HELD IN QUEUE (lib/queueHold.ts): a reply leaves the card where it is (AllQueues useLeavingCards), so
+  // only putting the thread away ends the hold — released FIRST, so the card then fades the ordinary way.
+  const heldInQueue = useHeldInQueue(key)
+  const releaseHold = () => setHeldInQueue(key, false)
 
   // THE DOCK'S STICKY RANGE STOPS AT THE HEADER (upstream 01953049, on its board card). The dock's
   // containing block is the whole card, and `bottom-0` alone let it rise to the card's top edge: a card
@@ -558,6 +564,7 @@ function CardArticle({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
+          {heldInQueue && <HeldInQueueButton onRelease={releaseHold} />}
           {/* SPINOFF, on every card (Spinoff.tsx), leading the strip as the one verb that starts new
               work. In the card's OWN project scope: the header sits outside the body's, and the
               page's api names the focused project. */}
@@ -583,9 +590,9 @@ function CardArticle({
               thread={thread}
               className="-mr-2"
               projectName={project.name}
-              onSnoozed={onLeave}
+              onSnoozed={() => { releaseHold(); onLeave() }}
               onUnsnoozed={onUnsnoozed}
-              onArchived={onSent}
+              onArchived={() => { releaseHold(); onSent() }}
               onDismissCancel={onReturn}
               onCompleted={onLanded}
               leading={thread.queuedForReply ? <MarkReadButton project={project} thread={thread} onRead={onLeave} onFailed={onReturn} /> : undefined}
@@ -1076,6 +1083,23 @@ function Prose({ md }: { md: string }) {
  *  against 17.5px terminal→spinoff and 18.25px fullscreen→⋯ (scripts/ink-gaps.mjs, dsf 4, sans,
  *  2026-10-06). Two pixels in from each side brings both to ~18.5px; the hover square keeps its size.
  *  The fullscreen door went 2026-10-15, so collapse's right-hand neighbour is the ⋯ now, unmeasured. */
+/**
+ * THE HELD CARD'S MARK (lib/queueHold.ts), leading the header strip while the hold lasts: an anchor in the
+ * accent tone, the one coloured glyph in a strip of muted ones, so a card that is staying put says so at a
+ * glance. In the strip rather than after the title, whose line truncates a long title and the mark with
+ * it. Pressing it lets go, as `h` does.
+ */
+function HeldInQueueButton({ onRelease }: { onRelease: () => void }) {
+  const keys = useShortcutLabel("thread.hold")
+  return (
+    <Tooltip label={keys ? `Held in queue (${keys})` : "Held in queue"}>
+      <button type="button" data-xq-held aria-label="Stop holding in queue" aria-pressed onMouseDown={(event) => event.preventDefault()} onClick={onRelease} className={`icon-hover-outline ${HEADER_ICON_SQUARE} text-accent transition-colors hover:bg-panel-2`}>
+        <Anchor size={14} strokeWidth={2} aria-hidden />
+      </button>
+    </Tooltip>
+  )
+}
+
 function CollapseCardButton({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const label = collapsed ? "Expand" : "Collapse"
   const Icon = collapsed ? ChevronsUpDown : ChevronsDownUp

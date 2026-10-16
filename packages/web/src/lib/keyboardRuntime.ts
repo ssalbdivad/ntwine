@@ -256,7 +256,7 @@ function focusReplyBoxOnceOpen(): void {
  *  a click (a Radix menu trigger opens on pointerdown/keydown) can claim it with preventDefault. */
 export const COMMAND_EVENT = "ntwine:command"
 
-export type ThreadCommand = "done" | "snooze" | "open" | "terminal" | "editor" | "menu" | "spinoff" | "reply" | "continue" | "pin"
+export type ThreadCommand = "done" | "snooze" | "open" | "terminal" | "editor" | "menu" | "spinoff" | "reply" | "continue" | "pin" | "hold"
 
 // Every prompt box that answers the thing on screen. Deliberately NOT the question card's free-text
 // answer box (`questionAnswer`) — `r` is a reply to the thread, and a question has its own chips.
@@ -316,6 +316,7 @@ const BUILT_INS: Partial<Record<ActionId, Handler>> = {
   "thread.spinoff": () => runThreadCommand("spinoff"),
   "thread.continue": () => runThreadCommand("continue"),
   "thread.pin": () => runThreadCommand("pin"),
+  "thread.hold": () => runThreadCommand("hold"),
   "app.shortcuts": () => {
     store.showShortcuts = !store.showShortcuts
   },
