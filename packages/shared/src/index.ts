@@ -6467,7 +6467,9 @@ export const SaveUserCommandInput = z.object({
   previousName: UserCommandName.optional(),
 }).strict()
 export type SaveUserCommandInput = z.infer<typeof SaveUserCommandInput>
-export const DeleteUserCommandInput = z.object({ name: UserCommandName }).strict()
+// `source` names the folder the file is removed from; a project's or the machine-wide one is deleted on
+// the operator's say-so in Settings, so every tool reading that folder loses the command too.
+export const DeleteUserCommandInput = z.object({ name: UserCommandName, source: UserCommandSource }).strict()
 export type DeleteUserCommandInput = z.infer<typeof DeleteUserCommandInput>
 
 // The text a user command is DELIVERED as. Not a `<ntwine-…>` tag: that prefix marks ntwine's own

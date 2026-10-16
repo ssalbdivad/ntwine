@@ -9,7 +9,9 @@ import { SettingsField } from "./SettingsField.tsx"
 // Settings → Slash commands: every user command the prompt box offers (UserCommand in @ntwine/shared),
 // and an editor for the ones written here. Only ntwine's own folder is written. A project's or the
 // machine-wide `~/.agents/commands` one opens as a COPY — saving it writes an ntwine command of the same
-// name, which then wins over the original — so nothing here ever edits a file another tool owns.
+// name, which then wins over the original — so nothing here ever edits a file another tool owns. Delete
+// is the one exception: it removes the file from the folder the command was listed from, and for a
+// project's or the machine-wide command it asks once more, since every tool reading that folder loses it.
 //
 // Saved explicitly, not as-you-type like the project instructions: a command's NAME is its file name,
 // and a half-typed rename would leave a trail of files behind it.
@@ -62,10 +64,11 @@ export function SlashCommandsField() {
   }
 
   async function remove() {
-    if (!draft?.previousName) return
+    const target = draft?.copiedFrom ?? (draft?.previousName ? { name: draft.previousName, source: "ntwine" as const } : undefined)
+    if (!target) return
     setSaving(true)
     try {
-      await rpc.deleteUserCommand({ name: draft.previousName })
+      await rpc.deleteUserCommand({ name: target.name, source: target.source })
       await invalidateUserCommands(queryClient)
       setDraft(null)
     } catch (e) {
@@ -101,6 +104,7 @@ export function SlashCommandsField() {
           )}
           {draft ? (
             <CommandEditor
+              key={draft.copiedFrom?.path ?? draft.previousName ?? "new"}
               draft={draft}
               onChange={(next) => {
                 setDraft(next)
@@ -111,12 +115,12 @@ export function SlashCommandsField() {
               saving={saving}
               onSave={() => void save()}
               onCancel={() => setDraft(null)}
-              onDelete={draft.previousName ? () => void remove() : undefined}
+              onDelete={draft.previousName || draft.copiedFrom ? () => void remove() : undefined}
             />
           ) : (
             <div className="flex items-center justify-between gap-3">
               <span className="text-[11px] text-muted-70">
-                {commands.length === 0 ? "None yet. Type / in a prompt box to use one." : "Click one to edit it."}
+                {commands.length === 0 ? "None yet. Type / in a prompt box to use one." : "Click one to edit or delete it."}
               </span>
               <button
                 type="button"
@@ -153,6 +157,9 @@ function CommandEditor({
   onDelete?: () => void
 }) {
   const name = draft.name.trim().replace(/^\//, "")
+  // Deleting another folder's command takes a second click, with the file it removes named in between.
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const deleteNow = () => (draft.copiedFrom && !confirmingDelete ? setConfirmingDelete(true) : onDelete?.())
   return (
     <div data-command-editor className="flex flex-col gap-2 rounded-md border border-border p-2.5">
       {draft.copiedFrom && (
@@ -194,6 +201,11 @@ function CommandEditor({
         spellCheck={false}
         className="input resize-y text-[12px] leading-relaxed font-mono-keep"
       />
+      {confirmingDelete && draft.copiedFrom && (
+        <p className="text-[11px] text-danger">
+          Deletes <code className="font-mono-keep">{draft.copiedFrom.path}</code> for every tool that reads it.
+        </p>
+      )}
       {error && <p role="alert" className="text-[11px] text-danger">{error}</p>}
       <div className="flex items-center gap-2">
         <span className="min-w-0 truncate text-[11px] text-muted-70" title={dir}>
@@ -203,11 +215,11 @@ function CommandEditor({
           {onDelete && (
             <button
               type="button"
-              onClick={onDelete}
+              onClick={deleteNow}
               disabled={saving}
               className="button-outline rounded-md px-3 py-1 text-[12px] text-danger outline-none transition-colors hover:bg-danger-fill/10 disabled:opacity-60"
             >
-              Delete
+              {confirmingDelete ? "Delete the file" : "Delete"}
             </button>
           )}
           <button

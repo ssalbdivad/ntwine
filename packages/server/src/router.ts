@@ -4119,7 +4119,7 @@ export function createRouter(ctx: AppContext) {
     deleteUserCommand: mutation({
       input: DeleteUserCommandInput,
       handler: async ({ input }) => {
-        await deleteUserCommand(input.name)
+        await deleteUserCommand(input.name, input.source, workDir)
       },
     }),
 

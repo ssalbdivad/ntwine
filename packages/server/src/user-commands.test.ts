@@ -70,3 +70,18 @@ test("a rename removes the old file; delete removes ntwine's own file and nothin
   await deleteUserCommand("new")
   assert.deepEqual((await listUserCommands(undefined, home)).map((c) => `${c.source}:${c.name}`), ["global:keep"])
 })
+
+test("delete removes a project's or the machine-wide command from its own folder, and a symlink's link only", async () => {
+  const { home, project } = sandbox()
+  writeFileSync(join(project, ".agents", "commands", "proj.md"), "project")
+  writeFileSync(join(home, ".agents", "commands", "glob.md"), "global")
+  const real = join(home, ".agents", "real.md")
+  writeFileSync(real, "linked")
+  symlinkSync(real, join(home, ".agents", "commands", "linked.md"))
+  await deleteUserCommand("proj", "project", project, home)
+  await deleteUserCommand("glob", "global", project, home)
+  await deleteUserCommand("linked", "global", project, home)
+  assert.deepEqual(await listUserCommands(project, home), [])
+  assert.equal(readFileSync(real, "utf8"), "linked")
+  await assert.rejects(deleteUserCommand("proj", "project", undefined, home), /No project commands folder/)
+})

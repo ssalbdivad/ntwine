@@ -84,7 +84,8 @@ export async function listUserCommands(projectDir: string | undefined, home = ho
 }
 
 /** Write an ntwine command, atomically, and drop the file it was renamed from. Only ntwine's own folder is
- *  ever written: a project's or the machine-wide commands are read, never edited from here. */
+ *  ever written: a project's or the machine-wide commands are read, never edited from here (deleting one
+ *  is the exception — see deleteUserCommand). */
 export async function saveUserCommand(input: SaveUserCommandInput): Promise<void> {
   const dir = ntwineCommandsDir()
   await mkdir(dir, { recursive: true })
@@ -95,6 +96,11 @@ export async function saveUserCommand(input: SaveUserCommandInput): Promise<void
   if (input.previousName && input.previousName !== input.name) await rm(join(dir, `${input.previousName}.md`), { force: true })
 }
 
-export async function deleteUserCommand(name: string): Promise<void> {
-  await rm(join(ntwineCommandsDir(), `${name}.md`), { force: true })
+/** Remove a command's file from the folder it was listed from. A project's or the machine-wide command is
+ *  deletable too, because the operator asked for it in Settings; the file goes for every tool that reads
+ *  that folder. A symlinked command loses only its link, never the file it points at. */
+export async function deleteUserCommand(name: string, source: UserCommandSource = "ntwine", projectDir?: string, home = homedir()): Promise<void> {
+  const folder = userCommandDirs(projectDir, home).find((d) => d.source === source)
+  if (!folder) throw new Error(`No ${source} commands folder here`)
+  await rm(join(folder.dir, `${name}.md`), { force: true })
 }
