@@ -25,7 +25,8 @@ import { formatCompactElapsed } from "../lib/durationLabels.ts"
 import { statusElapsed } from "./ThreadStatusLine.tsx"
 import { awaitingProse, awaitingWaitClause } from "../lib/awaitingPresentation.ts"
 import { clearArchived } from "../lib/optimisticArchive.ts"
-import { clearPinned, markPinned } from "../lib/optimisticPin.ts"
+import { useAfterScopedWrite } from "../lib/scopedWrite.ts"
+import { usePinToggle } from "../lib/pinThread.ts"
 import type { ReactElement, ReactNode } from "react"
 import { useSnapshot } from "valtio"
 import { prefs } from "../lib/prefs.ts"
@@ -66,21 +67,6 @@ export const ROW_ACTION_CLASS = "flex h-[19px] w-[19px] items-center justify-cen
 // (BandLabel.tsx), while a Ready row lights nothing here because its thread is a card in the middle
 // column, which the scroll marker already tracks. Stronger than hover so pointing at a neighbour
 // cannot be mistaken for opening it.
-/**
- * After a row's verb lands, re-read what the row was drawn from. Everything polls every project, so a
- * row asks for that poll now, and for its project's full board (Done, External), rather than showing the
- * old state for up to a poll. A row under no ThreadProjectScope (a fixture's) has nothing to re-read.
- */
-function useAfterScopedWrite(): () => void {
-  const queryClient = useQueryClient()
-  const projectId = useThreadProjectId()
-  return useCallback(() => {
-    if (!projectId) return
-    void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
-    void queryClient.invalidateQueries({ queryKey: ["ofProject", projectId, "board"] })
-  }, [queryClient, projectId])
-}
-
 function rowWashClass(open: boolean): string {
   return `after:pointer-events-none after:absolute after:inset-0 after:rounded-md after:transition-opacity ${
     open ? "after:bg-hover-strong after:opacity-100" : "after:bg-hover after:opacity-0 hover:after:opacity-100"
@@ -735,11 +721,7 @@ function PinnedMark({ besideClock = false }: { besideClock?: boolean }) {
 // button is never disabled meanwhile — a dimmed button waiting on a round trip is what read as an
 // unresponsive click. A fixture's row (no project scope) has no list to move, so it just waits.
 function RowPinButton({ t, className = "" }: { t: ThreadView; className?: string }) {
-  const pinned = isPinned(t)
-  // The row's own project's client: its ThreadProjectScope's, else the page's `rpc` (a fixture's row).
-  const api = useThreadApi()
-  const projectId = useThreadProjectId()
-  const afterWrite = useAfterScopedWrite()
+  const { pinned, toggle } = usePinToggle(t)
   return (
     <Tooltip label={pinned ? "Unpin — return this thread to the rail's bands" : "Pin — keep this thread at the very top"}>
       <button
@@ -750,14 +732,7 @@ function RowPinButton({ t, className = "" }: { t: ThreadView; className?: string
         onMouseDown={(e) => e.preventDefault()}
         onClick={(e) => {
           e.stopPropagation()
-          if (projectId) markPinned(projectId, t.id, !pinned)
-          api
-            .setThreadPinned({ slug: t.id, sessionId: t.sessionId ?? "", pinned: !pinned })
-            .then(afterWrite)
-            .catch((error: unknown) => {
-              if (projectId) clearPinned(projectId, t.id)
-              showToast(`${pinned ? "Unpin" : "Pin"} failed: ${String(error instanceof Error ? error.message : error).slice(0, 80)}`)
-            })
+          toggle()
         }}
         // `className` carries a layout trim the strip decides per position (see ThreadRow's readings).
         className={`${ROW_ACTION_CLASS} ${className}`}

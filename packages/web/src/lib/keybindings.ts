@@ -4,7 +4,7 @@
 // components/KeyboardShortcuts.tsx, and the operator's overrides in prefs.ts.
 //
 // A LETTER IS ITS ACTION'S INITIAL: `r` reply, `d` mark as done, `s` snooze, `o` open in a drawer,
-// `t` a terminal on the thread, `n` new project. One rule is worth more than any single well-chosen key, because it predicts the
+// `t` a terminal on the thread, `p` pin. One rule is worth more than any single well-chosen key, because it predicts the
 // keys nobody has looked up yet, including ones added later (David 2026-09-28: "establish the
 // convention in general that each action is associated with its first letter"). Until then Done and
 // Snooze were `e` and `h`, borrowed from keyboard-first inboxes: `e` is Gmail's archive and
@@ -54,6 +54,7 @@ export type ActionId =
   | "thread.menu"
   | "thread.spinoff"
   | "thread.continue"
+  | "thread.pin"
   | "app.newThread"
   | "app.newProject"
   | "app.palette"
@@ -100,7 +101,10 @@ export const ACTIONS: readonly ActionDef[] = [
   // A usage-limit pause's "Continue now" (ChatView.tsx LimitPauseNotice), the way `d` is Mark as done.
   { id: "thread.continue", label: "Continue now", group: "queue", defaultChord: "c" },
   { id: "app.newThread", label: "New thread", group: "anywhere", defaultChord: "n" },
-  { id: "app.newProject", label: "New project", group: "anywhere", defaultChord: "p" },
+  // `p` pins: a thread you are chatting in stays put at the top while you do. New project is the rarer of
+  // the two, so it takes Shift (David 2026-10-16: "pin is more useful than new project").
+  { id: "thread.pin", label: "Pin or unpin", group: "queue", defaultChord: "p" },
+  { id: "app.newProject", label: "New project", group: "anywhere", defaultChord: "shift+p" },
   { id: "app.palette", label: "Jump to a thread", group: "anywhere", defaultChord: "mod+k" },
   // Sidebar only since 2026-10-14: there ⌘I adds the editor's selection first (App.tsx); in a browser
   // Thread details is too rare for a chord and stays in the ⋯ menu (maintainer).

@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { ChartColumn, Code, Ellipsis, FileDiff, FileText, Folder, Loader2, RefreshCw, SquareTerminal, Timer, Trash2 } from "lucide-react"
+import { ChartColumn, Code, Ellipsis, FileDiff, FileText, Folder, Loader2, Pin, PinOff, RefreshCw, SquareTerminal, Timer, Trash2 } from "lucide-react"
 import { useSnapshot } from "valtio"
 import type { ThreadView } from "@ntwine/shared"
 import type { Api, ThreadFolderChoice } from "../api/contract.ts"
@@ -22,6 +22,7 @@ import { embedded } from "../lib/embed.ts"
 import { openInHostEditor } from "../lib/local-file-links.ts"
 import { offersRestartWorker } from "../lib/workerMaintenance.ts"
 import { reviewChanges, reviewLabel } from "../lib/reviewChanges.ts"
+import { usePinToggle } from "../lib/pinThread.ts"
 
 // THE HEADER'S OPEN TERMINAL ICON. A terminal belongs to the thread you are reading (ThreadTerminals.tsx),
 // so it opens from that thread's header, in the folder its agent is working in; `t` is its key. It was an
@@ -141,6 +142,9 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
   // trigger — the surface's one always-rendered anchor — carries their commands beside its own `m`.
   useCommandHandler(trigger, () => onOpenChange(true), "menu")
   useCommandHandler(trigger, () => { if (ownSession) editor() }, "editor")
+  const pin = usePinToggle(thread)
+  useCommandHandler(trigger, () => { if (ownSession) pin.toggle() }, "pin")
+  const pinKeys = useShortcutLabel("thread.pin")
   const editorKeys = useShortcutLabel("thread.editor")
   const menuKeys = useShortcutLabel("thread.menu")
   const [deleting, setDeleting] = useState(false)
@@ -164,7 +168,7 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
           aria-label="More actions"
           title={menuKeys ? `More actions (${menuKeys})` : "More actions"}
           data-thread-menu={slug}
-          data-command="menu editor"
+          data-command="menu editor pin"
           // The strip's shared focus behaviour: a click here must not take the keyboard away from the
           // composer below it.
           onMouseDown={(event) => event.preventDefault()}
@@ -177,6 +181,11 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
         {onDoc && (
           <MenuItem value="doc" onSelect={onDoc} icon={<FileText size={12} aria-hidden />}>
             ntwine document
+          </MenuItem>
+        )}
+        {ownSession && (
+          <MenuItem value="pin" onSelect={pin.toggle} icon={pin.pinned ? <PinOff size={12} aria-hidden /> : <Pin size={12} aria-hidden />} shortcut={pinKeys}>
+            {pin.pinned ? "Unpin" : "Pin to top"}
           </MenuItem>
         )}
         {ownSession && (
