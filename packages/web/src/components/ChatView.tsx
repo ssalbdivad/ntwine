@@ -55,7 +55,7 @@ import { RegisteredAnswerSheet } from "./RegisteredAnswerSheet.tsx"
 import { sendEagerFollowUp } from "../lib/eagerComposerSubmission.ts"
 import { limitPauseResume, limitPauseTitle } from "../lib/limitPause.ts"
 import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
-import { timeBreakLabel, timeBreaks, type TimeBreak } from "../lib/timeBreaks.ts"
+import { timeBreakLabel, type TimeBreak } from "../lib/timeBreaks.ts"
 import { useUnqueueFollowUp, useUnqueueSupported } from "../lib/unqueueFollowUp.ts"
 import { useFailedDeliveryActions } from "../lib/failedDelivery.ts"
 import { useDeliverQueuedNow, useDeliverQueuedNowSupported } from "../lib/deliverQueuedNow.ts"
@@ -120,7 +120,7 @@ import { ThreadMenu, ThreadTerminalButton } from "./ThreadMenu.tsx"
 import { ThreadProcessStrip } from "./ThreadTerminals.tsx"
 import { threadProcesses } from "../lib/threadProcesses.ts"
 import { prependEarlierPage } from "../lib/transcriptPagination.ts"
-import { buildVirtualTranscriptMessageRows, earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
+import { earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, transcriptMessageRows, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
 import { withoutRedundantRestDividers } from "../lib/restDividers.ts"
 import { coalesceToolActivityMessages, editedFileCount, failedToolCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, settledToolActivityParts, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
 import { CodexDirectiveCard, MermaidDiagram } from "./CodexRichOutput.tsx"
@@ -981,23 +981,15 @@ function VirtualizedThreadTranscript({
     return withoutRedundantRestDividers(entries, rendersNothingIn(entries, awaitingCut, restingShown))
   }, [coalescedActivityMessages, running, awaitingCut, restingShown, paired])
   const showWorking = running
-  const messageRows = useMemo(() => {
-    const rows = buildVirtualTranscriptMessageRows(
-      activityMessages.map((entry) => entry.message),
-      rendersNothingIn(activityMessages, awaitingCut, restingShown),
-      messageGap,
-    )
-    // A coalesced tool run STARTED at `runStartedAt` and last moved at its walked-forward `at` — see
-    // lib/timeBreaks for why the pause is measured between the two.
-    const startAt = (row: VirtualTranscriptMessageRow) => activityMessages[row.messageIndex].runStartedAt ?? row.message.at
-    const breaks = timeBreaks(rows, startAt, (row) => row.message.at)
-    return rows.map((row, i) => ({
-      ...row,
-      messageIndex: activityMessages[row.messageIndex].messageIndex,
-      timeBreak: breaks[i],
-      timeBreakAt: startAt(row),
-    }))
-  }, [activityMessages, awaitingCut, restingShown])
+  // The rows the list draws — skipping what renders nothing (the same cut and resting reason as
+  // rendersNothingIn), each with its gap and its time break; a coalesced tool run STARTED at `runStartedAt`
+  // and last moved at its walked-forward `at` (see lib/timeBreaks for why the pause is measured between
+  // the two). Kept incrementally: a streaming update walks only the entries that changed
+  // (lib/virtualTranscript transcriptMessageRows, the identical answer to a pass from scratch).
+  const messageRows = useMemo(
+    () => transcriptMessageRows(activityMessages, { awaitingCut, restingShown, rendersNothing: messageRendersNothing, gapBetween: messageGap }),
+    [activityMessages, awaitingCut, restingShown],
+  )
   const lastUserIdx = useMemo(() => lastAskIndex(messages), [messages])
   // A completion the worker REGISTERED rather than fenced: the last rung of the ladder below, drawn here
   // because no message carries it (lib/registeredDone). Keyed on the final assistant message so a worker
@@ -1845,7 +1837,24 @@ export { STEP, META_CARD_STEP, PICTURE_STEP, USER_TAIL_EXTRA, VSpace } from "./r
 // The tools this message ENDS / BEGINS with, or null when the rendered edge is prose (or nothing at
 // all). Returning the calls rather than a boolean is what lets the label predicates below ask the one
 // further question the gap depends on: does that edge draw a one-line digest or a bordered card?
+//
+// Both are CACHED per message object (2026-10-16). Every spacing predicate below asks one of them, the gap
+// between two rows asks six, and the rows are rebuilt over the whole loaded transcript on every update —
+// each ask a `trim()` of the message's prose. A message object is never mutated (a changed message arrives
+// as a new object, lib/transcript-sync preserveMessageIdentity), so its edges are a fact about it.
+const tailToolsCache = new WeakMap<ChatMessage, TranscriptToolCall[] | null>()
+const headToolsCache = new WeakMap<ChatMessage, TranscriptToolCall[] | null>()
 function messageTailTools(m: ChatMessage): TranscriptToolCall[] | null {
+  let tools = tailToolsCache.get(m)
+  if (tools === undefined) tailToolsCache.set(m, (tools = computeTailTools(m)))
+  return tools
+}
+function messageHeadTools(m: ChatMessage): TranscriptToolCall[] | null {
+  let tools = headToolsCache.get(m)
+  if (tools === undefined) headToolsCache.set(m, (tools = computeHeadTools(m)))
+  return tools
+}
+function computeTailTools(m: ChatMessage): TranscriptToolCall[] | null {
   if (m.kind === "event" || m.kind === "reasoning" || m.role === "user") return null
   if (agentCompletionCall(m)) return null
   if (m.parts && m.parts.length > 0) {
@@ -1857,7 +1866,7 @@ function messageTailTools(m: ChatMessage): TranscriptToolCall[] | null {
   }
   return (m.tools?.length ?? 0) > 0 && !m.text.trim() ? m.tools : null
 }
-function messageHeadTools(m: ChatMessage): TranscriptToolCall[] | null {
+function computeHeadTools(m: ChatMessage): TranscriptToolCall[] | null {
   if (m.kind === "event" || m.kind === "reasoning" || m.role === "user") return null
   if (agentCompletionCall(m)) return null
   if (m.parts && m.parts.length > 0) {
@@ -1956,7 +1965,18 @@ function answeredBySettledCards(paired: PairedAnswer[] | null | undefined, m: Ch
 }
 // Matches exactly when Message returns null (an empty/thinking-only assistant turn) — such a message
 // takes no slot, so the adjacency-spacer walk must SKIP it (else two spacers stack into a double gap).
+//
+// CACHED per message object and per flag pair (2026-10-16): the row builders ask it of every message on every
+// update, and a message holding an ```awaiting fence parses the fence each time. Pure in the message and the
+// two flags, and a message object is never mutated (see messageTailTools).
+const rendersNothingCache = new WeakMap<ChatMessage, (boolean | undefined)[]>()
 export function messageRendersNothing(m: ChatMessage, staleAwaiting?: boolean, cardOwned?: boolean): boolean {
+  const slot = (staleAwaiting ? 1 : 0) | (cardOwned ? 2 : 0)
+  let slots = rendersNothingCache.get(m)
+  if (!slots) rendersNothingCache.set(m, (slots = []))
+  return (slots[slot] ??= computeRendersNothing(m, staleAwaiting, cardOwned))
+}
+function computeRendersNothing(m: ChatMessage, staleAwaiting?: boolean, cardOwned?: boolean): boolean {
   if (m.kind === "event" || m.kind === "reasoning" || m.role === "user") return false
   if (m.parts && m.parts.length > 0) return m.parts.every((p) => (p.kind === "tools" ? p.tools.length === 0 : blankText(m, p.text, staleAwaiting, cardOwned)))
   return (m.tools?.length ?? 0) === 0 && blankText(m, m.text, staleAwaiting, cardOwned)

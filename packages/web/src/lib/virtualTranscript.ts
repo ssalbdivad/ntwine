@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../hooks.ts"
+import { breakBetween, breakInstant, timeBreaks, type TimeBreak } from "./timeBreaks.ts"
 
 // USER_TAIL_EXTRA lived here for one reason — ChatView imports this module, so it could not be declared
 // beside STEP in ChatView — and that reason ended when the rhythm moved into components/rhythm.tsx,
@@ -125,4 +126,155 @@ export function buildVirtualTranscriptMessageRows(
   })
 
   return rows
+}
+
+// ── The transcript's message rows, kept incrementally ──────────────────────────────────────────────────
+//
+// The virtualized thread view's message rows: the entries a row builder would walk (the coalesced activity
+// list), minus the queued and the ones that draw nothing, each with its render key, its gap to the previous
+// RENDERED row and its time break. `transcriptMessageRowsFull` is the definition; it is what the drawer ran
+// on every update until 2026-10-16. `transcriptMessageRows` gives the identical answer while walking only
+// what changed: on a streaming thread the whole history but the tail.
+//
+// What a row of the prefix depends on: its entry (message object and transcript index), whether the entry
+// is drawn — `rendersNothing` of the message and its two positional flags, stale (below `awaitingCut`) and
+// owned (AT the cut while the resting card shows) — and, through the gap and the time break, the rows
+// before it. So the previous answer holds for every entry up to the first that differs from last time in
+// any of those, and the walk resumes there from a checkpoint (how many rows, and the time-break clock).
+//
+// Two things the prefix CANNOT see are what a later entry adds to it: a render key already used above
+// (the next one is suffixed) and a message object already listed above (the stale/owned sets key on the
+// object, ChatView rendersNothingIn). Both are legacy-transcript corners, so the walk keeps only enough to
+// notice one, and falls back to a full pass when it does. Equivalence is pinned in
+// virtualTranscript.incremental.test.ts.
+
+export interface TranscriptRowEntry {
+  message: ChatMessage
+  /** The entry's index in the transcript (ToolActivityMessage.messageIndex). */
+  messageIndex: number
+  /** When the coalesced tool run the entry stands for began (ToolActivityMessage.runStartedAt). */
+  runStartedAt?: string
+}
+
+export interface TimedTranscriptRow extends VirtualTranscriptMessageRow {
+  timeBreak: TimeBreak | null
+  timeBreakAt: string | undefined
+}
+
+export interface TranscriptRowRules {
+  /** The index a fence goes stale below — ChatView's `awaitingCut`. */
+  awaitingCut: number
+  /** The resting card states the message AT the cut, so its fence draws nothing (showsRestingCard). */
+  restingShown: boolean
+  rendersNothing: (message: ChatMessage, stale: boolean, owned: boolean) => boolean
+  gapBetween: (previous: ChatMessage, next: ChatMessage) => number
+}
+
+/** The definition, as one pass from scratch. */
+export function transcriptMessageRowsFull(entries: readonly TranscriptRowEntry[], rules: TranscriptRowRules): TimedTranscriptRow[] {
+  const { awaitingCut, restingShown } = rules
+  const stale = new WeakSet<ChatMessage>()
+  const owned = new WeakSet<ChatMessage>()
+  if (awaitingCut >= 0) for (const entry of entries) if (entry.messageIndex < awaitingCut) stale.add(entry.message)
+  if (awaitingCut >= 0 && restingShown) for (const entry of entries) if (entry.messageIndex === awaitingCut) owned.add(entry.message)
+  const rows = buildVirtualTranscriptMessageRows(
+    entries.map((entry) => entry.message),
+    (message) => rules.rendersNothing(message, stale.has(message), owned.has(message)),
+    rules.gapBetween,
+  )
+  const startAt = (row: VirtualTranscriptMessageRow) => entries[row.messageIndex]!.runStartedAt ?? row.message.at
+  const breaks = timeBreaks(rows, startAt, (row) => row.message.at)
+  return rows.map((row, i) => ({
+    ...row,
+    messageIndex: entries[row.messageIndex]!.messageIndex,
+    timeBreak: breaks[i]!,
+    timeBreakAt: startAt(row),
+  }))
+}
+
+interface RowsRun {
+  entries: readonly TranscriptRowEntry[]
+  awaitingCut: number
+  restingShown: boolean
+  rendersNothing: TranscriptRowRules["rendersNothing"]
+  gapBetween: TranscriptRowRules["gapBetween"]
+  rows: TimedTranscriptRow[]
+  /** After entries[i]: how many rows, and the time-break clock (timeBreaks's `previousEnd`). */
+  rowCount: number[]
+  clock: (number | null)[]
+  /** Where each render key and each message object sits (row index; entry position). Carried forward
+   *  from run to run and never pruned: a recorded position that no longer holds its key or object is left
+   *  over from a suffix an older run discarded, and is told apart by looking (see rowsFrom). */
+  keyAt: Map<string, number>
+  objectAt: WeakMap<ChatMessage, number>
+}
+const rowRuns = new WeakMap<ChatMessage, RowsRun>()
+
+/** `transcriptMessageRowsFull`'s answer, resumed from the last call over the same transcript. */
+export function transcriptMessageRows(entries: readonly TranscriptRowEntry[], rules: TranscriptRowRules): TimedTranscriptRow[] {
+  const head = entries[0]?.message
+  const previous = head ? rowRuns.get(head) : undefined
+  const run = (previous && rowsFrom(previous, entries, rules)) ?? rowsFrom(undefined, entries, rules)
+  if (run) {
+    if (head) rowRuns.set(head, run)
+    return run.rows
+  }
+  // A repeated key or message object from scratch: the definition, and nothing to resume from next time.
+  if (head) rowRuns.delete(head)
+  return transcriptMessageRowsFull(entries, rules)
+}
+
+const flagsAt = (messageIndex: number, awaitingCut: number, restingShown: boolean): number =>
+  awaitingCut < 0 ? 0 : (messageIndex < awaitingCut ? 1 : 0) | (restingShown && messageIndex === awaitingCut ? 2 : 0)
+
+// Undefined when the walk met something only a full pass gets right (see the header).
+function rowsFrom(previous: RowsRun | undefined, entries: readonly TranscriptRowEntry[], rules: TranscriptRowRules): RowsRun | undefined {
+  const { awaitingCut, restingShown, rendersNothing, gapBetween } = rules
+  let shared = 0
+  if (previous && previous.rendersNothing === rendersNothing && previous.gapBetween === gapBetween) {
+    const limit = Math.min(previous.entries.length, entries.length)
+    while (shared < limit) {
+      const was = previous.entries[shared]!, now = entries[shared]!
+      if (was.message !== now.message || was.messageIndex !== now.messageIndex || was.runStartedAt !== now.runStartedAt) break
+      if (flagsAt(was.messageIndex, previous.awaitingCut, previous.restingShown) !== flagsAt(now.messageIndex, awaitingCut, restingShown)) break
+      shared++
+    }
+  }
+  const prefixRows = shared > 0 ? previous!.rowCount[shared - 1]! : 0
+  const rows = shared > 0 ? previous!.rows.slice(0, prefixRows) : []
+  const rowCount = shared > 0 ? previous!.rowCount.slice(0, shared) : []
+  const clock = shared > 0 ? previous!.clock.slice(0, shared) : []
+  const keyAt = shared > 0 ? previous!.keyAt : new Map<string, number>()
+  const objectAt = shared > 0 ? previous!.objectAt : new WeakMap<ChatMessage, number>()
+  let previousEnd = shared > 0 ? clock[shared - 1]! : null
+  let previousMessage = rows.length > 0 ? rows[rows.length - 1]!.message : null
+  for (let i = shared; i < entries.length; i++) {
+    const entry = entries[i]!
+    const message = entry.message
+    // A position recorded for this object that still holds it is a genuine repeat; one that does not is
+    // left over from a suffix an older run discarded. A successful run lists every object once, so the map
+    // is exact for its own entries, and the prefix inherits that.
+    const seenAt = objectAt.get(message)
+    if (seenAt !== undefined && seenAt < i && entries[seenAt]?.message === message) return undefined
+    objectAt.set(message, i)
+    const flags = flagsAt(entry.messageIndex, awaitingCut, restingShown)
+    if (!message.queued && !rendersNothing(message, (flags & 1) === 1, (flags & 2) === 2)) {
+      const key = message.sourceId ?? legacyMessageKey(message)
+      const keySeen = keyAt.get(key)
+      if (keySeen !== undefined && keySeen < rows.length && rows[keySeen]!.key === key) return undefined
+      keyAt.set(key, rows.length)
+      const startAt = entry.runStartedAt ?? message.at
+      const start = breakInstant(startAt)
+      let timeBreak: TimeBreak | null = null
+      if (start !== null) {
+        timeBreak = breakBetween(previousEnd, start)
+        previousEnd = Math.max(previousEnd ?? 0, breakInstant(message.at) ?? start)
+      }
+      rows.push({ key, message, messageIndex: entry.messageIndex, gap: previousMessage === null ? 0 : gapBetween(previousMessage, message), timeBreak, timeBreakAt: startAt })
+      previousMessage = message
+    }
+    rowCount.push(rows.length)
+    clock.push(previousEnd)
+  }
+  return { entries, awaitingCut, restingShown, rendersNothing, gapBetween, rows, rowCount, clock, keyAt, objectAt }
 }

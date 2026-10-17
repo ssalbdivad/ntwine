@@ -51,7 +51,11 @@ test("a fence the resting card states never reaches the card either", () => {
   assert.ok(helper, "rendersNothingIn must exist")
   assert.match(helper, /restingCardShown = false/, "it takes the resting-card reason")
   assert.match(helper, /entry\.messageIndex === awaitingCut\) owned\.add\(entry\.message\)/, "…and folds the last message in, apart from the settled set")
-  assert.equal(chat.match(/rendersNothingIn\([a-zA-Z]+, awaitingCut, restingShown\)/g)?.length, 3, "every rendersNothingIn call passes it")
+  assert.equal(chat.match(/rendersNothingIn\([a-zA-Z]+, awaitingCut, restingShown\)/g)?.length, 2, "every rendersNothingIn call passes it")
+  // The virtualized list's rows come from lib/virtualTranscript transcriptMessageRows (incremental since
+  // 2026-10-16), which takes the cut and the reason itself and folds them in exactly as rendersNothingIn
+  // does — pinned there, against the pass from scratch, in virtualTranscript.incremental.test.ts.
+  assert.match(chat, /transcriptMessageRows\(activityMessages, \{ awaitingCut, restingShown, rendersNothing: messageRendersNothing,/, "the virtualized rows take both")
 })
 
 // THE TAIL MOUNTS WITH THE TRANSCRIPT, NOT BEFORE IT. The board lands first, so the board's queue card

@@ -17,13 +17,39 @@ export const TIME_BREAK_GAP_MS = 20 * 60_000
 /** `day` — the first reading of a calendar day, so it names the day. `time` — a pause inside one day. */
 export type TimeBreak = "day" | "time"
 
-function instant(at: string | undefined): number | null {
-  const ms = at ? Date.parse(at) : NaN
-  return Number.isFinite(ms) ? ms : null
+// BOTH READINGS ARE CACHED, by the string and by the instant (2026-10-16). The breaks are re-derived over
+// the whole loaded transcript on every update, and a parse plus two `toDateString` per row was the largest
+// single cost of a streaming update on a long thread: ~20ms of each at 4x CPU on 2,450 messages, the
+// first item in its profile. A transcript's timestamps repeat across every update, so after the first
+// pass each row is two map reads. The caches are bounded by clearing, which only costs a re-parse.
+const CACHE_LIMIT = 50_000
+const instants = new Map<string, number | null>()
+const days = new Map<number, string>()
+
+/** The instant `at` names, or null for none / an unparseable one. */
+export function breakInstant(at: string | undefined): number | null {
+  if (!at) return null
+  const hit = instants.get(at)
+  if (hit !== undefined) return hit
+  const ms = Date.parse(at)
+  const value = Number.isFinite(ms) ? ms : null
+  if (instants.size >= CACHE_LIMIT) instants.clear()
+  instants.set(at, value)
+  return value
+}
+
+function localDay(ms: number): string {
+  let day = days.get(ms)
+  if (day === undefined) {
+    day = new Date(ms).toDateString()
+    if (days.size >= CACHE_LIMIT) days.clear()
+    days.set(ms, day)
+  }
+  return day
 }
 
 function sameLocalDay(a: number, b: number): boolean {
-  return new Date(a).toDateString() === new Date(b).toDateString()
+  return localDay(a) === localDay(b)
 }
 
 /**
@@ -39,15 +65,21 @@ function sameLocalDay(a: number, b: number): boolean {
 export function timeBreaks<T>(rows: readonly T[], startAt: (row: T) => string | undefined, endAt: (row: T) => string | undefined): (TimeBreak | null)[] {
   let previousEnd: number | null = null
   return rows.map((row) => {
-    const start = instant(startAt(row))
-    const end = instant(endAt(row)) ?? start
+    const start = breakInstant(startAt(row))
+    const end = breakInstant(endAt(row)) ?? start
     if (start === null) return null
-    const brk: TimeBreak | null = previousEnd === null || !sameLocalDay(previousEnd, start)
-      ? "day"
-      : start - previousEnd >= TIME_BREAK_GAP_MS ? "time" : null
+    const brk = breakBetween(previousEnd, start)
     previousEnd = Math.max(previousEnd ?? 0, end ?? start)
     return brk
   })
+}
+
+/** The break before a row that starts at `start`, after rows that last moved at `previousEnd`. One step
+ *  of timeBreaks, for a caller that keeps the fold's clock itself (lib/virtualTranscript). */
+export function breakBetween(previousEnd: number | null, start: number): TimeBreak | null {
+  return previousEnd === null || !sameLocalDay(previousEnd, start)
+    ? "day"
+    : start - previousEnd >= TIME_BREAK_GAP_MS ? "time" : null
 }
 
 /**

@@ -324,45 +324,123 @@ function appendToolTail(message: ChatMessage, tools: TranscriptToolCall[], at?: 
  * the instant `at` is walking away from — the one the runtime slot's own clock counts from.
  */
 export function coalesceToolActivityMessages(messages: readonly ChatMessage[]): ToolActivityMessage[] {
-  const out: ToolActivityMessage[] = []
+  const same = coalescedByInput.get(messages)
+  if (same) return same
+  const head = messages[0]
+  const previous = head ? coalesceRuns.get(head) : undefined
+  const run = coalesceFrom(previous, messages)
+  if (head) coalesceRuns.set(head, run)
+  coalescedByInput.set(messages, run.out)
+  return run.out
+}
+
+// INCREMENTAL (2026-10-16). The fold walks the transcript left to right with one piece of state — the
+// open activity run — so a transcript that only grew, or changed from some message on, has the same
+// output up to that message as last time. Each run keeps a checkpoint after every message (how long the
+// output was, which entry was the open run and what its message was then), and the next call resumes
+// from the last message the two inputs share BY IDENTITY: a message object is never mutated, and a
+// changed one arrives as a new object (lib/transcript-sync preserveMessageIdentity). On a streaming
+// thread that is the whole history but the tail, which used to be re-coalesced, twice, on every update.
+//
+// The open run's entry is the one object the fold mutates (later batches fold into its message), so a
+// resumed run never touches the previous run's copy of it: it continues on a fresh entry carrying the
+// message as it stood at the checkpoint. Every other entry is final once the run moves past it, and is
+// shared with the previous output as is — which is what lets the per-message caches downstream hit.
+//
+// Keyed by the transcript's FIRST message, the one thing a growing transcript keeps; a page of history
+// prepended above it is a new head and a full pass. `coalescedByInput` answers a second ask of the same
+// array (the drawer and its virtualized list both coalesce the one presentation list) without a walk.
+// The equivalence with a pass from scratch is pinned in toolActivity.incremental.test.ts.
+interface CoalesceRun {
+  input: readonly ChatMessage[]
+  out: ToolActivityMessage[]
+  /** After input[i]: the output's length, the open run's index in it (-1 none), and its message then. */
+  outLength: number[]
+  tailIndex: number[]
+  tailMessage: (ChatMessage | undefined)[]
+}
+const coalesceRuns = new WeakMap<ChatMessage, CoalesceRun>()
+const coalescedByInput = new WeakMap<readonly ChatMessage[], ToolActivityMessage[]>()
+
+/** The pass from scratch, for the equivalence tests: no checkpoint read, none kept. */
+export function coalesceToolActivityMessagesFull(messages: readonly ChatMessage[]): ToolActivityMessage[] {
+  return coalesceFrom(undefined, messages).out
+}
+
+function coalesceFrom(previous: CoalesceRun | undefined, messages: readonly ChatMessage[]): CoalesceRun {
+  let shared = 0
+  if (previous) {
+    const limit = Math.min(previous.input.length, messages.length)
+    while (shared < limit && previous.input[shared] === messages[shared]) shared++
+  }
+  let out: ToolActivityMessage[]
+  let outLength: number[], tailIndex: number[], tailMessage: (ChatMessage | undefined)[]
   let activityTail: ToolActivityMessage | null = null
+  if (previous && shared > 0) {
+    const at = shared - 1
+    out = previous.out.slice(0, previous.outLength[at])
+    outLength = previous.outLength.slice(0, shared)
+    tailIndex = previous.tailIndex.slice(0, shared)
+    tailMessage = previous.tailMessage.slice(0, shared)
+    const open = previous.tailIndex[at]
+    if (open >= 0) {
+      activityTail = { ...out[open]!, message: previous.tailMessage[at]! }
+      out[open] = activityTail
+    }
+  } else {
+    shared = 0
+    out = []
+    outLength = []
+    tailIndex = []
+    tailMessage = []
+  }
 
-  messages.forEach((message, messageIndex) => {
-    if (transparentAssistantMessage(message)) return
-    // A QUEUED bubble is pinned to the BOTTOM of the pane and never drawn inline (every row builder
-    // skips it), so it is not a visible block between the messages it happens to sit between — and it
-    // must not end a run. It used to: a steer typed mid-turn split one live run in two, stranding the
-    // calls above it as a settled `Ran N tool calls` digest for no cause the reader could see. It still
-    // takes its slot in `out` — the callers that pin it read this list — it simply leaves `activityTail`
-    // alone.
-    if (message.queued) {
-      out.push({ message, messageIndex })
-      return
-    }
-    const tools = pureToolMessage(message)
-    if (tools && activityTail) {
-      activityTail.message = appendToolTail(activityTail.message, tools, message.at)
-      return
-    }
-    // A message the whole-message fold rejected can still OPEN with ordinary calls — the reader sees
-    // them as the run above continuing, so they move up into it and only the visible block that bounded
-    // them (and whatever follows) keeps this row.
-    const prefix = activityTail ? messageToolPrefix(message) : null
-    const entryMessage = prefix ? withoutToolPrefix(message, prefix) : message
-    if (prefix && activityTail) {
-      activityTail.message = appendToolTail(activityTail.message, prefix, message.at)
-    }
-    const entry: ToolActivityMessage = { message: entryMessage, messageIndex }
-    out.push(entry)
-    if (messageToolTail(entryMessage)) {
-      entry.runStartedAt = entryMessage.at
-      activityTail = entry
-    } else {
-      activityTail = null
-    }
-  })
+  let openIndex = shared > 0 ? tailIndex[shared - 1]! : -1
+  for (let messageIndex = shared; messageIndex < messages.length; messageIndex++) {
+    const next = coalesceStep(out, activityTail, messages[messageIndex]!, messageIndex)
+    // The open run is the one it was, or none, or the entry this message just pushed.
+    openIndex = next === null ? -1 : next === activityTail ? openIndex : out.length - 1
+    activityTail = next
+    outLength.push(out.length)
+    tailIndex.push(openIndex)
+    tailMessage.push(activityTail?.message)
+  }
+  return { input: messages, out, outLength, tailIndex, tailMessage }
+}
 
-  return out
+// One message of the fold: push or fold it into `out`, and return the open activity run after it.
+function coalesceStep(out: ToolActivityMessage[], activityTail: ToolActivityMessage | null, message: ChatMessage, messageIndex: number): ToolActivityMessage | null {
+  if (transparentAssistantMessage(message)) return activityTail
+  // A QUEUED bubble is pinned to the BOTTOM of the pane and never drawn inline (every row builder
+  // skips it), so it is not a visible block between the messages it happens to sit between — and it
+  // must not end a run. It used to: a steer typed mid-turn split one live run in two, stranding the
+  // calls above it as a settled `Ran N tool calls` digest for no cause the reader could see. It still
+  // takes its slot in `out` — the callers that pin it read this list — it simply leaves `activityTail`
+  // alone.
+  if (message.queued) {
+    out.push({ message, messageIndex })
+    return activityTail
+  }
+  const tools = pureToolMessage(message)
+  if (tools && activityTail) {
+    activityTail.message = appendToolTail(activityTail.message, tools, message.at)
+    return activityTail
+  }
+  // A message the whole-message fold rejected can still OPEN with ordinary calls — the reader sees
+  // them as the run above continuing, so they move up into it and only the visible block that bounded
+  // them (and whatever follows) keeps this row.
+  const prefix = activityTail ? messageToolPrefix(message) : null
+  const entryMessage = prefix ? withoutToolPrefix(message, prefix) : message
+  if (prefix && activityTail) {
+    activityTail.message = appendToolTail(activityTail.message, prefix, message.at)
+  }
+  const entry: ToolActivityMessage = { message: entryMessage, messageIndex }
+  out.push(entry)
+  if (messageToolTail(entryMessage)) {
+    entry.runStartedAt = entryMessage.at
+    return entry
+  }
+  return null
 }
 
 /** A call whose result has landed — it is no longer occupying the runtime, whatever its outcome. */
