@@ -76,10 +76,38 @@ function lastSubstantiveAssistantIdx(messages: readonly AskMsgLike[]): number {
   return -1
 }
 
-const parseAskBlocks = (text: string): ParsedQuestion[] =>
+const parseAskBlocksFresh = (text: string): ParsedQuestion[] =>
   splitQuestionBlocks(text)
     .filter((s) => s.kind === "question")
     .map((s) => (s.kind === "question" ? parseQuestionBlock(s.text, s.questionKind, s.danger) : parseQuestionBlock("", "question")))
+
+// CACHED BY TEXT (2026-10-16): the walks below run over the whole transcript on every update, and the
+// parse is pure in the text, so an ask that has not changed parses once. The SAME array coming back for
+// the same text is also what lets useLiveAnswering keep its open asks' identity across an update that
+// changed none of them (sameOpenAsks). Nothing writes into a parsed block. Bounded by clearing, which only
+// costs a re-parse.
+const askBlocksCache = new Map<string, ParsedQuestion[]>()
+const ASK_CACHE_LIMIT = 2_000
+const parseAskBlocks = (text: string): ParsedQuestion[] => {
+  let blocks = askBlocksCache.get(text)
+  if (!blocks) {
+    blocks = parseAskBlocksFresh(text)
+    if (askBlocksCache.size >= ASK_CACHE_LIMIT) askBlocksCache.clear()
+    askBlocksCache.set(text, blocks)
+  }
+  return blocks
+}
+
+/** Whether two selectOpenAsks answers say the same thing. Blocks compare by reference, which is exact
+ *  because parseAskBlocks hands back one array per text. */
+export function sameOpenAsks(a: readonly OpenAsk[], b: readonly OpenAsk[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]!, y = b[i]!
+    if (x.idx !== y.idx || x.identity !== y.identity || x.isLive !== y.isLive || x.blocks !== y.blocks) return false
+  }
+  return true
+}
 
 // Two identical-text asks with NO sourceId (legacy transcripts only) hash to the same identity; suffix
 // the collided one with its index so their answer state / draft keys never bleed together. Unique
@@ -139,7 +167,10 @@ export function tailAskIdx(messages: readonly AskMsgLike[]): number {
     if (m.kind === "event" || m.kind === "reasoning") continue // punctuation (completion / codex reasoning)
     if (m.role === "user" && m.text.trim()) break
     if (m.role !== "assistant" || !m.text.trim()) continue
-    if (parseAskBlocks(m.text).length > 0) return i
+    // The same membership test as selectOpenAsks: a question block opens on a ```question line
+    // (QUESTION_BLOCK), and on a long agent-only stretch this walk covers every turn since the last
+    // human one, on every update.
+    if (m.text.includes("```question") && parseAskBlocks(m.text).length > 0) return i
     // a no-question agent turn doesn't close the tail — keep scanning back for the buried ask
   }
   return -1
@@ -201,7 +232,16 @@ export function useLiveAnswering(
   const [answers, setAnswers] = useState<Record<string, BlockAnswer>>({})
 
   // The OPEN asks, in transcript order (pure walk extracted to selectOpenAsks for unit tests).
-  const openAsks = useMemo(() => selectOpenAsks(messages), [messages])
+  // KEPT BY IDENTITY while they say the same thing (2026-10-16): everything below keys on this array —
+  // the draft keys, every callback, and through `takeAnswers` the SendScopeContext value — so a fresh
+  // array on every streamed message re-rendered every Message on screen and the prompt box with it, once
+  // per update, for a list that had not changed (21 Message renders per update on a phone, measured).
+  const openAsksRef = useRef<OpenAsk[]>([])
+  const openAsks = useMemo(() => {
+    const next = selectOpenAsks(messages)
+    return sameOpenAsks(openAsksRef.current, next) ? openAsksRef.current : next
+  }, [messages])
+  openAsksRef.current = openAsks
 
   const liveMsg = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {

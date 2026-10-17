@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { selectOpenAsks, tailAskIdx, composeAnswerWire, type AskMsgLike } from "./answering.ts"
+import { selectOpenAsks, sameOpenAsks, tailAskIdx, composeAnswerWire, type AskMsgLike } from "./answering.ts"
 
 // A single ```question block message, tagged with a sourceId for identity.
 const ask = (id: string, body = "Pick one\n- A. Left\n- B. Right"): AskMsgLike => ({
@@ -13,6 +13,23 @@ const prose = (text: string): AskMsgLike => ({ role: "assistant", text })
 const user = (text: string): AskMsgLike => ({ role: "user", text })
 const event = (text: string): AskMsgLike => ({ role: "assistant", kind: "event", text })
 const reasoning = (text: string): AskMsgLike => ({ role: "assistant", kind: "reasoning", text })
+
+// useLiveAnswering keeps its open asks by identity while they say the same thing (sameOpenAsks), and
+// everything keyed on them — the draft keys, the send scope every Message reads — holds still with them.
+// So the comparison must see an ask's only moving part as the transcript grows (isLive), and miss nothing
+// a re-parse would change.
+test("open asks compare equal across an update that changed none of them, and unequal when one moved", () => {
+  const before = [user("do it"), ask("q1"), ask("q2", "Which?\n- A. This\n- B. That")]
+  const later = [...before, user("one more thing")]
+  assert.ok(sameOpenAsks(selectOpenAsks(before), selectOpenAsks(later)), "a human turn changes no ask")
+  // The same words in a new message object (the server finalized it) parse to the same blocks.
+  const reissued = [before[0]!, { ...before[1]! }, before[2]!]
+  assert.ok(sameOpenAsks(selectOpenAsks(before), selectOpenAsks(reissued)))
+  // The agent speaking again moves the live ask off q2.
+  assert.ok(!sameOpenAsks(selectOpenAsks(before), selectOpenAsks([...before, prose("carrying on")])))
+  // An edited body is a different ask.
+  assert.ok(!sameOpenAsks(selectOpenAsks(before), selectOpenAsks([before[0]!, before[1]!, ask("q2", "Which?\n- A. This\n- B. Other")])))
+})
 
 test("the trailing ask is answerable", () => {
   const open = selectOpenAsks([user("do it"), ask("q1")])

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useQueryClient, type QueryClient } from "@tanstack/react-query"
 import type { QuestionAnswer } from "@ntwine/shared"
 import { isKeptDeliveryError, isRetryableRpcError, rpc, rpcAtBase } from "../api/rpc.ts"
@@ -307,7 +307,10 @@ export function useEagerFollowUp(slug: string): {
       onRollback: (failure) => { setPending((n) => Math.max(0, n - 1)); callbacks.onRollback?.(failure) },
     }), [queryClient, slug])
 
-  return { submit, pending: pending > 0 }
+  // One object per value, so a caller that keys a callback on it (useLiveAnswering's sendMessage) keeps
+  // that callback across renders that changed neither.
+  const busy = pending > 0
+  return useMemo(() => ({ submit, pending: busy }), [submit, busy])
 }
 
 /** Record a send in the in-flight ledger (lib/pendingSends.ts) for exactly as long as `run` is
