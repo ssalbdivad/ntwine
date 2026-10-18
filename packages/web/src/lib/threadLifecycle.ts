@@ -140,6 +140,17 @@ export function completionHoldSummary(hold: CompletionHold | undefined): Complet
   }
   // Defensive: a hold with no evidence of the agent's own (terminals alone never raise one).
   if (!hold.turnInFlight && agentGroups.length === 0) return generic
+  // A send the agent has not read yet: its turn is starting, so "executing right now" would describe
+  // nothing the human can see. Say what Done would cost instead — the answer to that message.
+  if (hold.unreadMessage && agentGroups.length === 0) {
+    return {
+      lead: "The agent hasn’t answered your last message yet.",
+      groups,
+      trailer: terminals
+        ? "Marking it done will stop the session before it answers, then move it to Done. Terminals keep running unless ticked."
+        : "Marking it done will stop the session before it answers, then move it to Done.",
+    }
+  }
   const lead = hold.turnInFlight
     ? agentGroups.length > 0
       ? "The agent is mid-turn, and it still owns background work:"

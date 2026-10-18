@@ -2344,6 +2344,23 @@ test("a synthetic provider AUTH-error record renders NO assistant bubble (the re
   assert.equal(projectClaudeTranscript(overloaded).some((m) => /529 Overloaded/.test(m.text)), true)
 })
 
+// Claude Code writes this `<synthetic>` record between a user message nothing answered and the next one.
+// Drawn as the agent's reply it read as the agent dismissing the operator (@precompile-design, 2026-10-18).
+test("Claude Code's 'No response requested.' filler renders as an unanswered notice, not an agent reply", () => {
+  const filler = (model: string) => JSON.stringify({ type: "assistant", timestamp: "2026-10-18T14:43:06.189Z", message: { id: `m-${model}`, model, role: "assistant", content: [{ type: "text", text: "No response requested." }] } })
+  const raw = [
+    JSON.stringify({ type: "user", timestamp: "2026-10-18T13:19:51.544Z", message: { role: "user", content: "Another full day of cleanup" } }),
+    filler("<synthetic>"),
+    JSON.stringify({ type: "user", timestamp: "2026-10-18T14:43:06.464Z", message: { role: "user", content: "Hello?" } }),
+  ].join("\n")
+  assert.deepEqual(
+    projectClaudeTranscript(raw).map((m) => [m.role, m.kind ?? null, m.displayText ?? m.text]),
+    [["user", null, "Another full day of cleanup"], ["assistant", "event", "The agent stopped before answering this message"], ["user", null, "Hello?"]],
+  )
+  // The same words from a real model are its own reply.
+  assert.deepEqual(projectClaudeTranscript(filler("claude-opus-5-5")).map((m) => [m.kind ?? null, m.text]), [[null, "No response requested."]])
+})
+
 // ---- a queued message must NEVER disappear from the transcript ----
 // Measured against the real corpus: Claude Code emits `queue-operation remove` at the moment it
 // DEQUEUES a message, and the `queued_command` attachment that carries the delivered copy lands 1 to 19

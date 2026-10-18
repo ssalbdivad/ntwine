@@ -590,6 +590,10 @@ export const CompletionHold = z.object({
   // because the thread is not finished and Done would say it was. Optional rather than defaulted so it
   // is absent (⇒ false) on every hold that is not this one, and a pre-change client reads them unchanged.
   cutOff: z.boolean().optional(),
+  // A message the operator sent has not been read by the agent yet — the turn it opens is starting, not
+  // yet on disk (router.withUnreadSendHold). Always with `turnInFlight`; optional for the same reason as
+  // `cutOff`.
+  unreadMessage: z.boolean().optional(),
 })
 export type CompletionHold = z.infer<typeof CompletionHold>
 

@@ -132,6 +132,13 @@ test("completionHoldSummary says a cut-off worker is gone, not busy, and points 
   assert.doesNotMatch(summary.trailer, /stop/, "nothing will be stopped — the copy must not promise a kill")
 })
 
+test("completionHoldSummary says Done would cost the answer to an unread message — unless the agent owns work too", () => {
+  const unread = completionHoldSummary(hold({ turnInFlight: true, unreadMessage: true }))
+  assert.deepEqual([unread.lead, unread.trailer], ["The agent hasn’t answered your last message yet.", "Marking it done will stop the session before it answers, then move it to Done."])
+  const busy = completionHoldSummary(hold({ turnInFlight: true, unreadMessage: true, subAgents: [{ label: "Audit", state: "running" }], subAgentCount: 1 }))
+  assert.match(busy.lead, /mid-turn, and it still owns background work/, "the work Done would stop is the bigger news")
+})
+
 test("completionHoldSummary distinguishes a mid-turn agent from the work hanging off it", () => {
   const midTurnOnly = completionHoldSummary(hold({ turnInFlight: true }))
   assert.match(midTurnOnly.lead, /mid-turn — it’s executing right now/)

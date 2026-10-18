@@ -223,7 +223,7 @@ import { appServerTurnStalled, registeredDoneFence, resolveLiveWatchTarget, reso
 import { runThreadUpdate } from "./ntwine.ts"
 import { repairThreadFile } from "./repair.ts"
 import { reopenArchivedThreadForFollowUp, resumeThread, wakeParkedThreadForFollowUp } from "./resume.ts"
-import { appendDelivery, beginDelivery, cancelDelivery, deliverOutstandingDeliveries, deliveryItem, dismissFailedDelivery, dropHeldDelivery, heldDeliveries, holdDelivery, recordDeliveryFailure, retireOutstandingDeliveries } from "./delivery-ledger.ts"
+import { appendDelivery, beginDelivery, cancelDelivery, deliverOutstandingDeliveries, deliveryItem, dismissFailedDelivery, dropHeldDelivery, heldDeliveries, holdDelivery, parseDeliveryLedger, recordDeliveryFailure, retireOutstandingDeliveries, type DeliveryState } from "./delivery-ledger.ts"
 import { noteSubAgentsEndedByInterrupt, runningSubAgentsOf } from "./interrupt-ended.ts"
 import {
   readEarlierThreadTranscriptPage,
@@ -537,6 +537,34 @@ export function completionConfirmationHold(telemetry: SessionTelemetry | undefin
   }
 }
 
+// A MESSAGE THE WORKER HAS NOT READ YET holds Done back exactly as a running turn does, because it is one
+// that has not shown up on disk. The telemetry above is the tailer's fold of the transcript, and a
+// follow-up into a rested thread is invisible to it until the CLI writes the user record and the next
+// tick folds it: ~1.7s on a cold resume of a large session, plus up to a tick. Inside that window the
+// thread read as resting, so Mark as done ended the session with no dialog, and the message reached the
+// transcript with nothing ever answering it. Observed twice on @precompile-design (arktype, 2026-10-16
+// 21:53Z and 2026-10-18 13:19Z): a phone send, then ~2.6s later the server itself killed the freshly
+// cold-resumed daemon `session-deleted` before its first token, with no stop verb in the audit log. A
+// completion is the one human verb that reaches that kill without asking, and the phone bar's Done takes
+// the Send button's place the moment the box empties. The thread then sat idle until the operator's next message, whose arrival made Claude Code
+// write a `<synthetic>` "No response requested." in place of the reply that never ran.
+//
+// The delivery ledger is the server's own record of that window: router.followUp writes the entry before
+// it hands the words over, and the tailer retires it in the SAME fold that moves `turn` to in-flight
+// (delivery-ledger.ts ageDeliveries / correlateDeliveryRecord), so between them there is no gap. The
+// states are the hibernation sweep's undelivered-input set plus `delivered` — a send into a rested thread
+// opens `delivered` because it starts the next turn, and that turn is the one Done would kill. `failed`,
+// `cancelled` and `held` are not in any process: ending the session loses none of them.
+const UNREAD_SEND_STATES: ReadonlySet<DeliveryState> = new Set(["sending", "pending", "enqueued", "delivered", "unconfirmed"])
+export function withUnreadSendHold(
+  hold: CompletionHold | undefined,
+  row: Pick<SessionRow, "delivery_ledger">,
+): CompletionHold | undefined {
+  if (!parseDeliveryLedger(row.delivery_ledger).some((item) => UNREAD_SEND_STATES.has(item.state))) return hold
+  const base = hold ?? { turnInFlight: false, unobservable: false, subAgents: [], subAgentCount: 0, bgShells: [], bgShellCount: 0 }
+  return { ...base, turnInFlight: true, unreadMessage: true }
+}
+
 // Worker-authored labels, so cap both the list and each string before they cross the wire — the same
 // defensive discipline every other foreign-payload surface here follows. The untruncated counts ride
 // alongside (see CompletionHold), so a capped list is reported as "+N more", never silently shortened.
@@ -650,7 +678,7 @@ export async function completeRegisteredThread(
   // Running TERMINALS ride along on that dialog when it is raised, and are never a reason to raise it.
   const hold = terminateLive
     ? undefined
-    : withTerminalHold(live ? completionConfirmationHold(telemetry) : cutOffHold(telemetry), terminals?.live ?? [])
+    : withTerminalHold(live ? withUnreadSendHold(completionConfirmationHold(telemetry), row) : cutOffHold(telemetry), terminals?.live ?? [])
   if (hold) return { needsConfirmation: true, hold }
   if (live) {
     // Ordering, both paths: TERMINATE FIRST, record Done only after. A stop that throws must leave the

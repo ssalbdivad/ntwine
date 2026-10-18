@@ -737,6 +737,43 @@ test("completeRegisteredThread asks before filing a cut-off worker as Done; the 
   }
 })
 
+// A SENT MESSAGE THE AGENT HAS NOT READ holds Done back. The tailer reads a rested thread as idle until the
+// CLI writes the message's record and a tick folds it — ~2s on a cold resume — and a Done tapped inside
+// that window (the phone bar's Done takes the Send button's place as the box empties) ended the session
+// before its first token — the kill seen twice on @precompile-design, whose message then sat unanswered.
+test("Mark as done asks before ending a session that has not read the message just sent to it", async () => {
+  const tele = { turn: "idle", permPrompt: false, pendingQuestion: false, subAgents: [], bgShells: [] }
+  const h = harness({ ...noopTailer, get: () => tele as never })
+  const slug = "just-sent"
+  h.storage.upsertSession(row(slug))
+  h.storage.setBackend(slug, "claude")
+  h.storage.setClaudeRuntime(slug, "broker")
+  const released: string[] = []
+  ;(h.ctx as { claudeBroker?: unknown }).claudeBroker = {
+    followUp: async () => {},
+    isDaemonAlive: () => true,
+    releaseSession: (_slug: string, sessionId: string, reason: string) => void released.push(`${sessionId}/${reason}`),
+  }
+  const complete = (terminateLive = false) => h.router.completeThread.handler({ input: { slug, sessionId: `sid-${slug}`, terminateLive } })
+  try {
+    await h.router.followUp.handler({ input: { slug, sessionId: `sid-${slug}`, message: "Another full day of cleanup", deliveryId: "d-sunday" } })
+    const asked = await complete()
+    assert.equal(asked.needsConfirmation, true, "the turn the message opens is not on disk yet, but it is running")
+    assert.deepEqual([asked.hold?.unreadMessage, asked.hold?.turnInFlight], [true, true])
+    assert.deepEqual(released, [], "nothing is stopped on the ask")
+    assert.equal(h.storage.getSession(slug)?.state, "open")
+
+    // The record landed and was answered: the tailer retires the entry in the fold that reads the turn.
+    h.storage.setDeliveryLedger(slug, null)
+    assert.deepEqual(await complete(), { needsConfirmation: false }, "a session that has read everything files in one click, as before")
+    assert.deepEqual(released, [`sid-${slug}/session-deleted`])
+    assert.equal(h.storage.getSession(slug)?.state, "archived")
+  } finally {
+    h.storage.close()
+    rmSync(h.dir, { recursive: true, force: true })
+  }
+})
+
 // A destructive verb acts on the row the caller read. If a resume or a replacement landed since, it must
 // refuse before stopping anything: the worker it would stop now belongs to someone else.
 test("dismissing a stale replaced row stops nothing and preserves the new worker", async () => {

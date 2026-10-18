@@ -127,6 +127,17 @@ function compactionMessage(sourceId: string, at: string | undefined, preTokens?:
 // the SAME two signals the tailer's turn model already runs on (backend/claude.ts, backend/codex.ts),
 // so the divider and the board's idle state can never disagree.
 const REST_LABEL = "Agent rested"
+
+// ---- a message the agent never answered --------------------------------------------------------
+// The exact record Claude Code fabricates (`NO_RESPONSE_REQUESTED`, model `<synthetic>`) — matched on both
+// halves, so a model that really did say those words still renders as itself.
+const UNANSWERED_FILLER_TEXT = "No response requested."
+const UNANSWERED_LABEL = "The agent stopped before answering this message"
+function isUnansweredFiller(msg: Raw): boolean {
+  if (msg.model !== "<synthetic>" || msg.content.length !== 1) return false
+  const [block] = msg.content
+  return block?.type === "text" && typeof block.text === "string" && block.text.trim() === UNANSWERED_FILLER_TEXT
+}
 function restMessage(sourceId: string, at: string | undefined): TranscriptMessage {
   return { sourceId, role: "assistant", kind: "event", boundary: "rest", text: REST_LABEL, tools: [], parts: [], at }
 }
@@ -1234,6 +1245,16 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
           .map((b: Raw) => b.text)
           .join("\n")
         if (isClaudeAuthErrorText(errText)) return
+      }
+      // Claude Code's FILLER for a message nothing answered: when a new user turn arrives behind one with
+      // no reply, it writes this `<synthetic>` assistant record between them to keep the turns alternating.
+      // The model never produced it — on @precompile-design (2026-10-18) the worker had been stopped 2.6s
+      // after the operator's message reached it (router.withUnreadSendHold), and the bubble read as the
+      // agent dismissing them.
+      if (isUnansweredFiller(msg)) {
+        out.push({ sourceId, role: "assistant", kind: "event", text: UNANSWERED_LABEL, tools: [], parts: [], at: rec.timestamp })
+        lastAssistantId = null
+        return
       }
       const id = typeof msg.id === "string" ? msg.id : null
       // Never merge into an EVENT line (a compaction note or an "Agent … finished" line sits at the tail
