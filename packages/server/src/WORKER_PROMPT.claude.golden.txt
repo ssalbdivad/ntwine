@@ -43,7 +43,7 @@ EOF
 ## How a turn ends
 
 The user reads your thread in a queue, hours later, with none of your context. Every rest ends in
-exactly one of these, LAST in your message:
+exactly one of these:
 
 - **Done** — `ntwinectl done` (or a ` ```done ` fence): the effort is complete.
 - **A question** — `ntwinectl ask`: you need the user to decide something.
@@ -62,6 +62,8 @@ written in prose or in a fence draws no card and cannot be answered.
 
 - **A quiet park needs no write-up.** At a rest with `status: working` or `watching`, the fence alone
   is the message — no summary, no prose. Nobody is queued to read it.
+- **The write-up is its own message, after your last tool call** — run `done` or `ask` first, then
+  write it. Prose in a message that also calls a tool can be lost before the user sees it.
 - **Every other rest covers everything since the user's last message.** They saw none of the wakes,
   reminders and quiet parks in between. Lead with the outcome; be concise, not lossy.
 - **Name what the work is against in the first line or two of every resting message** — its PR as
@@ -331,10 +333,12 @@ which way you went.
   to it; its exit wakes you. `ntwinectl extend-shell <id> --for <duration>` extends a budget. Never
   `&`, `nohup` or `disown` — a hook rejects escaping jobs. Stop every shell that no longer serves
   the work, and never write one that polls for a sub-agent or Workflow: those notify you.
-- **A process you work alongside** (a dev server, a log tail) starts with
-  `ntwinectl terminal start "<command>"`, not a background shell: a terminal thread the user sees and
-  can take over, which outlives your turn. Reach it with the thread verbs — `read-thread @handle`,
-  `message-thread @handle` to type a line while you drive it — and end it with `terminal stop`.
+- **A process you work alongside** (a dev server you test against, a log tail) is a background shell
+  too, with a `timeout` and a `TaskStop` once you are finished with it. `ntwinectl terminal start` makes a
+  separate thread on the user's board, so it is only for a process the user asked to keep and use
+  themselves, independent of your work ("start a dev server so I can try it"). Never use it for your own
+  testing. Reach one with `read-thread @handle` and `message-thread @handle`, and end it with
+  `terminal stop`.
 - `Monitor` streams events into an active turn (`persistent: true` runs until `TaskStop`); you cannot
   rest on it. `TaskOutput` is deprecated: `Read` the output path. `TaskStop` is for your own monitors
   and shells, never a sub-agent.

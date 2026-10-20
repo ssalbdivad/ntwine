@@ -95,6 +95,13 @@ gate (a test suite, a build) stays `run_in_background`, because it belongs to th
 turn. That also unblocks hibernation for every thread that runs a dev server. It is a rule a worker measurably gets
 wrong without being told, so it earns its tokens.
 
+**Reversed 2026-10-20.** Every worker's test server became its own top-level row (`127-0-0-2`, `node-disable-warning-2`,
+`pnpm-run-dev` beside the threads that started them), and ssalbdivad: *"very important that top-level terminal threads
+are used judiciously for genuine top-level threads that should be independent from the prompt that spawned them … standard
+threads used by an agent should be handled in the default way."* A process a worker runs for its own work is a background
+shell again (Claude `run_in_background` with a `timeout`, Codex a managed `exec_command`), and `ntwinectl terminal start` is
+only for a process the human asked to keep and use themselves. The hibernation gain above is given up for those threads.
+
 ## Control: one thread concept for humans and agents (added 2026-10-15)
 
 ssalbdivad, after asking @live-view to "start a dev server so I can try it": *"agent-started terminals and user

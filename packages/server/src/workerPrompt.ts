@@ -471,10 +471,12 @@ const BACKEND: Record<BackendKind, string> = {
   to it; its exit wakes you. \`ntwinectl extend-shell <id> --for <duration>\` extends a budget. Never
   \`&\`, \`nohup\` or \`disown\` — a hook rejects escaping jobs. Stop every shell that no longer serves
   the work, and never write one that polls for a sub-agent or Workflow: those notify you.
-- **A process you work alongside** (a dev server, a log tail) starts with
-  \`ntwinectl terminal start "<command>"\`, not a background shell: a terminal thread the user sees and
-  can take over, which outlives your turn. Reach it with the thread verbs — \`read-thread @handle\`,
-  \`message-thread @handle\` to type a line while you drive it — and end it with \`terminal stop\`.
+- **A process you work alongside** (a dev server you test against, a log tail) is a background shell
+  too, with a \`timeout\` and a \`TaskStop\` once you are finished with it. \`ntwinectl terminal start\` makes a
+  separate thread on the user's board, so it is only for a process the user asked to keep and use
+  themselves, independent of your work ("start a dev server so I can try it"). Never use it for your own
+  testing. Reach one with \`read-thread @handle\` and \`message-thread @handle\`, and end it with
+  \`terminal stop\`.
 - \`Monitor\` streams events into an active turn (\`persistent: true\` runs until \`TaskStop\`); you cannot
   rest on it. \`TaskOutput\` is deprecated: \`Read\` the output path. \`TaskStop\` is for your own monitors
   and shells, never a sub-agent.
@@ -559,9 +561,11 @@ node {{NTWINE_MONITORS_DIR}}/review-watch.mjs --repo OWNER/REPO --pr NUMBER
   empty poll, switch to a blocking monitor or a timer.
 - A Luna child is optional only when you have genuinely independent parent work; it never edits,
   mutates GitHub, delegates, sets timers or emits an awaiting fence.
-- **A process you work alongside** (a dev server, a log tail) starts with
-  \`ntwinectl terminal start "<command>"\`: a terminal thread the user sees, which outlives your turn.
-  \`read-thread @handle\` reads it; \`message-thread @handle\` types a line while you drive it.
+- **A process you work alongside** (a dev server you test against, a log tail) is a managed
+  \`exec_command\` session that you stop once you are finished with it. \`ntwinectl terminal start\` makes a
+  separate thread on the user's board, so it is only for a process the user asked to keep and use
+  themselves ("start a dev server so I can try it"). \`read-thread @handle\` reads one, and
+  \`message-thread @handle\` types a line into it.
 - **A long gate**: create the \`tools.exec_command(...)\`
   promise, call \`yield_control()\`, then await and drain that same session. Never \`&\`, \`nohup\` or
   \`disown\`. Give a finite exec a budget with \`ntwinectl extend-shell <process id> --for <duration>\`
@@ -585,9 +589,11 @@ harness's own, and so are your permission prompts (ntwine shows each to the user
 commands are \`ntwinectl\`, on your shell's PATH. \`SendMessage\` and the \`Agent\` tool named in this
 contract are Claude Code's — use your harness's equivalent, or none. ntwine cannot see sub-agents your
 harness runs, so prefer working inline; when you fan out, let each child finish, and fold every result
-into your own write-up before you rest. A process you work alongside (a dev server, a log tail) starts
-with \`ntwinectl terminal start "<command>"\`, not a background job of your shell; \`ntwinectl read-thread\`
-and \`ntwinectl message-thread\` read and type into it.
+into your own write-up before you rest. Run a process you work alongside (a dev server you test
+against) with your harness's own shell tools, and stop it when you are finished with it.
+\`ntwinectl terminal start "<command>"\` makes a separate thread on the user's board, so it is only for a
+process the user asked to keep and use themselves; \`ntwinectl read-thread\` and
+\`ntwinectl message-thread\` read and type into one.
 
 A message the user sends while you work is queued and arrives as your next turn: rest promptly when
 the work is done, and read the newest user message first.`,
