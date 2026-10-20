@@ -79,16 +79,21 @@ function hasCurlCommandContext(source: string, offset: number): boolean {
 /** Redact credential-bearing CLI flags and URL userinfo without rewriting benign command structure. */
 export function redactCredentialSyntax(raw: string, options: CredentialRedactionOptions = {}): string {
   let value = raw
-  value = value.replace(
-    URL_USERINFO_RE,
-    (_whole, scheme: string, username: string, delimiter: string, password: string) =>
-      `${scheme}${username}${delimiter}${replacement(options, password)}@`,
-  )
-  value = value.replace(
-    URL_ENCODED_USERINFO_RE,
-    (_whole, scheme: string, username: string, delimiter: string, password: string) =>
-      `${scheme}${username}${delimiter}${replacement(options, password)}@`,
-  )
+  // Both URL patterns need a literal `://`, so a string without one cannot match either. Skipping them
+  // there is output-identical and was the largest single cost of a cold transcript fold: the two scans
+  // run over every tool payload, and on a 157 MB transcript they took ~1.1s of a ~6s fold (CPU profile).
+  if (value.includes("://")) {
+    value = value.replace(
+      URL_USERINFO_RE,
+      (_whole, scheme: string, username: string, delimiter: string, password: string) =>
+        `${scheme}${username}${delimiter}${replacement(options, password)}@`,
+    )
+    value = value.replace(
+      URL_ENCODED_USERINFO_RE,
+      (_whole, scheme: string, username: string, delimiter: string, password: string) =>
+        `${scheme}${username}${delimiter}${replacement(options, password)}@`,
+    )
+  }
   value = value.replace(
     USER_FLAG_RE,
     (whole, boundary: string, flag: string, separator: string, userInfo: string, offset: number, source: string) => {

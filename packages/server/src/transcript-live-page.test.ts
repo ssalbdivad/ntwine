@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import fs, { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import fs, { appendFileSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync } from "node:fs"
 import { syncBuiltinESMExports } from "node:module"
 import { createHash } from "node:crypto"
 import { homedir, tmpdir } from "node:os"
@@ -34,9 +34,13 @@ function harness() {
   const logDir = join(homedir(), ".claude", "projects", slug)
   mkdirSync(logDir, { recursive: true })
   const store = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-live-page-")), "ui.db"), "p")
-  store.upsertSession({ slug: "t", session_id: "sid", thread_name: "ntwine-t", spawned_at: new Date().toISOString(), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: "open", meta: null, seen_at: null, transcript_id: null })
+  // A session id no other suite uses: these files sit in the REAL ~/.claude/projects while the test
+  // runs, and transcript.test.ts runs in parallel and sweeps sibling log dirs for its own `sid` (the
+  // stranded-transcript recovery), which found this suite's 1 MB `sid.jsonl` and rendered it.
+  const sid = `live-page-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
+  store.upsertSession({ slug: "t", session_id: sid, thread_name: "ntwine-t", spawned_at: new Date().toISOString(), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: "open", meta: null, seen_at: null, transcript_id: null })
   const project = { cwdSlug: slug } as unknown as Project
-  const path = join(logDir, "sid.jsonl")
+  const path = join(logDir, `${sid}.jsonl`)
   return { store, project, path, cleanup: () => rmSync(logDir, { recursive: true, force: true }) }
 }
 
@@ -107,21 +111,87 @@ test("a transcript rewritten SHORTER in place starts its digest over", () => {
   }
 })
 
-test("a cursor whose prefix changed is still refused — the validation re-reads the prefix it names", () => {
+// ---- cursor validation answers from the running digest (rememberedPrefixDigest) ----
+// An earlier page used to re-hash the whole prefix its cursor names: ~230ms a page on a real 157 MB
+// transcript, for a digest the running hash had already minted. These pin both halves of the memo: it
+// answers without reading the prefix, and it still refuses a cursor whose prefix changed while it was warm.
+// Big enough that the bytes re-read before the cursor's boundary (64 KB) are a small part of the file.
+const BIG = 2400
+
+test("an earlier page checks its cursor without re-reading the prefix, before and after the file grows", () => {
   const h = harness()
   try {
-    writeFileSync(h.path, exchanges(0, 160))
-    const page = readLatestThreadTranscriptPage(h.project, h.store, "t")
-    // Rewrite one byte inside the prefix without changing the length (same inode, same size).
-    const bytes = readFileSync(h.path)
-    const at = bytes.indexOf("user-3")
-    bytes[at] = "U".charCodeAt(0)
-    writeFileSync(h.path, bytes)
-    assert.throws(() => readEarlierThreadTranscriptPage(h.project, h.store, "t", page.beforeCursor!), /prior transcript bytes changed/)
+    writeFileSync(h.path, exchanges(0, BIG))
+    const size = readFileSync(h.path).length
+    const latest = readLatestThreadTranscriptPage(h.project, h.store, "t")
+    let first!: ReturnType<typeof readEarlierThreadTranscriptPage>
+    const read = bytesRead(() => { first = readEarlierThreadTranscriptPage(h.project, h.store, "t", latest.beforeCursor!) })
+    assert.ok(first.messages.length > 0)
+    assert.ok(read <= 64 * 1024, `read ${read} bytes of a ${size}-byte file to validate a cursor the running hash minted`)
+    assert.equal(cursorOf(first.beforeCursor!).prefixDigest, sha256(readFileSync(h.path)))
+
+    const delta = exchanges(9000, 1)
+    appendFileSync(h.path, delta)
+    let grown!: ReturnType<typeof readEarlierThreadTranscriptPage>
+    const readGrown = bytesRead(() => { grown = readEarlierThreadTranscriptPage(h.project, h.store, "t", latest.beforeCursor!) })
+    assert.deepEqual(grown.messages.map((m) => m.sourceId), first.messages.map((m) => m.sourceId))
+    // The tail re-read, the fold's delta, and the running hash's delta for the cursor this page mints.
+    assert.ok(readGrown <= 64 * 1024 + 2 * Buffer.byteLength(delta), `read ${readGrown} bytes after a ${Buffer.byteLength(delta)}-byte append`)
+    assert.equal(cursorOf(grown.beforeCursor!).prefixDigest, sha256(readFileSync(h.path)))
   } finally {
     h.cleanup()
   }
 })
+
+const editNearStart = (bytes: Buffer) => {
+  const out = Buffer.from(bytes)
+  out[out.indexOf("user-3")] = "U".charCodeAt(0)
+  return out
+}
+
+for (const [name, grow, rewrite, refusal] of [
+  // Far outside the bytes re-read before the boundary, so only the length and mtime can tell. The
+  // explicit mtime stands in for a later write: a coarse-clock filesystem can stamp two writes in one
+  // tick the same, and that same-length, same-tick rewrite is the one case the memo cannot see.
+  ["rewritten in place at the same length", false, (path: string) => {
+    writeFileSync(path, editNearStart(readFileSync(path)))
+    const later = new Date(Date.now() + 5000)
+    utimesSync(path, later, later)
+  }, /prior transcript bytes changed/],
+  // Longer than before, so the length alone reads as an append; the bytes before the boundary do not.
+  ["truncated and rewritten past its old length", true, (path: string) => writeFileSync(path, exchanges(500, BIG + 100)), /prior transcript bytes changed/],
+  // Shorter than the running hash got to, but still past the cursor's boundary.
+  ["truncated in place to between the cursor and the running hash", true, (path: string) => {
+    const bytes = readFileSync(path)
+    writeFileSync(path, editNearStart(bytes).subarray(0, bytes.length - 2000))
+  }, /prior transcript bytes changed/],
+  ["replaced by another file", true, (path: string) => {
+    writeFileSync(path + ".new", readFileSync(path))
+    renameSync(path + ".new", path)
+  }, /transcript was replaced/],
+] as const) {
+  test(`a warm digest memo still refuses a cursor once the transcript was ${name}`, () => {
+    const h = harness()
+    try {
+      writeFileSync(h.path, exchanges(0, BIG))
+      const latest = readLatestThreadTranscriptPage(h.project, h.store, "t")
+      // Warm: the cursor validates once from the memo…
+      readEarlierThreadTranscriptPage(h.project, h.store, "t", latest.beforeCursor!)
+      if (grow) {
+        // …and the running hash moves on past the cursor's length.
+        appendFileSync(h.path, exchanges(9000, 10))
+        readLatestThreadTranscriptPage(h.project, h.store, "t")
+      }
+      rewrite(h.path)
+      assert.throws(() => readEarlierThreadTranscriptPage(h.project, h.store, "t", latest.beforeCursor!), refusal)
+      // And the next cursor is minted over the file as it is now, not the remembered one.
+      const fresh = readLatestThreadTranscriptPage(h.project, h.store, "t")
+      assert.equal(cursorOf(fresh.beforeCursor!).prefixDigest, sha256(readFileSync(h.path)))
+    } finally {
+      h.cleanup()
+    }
+  })
+}
 
 test("latestTranscriptWindow given the head it would compute returns the identical window", () => {
   const all = projectClaudeTranscript(exchanges(0, 450))
