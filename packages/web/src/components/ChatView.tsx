@@ -6,7 +6,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
 import { AlertTriangle, ArrowDown, ArrowUp, Bot, Check, ChevronRight, FileText, HelpCircle, Hourglass, KeyRound, Loader2, Repeat, TerminalSquare } from "lucide-react"
 import { awaitingSteps, heldQuestionViews, parseScheduledRunPrompt, parseThreadMessage, questionFencesLive } from "@ntwine/shared"
-import type { AskQuestion, AwaitingHint, BgShellView, PendingAsk, ThreadWatchView, RegisteredQuestionView, SubAgentView, ThreadView as ThreadViewData, TranscriptEdit, TranscriptMessage, TranscriptPart, TranscriptTodo, TranscriptToolCall } from "@ntwine/shared"
+import type { AskQuestion, AwaitingHint, BgShellView, PendingAsk, ThreadWatchView, RegisteredQuestionView, SubAgentView, ThreadView as ThreadViewData, TranscriptEdit, TranscriptMessage, TranscriptPage, TranscriptPart, TranscriptTodo, TranscriptToolCall } from "@ntwine/shared"
 import { store, threadBySlug, pushDrawer, pushScheduleDrawer, pushSubAgentDrawer, pushBackgroundShellDrawer, showToast } from "../store.ts"
 import { scheduledRunFacts } from "../lib/schedules.ts"
 import { useBoard, useProjectDir, useTranscript, type ChatMessage, type TranscriptData } from "../hooks.ts"
@@ -26,6 +26,7 @@ import { resolveFileLanguage } from "../lib/syntaxHighlight.ts"
 import { TodoBlock } from "./TodoBlock.tsx"
 import { splitQuestionBlocks, type QuestionKind, type BlockAnswer, type MessageAnswering } from "../lib/questionBlocks.ts"
 import { splitFenceBlocks, type FenceKind } from "../lib/fenceBlocks.ts"
+import { typedWithin } from "../lib/typingActivity.ts"
 import { registeredDoneBody, showsRegisteredDoneCard } from "../lib/registeredDone.ts"
 import { optimisticallySteered, useSteeredAt } from "../lib/steering.ts"
 import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
@@ -404,24 +405,47 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
     if (scroller && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= TAIL_FOLLOW_PX) scroller.scrollTop = scroller.scrollHeight
   }, [count, running, virtualized])
 
-  const loadEarlier = useCallback(async () => {
+  // `pages` consecutive earlier pages, fetched back to back and committed as ONE prepend (see
+  // EAGER_HISTORY_PAGES_PER_COMMIT). Pages never overlap — each cursor excludes the anchor it was minted
+  // at — so the batch is the pages' messages oldest first, under the oldest page's cursor. A page that
+  // fails after others landed still commits those, and the error stops the chain for the Retry row.
+  const loadEarlier = useCallback(async (pages = 1) => {
     if (loadingEarlierRef.current) return
     const current = queryClient.getQueryData<TranscriptData>(["transcript", slug])
-    const cursor = current?.beforeCursor
+    let cursor = current?.beforeCursor
     const expectedKey = current?.transcriptKey
     if (!current?.hasEarlier || !cursor || !expectedKey) return
     loadingEarlierRef.current = true
     setLoadingEarlier(true)
     setEarlierError(null)
+    let batch: TranscriptPage | undefined
+    let failure: unknown
     try {
-      const earlier = await rpc.threadTranscriptEarlier({ slug, cursor })
+      for (let i = 0; i < pages && cursor; i++) {
+        let earlier: TranscriptPage
+        try {
+          earlier = await rpc.threadTranscriptEarlier({ slug, cursor })
+        } catch (error) {
+          if (!batch) throw error
+          failure = error
+          break
+        }
+        if (earlier.transcriptKey !== expectedKey) {
+          batch = earlier
+          break
+        }
+        batch = batch ? { ...earlier, messages: [...earlier.messages, ...batch.messages] } : earlier
+        cursor = earlier.hasEarlier ? earlier.beforeCursor : null
+      }
+      if (!batch) return
       const latest = queryClient.getQueryData<TranscriptData>(["transcript", slug])
-      if (!latest?.transcriptKey || latest.transcriptKey !== expectedKey || earlier.transcriptKey !== expectedKey) {
+      if (!latest?.transcriptKey || latest.transcriptKey !== expectedKey || batch.transcriptKey !== expectedKey) {
         await q.refetch()
         showToast("Transcript changed while loading history; refreshed the current session")
         return
       }
-      queryClient.setQueryData(["transcript", slug], prependEarlierPage(latest as Parameters<typeof prependEarlierPage>[0], earlier))
+      queryClient.setQueryData(["transcript", slug], prependEarlierPage(latest as Parameters<typeof prependEarlierPage>[0], batch))
+      if (failure) throw failure
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not load earlier transcript history"
       setEarlierError(message)
@@ -492,7 +516,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
           beforeCursor={q.data?.beforeCursor}
           loadingEarlier={loadingEarlier}
           earlierError={earlierError}
-          loadEarlier={() => void loadEarlier()}
+          loadEarlier={(pages) => void loadEarlier(pages)}
           jumpOverlay={jumpOverlay}
           openAtLastMessage={phone && !running}
         />
@@ -704,6 +728,16 @@ function onTranscriptControl(event: Event): boolean {
 // before the next lands, and a re-check while the reader or a restore holds the scroller.
 const EAGER_HISTORY_STEP_MS = 120
 const EAGER_HISTORY_RETRY_MS = 250
+// Pages the pager fetches before it commits them as one prepend. Every commit re-derives the WHOLE loaded
+// transcript (the incremental row and coalescing paths resume only from a shared prefix, and a prepend
+// shares none), so paging @precompile-design's 8,648 messages a page at a time was 105 whole-history
+// derivations, each longer than the last: at 4x CPU the main thread was ~90% busy for over a minute and a
+// keystroke waited behind long tasks of up to 2.2s (2026-10-20). Four pages a commit is a quarter of that.
+// A near-top load the reader asked for still fetches one, the quickest to land.
+const EAGER_HISTORY_PAGES_PER_COMMIT = 4
+// …and while the human is typing, the pager does not step at all: a keystroke that lands behind one of its
+// commits is the lag they feel, and the history can wait for the pause.
+const EAGER_HISTORY_TYPING_HOLD_MS = 1_500
 // How long the phone's open-at-the-last-message landing holds its row at the pane top while the rows
 // around it measure (see VirtualizedThreadTranscript's initial scroll). A cold open measures every row
 // from its estimate, and markdown, code and images keep settling for several frames after mount.
@@ -954,7 +988,7 @@ function VirtualizedThreadTranscript({
   beforeCursor?: string | null
   loadingEarlier: boolean
   earlierError: string | null
-  loadEarlier: () => void
+  loadEarlier: (pages?: number) => void
   jumpOverlay: HTMLElement | null
   // The phone opens a thread at rest on the START of its last message rather than the end of it — see
   // the initial-scroll effect below. Read once, when the transcript first lands.
@@ -1201,7 +1235,7 @@ function VirtualizedThreadTranscript({
   const anchorRestoreUntilRef = useRef(0)
   const openHoldFrameRef = useRef(0)
 
-  const requestEarlier = useCallback(() => {
+  const requestEarlier = useCallback((pages = 1) => {
     const scroller = transcriptRef.current
     if (scroller) {
       const scrollerTop = scroller.getBoundingClientRect().top
@@ -1215,7 +1249,7 @@ function VirtualizedThreadTranscript({
         }
       }
     }
-    loadEarlier()
+    loadEarlier(pages)
   }, [loadEarlier, transcriptRef])
 
   useLayoutEffect(() => {
@@ -1575,11 +1609,11 @@ function VirtualizedThreadTranscript({
     let timer = 0
     const step = () => {
       const now = performance.now()
-      if (!tailReadyRef.current || now < readerScrollUntilRef.current || now < anchorRestoreUntilRef.current) {
+      if (!tailReadyRef.current || now < readerScrollUntilRef.current || now < anchorRestoreUntilRef.current || typedWithin(EAGER_HISTORY_TYPING_HOLD_MS)) {
         timer = window.setTimeout(step, EAGER_HISTORY_RETRY_MS)
         return
       }
-      requestEarlier()
+      requestEarlier(EAGER_HISTORY_PAGES_PER_COMMIT)
     }
     timer = window.setTimeout(step, EAGER_HISTORY_STEP_MS)
     return () => window.clearTimeout(timer)
@@ -1635,12 +1669,12 @@ function VirtualizedThreadTranscript({
                 {earlierError ? (
                   <span className="flex flex-wrap items-center justify-center gap-2 text-center">
                     <span>{earlierError}</span>
-                    <button type="button" onClick={requestEarlier} className="rounded-md border border-border px-2 py-1 text-fg/90 hover:bg-panel-2">Retry</button>
+                    <button type="button" onClick={() => requestEarlier()} className="rounded-md border border-border px-2 py-1 text-fg/90 hover:bg-panel-2">Retry</button>
                   </span>
                 ) : loadingEarlier ? (
                   <span className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Loading earlier messages…</span>
                 ) : (
-                  <button type="button" onClick={requestEarlier} className="button-outline rounded-md px-2 py-1 outline-none hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60">
+                  <button type="button" onClick={() => requestEarlier()} className="button-outline rounded-md px-2 py-1 outline-none hover:bg-panel-2 hover:text-fg focus-visible:ring-1 focus-visible:ring-focus-ink-60">
                     Load earlier messages
                   </button>
                 )}

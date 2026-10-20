@@ -48,7 +48,30 @@ export function parseFenceBody(raw: string, kind: FenceKind): { body: string; hi
 
 // Split an assistant message's markdown into prose runs and signal-fence blocks, in document order.
 // Prose runs that are whitespace-only are dropped (a fence never leads/trails with an empty prose slot).
+//
+// CACHED BY TEXT (2026-10-20). The transcript asks this of every message on every update — the row
+// builder's draws-nothing check (ChatView messageRendersNothing) and question anchoring (questionClaims) —
+// and an ```awaiting fence's body is a YAML parse. messageRendersNothing caches per message OBJECT, but a
+// prepended history page re-coalesces the whole list into new objects, so on @precompile-design (8,648
+// messages, its history paged in 105 steps) every page re-parsed every fence: 21.6s of a 60s profile at
+// 4x CPU, the bulk of the 2s keystroke stalls. The parse is pure in the text and nothing writes into a
+// segment, so the same text answers the same array. A text with no signal-fence opener cannot match and
+// is answered without the cache, which therefore holds only fenced messages. Bounded by clearing, which
+// costs only a re-parse.
+const segmentsCache = new Map<string, FenceSegment[]>()
+const SEGMENTS_CACHE_LIMIT = 5_000
 export function splitFenceBlocks(text: string): FenceSegment[] {
+  if (!text.includes("```done") && !text.includes("```awaiting")) return text.trim() ? [{ kind: "prose", text }] : []
+  let segments = segmentsCache.get(text)
+  if (!segments) {
+    segments = splitFenceBlocksFresh(text)
+    if (segmentsCache.size >= SEGMENTS_CACHE_LIMIT) segmentsCache.clear()
+    segmentsCache.set(text, segments)
+  }
+  return segments
+}
+
+function splitFenceBlocksFresh(text: string): FenceSegment[] {
   const segments: FenceSegment[] = []
   // A fence nested inside another code fence is being QUOTED (a worker showing the human what a ```done
   // block looks like), so it stays in the prose run and renders as the code block it is — see the same
