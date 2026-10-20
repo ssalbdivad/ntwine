@@ -379,7 +379,11 @@ export const ThreadRow = memo(function ThreadRow({
   const alwaysShowStatusLines = statusPref || statusAlways
   const elapsed = statusElapsed(t, nowMs)
   const terminalAge = terminal ? terminalRowAge(terminal, nowMs) : undefined
-  const working = terminalAge ? { status: "", elapsed: terminalAge } : elapsed && t.statusLine ? { status: t.statusLine.trim(), elapsed } : undefined
+  // A terminal's name is its `@handle`, minted once from its FIRST command and never changed (it is an
+  // address); what it runs now — a follow-up typed into its drawer replaces the command — is its status line.
+  // An interactive shell's command is only the shell's name, which says nothing a status should.
+  const terminalStatus = terminal?.handle && !terminal.shell ? `$ ${terminal.command}` : ""
+  const working = terminalAge ? { status: terminalStatus, elapsed: terminalAge } : elapsed && t.statusLine ? { status: t.statusLine.trim(), elapsed } : undefined
   const inlineStatus = working?.status || undefined
   // The rows with an obvious single next action carry that verb INLINE, instead of making you open the
   // thread to find it. offersRetry (groups.ts) picks them: a STALLED row (the [!] mark — process
