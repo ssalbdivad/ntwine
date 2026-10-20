@@ -4340,6 +4340,8 @@ interface FixedTranscriptSnapshot extends TranscriptSourceBinding {
   readRange(from: number, length: number): Buffer
   fileKey: string
   transcriptKey: string
+  /** The file's mtime at snapshot time: what tells the digest memo a same-length rewrite from no change. */
+  mtimeMs: number
 }
 
 interface TranscriptCursorPayload {
@@ -4518,6 +4520,7 @@ function fixedSnapshot(source: TranscriptSourceBinding): FixedTranscriptSnapshot
       readRange,
       fileKey,
       transcriptKey,
+      mtimeMs: before.mtimeMs,
     }
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") return undefined
@@ -4573,37 +4576,113 @@ function projectSnapshot(snapshot: FixedTranscriptSnapshot): TranscriptMessage[]
 // Now each file keeps a sha256 advanced over only the bytes appended since its last read; a digest is a
 // `copy()` of that state, so it is byte-for-byte the digest of the whole prefix. That relies on the file
 // being APPEND-ONLY between reads, which is the same assumption the retained fold above it already makes
-// (it folds only the appended range): a file that shrank starts over, and a replaced file is a new
-// fileKey. The cursor VALIDATION path still re-reads and re-hashes the prefix the cursor names, so a
-// rewrite in place is still caught where it matters.
+// (it folds only the appended range): a file that shrank starts over, one rewritten at the same length
+// (a new mtime) starts over, and a replaced file is a new fileKey.
+//
+// CURSOR VALIDATION answers from the same state (rememberedPrefixDigest). It used to re-read and re-hash
+// the whole prefix the cursor names on EVERY earlier page, which is the price of the drawer paging a big
+// thread's history in: 104 pages over a copy of a real 157 MB transcript spent 23.6 of 24.1s in that
+// hash, ~230ms a page, synchronously on the one process serving every project, while the digest it was
+// recomputing was one this map had already minted for that exact length. So each running hash also
+// remembers the digest at the last few lengths it reached, and a cursor naming one of them is checked
+// against it — after the same staleness rules as the running hash, plus a re-read of the bytes just
+// before the cursor's boundary, so a file truncated and rewritten PAST its old length (which its length
+// alone cannot tell from an append) is still caught. Anything the memo cannot vouch for is re-hashed
+// from byte 0 exactly as before.
 interface RunningDigest {
   hash: Hash
   /** Bytes fed to `hash` — the length its state describes. */
   bytes: number
   /** The digest of `[0, bytes)`, minted once per length. */
   digest: string
+  /** The file's mtime when `hash` reached `bytes`: a same-length read with another mtime was rewritten. */
+  mtimeMs: number
+  /** The last ≤ DIGEST_TAIL_BYTES bytes of `[0, bytes)`, so a checkpoint's fingerprint costs no read. */
+  tail: Buffer
+  /** Lengths this hash recently reached → their digest and tail fingerprint, oldest first. */
+  checkpoints: Map<number, { digest: string; tail: string }>
 }
 const fullDigestCache = new Map<string, RunningDigest>()
 const FULL_DIGEST_CACHE_CAP = 16
 /** Bytes hashed per read. Hashing is streamed, so the window bounds only the buffer each read allocates. */
 const TRANSCRIPT_DIGEST_WINDOW = 1024 * 1024
+/** Bytes before a remembered length re-read on validation. A few records of a Claude JSONL. */
+const DIGEST_TAIL_BYTES = 64 * 1024
+/** Lengths remembered per file. A paging session's cursors all name the newest one or two. */
+const DIGEST_CHECKPOINTS = 8
 
-function digestPrefix(snapshot: FixedTranscriptSnapshot, length: number): string {
-  const hash = createHash("sha256")
-  hashRange(hash, snapshot, 0, length)
-  return hash.digest("base64url")
+const sha256Text = (bytes: Buffer) => createHash("sha256").update(bytes).digest("base64url")
+const newRunningDigest = (): RunningDigest => ({ hash: createHash("sha256"), bytes: 0, digest: "", mtimeMs: NaN, tail: Buffer.alloc(0), checkpoints: new Map() })
+
+/** Advance `entry` over `[entry.bytes, to)` in bounded windows, carrying its tail along. */
+function advanceDigest(entry: RunningDigest, snapshot: FixedTranscriptSnapshot, to: number): void {
+  while (entry.bytes < to) {
+    const buf = snapshot.readRange(entry.bytes, Math.min(TRANSCRIPT_DIGEST_WINDOW, to - entry.bytes))
+    if (buf.length === 0) break
+    entry.hash.update(buf)
+    entry.bytes += buf.length
+    // Copied, never a view: a view would pin the whole 1 MB window for as long as the entry lives.
+    entry.tail = buf.length >= DIGEST_TAIL_BYTES
+      ? Buffer.from(buf.subarray(buf.length - DIGEST_TAIL_BYTES))
+      : Buffer.from(Buffer.concat([entry.tail, buf]).subarray(-DIGEST_TAIL_BYTES))
+  }
 }
 
-/** Feed `[from, to)` into `hash` in bounded windows; returns the offset actually reached. */
-function hashRange(hash: Hash, snapshot: FixedTranscriptSnapshot, from: number, to: number): number {
-  let at = from
-  while (at < to) {
-    const buf = snapshot.readRange(at, Math.min(TRANSCRIPT_DIGEST_WINDOW, to - at))
-    if (buf.length === 0) break
-    hash.update(buf)
-    at += buf.length
+/** Mint the digest at `entry.bytes` and remember it as a checkpoint. */
+function sealDigest(entry: RunningDigest, mtimeMs: number): string {
+  entry.digest = entry.hash.copy().digest("base64url")
+  entry.mtimeMs = mtimeMs
+  entry.checkpoints.delete(entry.bytes)
+  entry.checkpoints.set(entry.bytes, { digest: entry.digest, tail: sha256Text(entry.tail) })
+  while (entry.checkpoints.size > DIGEST_CHECKPOINTS) entry.checkpoints.delete(entry.checkpoints.keys().next().value!)
+  return entry.digest
+}
+
+function installDigest(key: string, entry: RunningDigest): void {
+  fullDigestCache.set(key, entry)
+  while (fullDigestCache.size > FULL_DIGEST_CACHE_CAP) {
+    const oldest = fullDigestCache.keys().next().value
+    if (oldest === undefined) break
+    fullDigestCache.delete(oldest)
   }
-  return at
+}
+
+/**
+ * The digest of `[0, length)` from the running hash's memory, or undefined when it cannot vouch for it.
+ * Shorter than what was hashed: truncated in place. The same length with another mtime: rewritten in
+ * place. Longer: appended, the assumption the running hash and the retained fold both make. And in every
+ * case the bytes just before `length` must still be the ones hashed there.
+ */
+function rememberedPrefixDigest(snapshot: FixedTranscriptSnapshot, length: number): string | undefined {
+  const entry = fullDigestCache.get(snapshot.fileKey)
+  const mark = entry?.checkpoints.get(length)
+  if (!entry || !mark) return undefined
+  const rewritten = snapshot.size < entry.bytes || (snapshot.size === entry.bytes && snapshot.mtimeMs !== entry.mtimeMs)
+  const tailLength = Math.min(DIGEST_TAIL_BYTES, length)
+  if (rewritten || sha256Text(snapshot.readRange(length - tailLength, tailLength)) !== mark.tail) {
+    // The running hash no longer describes this file either.
+    fullDigestCache.delete(snapshot.fileKey)
+    return undefined
+  }
+  return mark.digest
+}
+
+function digestPrefix(snapshot: FixedTranscriptSnapshot, length: number): string {
+  const remembered = rememberedPrefixDigest(snapshot, length)
+  if (remembered !== undefined) return remembered
+  // Streamed from byte 0, and the same pass carries on to the end of the file as the file's new running
+  // hash, so the cursor this page mints next (fullDigest) does not hash the whole file a second time.
+  // Out of the map while it is advanced, as in fullDigest.
+  fullDigestCache.delete(snapshot.fileKey)
+  const entry = newRunningDigest()
+  advanceDigest(entry, snapshot, length)
+  const digest = entry.hash.copy().digest("base64url")
+  if (entry.bytes === length && length <= snapshot.size) {
+    advanceDigest(entry, snapshot, snapshot.size)
+    sealDigest(entry, snapshot.mtimeMs)
+    installDigest(snapshot.fileKey, entry)
+  }
+  return digest
 }
 
 function fullDigest(snapshot: FixedTranscriptSnapshot): string {
@@ -4612,21 +4691,17 @@ function fullDigest(snapshot: FixedTranscriptSnapshot): string {
   // Out of the map while it is advanced: a read that throws mid-way (the file was swapped under us)
   // leaves a hash state that no longer matches `bytes`, and it must not be found again.
   fullDigestCache.delete(key)
-  if (entry && entry.bytes === snapshot.size) {
+  if (entry && entry.bytes === snapshot.size && entry.mtimeMs === snapshot.mtimeMs) {
     fullDigestCache.set(key, entry) // LRU touch
     return entry.digest
   }
-  // A file shorter than what was already hashed was truncated in place: start over from byte 0.
-  if (!entry || entry.bytes > snapshot.size) entry = { hash: createHash("sha256"), bytes: 0, digest: "" }
-  entry.bytes = hashRange(entry.hash, snapshot, entry.bytes, snapshot.size)
-  entry.digest = entry.hash.copy().digest("base64url")
-  fullDigestCache.set(key, entry)
-  while (fullDigestCache.size > FULL_DIGEST_CACHE_CAP) {
-    const oldest = fullDigestCache.keys().next().value
-    if (oldest === undefined) break
-    fullDigestCache.delete(oldest)
-  }
-  return entry.digest
+  // A file shorter than what was already hashed was truncated in place, and one the same length under a
+  // new mtime was rewritten in place: start over from byte 0.
+  if (!entry || entry.bytes >= snapshot.size) entry = newRunningDigest()
+  advanceDigest(entry, snapshot, snapshot.size)
+  const digest = sealDigest(entry, snapshot.mtimeMs)
+  installDigest(key, entry)
+  return digest
 }
 
 function encodeTranscriptCursor(snapshot: FixedTranscriptSnapshot, anchorSourceId: string): string {
