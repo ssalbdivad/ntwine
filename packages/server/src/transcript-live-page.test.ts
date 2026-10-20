@@ -34,9 +34,13 @@ function harness() {
   const logDir = join(homedir(), ".claude", "projects", slug)
   mkdirSync(logDir, { recursive: true })
   const store = createStorage(join(mkdtempSync(join(tmpdir(), "ntwine-live-page-")), "ui.db"), "p")
-  store.upsertSession({ slug: "t", session_id: "sid", thread_name: "ntwine-t", spawned_at: new Date().toISOString(), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: "open", meta: null, seen_at: null, transcript_id: null })
+  // A session id no other suite uses: these files sit in the REAL ~/.claude/projects while the test
+  // runs, and transcript.test.ts runs in parallel and sweeps sibling log dirs for its own `sid` (the
+  // stranded-transcript recovery), which found this suite's 1 MB `sid.jsonl` and rendered it.
+  const sid = `live-page-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
+  store.upsertSession({ slug: "t", session_id: sid, thread_name: "ntwine-t", spawned_at: new Date().toISOString(), last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null, state: "open", meta: null, seen_at: null, transcript_id: null })
   const project = { cwdSlug: slug } as unknown as Project
-  const path = join(logDir, "sid.jsonl")
+  const path = join(logDir, `${sid}.jsonl`)
   return { store, project, path, cleanup: () => rmSync(logDir, { recursive: true, force: true }) }
 }
 
