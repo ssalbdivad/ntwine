@@ -87,15 +87,35 @@ export function beginEagerSubmission({
 //
 // Keyed by PROJECT and slug: a slug names a thread only within its project, and the cross-project page
 // holds several projects' threads at once — two same-named threads in different projects are two queues.
-const sendChains = new Map<string, Promise<void>>()
+//
+// AN IDLE CHAIN SENDS AT ONCE, in the caller's own tick (2026-10-20). Chaining onto a resolved tail still
+// deferred the request a microtask, and the optimistic step queues its own work ahead of it: the steer
+// mark's store notification re-renders the open thread synchronously in an earlier microtask. On
+// @precompile-design (8,648 messages, at 4x CPU) that render held the request in the page for 470-650ms
+// before it left; only after it did the server even see the send.
+const sendChains = new Map<string, { tail: Promise<void>; pending: number }>()
 
 export function enqueueThreadSend(slug: string, run: () => Promise<void>, base: string = apiBase()): Promise<void> {
-  const chain = `${base} ${slug}`
-  const tail = sendChains.get(chain) ?? Promise.resolve()
-  const next = tail.then(run, run)
+  const key = `${base} ${slug}`
+  const chain = sendChains.get(key)
+  const runNow = (): Promise<void> => {
+    try {
+      return run()
+    } catch (error) {
+      return Promise.reject(error)
+    }
+  }
+  const next = chain && chain.pending > 0 ? chain.tail.then(run, run) : runNow()
   // The stored tail must never reject, or every later `.then(run, run)` would still run but leave an
   // unhandled rejection behind it. The RETURNED promise keeps its rejection for the caller's failure path.
-  sendChains.set(chain, next.then(() => {}, () => {}))
+  const entry = { tail: next.then(() => {}, () => {}), pending: (chain?.pending ?? 0) + 1 }
+  sendChains.set(key, entry)
+  void entry.tail.then(() => {
+    const current = sendChains.get(key)
+    if (!current) return
+    current.pending--
+    if (current.pending === 0) sendChains.delete(key)
+  })
   return next
 }
 

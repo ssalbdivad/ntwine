@@ -64,6 +64,20 @@ test("thread sends run one at a time, in submission order", async () => {
   assert.deepEqual(events, ["start:one", "end:one", "start:two", "end:two", "start:three", "end:three"])
 })
 
+test("an idle thread's send starts in the caller's own tick, before any microtask the optimistic step queued", async () => {
+  const events: string[] = []
+  queueMicrotask(() => events.push("optimistic render"))
+  const first = enqueueThreadSend("epsilon", async () => { events.push("request:one") })
+  assert.deepEqual(events, ["request:one"])
+  await first
+  // Drained, the chain is idle again: the next send also goes at once rather than behind a settled tail.
+  await Promise.resolve()
+  queueMicrotask(() => events.push("optimistic render"))
+  const second = enqueueThreadSend("epsilon", async () => { events.push("request:two") })
+  assert.deepEqual(events, ["request:one", "optimistic render", "request:two"])
+  await second
+})
+
 test("a failed send rejects to its own caller without stranding the sends behind it", async () => {
   const delivered: string[] = []
   const failing = enqueueThreadSend("beta", async () => { throw new Error("runtime control busy") })
