@@ -4348,6 +4348,23 @@ export type ThreadTerminal = z.infer<typeof ThreadTerminal>
  *    the queue only to be dismissed, which is what the 2026-09-23 shape did.
  */
 export type TerminalOutcome = "running" | "prompt" | "failed" | "interrupted" | "finished"
+
+/**
+ * What a terminal command RUNS, with any leading `cd <dir> &&` (or `cd <dir>;`) set aside: the handle and the
+ * row's status line are read off `command`, and `dir` is the last directory it moved to, by basename. A pasted
+ * `cd /home/me/arktype/.ntwine/worktrees/pc-docs/ark/docs && pnpm dev` otherwise names itself
+ * `@cd-home-me` and spends the whole status line on the path (maintainer 2026-10-20). A line that is ONLY a
+ * cd, or whose dir is quoted, is left whole.
+ */
+export function terminalCommandCore(command: string): { command: string; dir?: string } {
+  let rest = command.trim()
+  let dir: string | undefined
+  for (let m; (m = /^cd\s+([^\s'"&;|]+)\s*(?:&&|;)\s*/.exec(rest)) && rest.length > m[0].length; ) {
+    dir = m[1]!.replace(/\/+$/, "").split("/").pop() || m[1]
+    rest = rest.slice(m[0].length)
+  }
+  return dir === undefined ? { command: rest } : { command: rest, dir }
+}
 // SIGHUP, SIGINT and SIGTERM end a process on someone's say-so; a SIGKILL, SIGSEGV or SIGABRT is a failure.
 const ENDED_BY_SOMEONE_SIGNALS: ReadonlySet<number> = new Set([1, 2, 15])
 export function terminalOutcome(t: Pick<ThreadTerminal, "state" | "awaitingInput" | "exitCode" | "stopped" | "shell" | "signal">): TerminalOutcome {

@@ -1,7 +1,7 @@
 import { Fragment, memo, useCallback, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { AlarmClock, Bot, Check, ChevronRight, Ellipsis, Github, Hourglass, Loader2, Pin, PinOff, Repeat, RotateCcw } from "lucide-react"
-import type { ProjectCard, ThreadView } from "@ntwine/shared"
+import { terminalCommandCore, type ProjectCard, type ThreadView } from "@ntwine/shared"
 import { pushSubAgentDrawer, showToast } from "../store.ts"
 import { displayTitle, subAgentName, titleIsProvisional, isPinned, isSnoozed, sessionIndicatorKind, offersRetry, futureSnoozedUntil, queueLabelAt, waitNamesPr, prChecksRunning, restingOnSubAgents, restIsWorking, workingWithOpenQuestion } from "../groups.ts"
 import { ageSpan, relativeAge } from "../lib/activityTime.ts"
@@ -382,7 +382,9 @@ export const ThreadRow = memo(function ThreadRow({
   // A terminal's name is its `@handle`, minted once from its FIRST command and never changed (it is an
   // address); what it runs now — a follow-up typed into its drawer replaces the command — is its status line.
   // An interactive shell's command is only the shell's name, which says nothing a status should.
-  const terminalStatus = terminal?.handle && !terminal.shell ? `$ ${terminal.command}` : ""
+  // A leading `cd <dir> &&` is set aside to a quiet `in <dir>` tail, so the line opens on what runs.
+  const terminalCore = terminal?.handle && !terminal.shell ? terminalCommandCore(terminal.command) : undefined
+  const terminalStatus = terminalCore ? `$ ${terminalCore.command}${terminalCore.dir ? ` · in ${terminalCore.dir}` : ""}` : ""
   const working = terminalAge ? { status: terminalStatus, elapsed: terminalAge } : elapsed && t.statusLine ? { status: t.statusLine.trim(), elapsed } : undefined
   const inlineStatus = working?.status || undefined
   // The rows with an obvious single next action carry that verb INLINE, instead of making you open the

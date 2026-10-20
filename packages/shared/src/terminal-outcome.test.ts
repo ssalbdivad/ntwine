@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { terminalOutcome, type ThreadTerminal } from "./index.ts"
+import { terminalCommandCore, terminalOutcome, type ThreadTerminal } from "./index.ts"
 
 // The exit classification decides a terminal thread's band, and a wrong reading either buries a crash in Done
 // or queues a card whose only answer is to dismiss it. The real-pty paths are in thread-terminals.test.ts;
@@ -31,4 +31,12 @@ test("a run with no recorded exit was interrupted, and a live one reads its prom
   assert.equal(terminalOutcome(exited({ shell: true })), "interrupted", "a shell cut off by a restart did not end by its own exit either")
   assert.equal(terminalOutcome(exited({ state: "running" })), "running")
   assert.equal(terminalOutcome(exited({ state: "running", awaitingInput: true })), "prompt")
+})
+
+test("a terminal command's leading cds are set aside to the last directory's name", () => {
+  assert.deepEqual(terminalCommandCore("cd /a/ark/docs/ && cd sub; pnpm dev"), { command: "pnpm dev", dir: "sub" })
+  assert.deepEqual(terminalCommandCore("nub run dev"), { command: "nub run dev" })
+  // Only a cd, or a quoted path: nothing to set aside.
+  assert.deepEqual(terminalCommandCore("cd /a/b"), { command: "cd /a/b" })
+  assert.deepEqual(terminalCommandCore("cd '/a b' && ls"), { command: "cd '/a b' && ls" })
 })

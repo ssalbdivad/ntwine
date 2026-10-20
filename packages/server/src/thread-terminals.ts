@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto"
 import { basename } from "node:path"
-import { THREAD_HANDLE_MAX_CHARS, terminalOutcome, type ThreadTerminal, type ThreadView } from "@ntwine/shared"
+import { THREAD_HANDLE_MAX_CHARS, terminalCommandCore, terminalOutcome, type ThreadTerminal, type ThreadView } from "@ntwine/shared"
 import type { ThreadTerminalRow, Storage } from "./storage.ts"
 import type { TerminalAttachment } from "./terminal.ts"
 import { launchEnvironment } from "./backend/worker-env.ts"
@@ -227,7 +227,8 @@ const HANDLE_WORDS = 3
  */
 export function terminalHandle(command: string | undefined, taken: Iterable<string> = []): string {
   // A program named by its path is named by its file: `./node_modules/.bin/vite --port 3000` → `vite-port-3000`.
-  const tokens = command === undefined ? [] : command.trim().split(/\s+/)
+  // A leading `cd <dir> &&` names nothing: `cd ~/look4 && pnpm start` is `pnpm-start`.
+  const tokens = command === undefined ? [] : terminalCommandCore(command).command.split(/\s+/)
   if (tokens[0]) tokens[0] = tokens[0].slice(tokens[0].lastIndexOf("/") + 1)
   const words = tokens.join(" ").normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
   let base = ""

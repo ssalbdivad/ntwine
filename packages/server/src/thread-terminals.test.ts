@@ -236,6 +236,9 @@ test("a terminal's handle is its command's first words, `shell` for a bare shell
   assert.equal(terminalHandle("supercalifragilistic expialidocious"), "supercalifragilistic")
   // A program named by its path is named by its file.
   assert.equal(terminalHandle("./node_modules/.bin/vite --port 3000"), "vite-port-3000")
+  // A leading cd names nothing; a line that is only a cd keeps it.
+  assert.equal(terminalHandle("cd /home/ssalb/look4 && pnpm start --no-open"), "pnpm-start-no")
+  assert.equal(terminalHandle("cd /home/ssalb"), "cd-home-ssalb")
 })
 
 test("a terminal's screen reads as text: escapes dropped, a carriage-returned line as its last frame", () => {
