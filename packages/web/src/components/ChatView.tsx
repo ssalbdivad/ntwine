@@ -1264,6 +1264,48 @@ function VirtualizedThreadTranscript({
   const anchorRestoreUntilRef = useRef(0)
   const openHoldFrameRef = useRef(0)
 
+  // THE WAY BACK TO A QUESTION THE HUMAN TYPED PAST (maintainer 2026-10-20). Such a card stays at the rest
+  // that asked it (lib/questionAnchor, 2026-10-14) — on @precompile-design that was ~9,800px up, under an
+  // hour of wakes, and the worker's newest rest still said "both questions are still open" over nothing
+  // the human could find ("i don't see the questions anywhere?"). So the tail carries a link to the
+  // NEWEST row holding one: the card stays where it was asked, and only the pointer is at the bottom.
+  // A placed card (a marker inside a message) is reached through that message's row.
+  const typedPastAbove = useMemo(() => {
+    let count = 0
+    let target = -1
+    rows.forEach((row, index) => {
+      const here = row.kind === "questions" ? row.questions
+        : row.kind === "message" ? placement.placed.get(row.messageIndex) ?? []
+        : []
+      const passed = here.filter((q) => q.passedOver).length
+      if (passed === 0) return
+      count += passed
+      target = index
+    })
+    return { count, target }
+  }, [rows, placement])
+  const jumpToTypedPast = useCallback(() => {
+    const index = typedPastAbove.target
+    if (index < 0) return
+    const rowKey = rows[index].key
+    // Same two steps as opening at the last message: mount the virtual row, then re-align while the
+    // unmeasured rows around it correct from their estimates. Tail-follow lets go first, or the settling
+    // growth would haul the reader straight back down.
+    followingTailRef.current = false
+    setAtEnd(false)
+    virtualizer.scrollToIndex(index, { align: "start", behavior: "instant" })
+    let frames = 0
+    const settle = () => {
+      const scroller = transcriptRef.current
+      if (!scroller || ++frames > 8) return
+      const element = scroller.querySelector<HTMLElement>(`[data-transcript-row-key="${CSS.escape(rowKey)}"]`)
+      if (element) scroller.scrollTop += element.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 12
+      else virtualizer.scrollToIndex(index, { align: "start", behavior: "instant" })
+      requestAnimationFrame(settle)
+    }
+    requestAnimationFrame(settle)
+  }, [rows, typedPastAbove.target, virtualizer, transcriptRef])
+
   const requestEarlier = useCallback((pages = 1, reader = true) => {
     const scroller = transcriptRef.current
     if (scroller) {
@@ -1690,6 +1732,23 @@ function VirtualizedThreadTranscript({
                     in-flight answer stays here whatever the questions do: it is the human's newest turn,
                     and the delivered copy of it lands at the tail a second later. */}
                 <RegisteredQuestionStack thread={thread} questions={questionGroups.tail} inFlight={inFlightAnswers} className="px-6 pt-5" />
+                {typedPastAbove.count > 0 ? (
+                  <div className="px-6 pt-4">
+                    <button
+                      type="button"
+                      data-typed-past-jump
+                      onClick={jumpToTypedPast}
+                      // Measured in sans at dsf 8: the arrow paints 8 of its 12 box px, so `gap-[3px]` draws
+                      // a 5px ink gap (gap-1.5 drew 8, over twice the word space), and the -ml-0.5 evens
+                      // the pill's ink padding to 12px each side. Vertically the arrow sits on the cap band
+                      // through `1cap`, not a fitted nudge: items-center left it ~1px low.
+                      className="flex items-baseline gap-[3px] rounded-full border border-border px-3 py-1 text-[12px] text-muted hover:bg-panel-2 hover:text-fg"
+                    >
+                      <ArrowUp size={12} className="-ml-0.5 shrink-0 self-baseline translate-y-[calc(0.5em_-_0.5cap)]" />
+                      {typedPastAbove.count === 1 ? "1 unanswered question above" : `${typedPastAbove.count} unanswered questions above`}
+                    </button>
+                  </div>
+                ) : null}
               </>
             )
             : row.kind === "questions" ? (
