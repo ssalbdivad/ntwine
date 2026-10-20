@@ -27,6 +27,7 @@ import { TodoBlock } from "./TodoBlock.tsx"
 import { splitQuestionBlocks, type QuestionKind, type BlockAnswer, type MessageAnswering } from "../lib/questionBlocks.ts"
 import { splitFenceBlocks, type FenceKind } from "../lib/fenceBlocks.ts"
 import { typedWithin } from "../lib/typingActivity.ts"
+import { drawWindowStart } from "../lib/drawWindow.ts"
 import { registeredDoneBody, showsRegisteredDoneCard } from "../lib/registeredDone.ts"
 import { optimisticallySteered, useSteeredAt } from "../lib/steering.ts"
 import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
@@ -283,8 +284,29 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
   const [earlierError, setEarlierError] = useState<string | null>(null)
   // Raw server order — each message renders its `parts` in block order (fidelity). Memoized so
   // useLiveAnswering's `liveMsg` identity check compares objects from THIS same list.
-  const messages = useMemo(() => q.data?.messages ?? [], [q.data])
-  const liveTranscriptShells = useMemo(() => transcriptBackgroundShells(messages), [messages])
+  const allMessages = useMemo(() => q.data?.messages ?? [], [q.data])
+  // THE DRAWN WINDOW (lib/drawWindow): everything below derives from a suffix of what is loaded, held on
+  // an anchor message, so a long thread's history paging in — and each live update after — walks at most
+  // ~DRAW_LIMIT messages plus whatever the reader asked to see. `messages` keeps its identity while the
+  // suffix holds the same objects, so a page landing above the window re-runs nothing that keys on it.
+  // `widenAsk` counts the reader's requests; the memo applies each once (idempotent under a double render).
+  const [widenAsk, setWidenAsk] = useState(0)
+  const drawRef = useRef<{ key: string | undefined; anchor: string | null; widened: number; drawn: ChatMessage[] }>({ key: undefined, anchor: null, widened: 0, drawn: [] })
+  const transcriptKey = q.data?.transcriptKey
+  const { messages, drawStart } = useMemo(() => {
+    const st = drawRef.current
+    if (st.key !== transcriptKey) Object.assign(st, { key: transcriptKey, anchor: null, widened: widenAsk })
+    const widen = st.widened !== widenAsk
+    st.widened = widenAsk
+    const next = drawWindowStart(allMessages, st.anchor, widen)
+    st.anchor = next.anchor
+    const drawn = next.start === 0 ? allMessages : allMessages.slice(next.start)
+    const same = drawn.length === st.drawn.length && drawn.every((m, i) => m === st.drawn[i])
+    if (!same) st.drawn = drawn
+    return { messages: st.drawn, drawStart: next.start }
+  }, [allMessages, transcriptKey, widenAsk])
+  // A background shell can outlive any window, so the strip reads the whole loaded transcript.
+  const liveTranscriptShells = useMemo(() => transcriptBackgroundShells(allMessages), [allMessages])
   const presentationMessages = useMemo(() => withoutLiveTranscriptBackgroundTools(messages), [messages])
   // Cut over presentationMessages, not messages: the coalesced entries below carry a messageIndex into
   // THIS list, and comparing the two index spaces is how a live fence gets marked settled.
@@ -512,11 +534,14 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
           isFetching={q.isFetching}
           refresh={() => void q.refetch()}
           retryLiveUpdates={q.retryLiveUpdates}
-          hasEarlier={q.data?.hasEarlier === true}
+          hasEarlier={drawStart > 0 || q.data?.hasEarlier === true}
+          historyPending={q.data?.hasEarlier === true}
           beforeCursor={q.data?.beforeCursor}
           loadingEarlier={loadingEarlier}
           earlierError={earlierError}
-          loadEarlier={(pages) => void loadEarlier(pages)}
+          // The reader asking for more while loaded history sits above the window widens it, from memory;
+          // otherwise (and always for the eager pager) it is the next page from the server.
+          loadEarlier={(pages, reader) => (reader && drawStart > 0 ? setWidenAsk((n) => n + 1) : void loadEarlier(pages))}
           jumpOverlay={jumpOverlay}
           openAtLastMessage={phone && !running}
         />
@@ -956,6 +981,7 @@ function VirtualizedThreadTranscript({
   refresh,
   retryLiveUpdates,
   hasEarlier,
+  historyPending,
   beforeCursor,
   loadingEarlier,
   earlierError,
@@ -984,11 +1010,14 @@ function VirtualizedThreadTranscript({
   isFetching: boolean
   refresh: () => void
   retryLiveUpdates: () => void
+  // Something above the first drawn row: loaded history outside the drawn window, or a server page.
   hasEarlier: boolean
+  // The SERVER has more — what the eager pager steps on. Loaded history it never draws in by itself.
+  historyPending: boolean
   beforeCursor?: string | null
   loadingEarlier: boolean
   earlierError: string | null
-  loadEarlier: (pages?: number) => void
+  loadEarlier: (pages: number, reader: boolean) => void
   jumpOverlay: HTMLElement | null
   // The phone opens a thread at rest on the START of its last message rather than the end of it — see
   // the initial-scroll effect below. Read once, when the transcript first lands.
@@ -1235,7 +1264,7 @@ function VirtualizedThreadTranscript({
   const anchorRestoreUntilRef = useRef(0)
   const openHoldFrameRef = useRef(0)
 
-  const requestEarlier = useCallback((pages = 1) => {
+  const requestEarlier = useCallback((pages = 1, reader = true) => {
     const scroller = transcriptRef.current
     if (scroller) {
       const scrollerTop = scroller.getBoundingClientRect().top
@@ -1249,7 +1278,7 @@ function VirtualizedThreadTranscript({
         }
       }
     }
-    loadEarlier(pages)
+    loadEarlier(pages, reader)
   }, [loadEarlier, transcriptRef])
 
   useLayoutEffect(() => {
@@ -1322,25 +1351,35 @@ function VirtualizedThreadTranscript({
     const alignAnchor = () => {
       const anchoredRow = Array.from(scroller.querySelectorAll<HTMLElement>("[data-transcript-row-key]"))
         .find((element) => element.dataset.transcriptRowKey === anchor.rowKey)
-      if (!anchoredRow) return
+      // A prepend larger than the overscan pushes the reader's row out of the mounted range, and the
+      // scroller, still at the top, would show the new head instead: the drawn window widens a thousand
+      // messages at a time (lib/drawWindow). Bring the row in first; the next frame's pass sets its offset.
+      if (!anchoredRow) {
+        const index = rows.findIndex((row) => row.key === anchor.rowKey)
+        if (index >= 0) virtualizer.scrollToIndex(index, { align: "start", behavior: "instant" })
+        return false
+      }
       const nextTop = anchoredRow.getBoundingClientRect().top - scroller.getBoundingClientRect().top
       scroller.scrollTop += nextTop - anchor.viewportTop
+      return true
     }
     // Dynamic markdown/tool rows settle after TanStack's ResizeObserver measurement. Correct once
-    // synchronously and across the next two frames so the same message stays under the reader's eye.
-    alignAnchor()
-    let secondFrame = 0
-    const firstFrame = requestAnimationFrame(() => {
-      alignAnchor()
-      secondFrame = requestAnimationFrame(() => {
-        alignAnchor()
+    // synchronously and across the next two frames so the same message stays under the reader's eye —
+    // counting only frames where the row was mounted, so one brought in by scrollToIndex still gets both
+    // (bounded, in case it never mounts).
+    let aligned = alignAnchor() ? 1 : 0
+    let frames = 0
+    let frame = 0
+    const step = () => {
+      if (alignAnchor()) aligned++
+      if (aligned >= 3 || ++frames >= 8) {
         if (pendingPrependAnchorRef.current === anchor) pendingPrependAnchorRef.current = null
-      })
-    })
-    return () => {
-      cancelAnimationFrame(firstFrame)
-      cancelAnimationFrame(secondFrame)
+        return
+      }
+      frame = requestAnimationFrame(step)
     }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
   }, [loadingEarlier, messageRows.length, transcriptRef])
 
   // Where the reader is actually looking: the first row whose box reaches the pane top, and the offset
@@ -1605,7 +1644,7 @@ function VirtualizedThreadTranscript({
   // stays put exactly as a near-top load keeps it; a step is deferred while the reader is mid-gesture or
   // an anchor restore owns the scroller, and an error stops the chain where the Retry row can pick it up.
   useEffect(() => {
-    if (!hasEarlier || loadingEarlier || earlierError) return
+    if (!historyPending || loadingEarlier || earlierError) return
     let timer = 0
     const step = () => {
       const now = performance.now()
@@ -1613,11 +1652,11 @@ function VirtualizedThreadTranscript({
         timer = window.setTimeout(step, EAGER_HISTORY_RETRY_MS)
         return
       }
-      requestEarlier(EAGER_HISTORY_PAGES_PER_COMMIT)
+      requestEarlier(EAGER_HISTORY_PAGES_PER_COMMIT, false)
     }
     timer = window.setTimeout(step, EAGER_HISTORY_STEP_MS)
     return () => window.clearTimeout(timer)
-  }, [earlierError, hasEarlier, loadingEarlier, requestEarlier])
+  }, [earlierError, historyPending, loadingEarlier, requestEarlier])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
