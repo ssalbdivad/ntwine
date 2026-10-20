@@ -241,6 +241,17 @@ export function isBusy(project: QueuesProject): boolean {
 }
 
 /**
+ * What All projects lists of a project on the BACKBURNER: its threads still in play — queued, working,
+ * waiting, snoozed or pinned — and none of its Done, or nothing at all when it has none. The backburner
+ * hides the project, not a prompt the human just sent it (David 2026-10-20: "if you specifically prompt
+ * it the new prompt should appear — just not in the default dropdown/icon list").
+ */
+export function backburnerLive(project: QueuesProject): QueuesProject | undefined {
+  if (project.queued.length + project.running.length + project.snoozed.length + project.pinnedDone.length === 0) return undefined
+  return { ...project, doneCount: 0, recentDone: [] }
+}
+
+/**
  * A thread's identity on a page showing several projects. A slug is unique only WITHIN a project, so a
  * bare one is ambiguous here — two projects can both have a `fix-auth` — and every key, DOM anchor and
  * optimistic record on the page goes through this instead.

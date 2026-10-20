@@ -44,7 +44,7 @@ import { useSnapshot } from "valtio"
 import { heldQuestionViews, type BoardSnapshot, type ProjectCard, type ProjectQueue } from "@ntwine/shared"
 import { projectRpc, rpc } from "../api/rpc.ts"
 import { projectsQueuesQuery, readStartedAt } from "../lib/projectsQueuesRead.ts"
-import { liveQueue, mergedQueue, overlayQueues, projectMarkdownScope, queuesProjects, threadKey, type QueueEntry, type QueuesProject } from "../lib/allQueues.ts"
+import { backburnerLive, liveQueue, mergedQueue, overlayQueues, projectMarkdownScope, queuesProjects, threadKey, type QueueEntry, type QueuesProject } from "../lib/allQueues.ts"
 import { innerPath, projectSlug } from "../lib/base-path.ts"
 import { rememberCrossProjectFocus, stepPick } from "../lib/crossProject.ts"
 import { setFaviconBadge } from "../lib/faviconBadge.ts"
@@ -319,7 +319,12 @@ export function AllQueuesPage() {
   // before it does, the page shows nothing rather than every project.
   // A LENS narrows All projects to the projects picked in the dock (lib/lens.ts); one project is its page.
   const lens = useLens()
-  const shown = focused ? (viewed ? [viewed] : []) : lens ? deck.filter((project) => lens.has(project.id)) : deck
+  // A backburnered project still lists its threads in play there (allQueues.ts backburnerLive), never its Done.
+  const listed = useMemo(
+    () => projects.flatMap((project) => (project.card?.backburner && project.id !== viewed?.id ? (backburnerLive(project) ?? []) : [project])),
+    [projects, viewed?.id],
+  )
+  const shown = focused ? (viewed ? [viewed] : []) : lens ? deck.filter((project) => lens.has(project.id)) : listed
   const centerTab = useCenterTab()
   const openInPlace = useOpenThreadInPlace()
   const [, repaint] = useState(0)

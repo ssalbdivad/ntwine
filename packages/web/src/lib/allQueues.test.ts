@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ProjectCard, ProjectQueue, ThreadView } from "@ntwine/shared"
-import { earlierProse, handoffParts, isBusy, mergedQueue, queuesProjects, threadKey, liveQueue, overlayQueues } from "./allQueues.ts"
+import { backburnerLive, earlierProse, handoffParts, isBusy, mergedQueue, queuesProjects, threadKey, liveQueue, overlayQueues } from "./allQueues.ts"
 
 function thread(id: string, over: Partial<ThreadView> = {}): ThreadView {
   return {
@@ -247,4 +247,15 @@ test("every earlier rest keeps its prose, whatever the newest says, and only its
     { key: "earlier-2", prose: "Asked about the merge." },
   ], "a fence-only rest has nothing to show, and a rest with no time is keyed by its place")
   assert.deepEqual(earlierProse(undefined), [])
+})
+
+test("a backburnered project lists its threads in play and none of its Done, or nothing once it has none", () => {
+  const [project] = queuesProjects([card("p", { backburner: true })], [queue("p", [thread("fresh", { ready: true }), thread("old", { archived: true, state: "archived" })], { doneCount: 1 })])
+  const live = backburnerLive(project!)
+  assert.deepEqual(
+    [live?.queued.length ?? 0, live?.running.length ?? 0, live?.doneCount, live?.recentDone],
+    [project!.queued.length, project!.running.length, 0, []],
+  )
+  assert.equal(live!.queued.length + live!.running.length, 1)
+  assert.equal(backburnerLive({ ...project!, queued: [], running: [], snoozed: [], pinnedDone: [] }), undefined)
 })
