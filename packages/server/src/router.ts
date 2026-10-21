@@ -568,6 +568,8 @@ export function withUnreadSendHold(
 // Worker-authored labels, so cap both the list and each string before they cross the wire — the same
 // defensive discipline every other foreign-payload surface here follows. The untruncated counts ride
 // alongside (see CompletionHold), so a capped list is reported as "+N more", never silently shortened.
+/** How long a worker's `terminal start` waits for the command to die before answering (ownTerminal). */
+const TERMINAL_START_SETTLE_MS = 1_500
 const HOLD_OPS_MAX = 8
 const HOLD_LABEL_MAX = 100
 function holdOps(ops: readonly { label: string; state: "running" | "stale" }[]): CompletionHold["subAgents"] {
@@ -6378,6 +6380,11 @@ export function createRouter(ctx: AppContext) {
           if (row.state === "archived" || row.archived === 1) return { refused: "This thread is done; reopen it before starting a terminal from it." }
           const cwd = input.cwd ? terminalFolder(input.cwd) : threadWorkingDir(input.slug).dir
           const started = await startTerminalThread({ parent: input.slug, startedBy: input.slug, command: input.command, cwd })
+          // A command that dies on its own arguments dies at once: hold the answer through that window so
+          // the caller reads the exit and its error in start's own reply rather than after its turn ended
+          // and the failed run sat in the user's queue (a `nub run dev -- --port` did exactly that, 2026-10-21).
+          const settleBy = Date.now() + TERMINAL_START_SETTLE_MS
+          while (Date.now() < settleBy && terminalByHandle(started.id)?.terminal?.state === "running") await new Promise((r) => setTimeout(r, 100))
           const t = terminalByHandle(started.id)
           return { ...ownTerminalReading(t, input.slug, 40), handle: started.handle, id: started.id }
         }
@@ -6392,6 +6399,12 @@ export function createRouter(ctx: AppContext) {
         if (input.action === "release") {
           moveTerminalControl(t.id, "human", "release")
         } else if (input.action === "stop") {
+          // A run that already ended has nothing to stop. Its starter has handled it, so it is filed under
+          // Done rather than left queued for the user as a failure nobody needs to read again.
+          if (t.terminal.state !== "running") {
+            await ctx.terminalRunner.setState(t.id, "archived")
+            return { ...ownTerminalReading(terminalByHandle(t.id) ?? t, input.slug, 0), screen: undefined, filed: true }
+          }
           await ctx.terminalRunner.stop(t.id)
         } else {
           // A restart reopens a terminal marked done (storage restartThreadTerminal); a watch on it stays armed.

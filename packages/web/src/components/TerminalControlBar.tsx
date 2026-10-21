@@ -35,7 +35,8 @@ const barButtonClass = "whitespace-nowrap rounded-md border border-border-strong
 
 export function TerminalControlBar({ terminal, threads, move }: { terminal: ThreadTerminal; threads: readonly ThreadView[]; move: ControlMove }) {
   const [busy, setBusy] = useState(false)
-  const driver = terminalDriver(terminal)
+  // An ended run has no driver to show: control only matters while there is a process to type into.
+  const driver = terminal.state === "running" ? terminalDriver(terminal) : undefined
   const back = !driver && terminal.state === "running" ? terminal.controlAgent : undefined
   if (!driver && !back) return null
   const act = (to: string, isBack?: boolean) => {

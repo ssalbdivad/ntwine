@@ -1168,7 +1168,11 @@ const TERMINAL = {
     "ONE DRIVER AT A TIME. Typing, `stop`, `restart` and `release` work only while you drive it, and are " +
     "refused (exit 2) otherwise. You drive a terminal you start until the user takes control or you " +
     "`release` it; the user can hand one to you. A terminal still running when you sign off keeps running; " +
-    "the user's Done dialog offers to stop it.",
+    "the user's Done dialog offers to stop it.\n\n" +
+    "A FAILED START IS YOURS TO CLEAN UP. `start` waits a moment before it answers, so a command that dies at " +
+    "once comes back with its exit code and screen. Fix the cause and `restart` it (or start the corrected " +
+    "command), and `stop` the failed one: on a terminal that already ended, `stop` marks it done so it does " +
+    "not sit in the user's queue.",
   inputSchema: {
     type: "object",
     properties: {
@@ -2547,6 +2551,7 @@ async function terminal(args) {
       `it; \`ntwinectl message-thread ${at}\` types a line into it; \`ntwinectl terminal stop ${at}\` stops it.${screen}`
     )
   }
+  if (action === "stop" && r?.filed) return `${at} had already ${terminalStands(r)}, so there was nothing to stop; it is marked done and off the user's queue.`
   if (action === "stop") return `Stopped ${at} (${terminalStands(r)}).${screen}`
   if (action === "release") return `Released ${at}: the user drives it now, and you can no longer type into it. It keeps running.`
   return `Restarted ${at} — \`${r?.command}\`, ${terminalStands(r)}.${screen}`

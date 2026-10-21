@@ -196,6 +196,14 @@ test("terminal control: only the driver types, stops or restarts; take control a
     assert.match((await router.ownTerminal.handler({ input: { slug: "me", action: "stop", handle: "@cat" } })).refused ?? "", /driven by the user/)
     assert.equal((await router.dropOwnTerminalWatch.handler({ input: { slug: "me", id: watched.id! } })).dropped, true)
     assert.match((await router.addOwnTerminalWatch.handler({ input: { slug: "me", handle: "@sleep-30", for: "1h" } })).refused ?? "", /is no longer running, so there is nothing to wait for/)
+
+    // A start that dies at once answers with its failure, and stopping it afterwards files it under Done.
+    const bad = await router.ownTerminal.handler({ input: { slug: "me", action: "start", command: "echo bad flag; exit 3", cwd: h.dir } })
+    assert.deepEqual([bad.outcome, bad.exitCode], ["failed", 3])
+    assert.match(bad.screen ?? "", /bad flag/)
+    const filed = await router.ownTerminal.handler({ input: { slug: "me", action: "stop", handle: `@${bad.handle}` } })
+    assert.equal(filed.filed, true)
+    assert.equal(h.storage.listThreadTerminals().find((t) => t.slug === bad.id)?.state, "archived")
   } finally { terminals.shutdown(); h.close() }
 })
 

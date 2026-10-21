@@ -4434,6 +4434,8 @@ export const OwnTerminalResult = z.object({
   driving: z.boolean().optional(),
   /** The screen's tail, escape sequences dropped. */
   screen: z.string().optional(),
+  /** `stop` on a run that had already ended: nothing to stop, so it was marked done instead. */
+  filed: z.boolean().optional(),
   /** When the handle named nothing: the terminal handles that exist. */
   known: z.array(z.string()).optional(),
 }).strict()
