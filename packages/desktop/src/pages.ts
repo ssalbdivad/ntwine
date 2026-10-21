@@ -31,9 +31,14 @@ export function loadingPage(): string {
   return page("ntwine", `<h1>Connecting…</h1>`)
 }
 
-/** No board is up yet. The app keeps looking and opens it the moment one answers. */
-export function waitingPage(url?: string): string {
-  const where = url ? `<p>Waiting for <code>${escapeHtml(url)}</code> to answer.</p>` : `<p>Start one with <code>nub run dev</code>. It opens here as soon as it is up.</p>`
+/** No board is up yet. The app keeps looking and opens it the moment one answers. `canStart`: this app
+ *  can start one itself (launch.ts), so the page offers to rather than naming the command. */
+export function waitingPage(url?: string, canStart = false): string {
+  const where = url
+    ? `<p>Waiting for <code>${escapeHtml(url)}</code> to answer.</p>`
+    : canStart
+      ? `<p>It opens here as soon as one is up.</p><div class="actions"><button class="primary" onclick="ntwineDesktop.retry()">Start ntwine</button></div>`
+      : `<p>Start one with <code>nub run dev</code>. It opens here as soon as it is up.</p>`
   return page("ntwine", `<h1>No board is running</h1>${where}`)
 }
 

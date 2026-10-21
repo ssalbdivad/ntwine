@@ -28,8 +28,9 @@ import { locateServer, readRecordedServer } from "./server.ts"
  *
  * It joins the server that is up (server.ts), and when none is it waits for one, so the window can be
  * opened before the board and survive the board restarting under it. It starts one too, once, when the
- * search first finds none (launch.ts), so a window pinned to the taskbar is all it takes after a reboot;
- * the board it starts outlives it.
+ * search first finds none (launch.ts): `nub run dev`, as a terminal thread on the board it serves, so a
+ * window pinned to the taskbar is all it takes after a reboot; the board it starts outlives it. When a
+ * board it showed goes away, the waiting page offers to start it again.
  * Because the page is the board's own, Vite HMR reaches it exactly as it reaches a browser tab, and the
  * dev supervisor's control-plane recycles look like any other dropped connection.
  *
@@ -277,7 +278,7 @@ function startNtwine(launch: ServerLaunch): NonNullable<typeof started> {
 /** Every window on one of this app's own pages shows the waiting one — each poll, so a window that
  * started connecting since (a second failed load, a new window) gets it too. */
 function showWaiting(): void {
-  const waiting = started?.state === "running" ? startingPage() : started?.state === "failed" ? startFailedPage(launch!.log) : waitingPage(pinnedUrl)
+  const waiting = started?.state === "running" ? startingPage() : started?.state === "failed" ? startFailedPage(launch!.log) : waitingPage(pinnedUrl, !pinnedUrl && launch !== undefined)
   for (const win of ownPages()) {
     if (win.webContents.getURL() !== waiting) void win.loadURL(waiting).catch(() => {})
   }
@@ -464,8 +465,9 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.on("ntwine-desktop:retry", (event) => {
     const win = fromOwnPage(event)
     if (!win) return
-    // "Try again" after a failed start means start it again.
-    if (started?.state === "failed") started = undefined
+    // "Try again" after a failed start, or "Start ntwine" once a board it showed went away, means start it
+    // (again). A start still in flight is left to finish.
+    if (started?.state !== "running") started = undefined
     void connect(win)
   })
 

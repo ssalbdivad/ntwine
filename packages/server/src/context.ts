@@ -1137,6 +1137,9 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     storage,
     ...(process.platform === "win32" ? {} : { host: createTerminalHost({ stateDir: project.stateDir }) }),
     log: terminalLog,
+    // As the router's start does: a row a claim makes at boot (the desktop window's dev board) is named
+    // clear of every open thread here and in every other open project.
+    takenHandles: () => [...threadNamer.threads().filter((t) => t.open), ...openThreadsElsewhere(opts.activeTenants?.() ?? [], project.id)].map((t) => handleOf(t)),
     onChange: () => {
       try {
         board?.refresh()

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { quoteWindowsArg, serverCommand, type ServerLaunch } from "./launch.ts"
 
-test("the launch runs the launcher in the repo on the recorded PATH, appending to a log it creates", () => {
+test("the launch runs the dev terminal's starter in the repo on the recorded PATH, appending to a log it creates", () => {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-desktop-launch-"))
   try {
     // A stand-in nub that reports what it was run with. Paths with spaces and quotes, since a PATH or
@@ -14,12 +14,12 @@ test("the launch runs the launcher in the repo on the recorded PATH, appending t
     const bin = join(dir, "bin 'x'")
     const nub = join(bin, "nub")
     spawnSync("mkdir", ["-p", bin])
-    writeFileSync(nub, '#!/bin/sh\necho "pwd=$(pwd) path=$PATH source=$NTWINE_SOURCE_COMMAND args=$*"\necho oops >&2\n')
+    writeFileSync(nub, '#!/bin/sh\necho "pwd=$(pwd) path=$PATH args=$*"\necho oops >&2\n')
     chmodSync(nub, 0o755)
     const launch: ServerLaunch = { repo: dir, nub, path: `${bin}:/usr/bin:/bin`, log: join(dir, "state dir", "desktop-server.log") }
     const [command, args] = serverCommand(launch)
     for (let run = 0; run < 2; run++) assert.equal(spawnSync(command, args, { cwd: dir, env: {} }).status, 0)
-    const line = `pwd=${dir} path=${bin}:/usr/bin:/bin source=ntwine-dev args=--no-env-file src/index.ts --no-app\noops\n`
+    const line = `pwd=${dir} path=${bin}:/usr/bin:/bin args=--no-env-file packages/server/src/dev-terminal.ts\noops\n`
     assert.equal(readFileSync(launch.log, "utf8"), line + line)
   } finally {
     rmSync(dir, { recursive: true, force: true })

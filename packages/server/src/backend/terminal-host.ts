@@ -16,10 +16,16 @@
 // Beside the record, the daemon writes `<id>.exit.json` before it exits (code, signal, stopped, the
 // final screen), and the server deletes it once the run is filed. Both carry the row's run number, so
 // a record or exit left by an earlier run never files against a later one.
+//
+// A run can also be forked by something that is not a server, and so has no row to put it in: the
+// desktop window's dev board (dev-terminal.ts), which has to exist before any server does. It leaves
+// `<id>.claim.json` — the row it wants — and the first server to boot makes that row and drops the
+// claim (thread-terminals.ts). Without the claim that daemon would read as one the board forgot, and the
+// audit below would end it.
 import { spawn } from "node:child_process"
 import { createConnection, type Socket } from "node:net"
 import { createHash, randomUUID } from "node:crypto"
-import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 import { resolveDetachedDaemonEntry } from "../detached-daemons.ts"
@@ -87,6 +93,10 @@ export interface TerminalHost {
    *  why in `startFailure`), or a command quicker than the handshake. Rejects only when no daemon could
    *  be started at all; the caller falls back to an in-process pty. */
   start(spec: TerminalRunSpec): Promise<{ process: RemoteTerminal } | { finished: TerminalExitRecord }>
+  /** Fork a daemon for a run WITHOUT attaching to it: for a process that is not a server (the claims in
+   *  the header). It must never hold the daemon's one client slot, or it could supersede a server that
+   *  attached first, which would then never reattach. Rejects as `start` does. */
+  fork(spec: TerminalRunSpec): Promise<{ record: TerminalHostRecord } | { finished: TerminalExitRecord }>
   /** Boot: attach to the live daemon serving this run, if there is one. Returns at once; the screen and
    *  state arrive with the daemon's hello (`onChange` fires then). */
   adopt(id: string, runId: number): RemoteTerminal | undefined
@@ -101,6 +111,22 @@ export interface TerminalHost {
   live(): TerminalHostRecord[]
   /** End a daemon and its pty's group (SIGTERM to the daemon, which runs Stop). Never throws. */
   end(id: string): boolean
+  /** Runs forked outside a server, each waiting for its row (see the header). */
+  claims(): TerminalClaim[]
+  /** The claim's row exists now: drop it. */
+  dropClaim(id: string): void
+}
+
+/** The row a run forked outside a server asks for (see the header). */
+export interface TerminalClaim {
+  id: string
+  /** The run number its daemon serves; the row is put on this run. */
+  runId: number
+  command: string
+  cwd: string
+  /** `human`: the window was opened by one. */
+  startedBy: string
+  createdAt: string
 }
 
 const RECORD_DIR = "terminal-host"
@@ -109,7 +135,11 @@ const SOCKET_PREFIX = "ntwine-term-"
 export function terminalHostDir(stateDir: string): string { return join(stateDir, RECORD_DIR) }
 export function terminalHostRecordPath(stateDir: string, id: string): string { return join(terminalHostDir(stateDir), `${id}.json`) }
 export function terminalExitPath(stateDir: string, id: string): string { return join(terminalHostDir(stateDir), `${id}.exit.json`) }
+export function terminalClaimPath(stateDir: string, id: string): string { return join(terminalHostDir(stateDir), `${id}.claim.json`) }
 function seedPath(stateDir: string, id: string): string { return join(terminalHostDir(stateDir), `${id}.seed`) }
+
+/** A terminal id as runners mint them: it names files, so nothing else is read as one. */
+const TERMINAL_ID = /^term-[0-9a-f]{12}$/u
 
 /** Short and hashed: unix socket paths cap at ~104 bytes on macOS. See the header for the generation. */
 export function terminalHostSocketPath(stateDir: string, id: string, generation: string): string {
@@ -165,7 +195,7 @@ export function liveTerminalHostRecords(stateDir: string): TerminalHostRecord[] 
   let names: string[]
   try { names = readdirSync(terminalHostDir(stateDir)) } catch { return [] }
   return names
-    .filter((name) => name.endsWith(".json") && !name.endsWith(".exit.json"))
+    .filter((name) => name.endsWith(".json") && !name.endsWith(".exit.json") && !name.endsWith(".claim.json"))
     .map((name) => liveTerminalHostRecord(stateDir, name.slice(0, -".json".length)))
     .filter((record): record is TerminalHostRecord => record !== null)
 }
@@ -191,6 +221,41 @@ export function terminalExitIds(stateDir: string): string[] {
   let names: string[]
   try { names = readdirSync(terminalHostDir(stateDir)) } catch { return [] }
   return names.filter((name) => name.endsWith(".exit.json")).map((name) => name.slice(0, -".exit.json".length))
+}
+
+export function writeTerminalClaim(stateDir: string, claim: TerminalClaim): void {
+  if (!TERMINAL_ID.test(claim.id)) throw new Error(`not a terminal id: ${claim.id}`)
+  mkdirSync(terminalHostDir(stateDir), { recursive: true })
+  const path = terminalClaimPath(stateDir, claim.id)
+  const temp = `${path}.${process.pid}.tmp`
+  writeFileSync(temp, JSON.stringify(claim))
+  renameSync(temp, path)
+}
+
+export function readTerminalClaims(stateDir: string): TerminalClaim[] {
+  let names: string[]
+  try { names = readdirSync(terminalHostDir(stateDir)) } catch { return [] }
+  const claims: TerminalClaim[] = []
+  for (const name of names) {
+    if (!name.endsWith(".claim.json")) continue
+    const id = name.slice(0, -".claim.json".length)
+    const value = readJson(join(terminalHostDir(stateDir), name))
+    if (!value || !TERMINAL_ID.test(id) || value.id !== id) continue
+    if (!Number.isInteger(value.runId) || (value.runId as number) < 1 || typeof value.command !== "string" || !value.command || typeof value.cwd !== "string" || !value.cwd) continue
+    claims.push({
+      id,
+      runId: value.runId as number,
+      command: value.command,
+      cwd: value.cwd,
+      startedBy: typeof value.startedBy === "string" && value.startedBy ? value.startedBy : "human",
+      createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
+    })
+  }
+  return claims
+}
+
+export function dropTerminalClaim(stateDir: string, id: string): void {
+  try { unlinkSync(terminalClaimPath(stateDir, id)) } catch {}
 }
 
 /** The daemon's own environment: the launch environment minus ntwine's control-plane variables, so it
@@ -511,6 +576,7 @@ export function createTerminalHost(options: TerminalHostOptions): TerminalHost {
       }
       return { process: terminal }
     },
+    fork: (spec) => forkTerminalDaemon(options, spec),
     adopt(id, runId) {
       const record = liveTerminalHostRecord(options.stateDir, id)
       if (!record || record.runId !== runId) return undefined
@@ -531,6 +597,8 @@ export function createTerminalHost(options: TerminalHostOptions): TerminalHost {
       endDaemonTree(record.daemonPid, "SIGTERM")
       return true
     },
+    claims: () => readTerminalClaims(options.stateDir),
+    dropClaim: (id) => dropTerminalClaim(options.stateDir, id),
   }
 }
 

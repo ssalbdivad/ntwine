@@ -4,7 +4,7 @@ import { THREAD_HANDLE_MAX_CHARS, terminalCommandCore, terminalOutcome, type Thr
 import type { ThreadTerminalRow, Storage } from "./storage.ts"
 import type { TerminalAttachment } from "./terminal.ts"
 import { launchEnvironment } from "./backend/worker-env.ts"
-import { classifyUnownedTerminalHosts, type TerminalExitRecord, type TerminalHost } from "./backend/terminal-host.ts"
+import { classifyUnownedTerminalHosts, type TerminalClaim, type TerminalExitRecord, type TerminalHost } from "./backend/terminal-host.ts"
 import { ANSI_RE, createPtySession, finishedProcess, loadNodePty, type SpawnPty, type TerminalExit, type TerminalProcess } from "./terminal-session.ts"
 
 export { endsOnPrompt, loadNodePty } from "./terminal-session.ts"
@@ -156,6 +156,9 @@ export interface TerminalRunnerDeps {
   host?: TerminalHost
   /** Where the host audit and a host fallback are reported. */
   log?: (message: string) => void
+  /** Every other open thread's handle, in every open project — what a row made from a claim avoids, as
+   *  the router's start does (router startTerminalThread). */
+  takenHandles?: () => Iterable<string>
 }
 
 /** The shell a terminal runs under, and how it is handed the line. A LOGIN shell on POSIX so the human's
@@ -208,6 +211,14 @@ export function followUpScreen(previous: { command: string; buffer: string; echo
   const screen = previous.echoed || previous.interactive ? previous.buffer : echoLine(previous.command) + previous.buffer
   // Reset any colour or hidden cursor the last program left, and start on a fresh line.
   return screen + "\x1b[0m\x1b[?25h" + (screen.endsWith("\n") ? "" : "\r\n") + echoLine(command)
+}
+
+/** What a claim (terminal-host.ts) needs done to the rows. No row: make one. A row on another run, or one
+ *  whose run is over (a stale run number that happens to match): put it on the claimed run, reopened. The
+ *  row already open on that run: nothing — a server made it and died before dropping the claim. */
+export function claimRowAction(row: Pick<ThreadTerminalRow, "runs" | "exited_at"> | undefined, claim: Pick<TerminalClaim, "runId">): "insert" | "rerun" | "none" {
+  if (!row) return "insert"
+  return row.runs === claim.runId && row.exited_at === null ? "none" : "rerun"
 }
 
 /** The screen an exit record leaves: the run's last screen, or why it never got a process. */
@@ -434,6 +445,35 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       return
     }
     hold(id, { proc: session, echoed, interactive, hosted: false })
+  }
+
+  // ── Boot, first: runs forked outside a server, waiting for their rows (terminal-host.ts claims) ──
+  // The desktop window's dev board is the one (dev-terminal.ts): its daemon exists before any server does,
+  // so the first server to boot makes its row, and everything below then treats it like any other run —
+  // adopts the live daemon, or files the exit it left. The claim is dropped only once the row is there,
+  // and claimRowAction makes a second pass over the same claim a no-op, so a server that dies between the
+  // two, or the dev supervisor's next control plane, never makes a second row.
+  if (host) {
+    for (const claim of host.claims()) {
+      try {
+        const existing = rows().get(claim.id)
+        const action = claimRowAction(existing, claim)
+        const startedAtMs = Number.isFinite(Date.parse(claim.createdAt)) ? Date.parse(claim.createdAt) : now()
+        if (action === "insert") {
+          let taken: string[] = []
+          try { taken = [...(deps.takenHandles?.() ?? [])] } catch {}
+          const handle = terminalHandle(claim.command, [...openHandles(), ...taken])
+          deps.storage.insertThreadTerminal({ slug: claim.id, parentSlug: null, startedBy: claim.startedBy, handle, command: claim.command, cwd: claim.cwd, shell: false, createdAtMs: startedAtMs })
+          if (claim.runId !== 1) deps.storage.restartThreadTerminal(claim.id, startedAtMs, claim.command, claim.runId)
+        } else if (action === "rerun") {
+          deps.storage.restartThreadTerminal(claim.id, startedAtMs, claim.command, claim.runId)
+        }
+        host.dropClaim(claim.id)
+      } catch (cause) {
+        // Left on disk for the next boot. The audit's age guard gives that boot a minute.
+        deps.log?.(`terminal ${claim.id}: could not make the row its run asked for (${(cause as Error).message})`)
+      }
+    }
   }
 
   // ── Boot: what was running when the last server went away ──────────────────────────────────────

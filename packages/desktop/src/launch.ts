@@ -6,11 +6,13 @@ import { readFileSync } from "node:fs"
  * after a reboot. scripts/dev.ts writes everything this needs into dist/server.json, since the app copy
  * a Windows Electron runs from (%LOCALAPPDATA%) has no other way to know it.
  *
- * What it starts is this checkout's launcher, `ntwine-dev --no-app` (src/index.ts): the stable board,
- * the one a published `ntwine` would run, which finds or builds a verified artifact and records itself
- * in the server owner record the window's search reads. Not `nub run dev`: that board belongs to a
- * terminal, where its keys, its log and its ctrl-c are, and a window that started one would hide all
- * three. The board outlives the window, as one started from a terminal outlives a tab.
+ * What it starts is the DEV board, `nub run dev` in this checkout, as a terminal thread on the board it
+ * serves (packages/server/src/dev-terminal.ts): its R / L keys, its output and its ctrl-c are in that
+ * thread's drawer, and the run outlives the window, the dev supervisor's recycles and a server crash, as
+ * every terminal does. (Until 2026-10-21 it started the stable board, `ntwine-dev --no-app`, because a
+ * dev board the window started had nowhere to show its keys, its log or its ctrl-c; a terminal thread
+ * is that place.) The starter exits 0 once a server has made the thread and 1 when the run ended before
+ * that, with the run's last screen in the log.
  */
 export interface ServerLaunch {
   repo: string
@@ -43,27 +45,24 @@ export function readServerLaunch(path: string): ServerLaunch | undefined {
   }
 }
 
-/**
- * The command: `ntwine-dev --no-app` in the repo, on the recorded PATH, its output appended to the log.
- * NTWINE_SOURCE_COMMAND is what the `ntwine-dev` shim sets, so the launcher names itself that way.
- */
+/** The command: the dev terminal's starter in the repo, on the recorded PATH, its output appended to the log. */
 export function serverCommand(launch: ServerLaunch): [command: string, args: string[]] {
   const shell = [
     "sh",
     "-c",
-    'export PATH="$1" NTWINE_SOURCE_COMMAND=ntwine-dev && mkdir -p "$(dirname "$2")" && log="$2" && shift 2 && exec "$@" >> "$log" 2>&1 </dev/null',
+    'export PATH="$1" && mkdir -p "$(dirname "$2")" && log="$2" && shift 2 && exec "$@" >> "$log" 2>&1 </dev/null',
     "sh",
     launch.path,
     launch.log,
     launch.nub,
     "--no-env-file",
-    "src/index.ts",
-    "--no-app",
+    "packages/server/src/dev-terminal.ts",
   ]
   if (!launch.distro) return [shell[0]!, shell.slice(1)]
   // In a session of its own (spawn's `detached` is that on Linux, and reaches no further than wsl.exe
-  // on Windows): when WSL ends the session of a wsl.exe that is killed, it signals everything in it, and
-  // the launcher takes that as a stop. `-w` still waits, so a launch that fails is seen to.
+  // on Windows): when WSL ends the session of a wsl.exe that is killed, it signals everything in it. The
+  // terminal's daemon has a session of its own anyway; this keeps the starter's wait from being cut
+  // short. `-w` still waits, so a launch that fails is seen to.
   return ["wsl.exe", ["-d", launch.distro, "--cd", launch.repo, "--exec", ...shell.slice(0, 6), "setsid", "-w", ...shell.slice(6)]]
 }
 
@@ -74,7 +73,8 @@ export function quoteWindowsArg(arg: string): string {
 }
 
 /**
- * Start ntwine, calling `onFailed` if it stops before a board answers (or could not start at all).
+ * Start ntwine, calling `onFailed` if its run stops before a board comes up (the starter exits non-zero)
+ * or the starter could not run at all. Exit 0 is the board coming up, which the window's search sees.
  *
  * On Linux and macOS it is spawned detached, out of the window's process group.
  *
@@ -83,14 +83,14 @@ export function quoteWindowsArg(arg: string): string {
  * window whatever windowsHide says. So a hidden, attached PowerShell starts wsl.exe with
  * `Start-Process -WindowStyle Hidden`: a grandchild leaves libuv's job silently, and a console created
  * hidden stays hidden. PowerShell then waits on it and exits with its code, so a failed start is seen;
- * PowerShell itself ends with the window, which the server does not.
+ * PowerShell itself ends with the window, which the dev board's terminal does not.
  */
 export function startServer(launch: ServerLaunch, onFailed: () => void): void {
   const [command, args] = serverCommand(launch)
   if (!launch.distro) {
     const child = spawn(command, args, { cwd: launch.repo, detached: true, stdio: "ignore" })
     child.on("error", onFailed)
-    child.on("exit", onFailed)
+    child.on("exit", (code) => { if (code !== 0) onFailed() })
     child.unref()
     return
   }
@@ -103,5 +103,5 @@ export function startServer(launch: ServerLaunch, onFailed: () => void): void {
     { stdio: "ignore", windowsHide: true },
   )
   child.on("error", onFailed)
-  child.on("exit", onFailed)
+  child.on("exit", (code) => { if (code !== 0) onFailed() })
 }
