@@ -5,7 +5,8 @@
 // command (`--command=`), which adds a port so the real `nub run dev` on 9393 is never touched.
 //
 // What it asserts, through the real RPC board, the real /term websocket and the process table:
-//   1. the starter exits 0, a dev board answers, and the board lists ONE top-level terminal thread
+//   1. the starter exits 0, a dev board answers and passes the window's ownership check (server.ts
+//      ownedNtwine, what its search requires before it loads a port), and the board lists ONE top-level terminal thread
 //      `@nub-run-dev` running the dev server, whose drawer shows its output and the R / L line (which
 //      only a TTY prints);
 //   2. a control-plane recycle (a source edit) with the daemon past the audit's 60s age guard: the
@@ -27,6 +28,7 @@ import { delimiter, join, resolve } from "node:path"
 import WebSocket from "ws"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 import { serverCommand, type ServerLaunch } from "../packages/desktop/src/launch.ts"
+import { ownedNtwine } from "../packages/desktop/src/server.ts"
 import { createTerminalHost, readTerminalHostRecord } from "../packages/server/src/backend/terminal-host.ts"
 import { ntwinePaths } from "../packages/server/src/ntwine-paths.ts"
 
@@ -153,6 +155,8 @@ try {
   const first = await until(health, 120_000)
   if (!check(first !== undefined, "a dev board answers on the port", `${PORT}`)) throw new Error(`no board:\n${starterLog}`)
   stateDir = join(paths.data, "projects", first!.projectId)
+  // What the window's search requires before it loads a port: a board that proves it is ours.
+  check(await ownedNtwine(PORT, paths), "the window's search would load it: the board proves it is ours")
   const id = /terminal (term-[0-9a-f]{12})/.exec(starterLog)?.[1] ?? ""
   const rows = await terminalThreads()
   check(rows.length === 1 && rows[0]!.id === id, "the board lists exactly one terminal thread, the one the starter made", JSON.stringify(rows.map((r) => r.id)))
