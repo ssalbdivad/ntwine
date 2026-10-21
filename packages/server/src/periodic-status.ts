@@ -1,4 +1,4 @@
-import type { TranscriptMessage } from "@ntwine/shared"
+import type { AwaitingStatus, TranscriptMessage } from "@ntwine/shared"
 import { isBrokerClaudeRow, type SessionRow, type Storage } from "./storage.ts"
 
 // At every rest where the conversation has moved, write the thread's STATUS from the RECENT conversation.
@@ -27,6 +27,18 @@ import { isBrokerClaudeRow, type SessionRow, type Storage } from "./storage.ts"
 // one either (2026-09-30), though the human asked for it: it is about the NEW thread, so it neither moves
 // this thread's conversation on nor names the request live-status.ts should describe this one's work by.
 // Nor is a Keep working click: it only sends the worker back to the wait it was already on.
+//
+// THE HANDOFF, NOT JUST THE PROSE (2026-10-21). The writer read only the conversation, so a reply that
+// said "unless you say otherwise, it becomes @ark/aot" — a decision the worker had TAKEN — came out as
+// "Waiting on your pick of a name", and the card kept saying so through several later rests whose only
+// text was a `status: working` fence (maintainer: "summary says waiting on my pick but it said it had made a
+// choice unless I tell it otherwise"). Prose is ambiguous about who holds the thread; ntwine's own records
+// are not. So every write is handed the rest's HANDOFF — the questions still holding the thread, and the
+// sign-off it rested on — and the prompt treats it as the authority on whether the developer is needed.
+// A rest whose handoff differs from the last write's is a move too, even with no new words: a question
+// answered or withdrawn, or a park that went from `needs_input` to `working`, changes what the card must
+// say. Stale is the worse failure here — a card that says "waiting on you" when it is not costs the human
+// a trip, and a spare Sonnet one-shot costs little — so the triggers lean toward writing.
 export const STATUS_WINDOW_MESSAGES = 5
 // Enough to say what the conversation is doing, bounded well under anything a one-shot should carry.
 const PER_MESSAGE_CHARS = 1_500
@@ -59,10 +71,47 @@ export function recentConversation(messages: readonly TranscriptMessage[], windo
   return body.length > CONVERSATION_CHARS ? `…${body.slice(body.length - CONVERSATION_CHARS)}` : body
 }
 
+/** Where a rest's handoff stands, from ntwine's records rather than the reply's prose. */
+export interface RestHandoff {
+  /** The open questions still HOLDING the thread (not typed past), as their text. */
+  questions: string[]
+  /** The sign-off the rest ended on, if any. */
+  signoff?:
+    | { kind: "done" }
+    | { kind: "awaiting"; status: AwaitingStatus | null; waitsOn: string[]; steps: string[] }
+}
+
+/** The handoff as the lines the status writer reads. */
+export function describeHandoff(h: RestHandoff): string {
+  const lines: string[] = []
+  if (h.questions.length) {
+    lines.push(`- The agent has ${h.questions.length} open question${h.questions.length === 1 ? "" : "s"} for the developer:`)
+    for (const q of h.questions) lines.push(`  - ${q.length > 300 ? `${q.slice(0, 300)}…` : q}`)
+  } else lines.push("- The agent has NO open question for the developer.")
+  const s = h.signoff
+  if (!s) lines.push("- It rested without a sign-off: a plain reply.")
+  else if (s.kind === "done") lines.push("- It signed off as DONE: the work is finished.")
+  else {
+    if (s.steps.length) {
+      lines.push("- It is waiting on the developer to do these steps:")
+      for (const step of s.steps) lines.push(`  - ${step}`)
+    }
+    const meaning = s.status === "needs_input" ? "the developer has something to review or act on now"
+      : s.status === "working" ? "its own work (sub-agents, shells, CI) is still running and finishes by itself; the developer is NOT needed"
+      : s.status === "watching" ? "it is waiting on something outside the thread (a review, a release, a reply); the developer is NOT needed"
+      : "no status given"
+    lines.push(`- It parked with status ${s.status ?? "unset"}: ${meaning}.`)
+    if (s.waitsOn.length) lines.push(`- It is waiting on: ${s.waitsOn.join(", ")}.`)
+  }
+  return lines.join("\n")
+}
+
 export interface PeriodicStatusDeps {
   storage: Pick<Storage, "getSession" | "setStatus">
   /** The status writer (thread-names.ts `ThreadNamer.status`). Absent ⇒ no status is ever written. */
-  writeStatus?: (input: { name?: string; conversation: string }) => Promise<string | undefined>
+  writeStatus?: (input: { name?: string; conversation: string; handoff?: string }) => Promise<string | undefined>
+  /** The rest's handoff (describeHandoff). Absent ⇒ the writer reads the conversation alone. */
+  handoffOf?: (row: SessionRow, messages: readonly TranscriptMessage[]) => RestHandoff | undefined
   /** The thread's current NAME, handed to the writer only so the status does not repeat it. */
   nameOf?: (row: SessionRow) => string | undefined
   /** `forkAnchor` is the row's SessionRow.fork_anchor — a forked thread is read from its fork point. */
@@ -79,41 +128,60 @@ export interface PeriodicStatus {
 }
 
 export function createPeriodicStatus(deps: PeriodicStatusDeps): PeriodicStatus {
-  // How many messages of the transcript each session's last status read: the conversation has moved
-  // when an operator message or agent reply sits past it. In memory, so a restart costs at most one
-  // re-write at a thread's next rest — and rests fire only on a live edge, never as a boot-time burst.
-  const readTo = new Map<string, number>()
+  // What each session's last WRITTEN status read, as a fingerprint: how many operator messages, the
+  // newest agent reply, and the handoff. The conversation has moved when any of them differs. It was an
+  // index into the message array until 2026-10-21 (`messages.slice(readTo)`), which goes blind whenever
+  // the fold's count shrinks or reshapes under it — a compaction, coalesced units — and a long thread
+  // then kept a status written an hour and six rests earlier. Recorded only once a status lands, so a
+  // write that failed or came back empty is retried at the next rest instead of being counted as done.
+  // In memory, so a restart costs at most one re-write at a thread's next rest — and rests fire only on
+  // a live edge, never as a boot-time burst.
+  const written = new Map<string, string>()
   const inFlight = new Set<string>()
-  return {
+  // A rest that lands while a write is in flight is not dropped: it re-runs once that write finishes, so
+  // the card ends on the NEWEST rest rather than the one before it.
+  const pending = new Map<string, boolean>()
+  const api: PeriodicStatus = {
     onTurnDone(row, options) {
       // Broker Claude rows only: `readMessages` reads a Claude transcript.
       if (!deps.writeStatus || !isBrokerClaudeRow(row)) return
       const writeStatus = deps.writeStatus
       const key = `${row.slug}\0${row.session_id}`
-      // In flight from the READ on, now that the read is awaited: a rest that lands meanwhile is dropped,
-      // exactly as one landing during the model call always was — the next rest reads past it.
-      if (inFlight.has(key)) return
+      // In flight from the READ on, now that the read is awaited: a rest that lands meanwhile is held
+      // and re-run once this write finishes.
+      if (inFlight.has(key)) {
+        pending.set(key, (pending.get(key) ?? false) || Boolean(options?.force))
+        return
+      }
       inFlight.add(key)
       void (async () => {
         // Awaited: the context hands in readTranscriptYielding, so a cold fold of a large transcript
         // yields the event loop instead of holding it for seconds (transcript.ts).
         const messages = await deps.readMessages(row.session_id, row.fork_anchor)
-        const ops = new Set(operatorMessages(messages))
-        const prev = readTo.get(key) ?? 0
-        const moved = messages.slice(prev).some((m) =>
-          ops.has(m) || (m.role === "assistant" && !m.kind && !m.boundary && m.text.trim() !== ""))
-        if (!moved && !options?.force) return
-        readTo.set(key, messages.length)
+        const lastReply = messages.findLast((m) => m.role === "assistant" && !m.kind && !m.boundary && m.text.trim() !== "")
+        const rest = deps.handoffOf?.(row, messages)
+        const handoff = rest ? describeHandoff(rest) : undefined
+        const seen = [operatorMessages(messages).length, lastReply?.at ?? "", lastReply?.text ?? "", handoff ?? ""].join("\0")
+        if (seen === written.get(key) && !options?.force) return
         const conversation = recentConversation(messages)
         if (!conversation) return
-        const status = await writeStatus({ name: deps.nameOf?.(row), conversation })
+        const status = await writeStatus({ name: deps.nameOf?.(row), conversation, ...(handoff ? { handoff } : {}) })
         if (!status) return
+        written.set(key, seen)
         // Keyed on the session it was read from: a re-dispatch over the slug while the writer ran
         // must not inherit the old session's status.
         if (deps.storage.setStatus(row.slug, row.session_id, status)) deps.onStatus()
       })()
         .catch((error: unknown) => deps.onError?.(row.slug, error))
-        .finally(() => inFlight.delete(key))
+        .finally(() => {
+          inFlight.delete(key)
+          if (!pending.has(key)) return
+          const force = pending.get(key)!
+          pending.delete(key)
+          const fresh = deps.storage.getSession(row.slug)
+          if (fresh?.session_id === row.session_id) api.onTurnDone(fresh, { force })
+        })
     },
   }
+  return api
 }

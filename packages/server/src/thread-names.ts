@@ -232,7 +232,7 @@ export function namingRequest(
 const STATUS_SYSTEM = "You write the one-line live status of a coding-agent thread on a developer's dashboard. You reply with the status line alone."
 
 /** THE STATUS PROMPT: what is happening now, from the last few exchanges — never the name again. */
-export function statusRequest(name: string | undefined, conversation: string): ClaudeOneShotRequest {
+export function statusRequest(name: string | undefined, conversation: string, handoff?: string): ClaudeOneShotRequest {
   const body = conversation.length > CONVERSATION_CHARS ? `…${conversation.slice(conversation.length - CONVERSATION_CHARS)}` : conversation
   // Measured against a real five-message thread (2026-09-29). Haiku 4.5, with the rules BEFORE the
   // conversation, answered "Thread complete, user satisfied" and "Completed README review" (the name
@@ -249,11 +249,27 @@ export function statusRequest(name: string | undefined, conversation: string): C
     body,
     "</conversation>",
     "",
+    // The handoff goes AFTER the conversation, nearest the rules, and is named the authority: the
+    // conversation's prose is what misread "unless you say otherwise" as a pending pick (periodic-status.ts).
+    ...(handoff
+      ? [
+        "Where the thread stands at this rest, from the dashboard's own records. This is AUTHORITATIVE: where the conversation's wording seems to disagree, the records win.",
+        "<handoff>",
+        handoff,
+        "</handoff>",
+        "",
+      ]
+      : []),
     "Write the live STATUS line for this thread on the developer's dashboard: where the work stands RIGHT NOW, judged mostly from the LAST exchange above.",
     "",
     "Rules:",
     `- One short phrase, at most ${THREAD_STATUS_TARGET_CHARS} characters.`,
     "- Say what the agent is doing, what it just finished, or what it is waiting on — and name the specific thing (file, test, PR, finding, decision): \"Waiting on CI for the budget fix\", \"Pushed the rail fix, awaiting review\", \"Asked whether to drop the mono font\".",
+    ...(handoff
+      ? ["- Say the developer is needed (\"Waiting on your pick…\", \"Asked whether…\", \"Needs your review…\") ONLY when the handoff names an open question, steps for the developer, or status needs_input. Otherwise the developer is not needed, and the status must not suggest they are."]
+      : []),
+    "- A choice the agent says it made or will make \"unless you say otherwise\", \"if you don't object\" or the like is the agent's DECISION, not a question: state it as decided (\"Chose @ark/aot, reversible until RC\"), never as waiting on the developer.",
+    "- A finished step followed by more work still running is the running work: \"Merging the soundness fixes\", not the step that finished several messages ago.",
     "- Never generic: not \"Thread complete\", \"Task done\", \"User satisfied\", \"Working on it\". Do not say \"the user\" or \"the thread\".",
     ...(name ? [`- The thread is already named "${name}" and the status sits beside that name, so do not repeat it.`] : []),
     "- Sentence case, no trailing period, no quotes.",
@@ -432,8 +448,9 @@ export interface ThreadNamer {
   /** Resolves once `slug`'s mint (if one is pending) has settled, at once when none is. `spawn_thread`
    *  waits on it so the caller is handed the new thread's `@handle` rather than a link to a slug. */
   named(slug: string): Promise<void>
-  /** A status line for a thread from its recent conversation, or undefined. Throws with no model. */
-  status(input: { name?: string; conversation: string }): Promise<string | undefined>
+  /** A status line for a thread from its recent conversation and, when known, its rest's handoff
+   *  (periodic-status.ts describeHandoff), or undefined. Throws with no model. */
+  status(input: { name?: string; conversation: string; handoff?: string }): Promise<string | undefined>
 }
 
 export function createThreadNamer(deps: ThreadNamerDeps): ThreadNamer {
@@ -560,9 +577,9 @@ export function createThreadNamer(deps: ThreadNamerDeps): ThreadNamer {
       expected.set(sessionKey(slug, sessionId), source)
     },
     named: (slug) => pendingMints.get(slug)?.run ?? Promise.resolve(),
-    async status({ name: current, conversation }) {
+    async status({ name: current, conversation, handoff }) {
       if (!deps.complete) throw new Error("No model is available to write a status")
-      return cleanThreadStatus(await deps.complete(statusRequest(current, conversation)))
+      return cleanThreadStatus(await deps.complete(statusRequest(current, conversation, handoff)))
     },
   }
   return namer

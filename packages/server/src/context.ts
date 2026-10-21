@@ -37,6 +37,7 @@ import { processAwakeClock } from "./awake-clock.ts"
 import type { SessionRow } from "./storage.ts"
 import type { HeldStartProfile } from "./held-start.ts"
 import { createPeriodicStatus } from "./periodic-status.ts"
+import { restHandoff } from "./rest-handoff.ts"
 import { createLiveStatus } from "./live-status.ts"
 import { createThreadNamer, nameEveryThread, openThreadsElsewhere, type ThreadNamer } from "./thread-names.ts"
 import { createTodoStepsWriter, type TodoStepsWriter } from "./todo-steps.ts"
@@ -1036,7 +1037,8 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   const periodicStatus = createPeriodicStatus({
     storage,
     // A getter, like every completer here.
-    get writeStatus() { return threadNamer.available ? (input: { name?: string; conversation: string }) => threadNamer.status(input) : undefined },
+    get writeStatus() { return threadNamer.available ? (input: { name?: string; conversation: string; handoff?: string }) => threadNamer.status(input) : undefined },
+    handoffOf: (row, messages) => restHandoff(storage, row.slug, messages),
     nameOf: (row) => threadNamer.threads().find((t) => t.slug === row.slug)?.name || undefined,
     readMessages: (sessionId, forkAnchor) => readTranscriptYielding(project, sessionId, forkAnchor),
     onStatus: () => board.refresh(),
