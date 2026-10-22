@@ -79,7 +79,8 @@ import { ThreadLifecycleActions } from "./ThreadLifecycle.tsx"
 import { RecurringPromptControl } from "./RecurringPromptControl.tsx"
 import { ContextFact, FACTS_LINE_CLASS, Fact, FactSep, GoalLoopFact } from "./ThreadHeaderFacts.tsx"
 import { DeadlineFact } from "./DeadlineControl.tsx"
-import { focusedProject, openProcessDrawer, ThreadProcessStrip } from "./ThreadTerminals.tsx"
+import { focusedProject, openProcessDrawer, startComposerTerminal, ThreadProcessStrip } from "./ThreadTerminals.tsx"
+import { composerTerminalLine } from "../lib/threadTerminals.ts"
 import { TerminalCardArticle } from "./TerminalQueueCard.tsx"
 import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
@@ -811,7 +812,7 @@ function CardArticle({
           {/* A HELD THREAD's box is what it will start with, and sending it starts the agent (HeldThreadBox.tsx). */}
           {thread.held !== undefined
             ? <HeldThreadComposer thread={thread} surface="queueComposer" className="min-w-0" onSent={onSent} onLanded={onLanded} onFailed={onReturn} />
-            : <ReplyBox project={project} thread={thread} onSent={onSent} onLanded={onLanded} onFailed={onReturn} fileDrop={composerFileDrop} />}
+            : <ReplyBox project={project} thread={thread} onSent={onSent} onLanded={onLanded} onFailed={onReturn} onTerminal={openTerminal} fileDrop={composerFileDrop} />}
         </div>
       </ThreadProjectScope>
       )}
@@ -1291,7 +1292,7 @@ function ClampedBody({ children }: { children: ReactNode }) {
  * the other way round. An attachment uploads to the THREAD's project (`attachBase`), not the page's,
  * which on this page is the focused project.
  */
-function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onLanded: () => void; onFailed: () => void; fileDrop?: SurfaceFileDrop }) {
+function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fileDrop }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onLanded: () => void; onFailed: () => void; onTerminal: (terminalId: string) => void; fileDrop?: SurfaceFileDrop }) {
   const queryClient = useQueryClient()
   const key = draftKey.followUp(project.projectDir, thread.id, thread.sessionId)
   const text = useDraftValues([key]).get(key) ?? ""
@@ -1359,6 +1360,14 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, fileDrop }: { p
       const backend: AccountBackend = thread.backend === "codex" ? "codex" : "claude"
       if (alias === "login") setSignInFor(backend)
       else setLogoutFor(backend)
+      return
+    }
+    // A `$` line opens a terminal on this thread rather than going to its agent, as the drawer's box does
+    // (ThreadComposerBox.tsx); it opens where the card's own terminal button opens one.
+    const terminal = thread.kind === "session" && !thread.foreign ? composerTerminalLine(message) : undefined
+    if (terminal) {
+      draftStore.set(key, "")
+      startComposerTerminal(api, thread.id, terminal.command, () => { if (!draftStore.get(key)) draftStore.set(key, message) }, onTerminal)
       return
     }
     if (!thread.sessionId || send.isPending) return

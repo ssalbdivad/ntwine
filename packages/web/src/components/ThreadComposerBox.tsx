@@ -216,7 +216,7 @@ export function ThreadComposerBox({
     }
     // `$ npm test` is not a message: it opens a terminal on this thread, in the folder its agent is working
     // in, running that line — a bare `$` opens a shell there (lib/threadTerminals.ts composerTerminalLine).
-    // Only on a thread ntwine owns; the queue card's copy of this box stays a reply box.
+    // Only on a thread ntwine owns. The queue card's reply box does the same (AllQueuesCard ReplyBox).
     const terminal = surface === "chatComposer" && thread?.kind === "session" && !thread.foreign ? composerTerminalLine(text) : undefined
     if (terminal) {
       clearMessage()
