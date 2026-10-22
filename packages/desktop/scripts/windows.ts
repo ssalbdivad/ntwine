@@ -87,9 +87,12 @@ export async function prepareWindowsElectron(): Promise<WindowsElectron> {
     root,
     start(dist, args) {
       for (const file of ["main.mjs", "preload.cjs", "icon.ico"]) copyFileSync(join(dist, file), join(appDir, file))
-      // How the app starts ntwine, and finds it, from Windows (src/launch.ts); a launch without one waits.
+      // How the app starts ntwine, and finds it, from Windows (src/launch.ts). A launch that could not
+      // write one (no nub or WSL_DISTRO_NAME in its environment, as in an agent's sandbox) keeps the one
+      // already here rather than deleting it: this folder is also what a taskbar pin opens, and without
+      // the record that window can neither find the board nor start it (2026-10-22: a staging run on
+      // 2026-10-21 deleted it, and the pinned window sat on "No board is running" beside a live board).
       if (existsSync(join(dist, "server.json"))) copyFileSync(join(dist, "server.json"), join(appDir, "server.json"))
-      else rmSync(join(appDir, "server.json"), { force: true })
       const pidFile = join(root, `electron-${process.pid}-${++launches}.pid`)
       const child = spawn(exe, [toWindowsPath(appDir), `--ntwine-pid-file=${toWindowsPath(pidFile)}`, ...args], { cwd: root, stdio: "inherit" })
       const running = () => child.exitCode === null && child.signalCode === null
