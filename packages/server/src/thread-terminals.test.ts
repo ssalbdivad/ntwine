@@ -486,7 +486,7 @@ test("a hosted run that ended while no server listened is filed with its own cod
   assert.equal(existsSync(join(before.dir, "terminal-host", `${id}.exit.json`)), false, "filed once, then dropped")
 })
 
-test("a hosted run whose daemon was killed outright, leaving no record of the end, reads as interrupted", { skip: !posix }, async () => {
+test("a hosted run whose daemon was killed outright, leaving no record of the end, reads as interrupted and files itself in Done", { skip: !posix }, async () => {
   const before = harness({ hosted: true })
   const { id } = await before.start("sleep 600")
   const daemon = daemonPidOf(before.dir, id)
@@ -497,6 +497,9 @@ test("a hosted run whose daemon was killed outright, leaving no record of the en
   const interrupted = term(after.runner, id)!
   assert.equal(interrupted.state, "exited")
   assert.equal(interrupted.exitCode, undefined)
+  // Nothing is left to answer, so it never queues: Done, with Restart still in its drawer.
+  assert.deepEqual([row(after.runner, id)!.state, row(after.runner, id)!.needsYou], ["archived", false])
+  after.runner.shutdown()
 })
 
 test("a daemon whose terminal the board forgot is ended at boot; one the board still has is adopted, untouched", { skip: !posix }, async () => {

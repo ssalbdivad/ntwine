@@ -17,8 +17,11 @@ export { endsOnPrompt, loadNodePty } from "./terminal-session.ts"
 // A child shows in its parent's strip as a link to its own row; it does NOT end with its parent, because a
 // dev server is meant to outlive the effort that started it — the parent's Done dialog offers to stop it.
 //
-// ITS BAND IS ITS PROCESS'S STATE (shared terminalOutcome): running → Working; at a prompt, failed by itself,
-// or interrupted by a restart → Ready; exit 0, Stop, Ctrl-C, or the end of an interactive shell → Done. The
+// ITS BAND IS ITS PROCESS'S STATE (shared terminalOutcome): running → Working; at a prompt or failed by itself
+// → Ready; exit 0, Stop, Ctrl-C, the end of an interactive shell, or an interruption → Done. An interrupted
+// run is one whose daemon died with no record of its end (a reboot, a kill): nothing is left to answer, and a
+// Ready card over its blank screen only waited to be dismissed (maintainer 2026-10-22). Its drawer still
+// offers Restart, and the parent's wake still says it was interrupted. The
 // last is DERIVED here, not written on exit, so every path that records an exit (the live runner, a host that
 // reports one after a restart) files the run the same way. (History: a top-level command thread from
 // 2026-09-23, reversed on 2026-09-29 into a terminal hanging off a thread, reversed back on 2026-10-15.)
@@ -40,7 +43,7 @@ export { endsOnPrompt, loadNodePty } from "./terminal-session.ts"
 // the next server adopts it at boot with its screen and prompt state intact. A run that ended while no
 // server was listening left an exit record beside the daemon's, and boot files it with its real code.
 // Only a run with NEITHER a live daemon nor an exit record — its daemon was killed outright, or the run
-// was a server child (below) — reads as interrupted, and the strip offers Restart.
+// was a server child (below) — reads as interrupted, files itself in Done, and its drawer offers Restart.
 //
 // The pty is a child of THIS process instead when there is no host (Windows, where the detached daemon
 // is unverified; tests that do not pass one) or the daemon could not be forked. That path is the
@@ -265,8 +268,8 @@ export function plainScreen(screen: string): string {
 
 /**
  * A terminal thread's row, as the board lists it. Its band is its process's state (shared terminalOutcome):
- * it is queued (`needsYou`) at a prompt, after a failure and after an interruption, and Done (`archived`) when
- * the human marked it so or it finished cleanly. A human snooze to a time parks a Ready one; a running one
+ * it is queued (`needsYou`) at a prompt and after a failure, and Done (`archived`) when the human marked it
+ * so, it finished cleanly, or it was interrupted. A human snooze to a time parks a Ready one; a running one
  * cannot be snoozed (router), and a snooze ends at its next exit (storage recordTerminalExit).
  */
 /** Who types into a terminal: its controller, else its starter (control has not moved), else the human. */
@@ -278,9 +281,9 @@ export function terminalControllerOf(row: Pick<ThreadTerminalRow, "controller" |
 
 export function terminalThreadView(row: Pick<ThreadTerminalRow, "slug" | "state" | "created_at" | "pinned_at" | "snoozed_until">, terminal: ThreadTerminal, nowMs = Date.now()): ThreadView {
   const outcome = terminalOutcome(terminal)
-  const archived = row.state === "archived" || outcome === "finished"
+  const archived = row.state === "archived" || outcome === "finished" || outcome === "interrupted"
   const snoozedUntil = row.snoozed_until && Date.parse(row.snoozed_until) > nowMs && outcome !== "running" ? row.snoozed_until : undefined
-  const ready = !archived && (outcome === "prompt" || outcome === "failed" || outcome === "interrupted")
+  const ready = !archived && (outcome === "prompt" || outcome === "failed")
   // The instant it last changed state: what the row's age and the queue's order read.
   const at = terminal.awaitingSince ?? terminal.exitedAt ?? terminal.startedAt
   return {

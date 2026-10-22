@@ -57,7 +57,7 @@ The handle comes from the command: `$ nub run dev` → `@nub-run-dev`, with a su
 | waiting at a prompt (`awaitingInput`, today's 3s rule) | **Ready** | a question only the human can answer; the card draws the live screen to type into (today's behaviour, now on the terminal's own card) |
 | exited non-zero by itself | **Ready**, shown as failed | like a worker that crashed: answerable with Restart or a `$` follow-up |
 | exited 0, or ended by Stop, by Ctrl-C (130), or by `exit` in a bare shell | **Done** | the run finished or the human ended it. Queuing it would break *"Nothing enters the queue just to be dismissed"*, which is what the 2026-09-23 shape did |
-| interrupted by an ntwine restart (until the host below exists) | **Ready**, shown as interrupted | it did not finish by itself, and Restart is the answer |
+| interrupted: its daemon died with no record of its end (a reboot, a kill) | **Done**, shown as interrupted | nothing is left to answer, and a Ready card over a blank screen only waited to be dismissed (2026-10-22, maintainer; it was Ready until the host below existed) |
 
 - The human can snooze, pin, and Mark as done like any thread. Mark as done on a running terminal stops it (SIGTERM to
   the process group, SIGKILL after 5s, as today) before Done is recorded.

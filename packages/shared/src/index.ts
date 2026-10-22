@@ -5015,7 +5015,7 @@ export function queueUrgency(t: ThreadView): string {
   // A terminal thread's own prompt, or its failure: only a person can type the answer or start it again.
   if (t.kind === "terminal" && t.terminal) {
     const outcome = terminalOutcome(t.terminal)
-    if (outcome === "prompt" || outcome === "failed" || outcome === "interrupted") reasons.push(`terminal:${outcome}`)
+    if (outcome === "prompt" || outcome === "failed") reasons.push(`terminal:${outcome}`)
   }
   if (t.actionableInteraction === true) reasons.push("interaction")
   if (t.runtime === "perm-prompt") reasons.push("perm-prompt")
@@ -5373,7 +5373,7 @@ export function workingThread(t: ThreadView): boolean {
 // actually come to rest on that wait. A mid-turn thread is still working; surfacing it as a card
 // gives an empty "no ask" card because the ask text lands only when the turn ends. These sort to top.
 export function needsAction(t: ThreadView): boolean {
-  // A terminal thread asks for the human exactly when it is queued: at a prompt, failed, or interrupted.
+  // A terminal thread asks for the human exactly when it is queued: at a prompt or failed.
   if (t.kind === "terminal") return t.needsYou === true && t.state !== "archived" && !isSnoozed(t)
   // A TERMINAL thread (done/dismissed) NEVER cards — no exceptions. The thread file is the source
   // of truth, and a thread whose own status says the work is over has by definition nothing waiting
