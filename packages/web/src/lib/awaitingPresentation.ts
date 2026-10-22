@@ -21,6 +21,21 @@ export function awaitingDefersToQuestions(hints: readonly AwaitingHint[] | undef
  *  heads the card with that instead (awaitingFenceTitle, read by awaitingBackgroundLabel). */
 export const AWAITING_FALLBACK_TITLE = "Awaiting"
 
+/** A heading that says what happens next, for the fence shapes that name one kind of wait (maintainer
+ *  2026-10-22: "Awaiting" says nothing the hourglass does not). Null for a mix, which keeps the fallback. */
+export function awaitingKindTitle(hints: readonly AwaitingHint[]): string | null {
+  const kinds = new Set(hints.filter((h) => ["timer", "pr", "thread", "terminal", "command"].includes(h.kind) && h.value.trim()).map((h) => h.kind))
+  if (kinds.size !== 1) return null
+  const [kind] = kinds
+  if (kind === "timer") return "Checking back later"
+  if (kind === "thread") return "Waiting on a reply"
+  if (kind === "pr") {
+    const prs = prWatchRefs(hints)
+    return prs.length === 1 ? `Watching ${prs[0]!.ref}` : `Watching ${prs.length} PRs`
+  }
+  return null
+}
+
 /** What the card says when the fence carries NO prose — an empty body, or one that was nothing but
  *  machinery lines, which never reach the reader. Only reachable on a card that also has no rows (a
  *  fence in a sub-agent's own transcript), and it exists because a card that is a bare heading says

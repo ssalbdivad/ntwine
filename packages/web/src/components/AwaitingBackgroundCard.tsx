@@ -30,7 +30,7 @@ import { awaitingFenceTitle, awaitingSteps, isDirectSubAgent, replyWaitOf } from
 import { subAgentName } from "../groups.ts"
 import { githubRefUrl } from "../lib/githubRef.ts"
 import { noteGithubRefs } from "../lib/githubHovercards.ts"
-import { AWAITING_FALLBACK_TITLE, AWAITING_NO_PROSE, awaitingDefersToQuestions, awaitingProseBlock, prWatchRefs, STEPS_CHIP } from "../lib/awaitingPresentation.ts"
+import { AWAITING_FALLBACK_TITLE, AWAITING_NO_PROSE, awaitingKindTitle, awaitingDefersToQuestions, awaitingProseBlock, prWatchRefs, STEPS_CHIP } from "../lib/awaitingPresentation.ts"
 import { compactElapsedSince, formatCompactElapsed, liveAgeSince } from "../lib/durationLabels.ts"
 import { shellBudgetLabel } from "../lib/shellBudget.ts"
 import { AGENT_GLYPH_STROKE, CHILD_STALE_SHELL_TITLE, checksCounterLabel, issueCounterLabel } from "../lib/childOps.ts"
@@ -153,7 +153,7 @@ export function awaitingBackgroundLabel(
   thread: Pick<ThreadView, "subAgents" | "bgShells" | "watches">,
   hints: readonly AwaitingHint[],
 ): string {
-  return awaitingFenceTitle(hints) ?? (shellsAlone(thread) ? SHELLS_ALONE_TITLE : AWAITING_FALLBACK_TITLE)
+  return awaitingFenceTitle(hints) ?? (shellsAlone(thread) ? SHELLS_ALONE_TITLE : awaitingKindTitle(hints) ?? AWAITING_FALLBACK_TITLE)
 }
 
 /** The shell-only rest's title. The maintainer named this shape "Background shells running" (2026-08-04);

@@ -120,10 +120,12 @@ test("`working` spins only while something it names MOVES", () => {
   assert.deepEqual(place(row(), tele({ bgShells: [LIVE_SHELL], ...fence({ kind: "shell", value: "bzvtnt3ig" }, FOR_2H, status("working")) })), { needsYou: false, waitStatus: "working" })
   // A live sub-agent moves, named or not.
   assert.deepEqual(place(row(), tele({ subAgents: [LIVE_AGENT], ...fence({ kind: "agent", value: "a01b2d20" }, FOR_2H, status("working")) })), { needsYou: false, waitStatus: "working" })
-  // A timer is the clock, not motion: the same `working` reads as the watch it is.
-  assert.deepEqual(place(row(), tele(fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("working"))), { timers: ["tmr_a1"] }), { needsYou: false, waitStatus: "watching" })
-  // A shell nobody named — a dev server — is not the motion either, even beside a named timer.
-  assert.deepEqual(place(row(), tele({ bgShells: [DEV_SERVER], ...fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("working")) }), { timers: ["tmr_a1"] }).waitStatus, "watching")
+  // A park on its own timers alone is Working, whatever `status:` says: the worker comes back on its own
+  // clock, and nothing outside the thread can stall it (2026-10-22).
+  assert.deepEqual(place(row(), tele(fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("working"))), { timers: ["tmr_a1"] }), { needsYou: false, waitStatus: "working" })
+  assert.equal(place(row(), tele(fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("watching"))), { timers: ["tmr_a1"] }).waitStatus, "working")
+  // A timer beside a wait on the world is still Waiting: the PR is what has to move.
+  assert.equal(place(row(), tele(fence({ kind: "timer", value: "tmr_a1" }, { kind: "pr", value: PR }, FOR_2H, status("watching"))), { timers: ["tmr_a1"], prs: [PR] }).waitStatus, "watching")
 })
 
 test("`working` on a PR spins while its checks run, and reads as a watch once they settle or gate", () => {
@@ -154,9 +156,9 @@ test("a terminal named under `threads:` (or `terminals:`) parks while it runs, a
 
 test("a registered shell watch is the worker naming the shell — until the row runs out", () => {
   const watch: RegisteredWatch = { id: "wch_1", kind: "shell", target: "bzvtnt3ig", createdAt: AT, expiresAt: new Date(NOW + 3_600_000).toISOString() }
-  const park = tele({ bgShells: [LIVE_SHELL], ...fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("working")) })
-  assert.equal(place(row(), park, { timers: ["tmr_a1"], watches: [watch] }).waitStatus, "working")
-  assert.equal(place(row(), park, { timers: ["tmr_a1"], watches: [{ ...watch, expiresAt: new Date(NOW - 1).toISOString() }] }).waitStatus, "watching")
+  const park = tele({ bgShells: [LIVE_SHELL], ...fence({ kind: "pr", value: PR }, FOR_2H, status("working")) })
+  assert.equal(place(row(), park, { prs: [PR], watches: [watch] }).waitStatus, "working")
+  assert.equal(place(row(), park, { prs: [PR], watches: [{ ...watch, expiresAt: new Date(NOW - 1).toISOString() }] }).waitStatus, "watching")
 })
 
 test("`watching` beside a live sub-agent is honoured — the child is watching the world for its parent", () => {

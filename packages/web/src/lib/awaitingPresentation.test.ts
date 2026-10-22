@@ -249,3 +249,12 @@ test("awaitingDefersToQuestions: a fence naming questions defers to their cards,
   assert.equal(awaitingDefersToQuestions(hintsOf("questions: [qst_466f9d6ee188]\nsteps:\n  - Run `npm login`")), false, "the steps card carries the Done verb")
   assert.equal(awaitingDefersToQuestions(undefined), false)
 })
+
+test("a fence naming one kind of wait heads its card with what happens next", async () => {
+  const { awaitingKindTitle } = await import("./awaitingPresentation.ts")
+  assert.equal(awaitingKindTitle([{ kind: "timer", value: "tmr_a1" }, { kind: "for", value: "2h" }]), "Checking back later")
+  assert.equal(awaitingKindTitle([{ kind: "pr", value: "acme/app#391" }]), "Watching acme/app#391")
+  assert.equal(awaitingKindTitle([{ kind: "thread", value: "@other" }]), "Waiting on a reply")
+  // A mix keeps the generic heading: no one sentence is true of both.
+  assert.equal(awaitingKindTitle([{ kind: "timer", value: "tmr_a1" }, { kind: "pr", value: "acme/app#391" }]), null)
+})

@@ -1834,6 +1834,12 @@ export function deriveWaitStatus(
   const fence = tele?.lastFence?.kind === "awaiting" ? tele.lastFence : undefined
   const declared = fence ? awaitingStatus(fence.hints) : null
   if (declared === "needs_input") return undefined
+  // A PARK ON ITS OWN TIMERS ALONE IS WORK (maintainer 2026-10-22): the worker comes back on its own
+  // clock, so nothing outside the thread can stall it. Waiting is kept for a wait on the world — a PR, a
+  // reply (`threads:`, which is a timer underneath but names another party), a command watch — whatever
+  // the fence's `status:` says, since the band means "nothing moves until someone else acts".
+  const parkItems = readAwaitingPark(fence?.hints ?? []).items
+  if (parkItems.length > 0 && parkItems.every((i) => i.kind === "timer")) return "working"
   if (declared === "watching") return "watching"
   if (liveChild || [...registeredPrWatches].some((key) => ciInMotion(github[key]))) return "working"
   if (declared !== "working") return "watching"
