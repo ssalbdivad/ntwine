@@ -1098,7 +1098,7 @@ test("readAwaitingPark: an unwritten for: takes its items' default, the shortest
   assert.equal(forOf({ kind: "shell", value: "b1" }), H)
   assert.equal(forOf({ kind: "agent", value: "a1" }), 24 * H)
   assert.equal(forOf({ kind: "timer", value: "tmr_1" }, { kind: "thread", value: "@x" }, { kind: "terminal", value: "@y" }), 24 * H)
-  assert.equal(forOf({ kind: "pr", value: "acme/app#1" }), 7 * 24 * H)
+  assert.equal(forOf({ kind: "pr", value: "acme/app#1" }), PR_WATCH_FOR_MAX_MS, "the watcher's own expiry is the wake")
   assert.equal(forOf({ kind: "command", value: "cmw_1" }), 7 * 24 * H)
   assert.equal(forOf({ kind: "pr", value: "acme/app#1" }, { kind: "shell", value: "b1" }), H, "the shell in the list is still a shell")
   assert.equal(forOf({ kind: "shell", value: "b1" }, { kind: "for", value: "3h" }), 3 * H)

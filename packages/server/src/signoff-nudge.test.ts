@@ -110,11 +110,11 @@ test("a rest with no fence is told how to sign off, and the text names all three
     // the audience that most needs the right one.
     //
     // This fixture spawns NOW, so it is an answer-required thread (NEEDS_INPUT_REQUIRED_AT) and is taught
-    // `status:` with a fence that needs no prose; the legacy example is pinned against the legacy text.
-    assert.match(h.delivered[0], /agents: \[<the id your runtime gave you>\]/)
-    assert.match(h.delivered[0], /status: working/)
-    for (const word of ["working", "watching", "needs_input"]) assert.match(h.delivered[0], new RegExp(`- \`${word}\` — `))
-    assert.match(h.delivered[0], /`working` and `watching` owe NO write-up/)
+    // the `---` rule with a fence that needs no prose and no answer line (derived since 2026-10-24); the
+    // legacy example is pinned against the legacy text.
+    assert.match(h.delivered[0], /```awaiting\n {2}agents: \[<the id your runtime gave you>\]\n {2}```/)
+    assert.match(h.delivered[0], /Prose under the `---` puts the thread in the user's queue/)
+    assert.match(h.delivered[0], /`status:` and\s+`for:` are optional overrides/)
     assert.match(SIGNOFF_NUDGE_MESSAGE, /shells: \[<the id your runtime gave you>\]/)
     assert.match(SIGNOFF_NUDGE_MESSAGE, /prs: \[owner\/repo#123\]/)
     assert.doesNotMatch(SIGNOFF_NUDGE_MESSAGE, /needs_input|status:/, "a pre-cut worker is not taught a key its contract never had")
@@ -122,7 +122,7 @@ test("a rest with no fence is told how to sign off, and the text names all three
     // month after the park check started refusing them by name, so a worker that copied the reminder's
     // own fence was bumped for it.
     assert.deepEqual(retiredAwaitingKindsIn(h.delivered[0].split("```awaiting\n")[1].split("```")[0]), [])
-    assert.match(h.delivered[0], /for: 2h/)
+    assert.match(SIGNOFF_NUDGE_MESSAGE, /for: 2h/)
     // FRONTMATTER, THEN MARKDOWN (2026-08-17): the structural lines, a `---`, and the worker's prose
     // below it. This pinned `reason:` — the ONE-LINE form that shape replaced — for two days after the
     // parser stopped needing it, which is the same staleness the comment above is about: the example
@@ -381,9 +381,8 @@ test("a registered watch alone is NOT a sign-off for an answer-required thread �
     await h.s.tick()
     const nudges = h.nudges()
     assert.equal(nudges.length, 1)
-    assert.match(nudges[0].message, /shells: \[bzvtnt3ig\]\nstatus: working\n/, "the fence to write, the id and the answer in it")
-    assert.match(nudges[0].message, /make it `watching`/, "and when it is a watch")
-    assert.match(nudges[0].message, /make it `needs_input`/, "and when the human is needed")
+    assert.match(nudges[0].message, /```awaiting\nshells: \[bzvtnt3ig\]\n```/, "the fence to write, the id alone")
+    assert.match(nudges[0].message, /add a `---` line with what to look at, which puts the thread in their queue/, "and when the human is needed")
   } finally { h.close() }
 })
 
@@ -413,7 +412,7 @@ test("a fenceless rest after await_reply is nudged, with the `threads:` fence pr
     const nudges = h.nudges()
     assert.equal(nudges.length, 1)
     assert.match(nudges[0]!.message, /waiting on a reply from @shell-budgets/)
-    assert.match(nudges[0]!.message, /```awaiting\nthreads: \[@shell-budgets\]\nstatus: watching\nfor: 1h\n```/)
+    assert.match(nudges[0]!.message, /```awaiting\nthreads: \[@shell-budgets\]\n```/)
     assert.doesNotMatch(nudges[0]!.message, /tmr_reply`?\s*—/, "the wait is named as its thread, not as a timer")
   } finally { h.close() }
 })
@@ -832,7 +831,7 @@ test("a rest behind a running shell gets the short variant: the shell by its run
     const msg = h.nudges()[0].message
     assert.ok(msg.startsWith("**This message is from ntwine, not from the user.**"), "the transcript collapses it on this marker")
     assert.match(msg, /^- `bzvtnt3ig` — nub run typecheck$/m, "led by the shell, named by the id the runtime showed the worker")
-    assert.match(msg, /```awaiting\nshells: \[bzvtnt3ig\]\nfor: 1h\n---\n/, "the fence, ready to copy")
+    assert.match(msg, /```awaiting\nshells: \[bzvtnt3ig\]\n---\n/, "the fence, ready to copy")
     assert.match(msg, /```done instead/, "and the way out when the work is in fact finished")
     // NOT the long protocol: none of its sections, and nowhere near its length.
     assert.doesNotMatch(msg, /DECIDE RATHER THAN ASK|THE FENCE IS NOT WHAT YOU OWE|STILL OWED|DO NOT REPEAT YOURSELF/)
@@ -914,8 +913,8 @@ test("under the answer-required contract a running child no longer parks: the re
     await h.s.tick()
     assert.equal(h.nudges().length, 1)
     const msg = h.nudges()[0].message
-    assert.match(msg, /```awaiting\nshells: \[bzvtnt3ig\]\nagents: \[a01b2d20b32feab11\]\nstatus: working\nfor: 1h\n```/, "a quiet park, the fence alone")
-    assert.match(msg, /make it `needs_input`/, "and when the human is needed")
+    assert.match(msg, /```awaiting\nshells: \[bzvtnt3ig\]\nagents: \[a01b2d20b32feab11\]\n```/, "a quiet park, the fence alone")
+    assert.match(msg, /add a `---` line with what to look at/, "and when the human is needed")
     assert.doesNotMatch(msg, /keeps you out of the queue on its own/, "no promise the contract withdrew")
     // The fence it hands over is one the needs_input park check honours while the work runs.
     const { parseSignalFence } = await import("./tailer.ts")
@@ -969,7 +968,7 @@ test("a Goal thread resting behind a running child gets the short variant with i
     assert.ok(!h.delivered.some((m) => m.startsWith("keep going")), "and the Goal stands down on it")
     const msg = h.nudges()[0].message
     assert.match(msg, /^- `a01b2d20b32feab11` — sub-agent: scout the tailer$/m)
-    assert.match(msg, /```awaiting\nagents: \[a01b2d20b32feab11\]\nfor: 1h\n---\n/)
+    assert.match(msg, /```awaiting\nagents: \[a01b2d20b32feab11\]\n---\n/)
     assert.doesNotMatch(msg, /shells:/)
     assert.match(msg, /only this fence holds your Goal/)
     assert.doesNotMatch(msg, /DECIDE RATHER THAN ASK/)

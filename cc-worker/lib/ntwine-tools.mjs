@@ -299,8 +299,8 @@ const WATCH_PR = {
     "wait at all. This command is the wait.\n\n" +
     "THE ```awaiting FENCE IS STILL WORTH WRITING, and it is a different job: it is how you come to REST " +
     "without ntwine asking you for a handoff, and how the user sees what you are waiting for. Register " +
-    "the watcher with this command, then name the same PR in your fence's `prs:` list — and give the fence " +
-    "the same long `for:` you gave the watcher, or the fence expires first and bumps you anyway.\n\n" +
+    "the watcher with this command, then name the same PR in your fence's `prs:` list; the fence lasts as " +
+    "long as the watcher does.\n\n" +
     "GIVE AN EXTERNAL PR A LONG `--for` — MONTHS, up to a year. A pull request into a repo nobody here " +
     "controls moves on its maintainers' clock, not yours, and a short watcher on one expires against a " +
     "PR that has not changed: a wake with nothing in it, and a re-arm. Long costs nothing — real " +
@@ -362,10 +362,8 @@ const WATCH = {
     "and ntwine brings you back when it finishes, or when `--for` runs out.\n\n" +
     "IT IS A ROW, NOT A SENTENCE. A ```awaiting fence has the lifetime of the message carrying it; this " +
     "survives your turn ending, a compaction and an ntwine restart.\n\n" +
-    "IT DOES NOT REPLACE THE FENCE. Where the thread sits while you wait is an answer about each REST, " +
-    "so every rest on running work still ends with a ```awaiting fence that names the work and answers " +
-    "`status: working|watching|needs_input` — `working` and `watching` keep the thread out of the " +
-    "user's queue, and a rest with no fence lands in it.\n\n" +
+    "IT DOES NOT REPLACE THE FENCE. Every rest on running work still ends with a ```awaiting fence that " +
+    "names the work; a rest with no fence lands in the user's queue.\n\n" +
     "`--for` IS REQUIRED and it is a DURATION, never an instant. When it runs out the row is CANCELLED " +
     "and you are woken to re-decide — that is deliberate, and it is what stops a wait outliving the " +
     "reason you made it. Register again if you still mean it.\n\n" +
@@ -891,8 +889,8 @@ const MESSAGE_THREAD = {
     "THE PROTOCOL:\n" +
     "- ASKING, and you need the answer before you can go on → `--await-reply`. That REGISTERS the " +
     "wait; it does not park you. Rest right after on an ```awaiting fence naming the thread — " +
-    "`threads: [@handle]`, a `status:` and a `for:`, which is how long to wait before you go on without " +
-    "it — exactly as for any other wait. Its answer arrives as a message of its own and ends the wait.\n" +
+    "`threads: [@handle]` — exactly as for any other wait. Its answer arrives as a message of its own " +
+    "and ends the wait.\n" +
     "- ASKING, but you have other work → leave `--await-reply` off and keep working; the answer still " +
     "arrives as a message.\n" +
     "- TELLING (context, your approach, a heads-up that you are changing a shared file) → no " +
@@ -1109,7 +1107,7 @@ const WATCH_COMMAND = {
     "Claude Code's sandbox off, and refuses it on Codex. The refusal says why; wait in a background shell " +
     "then.\n\n" +
     "ONE-SHOT: the first passing check settles it. When `--for` runs out it is cancelled and you are woken " +
-    "to re-decide. Name its id in your ```awaiting fence — `commands: [cmw_…]` with `status: watching`. " +
+    "to re-decide. Name its id in your ```awaiting fence — `commands: [cmw_…]`. " +
     "Registering is idempotent on the exact command text. `list` reads back what is armed, with each " +
     "watch's last check; `drop` withdraws one (so does `ntwinectl unwatch <id>`). Only ever your OWN thread's.",
   inputSchema: {
@@ -1345,8 +1343,8 @@ async function messageThread(args) {
   if (r.timerId) {
     return (
       `Sent to @${r.handle}${where}, signed @${r.from}, and your wait on its answer is registered (${r.timerId}).${answered} ` +
-      "Rest now unless you have other work, ending your message with an ```awaiting fence that names it, with " +
-      `\`for:\` set to how long to wait before you go on without it:\n\n\`\`\`awaiting\nthreads: [@${r.handle}]\nstatus: watching\nfor: 1h\n\`\`\`\n\n` +
+      "Rest now unless you have other work, ending your message with an ```awaiting fence that names it:" +
+      `\n\n\`\`\`awaiting\nthreads: [@${r.handle}]\n\`\`\`\n\n` +
       `The answer arrives as a message of its own and ends the wait. \`ntwinectl unwatch ${r.timerId}\` stops waiting.`
     )
   }
@@ -1496,26 +1494,19 @@ async function activity() {
   const block = Object.entries({ shells: byKind.shell, agents: byKind.agent, timers: byKind.timer, prs: byKind.pr, threads: [...byKind.thread, ...byKind.terminal], commands: byKind.command })
     .filter(([, ids]) => ids.length > 0)
     .map(([key, ids]) => `  ${key}: [${ids.join(", ")}]`)
-  // Every open question rides the fence too: a fence that leaves one out is refused, and a fence on
-  // questions always queues, so its `status:` answer is `needs_input` whatever else it names. Otherwise
-  // the template guesses from the kinds — a shell or a sub-agent is usually work that finishes by itself,
-  // a PR, a timer or another thread's reply a watch — and the prose tells the worker to correct
-  // it.
+  // Every open question rides the fence too: a fence that leaves one out is refused. No `status:` or
+  // `for:` line (2026-10-24): ntwine derives both from what the fence names, so the template is the names.
   const questionIds = questions.map((q) => q.id).filter(Boolean)
   if (questionIds.length > 0) block.push(`  questions: [${questionIds.join(", ")}]`)
-  const status = questionIds.length > 0 ? "needs_input" : byKind.shell.length + byKind.agent.length + byKind.terminal.length > 0 ? "working" : "watching"
   return selfLine + (
     `${items.length} thing${items.length === 1 ? "" : "s"} running on this thread:\n\n${lines.join("\n")}\n\n` +
     "Name the ones you are ACTUALLY waiting on in your ```awaiting fence. The frontmatter is YAML — one " +
-    "PLURAL key per kind, taking a list — plus a required `for:` duration and a required `status:` " +
-    "answer: `working` (the work finishes by itself; the thread shows as running), `watching` (the wait " +
-    "is on something outside the thread; it rests out of the queue) or `needs_input` (the user can act on something " +
-    "now; it goes in their queue, with what to look at BELOW a `---` line — there is no `reason:` key). " +
-    "`working` and `watching` need no prose at all.\n\nEverything above, as a fence:\n\n" +
+    "PLURAL key per kind, taking a list. Write what the user can look at BELOW a `---` line only when " +
+    "they can act on something now: that puts the thread in their queue (there is no `reason:` key).\n\n" +
+    "Everything above, as a fence:\n\n" +
     "```awaiting\n" +
-    `${block.join("\n")}\n  status: ${status}\n  for: 2h\n` +
-    "```\n\nDrop the lines you are not actually waiting on — a dev server you left running is not a wait " +
-    "— and change `status:` if it names the wrong place." +
+    `${block.join("\n")}\n` +
+    "```\n\nDrop the lines you are not actually waiting on — a dev server you left running is not a wait." +
     "\n\nA `ntwinectl watch` registration (marked `[watched as …]` above) keeps the WAKE across a compaction and a " +
     "restart, but it does not replace the fence: name the work in the fence all the same." +
     askedBlock + linksBlock
@@ -2961,7 +2952,7 @@ async function watchCommand(args) {
   return (
     `Watching as ${id}: ntwine runs it every ${result?.every} until it exits 0, or until ${result?.expiresAt}, and ` +
     `then wakes you once with its output. Nothing of yours runs meanwhile.\n\n${first}${clamped}\n\n` +
-    `NAME IT IN YOUR \`\`\`awaiting FENCE (\`commands: [${id}]\`, \`status: watching\`) and come to rest. DROP IT ` +
+    `NAME IT IN YOUR \`\`\`awaiting FENCE (\`commands: [${id}]\`) and come to rest. DROP IT ` +
     `when it stops mattering (\`ntwinectl watch-command drop ${id}\`).\n\n${armedCommandWatchList(result)}`
   )
 }

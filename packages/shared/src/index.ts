@@ -1339,13 +1339,14 @@ export function parseAwaitingDurationRaw(value: string): number | null {
  *  wake should come first, so none of them is the worker's estimate of how long the work takes:
  *
  *    shell     1h    a shell's exit wakes the thread; an hour is the re-check on one that hangs, and
- *                    the same hour the sign-off nudge pre-filled (SIGNOFF_WAITING_FOR)
+ *                    the same hour the sign-off nudge pre-filled until it stopped pre-filling one
  *    agent     1d    a child's return wakes the parent, and a park on running children alone never
  *                    expires at all (scheduler evalParkIntegrity); the day is for a mixed park
  *    timer     1d    a timer is at most a day out, so the park lasts until it fires
  *    thread    1d    a reply wait is a timer underneath, with its own expiry wake
  *    terminal  1d    a prompt or an exit is the wake
- *    pr        7d    a PR moves on its maintainers' clock; seven quiet days is worth a look
+ *    pr        1y    the watcher's own `--for` (at most PR_WATCH_FOR_MAX_MS) expires and wakes first;
+ *                    a PR moves on its maintainers' clock, and every event on it wakes the thread anyway
  *    command   7d    the watch's own `for` (at most COMMAND_WATCH_FOR_MAX_MS) expires and wakes first
  *
  *  A park mixing kinds takes the SHORTEST of them, for the reason parkForMaxMs caps a mixed park low: the
@@ -1354,7 +1355,8 @@ export function awaitingDefaultForMs(kinds: Iterable<AwaitingItemKind>): number 
   let ms: number | null = null
   for (const kind of kinds) {
     const each = kind === "shell" ? 60 * 60 * 1000
-      : kind === "pr" || kind === "command" ? 7 * 24 * 60 * 60 * 1000
+      : kind === "pr" ? PR_WATCH_FOR_MAX_MS
+      : kind === "command" ? COMMAND_WATCH_FOR_MAX_MS
       : AWAITING_FOR_MAX_MS
     ms = ms === null ? each : Math.min(ms, each)
   }
@@ -1904,19 +1906,31 @@ const LEGACY_ISSUE_WATCH_CLI_ARMED_TRAILER = "(Registered issue watcher — STIL
 // to rest on it — a worker that read the plain trailer dropped "its" watcher or tried to sign off around it.
 // A watch the HUMAN armed is one they want to follow (maintainer 2026-10-07: watched threads that "never
 // come back" to the queue). So only green CI may stay quiet; a review, a comment, red CI or any state
-// change goes back in front of them as `needs_input`, rather than being judged noise and re-snoozed.
+// change goes back in front of them (prose under the `---`), rather than being judged noise and re-snoozed.
 const HUMAN_WATCH_SURFACE = " The user chose to follow this, so put it in front of them: rest on it with"
+  + " one or two sentences on what happened under the fence's `---`, unless it needs work from you first."
+  + " It does not block `done`.)"
+const PR_WATCH_HUMAN_HEAD = "(The user registered this PR watcher from your done card — STILL ARMED. It reports again"
+  + " on the next CI change, review, comment, label, conflict or review request. Leave it armed."
+const PR_WATCH_HUMAN_QUIET_HEAD = "(The user registered this PR watcher from your done card — STILL ARMED. Green CI"
+  + " alone needs nothing from the user: rest on it with the fence alone, naming it under `prs:`"
+const ISSUE_WATCH_HUMAN_HEAD = "(The user registered this issue watcher from your done card — STILL ARMED. It reports"
+  + " again on the next comment, label or assignee change, and once more when the issue closes. Leave it"
+  + " armed."
+export const PR_WATCH_HUMAN_TRAILER = PR_WATCH_HUMAN_HEAD + HUMAN_WATCH_SURFACE
+/** Green CI alone on a human's watch: the one report that stays quiet. */
+export const PR_WATCH_HUMAN_QUIET_TRAILER = PR_WATCH_HUMAN_QUIET_HEAD + ". It does not block `done`.)"
+export const ISSUE_WATCH_HUMAN_TRAILER = ISSUE_WATCH_HUMAN_HEAD + HUMAN_WATCH_SURFACE
+// The same three as written 2026-10-08..24, naming the `status:` and `for:` lines ntwine now derives
+// (awaitingStatus). Kept only so the wakes already in transcripts still strip (stripWakeTrailer).
+const LEGACY_HUMAN_WATCH_SURFACE = " The user chose to follow this, so put it in front of them: rest on it with"
   + " `status: needs_input` and one or two sentences on what happened, unless it needs work from you first."
   + " It does not block `done`.)"
-export const PR_WATCH_HUMAN_TRAILER = "(The user registered this PR watcher from your done card — STILL ARMED. It reports again"
-  + " on the next CI change, review, comment, label, conflict or review request. Leave it armed." + HUMAN_WATCH_SURFACE
-/** Green CI alone on a human's watch: the one report that stays quiet. */
-export const PR_WATCH_HUMAN_QUIET_TRAILER = "(The user registered this PR watcher from your done card — STILL ARMED. Green CI"
-  + " alone needs nothing from the user: rest on it with the fence alone, naming it under `prs:` with"
-  + " `status: watching` and a long `for:`. It does not block `done`.)"
-export const ISSUE_WATCH_HUMAN_TRAILER = "(The user registered this issue watcher from your done card — STILL ARMED. It reports"
-  + " again on the next comment, label or assignee change, and once more when the issue closes. Leave it"
-  + " armed." + HUMAN_WATCH_SURFACE
+const LEGACY_STATUS_HUMAN_WATCH_TRAILERS = [
+  PR_WATCH_HUMAN_HEAD + LEGACY_HUMAN_WATCH_SURFACE,
+  ISSUE_WATCH_HUMAN_HEAD + LEGACY_HUMAN_WATCH_SURFACE,
+  PR_WATCH_HUMAN_QUIET_HEAD + " with `status: watching` and a long `for:`. It does not block `done`.)",
+]
 
 /** What ntwine delivers when a REGISTERED PR WATCHER has something to report.
  *
@@ -2234,8 +2248,8 @@ export function liveOpsLines(ops?: SignoffLiveOps, needsInput = false): string[]
 //
 // So a bare rest with a running shell gets THIS: the shells by the id the runtime gave the worker, the
 // fence already written for them, and one line for the case where the work is in fact finished. The
-// worker deletes what it is not waiting on and sets `for:`; nothing else is left to compose, so nothing
-// else can be got wrong.
+// worker deletes what it is not waiting on; nothing else is left to compose, so nothing else can be got
+// wrong.
 //
 // IT IS STILL A NUDGE, NOT A PARK. Treating a live shell as an implicit park was the alternative and it
 // was turned down: 26% of real background launches are servers that never exit (see board.ts on the
@@ -2249,10 +2263,6 @@ export function liveOpsLines(ops?: SignoffLiveOps, needsInput = false): string[]
 // that fence is the one thing that quiets the Goal until they return. Timers and PRs are
 // registrations, not running work; they ride along as lines to add, never pre-filled, because a shell
 // wait and a PR wait are different waits and the fence must name only what this rest is for.
-/** The `for:` the waiting variant pre-fills. A guess, deliberately on the short side: running out only
- *  brings the worker back to re-check and re-park (uncapped), while a long one leaves a dead shell's
- *  thread quiet for longer. */
-export const SIGNOFF_WAITING_FOR = "1h"
 
 /** An id as a fence can carry it: bare when YAML reads it back as the same string, JSON-quoted when it
  *  would not. Ids are base36 runtime handles, `tmr_…` rows and `owner/repo#N` refs, which are all bare in
@@ -2294,21 +2304,19 @@ export function signoffWaitingNudgeMessage(ops: SignoffLiveOps, needsInput = fal
     ...shells.map((sh) => `- \`${handle(sh)}\` — ${sh.label}`),
     ...subAgents.map((a) => `- \`${handle(a)}\` — sub-agent: ${a.label}`),
     "",
-    `If you are waiting on ${one ? "it" : "them"}, end your next message with this fence${one ? "" : " (keep only the ids you are waiting on)"}, setting \`for:\` to how long it should take:`,
+    `If you are waiting on ${one ? "it" : "them"}, end your next message with this fence${one ? "" : " (keep only the ids you are waiting on)"}:`,
     "",
     "```awaiting",
     ...(shells.length ? [`shells: [${shells.map(handle).join(", ")}]`] : []),
     ...(subAgents.length ? [`agents: [${subAgents.map(handle).join(", ")}]`] : []),
     // An awaited thread rides the fence pre-filled: the worker asked it and chose to wait on it.
     ...(threads.length ? [`threads: [${threads.map((t) => t.id ?? t.label).join(", ")}]`] : []),
-    ...(needsInput ? ["status: working"] : []),
-    `for: ${SIGNOFF_WAITING_FOR}`,
     ...(needsInput ? [] : ["---", "What is running and what it gates, in one sentence."]),
     "```",
-    // Under the answer-required contract the `status:` answer decides the band: `working` and `watching`
-    // park with no write-up owed; `needs_input` queues. Pre-filled `working` because the rest this
-    // variant answers is the archetypal build-just-launched wait (see the measurement above).
-    ...(needsInput ? ["", "`status: working` says the work finishes by itself (a build, a test, a sub-agent's task); make it `watching` if it waits on something outside the thread (a release, a review, a poll). Either keeps you out of the user's queue with no write-up owed. If the user can read, try or act on something NOW, make it `needs_input` and add a `---` line with what to look at."] : []),
+    // NO `status:` OR `for:` PRE-FILLED (2026-10-24): ntwine derives both from what the fence names
+    // (awaitingStatus, awaitingDefaultForMs), and the shell default is this variant's old hour. What is
+    // left for the worker to decide is only whether the user has something to look at.
+    ...(needsInput ? ["", "It keeps you out of the user's queue with no write-up owed. If the user can read, try or act on something NOW, add a `---` line with what to look at, which puts the thread in their queue."] : []),
     // Only a Goal thread reaches here with a child, and it is the one place the child's own park falls
     // short — said in a line, because a worker told "a running child parks you" has no other reason to fence.
     ...(subAgents.length && !needsInput ? ["", "A running sub-agent keeps you out of the queue on its own, but only this fence holds your Goal until it returns."] : []),
@@ -2326,12 +2334,10 @@ function replyWaitNudgeMessage(threads: readonly { id?: string; label: string }[
     [["timers", ops.timers], ["prs", ops.prs]] as const
   ).filter(([, items]) => items?.length).map(([key, items]) => `\`${key}: [${items!.map((i) => (i.id ? fenceScalar(i.id) : JSON.stringify(i.label))).join(", ")}]\``)
   return [
-    `${SIGNOFF_NUDGE_MARKER} You rested without a fence, waiting on ${one ? `a reply from ${names[0]}` : `replies from ${names.join(", ")}`}. Registering the wait is not parking: if you are waiting on ${one ? "it" : "them"}, end your next message with this fence, setting \`for:\` to how long to wait before you go on without ${one ? "it" : "them"}:`,
+    `${SIGNOFF_NUDGE_MARKER} You rested without a fence, waiting on ${one ? `a reply from ${names[0]}` : `replies from ${names.join(", ")}`}. Registering the wait is not parking: if you are waiting on ${one ? "it" : "them"}, end your next message with this fence:`,
     "",
     "```awaiting",
     `threads: [${names.join(", ")}]`,
-    ...(needsInput ? ["status: watching"] : []),
-    `for: ${SIGNOFF_WAITING_FOR}`,
     "```",
     ...(extras.length ? ["", `Add a line only if this rest waits on these too: ${extras.join(", ")}.`] : []),
     "",
@@ -2352,11 +2358,10 @@ export function signoffNudgeMessage(ops?: SignoffLiveOps, needsInput = false): s
   if (lines.length) {
     lines.push("", "An ```awaiting fence names only what you are ACTUALLY waiting on, one such list per kind, plus")
     if (needsInput) {
-      lines.push("a required `for:` duration (`30s`/`15m`/`2h`/`3d`) and a required `status:` (`working`, `watching`")
-      lines.push("or `needs_input`), then a `---` line and whatever prose the user needs. ntwine checks every id:")
+      lines.push("a `---` line and prose only if the user can act on something now. ntwine checks every id:")
       lines.push("name something that is not running and you are bumped rather than parked.")
     } else {
-      lines.push("a required `for:` duration (`30s`/`15m`/`2h`/`3d`), then a `---` line and whatever prose you want")
+      lines.push("an optional `for:` duration (`30s`/`15m`/`2h`/`3d`), then a `---` line and whatever prose you want")
       lines.push("(optional). ntwine checks every id: name something that is not running and you are bumped")
       lines.push("rather than parked.")
     }
@@ -2391,9 +2396,9 @@ function signoffNudgeAwaitingLines(needsInput: boolean): string[] {
   if (!needsInput) {
     return [
       "- `` ```awaiting `` — you are WAITING on work that is actually running. FRONTMATTER, THEN MARKDOWN:",
-      "  one YAML list per kind of thing you are waiting on, a REQUIRED `for:` duration, then a `---` line and",
+      "  one YAML list per kind of thing you are waiting on, an optional `for:` duration, then a `---` line and",
       "  ONE OR TWO SENTENCES naming what is running and what it gates — never the plan for when it lands.",
-      "  The prose is OPTIONAL; the lines above it are not.",
+      "  The prose is OPTIONAL; the lists above it are not.",
       "",
       "  ```awaiting",
       "  shells: [<the id your runtime gave you>]",
@@ -2407,27 +2412,17 @@ function signoffNudgeAwaitingLines(needsInput: boolean): string[] {
   return [
     "- `` ```awaiting `` — you are WAITING on work that is actually running: a background shell, a",
     "  sub-agent, a timer or a registered PR. FRONTMATTER, THEN MARKDOWN: one YAML list per kind of thing",
-    "  you are waiting on, a REQUIRED `for:` duration, a REQUIRED `status:`, then optionally a `---` line",
-    "  and prose.",
+    "  you are waiting on, then optionally a `---` line and prose.",
     "",
     "  ```awaiting",
     "  agents: [<the id your runtime gave you>]",
-    "  status: working",
-    "  for: 2h",
     "  ```",
     "",
-    "  `status:` says where the thread sits while you wait, in one of three words:",
-    "  - `working` — what you named finishes by itself: a test, a build, a benchmark, CI, a sub-agent doing",
-    "    a task. The thread shows as running until the work wakes you.",
-    "  - `watching` — something has to HAPPEN outside the thread: a release, a review, another agent's",
-    "    merge, the next daily cycle. The thread is snoozed, and nothing on its row moves, until a named",
-    "    item reports or `for:` runs out.",
-    "  - `needs_input` — the user can read, try or act on something NOW while the work runs (a partial",
-    "    result, a file you wrote, a server to try), even if you need nothing back from them. The thread",
-    "    goes into their queue, and the prose under `---` says what to look at.",
-    "  `working` and `watching` owe NO write-up: the fence alone is the whole message. If you wrote ANY",
-    "  words for the user at this rest, it is `needs_input` — nothing else is put in front of them. A rest",
-    "  on running work with NO fence is a bare rest, and it lands in the user's queue.",
+    "  Prose under the `---` puts the thread in the user's queue: write it only when they can read, try or",
+    "  act on something NOW. Without it the fence alone is the whole message, and the thread shows as",
+    "  working on your own shells, sub-agents and timers, or as waiting on anything else. `status:` and",
+    "  `for:` are optional overrides. A rest on running work with NO fence is a bare rest, and it lands",
+    "  in the user's queue.",
   ]
 }
 
@@ -2508,8 +2503,8 @@ function signoffNudgeText(needsInput: boolean): string {
 
 export const SIGNOFF_NUDGE_MESSAGE = signoffNudgeText(false)
 
-/** The same reminder for a worker dispatched under the answer-required contract (NEEDS_INPUT_REQUIRED_AT),
- *  which it teaches as `status:` since 2026-10-05. */
+/** The same reminder for a worker dispatched under the answer-required contract (NEEDS_INPUT_REQUIRED_AT):
+ *  taught as `status:` from 2026-10-05, and since 2026-10-24 as the `---` rule, with the band derived. */
 export const SIGNOFF_NUDGE_MESSAGE_NEEDS_INPUT = signoffNudgeText(true)
 
 /** The reminder for a fenceless rest that leaves questions from an EARLIER rest open (2026-10-05). A
@@ -2647,7 +2642,7 @@ export function parseSpinoffRequest(text: string): { id: string; instructions: s
 // is the instruction. The parser accepts any body, so a later rewording still renders old transcripts.
 export const KEEP_WORKING_MESSAGE = [
   "<keep-working>",
-  "I've seen your update and need nothing from you right now. Re-park on what is still running with `status: working` and no write-up. If none of it is still running, carry on.",
+  "I've seen your update and need nothing from you right now. Re-park on what is still running, with nothing under the fence. If none of it is still running, carry on.",
   "</keep-working>",
 ].join("\n")
 
@@ -6827,7 +6822,7 @@ export function stripWakeTimeHeader(text: string): string {
 // so stripping it upstream would cost the divider it is there to draw. It comes off in the parser
 // instead, which is the same outcome by the other route.
 // The three a human-armed watch writes also strip in their pre-2026-10-08 wording (legacyHumanWording).
-const HUMAN_WATCH_TRAILERS = [PR_WATCH_HUMAN_TRAILER, ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_QUIET_TRAILER]
+const HUMAN_WATCH_TRAILERS = [PR_WATCH_HUMAN_TRAILER, ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_QUIET_TRAILER, ...LEGACY_STATUS_HUMAN_WATCH_TRAILERS]
 const WAKE_TRAILERS = [PR_WATCH_ARMED_TRAILER, PR_WATCH_SPENT_TRAILER, ISSUE_WATCH_ARMED_TRAILER, ISSUE_WATCH_SPENT_TRAILER, LEGACY_PR_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_ARMED_TRAILER, LEGACY_ISSUE_WATCH_CLI_ARMED_TRAILER, ...HUMAN_WATCH_TRAILERS, ...HUMAN_WATCH_TRAILERS.map(legacyHumanWording), SHELL_DONE_TRAILER]
 
 /** Display projection: an ntwine wake without the agent-facing trailer ntwine appended for the worker.

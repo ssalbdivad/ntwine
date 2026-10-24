@@ -1895,7 +1895,8 @@ test("`activity` reads all four kinds back with the ids a fence names them by", 
     assert.match(text, /bzvtnt3ig[^\n]*\[no budget: runs until it ends or you stop it\]/)
     assert.match(text, /bpoll42[^\n]*\[budget: [^\]]* left, ends 2999-01-01T00:00:00.000Z\]/)
     assert.doesNotMatch(text, /bpoll42[^\n]*no budget/)
-    assert.match(text, /for:/, "…and it says what else the fence needs")
+    // …and nothing else: ntwine derives `status:` and `for:` from the names (2026-10-24).
+    assert.doesNotMatch(text.slice(text.indexOf("```awaiting"), text.indexOf("```\n\nDrop the lines")), /status:|for:/)
   } finally {
     rpc.kill()
     http.close()
@@ -2176,7 +2177,7 @@ test("`activity` puts an awaited thread in the ready fence under `threads:`", as
     assert.match(text, / {2}thread: @shell-budgets {2}\(since 2026-10-07T09:00:00.000Z\)/)
     const fence = text.slice(text.indexOf("```awaiting"), text.indexOf("```\n\nDrop the lines"))
     assert.match(fence, /threads: \[@shell-budgets\]/)
-    assert.match(fence, /status: watching/, "another thread's reply is a wait outside this one")
+    assert.doesNotMatch(fence, /status:/, "the band is derived: another thread's reply is a wait outside this one")
   } finally {
     rpc.kill()
     http.close()
@@ -2217,7 +2218,7 @@ test("`activity` reads the open questions back, with the ids `unask` takes and a
     const fence = text.slice(text.indexOf("```awaiting"), text.indexOf("```\n\nDrop the lines"))
     assert.match(fence, /shells: \[bzvtnt3ig\]/)
     assert.match(fence, /questions: \[qst_ab12cd34ef56, qst_0011223344ff\]/)
-    assert.match(fence, /status: needs_input/, "a fence on questions always needs the human")
+    assert.doesNotMatch(fence, /status:/, "a fence on questions needs the human by construction")
   } finally {
     rpc.kill()
     http.close()

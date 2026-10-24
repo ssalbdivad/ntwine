@@ -861,10 +861,8 @@ test("deriveNeedsYou: an honoured park on a registered PR stays out of the queue
   assert.equal(needs(park, registered), false, "registered PR + usable for: → parked")
   assert.equal(needs(fence([{ kind: "pr", value: "https://github.com/acme/app/pull/1" }, { kind: "for", value: "3d" }]), registered), false, "a URL names the same watch")
   assert.equal(needs(park, new Set()), true, "an unregistered PR wakes nothing → queues")
-  // No `for:` is a park since 2026-10-24: a PR's default is a week (awaitingDefaultForMs).
-  const unclocked = fence([{ kind: "pr", value: "acme/app#1" }])
-  assert.equal(needs(unclocked, registered, fenceAt + 6 * 86_400_000), false, "no for: parks on the PR's default week")
-  assert.equal(needs(unclocked, registered, fenceAt + 7 * 86_400_000), true, "…and queues once the week is out")
+  // No `for:` is a park since 2026-10-24: a PR's lasts until its watcher expires (awaitingDefaultForMs).
+  assert.equal(needs(fence([{ kind: "pr", value: "acme/app#1" }]), registered, fenceAt + 30 * 86_400_000), false, "no for: parks for as long as the watcher stands")
   assert.equal(needs(park, registered, fenceAt + 4 * 86_400_000), true, "an expired park queues")
   assert.equal(needs(fence([{ kind: "pr", value: "acme/app#1" }, { kind: "shell", value: "gone" }, { kind: "for", value: "3d" }]), registered), true, "a dead shell beside it breaks the park")
   assert.equal(deriveNeedsYou(row({ rested_at: LATER }), park, "exited", false, fenceAt + 60_000, undefined, true, false, {}, registered), true, "an exited worker is not parked")

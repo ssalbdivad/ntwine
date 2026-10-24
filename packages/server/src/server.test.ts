@@ -328,9 +328,7 @@ test("buildClaudeResumeCommand: -r <sessionId> with the follow-up + worker syste
   // the ACTUAL `claude -r` invocation—not live only in a companion skill the worker may not reload.
   // Whitespace-normalized: pin the RULE, not the line-wrap.
   const flat = system.replace(/\s+/g, " ")
-  assert.match(flat, /back to awaiting/)
-  assert.match(flat, /never answer that it is already parked/)
-  assert.match(flat, /emit a FRESH fence/)
+  assert.match(flat, /A reply to the user that ends without a fence is not a park/)
 })
 
 test("build*Command: extraSystemPrompt is appended AFTER the worker norms in the system prompt", () => {

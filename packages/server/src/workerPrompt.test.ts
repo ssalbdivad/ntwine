@@ -83,21 +83,22 @@ test("done is a dismissal: landed as far as asked, nothing owed, and found work 
   }
 })
 
-test("the awaiting fence: status answered top-down, names registered first, a fresh fence after every message", () => {
+test("the awaiting fence: status and for: are optional overrides, names registered first, a reply re-fences", () => {
   for (const kind of ALL) {
     const raw = buildWorkerPrompt(kind)
     const c = flat(kind)
-    assert.match(raw, /```awaiting\nshells: \[bzvtnt3ig\]\nagents: \[<the runtime agent id>\]\nstatus: working\nfor: 2h\n```/)
-    // b8fc23f9: needs_input, then working, then watching — in that order.
-    const order = ["⇒ `needs_input`", "⇒ `working`", "⇒ `watching`"].map((m) => c.indexOf(m))
-    assert.ok(order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2], "needs_input → working → watching")
-    assert.match(c, /any words for them at all/)
-    assert.match(c, /The user's review of what you handed over is `needs_input`, never `watching`/)
+    // The examples carry neither key: ntwine derives both from what the fence names (2026-10-24).
+    assert.match(raw, /```awaiting\nshells: \[bzvtnt3ig\]\nagents: \[<the runtime agent id>\]\n```/)
+    assert.match(raw, /```awaiting\nprs: \[acme\/app#391\]\ntimers: \[tmr_a1b2c3d4e5f6\]\n```/)
+    assert.match(c, /`status:` and `for:` — optional overrides/)
+    assert.match(c, /Prose there puts the thread in their queue/)
+    // The classification essay is gone; nothing tells the worker the line is required.
+    assert.doesNotMatch(c, /`status:` — required|`for:` — required|Answer top-down|already parked/)
     assert.match(c, /registered FIRST with `ntwinectl watch-pr add`/)
-    assert.match(c, /`for: 180d`/)
+    assert.match(c, /`ntwinectl watch-pr add --for 180d`/)
     assert.match(c, /No prose above the `---`/)
     assert.match(c, /a fence that names nothing is not a park/)
-    assert.match(c, /write a FRESH fence — never answer "back to awaiting" with "already parked"/)
+    assert.match(c, /A reply to the user that ends without a fence is not a park/)
     // Retired grammar is not taught again, not even to bury it: no current worker has seen it.
     assert.doesNotMatch(c, /`reason:`|`human:`|`issues:`|watch-issue|needs_input: (?:true|false)|timer: <ISO/)
   }
@@ -200,7 +201,7 @@ test("only the Claude contract teaches command watches", () => {
     const raw = buildWorkerPrompt(kind)
     assert.doesNotMatch(raw, /watch-command|commands:|cmw_/, kind)
     assert.doesNotMatch(raw, /\{\{NTWINE_/, kind)
-    assert.match(flat(kind), /up to a year on one naming only `prs:`\. A PR in someone else's repo/, kind)
+    assert.match(flat(kind), /up to a year on a park naming only `prs:`\. A PR in someone else's repo/, kind)
   }
 })
 

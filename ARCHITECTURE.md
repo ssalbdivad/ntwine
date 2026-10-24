@@ -183,9 +183,8 @@ registration — `done`, `ask`, `watch` — is a row that outlives the message, 
 A wait always takes the awaiting fence, because where the thread sits meanwhile is a fact about this rest.
 ntwine only CHECKS what the worker declared:
 
-- **Park integrity** (scheduler SOURCE 12, `evalParkIntegrity`). An awaiting fence must answer
-  `status:`, name only live items the thread owns, and name every open question the human has not typed
-  past. One that does not
+- **Park integrity** (scheduler SOURCE 12, `evalParkIntegrity`). An awaiting fence must name only live
+  items the thread owns, and name every open question the human has not typed past. One that does not
   queues the thread and draws a correction naming the fault, at most `PARK_BUMP_MAX` (3) in a row. An
   expired `for:` wakes the worker to re-check, uncapped.
 - **The sign-off nudge** (SOURCE 9, `evalSignoffNudges`, `board.signoffNudgeVerdict`). A rest with no
@@ -194,7 +193,11 @@ ntwine only CHECKS what the worker declared:
   its return brings. A bare rest carrying a question from an earlier rest gets
   `carriedQuestionsNudgeMessage` instead.
 
-**The worker, not ntwine, decides where a rest sits: `status:`** (`awaitingStatus`, `packages/shared`).
+**Where a rest sits is read off the fence** (`awaitingStatus`, `packages/shared`): prose under its `---`,
+steps or questions ⇒ `needs_input`; only shells, sub-agents and timers ⇒ `working`; any PR, thread,
+command or terminal ⇒ `watching`. A `status:` line overrides it, and an unwritten `for:` takes its items'
+default (`awaitingDefaultForMs`: a shell's hour, a day for most, a PR's or command's watch for as long as
+it stands). Both were required until 2026-10-24.
 `working` keeps the thread in Working, spinning only while something it names is moving — a live
 sub-agent, a named or watched shell, CI not held at the approval gate (`board.deriveWaitStatus` →
 `ThreadView.waitStatus`). `watching` rests it in Waiting under its wait's mark, never spinning (it parked
@@ -203,14 +206,14 @@ day, until the Waiting band). `needs_input` queues it while the
 work runs.
 Either quiet answer holds only while every named item is live and `for:` has not run out
 (`awaiting.needsInputParkHolds`), and owes no write-up. Threads dispatched before
-`NEEDS_INPUT_REQUIRED_AT` keep the older per-wait inferences (the legacy tail of `board.deriveNeedsYou`),
-and `needs_input: true|false` is still read.
+`NEEDS_INPUT_REQUIRED_AT` whose fence writes no answer keep the older per-wait inferences (the legacy tail
+of `board.deriveNeedsYou`), and `needs_input: true|false` is still read.
 
 The fence's other keys name what it waits on:
 
 - `shells:`, `agents:`, `timers:`, `prs:`, `commands:` — runtime or registration ids. `for:` is
   capped at a day, at a year on a park naming only PRs, at a week on one naming only command
-  watches, and at 30 minutes on any park naming `agents:` (`awaiting.parkForMaxMs`). A command watch
+  watches (`awaiting.parkForMaxMs`); a park on running `agents:` alone never expires. A command watch
   (`ntwinectl watch-command`, `command-watch.ts`) is a check the SERVER re-runs until it exits 0; it is
   refused unless the thread is a Claude one in `bypassPermissions` with its sandbox off, so only
   Claude's contract teaches it.

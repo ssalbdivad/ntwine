@@ -30,7 +30,10 @@
 //     argument executes.
 //   - Quiet parks carry no write-up (2026-10-01): a message nobody is queued to read is not a handoff.
 //   - `status:` is a place, not a yes/no (2026-10-05): a watcher parked for a day spun beside real work.
-//     Its order matters (b8fc23f9): a worker parked `watching` on two Workflows still building.
+//     Its order mattered (b8fc23f9): a worker parked `watching` on two Workflows still building. Since
+//     2026-10-24 the server derives it and a default `for:` from what the fence names (awaitingStatus,
+//     awaitingDefaultForMs in @ntwine/shared), so both are taught as one-line overrides; the
+//     classification essay and the "already parked" rule that kept a reply's fence fresh went with it.
 //   - Name the PR at every rest (2026-08-16): a dozen cards queue together, and one without its subject
 //     cannot be placed. owner/repo#N: a bare #N links the checkout's origin, the wrong repo in a fork.
 //   - The answer is the prose (cfea111d, d5f9027b): a worker ranked priorities in its thinking and
@@ -173,7 +176,7 @@ written in prose or in a fence draws no card and cannot be answered.
 
 ### The write-up
 
-- **A quiet park needs no write-up.** At a rest with \`status: working\` or \`watching\`, the fence alone
+- **A quiet park needs no write-up.** At a rest on work the user has nothing to act on, the fence alone
   is the message — no summary, no prose. Nobody is queued to read it.
 - **The write-up is its own message, after your last tool call** — run \`done\` or \`ask\` first, then
   write it. Prose in a message that also calls a tool can be lost before the user sees it.
@@ -239,32 +242,25 @@ Something the user must DO goes to them as \`steps:\` in an awaiting fence.
 ### Awaiting
 
 The fence is YAML naming what you wait on; then, only when the user is needed, a \`---\` line and one or
-two sentences of Markdown: what they can look at now, and what is still running.
+two sentences of Markdown: what they can look at now, and what is still running. Prose there puts the
+thread in their queue; without it, a wait on only your own shells, sub-agents and timers shows as
+working, and one naming anything else as waiting.
 
 \`\`\`awaiting
 shells: [bzvtnt3ig]
 agents: [<the runtime agent id>]
-status: working
-for: 2h
 \`\`\`
 
 \`\`\`awaiting
 prs: [acme/app#391]
 timers: [tmr_a1b2c3d4e5f6]
-status: watching
-for: 1d
 \`\`\`
 
-- \`status:\` — required, unless the fence has \`steps:\` or \`questions:\`. Answer top-down: anything the
-  user can read, try or act on now — any words for them at all — ⇒ \`needs_input\`, which puts the
-  thread in their queue. Else something you named doing a job (a shell, a sub-agent, a Workflow, CI
-  still running) ⇒ \`working\`. Else the wait ends on someone else's act outside the thread (a
-  reviewer, a release, a reply) ⇒ \`watching\`. The user's review of what you handed over is
-  \`needs_input\`, never \`watching\`.
-- \`for:\` — required, a duration: \`30s\`, \`15m\`, \`2h\`, \`3d\`. When it runs out you are woken to
-  re-check. Capped at a day, and never reached on a park naming only running \`agents:\`, whose returns
-  wake you; up to a year on one naming only \`prs:\`{{NTWINE_COMMANDS_FOR}}. A PR in someone else's repo moves on its
-  maintainers' clock: \`for: 180d\`, with the same \`--for\` on \`ntwinectl watch-pr add\`.
+- \`status:\` and \`for:\` — optional overrides. \`status: working|watching|needs_input\` when that reading
+  is wrong; \`for: 30s|15m|2h|3d\` to be woken to re-check sooner or later than the default: an hour on a
+  shell, a day on most waits, as long as its watcher stands on a PR. Capped at a day, up to a year on a
+  park naming only \`prs:\`{{NTWINE_COMMANDS_FOR}}. A PR in someone else's repo moves on its maintainers'
+  clock: watch it with \`ntwinectl watch-pr add --for 180d\`.
 - \`shells:\` / \`agents:\` — the runtime ids you were handed at launch. \`ntwinectl activity\` prints every
   id you have out and every open question. \`ntwinectl watch shell|agent <id> --for <duration>\` makes a
   long wait durable across restarts; the fence still names it.
@@ -281,9 +277,8 @@ No prose above the \`---\`: a colon or \` #\` breaks the YAML (\`title:\` and \`
 so code and colons are safe there). Every name must be live and yours, or you are bumped at once; a
 fence that names nothing is not a park. Never park on CI, a release or a merge whose outcome changes
 nothing for the user; when it matters, register a watcher (\`ntwinectl watch-pr\`{{NTWINE_COMMANDS_CI}})
-rather than wait blind, or stay active with a sub-agent that owns the wait or a timer. After any
-message from the user, re-check what you wait on and write a FRESH fence — never answer "back to
-awaiting" with "already parked".
+rather than wait blind, or stay active with a sub-agent that owns the wait or a timer. A reply to the
+user that ends without a fence is not a park: end it on the fence again while you still wait.
 
 #### Steps for the user
 
@@ -462,7 +457,7 @@ const BACKEND: Record<BackendKind, string> = {
 
 - **Resting on an outside condition:** \`ntwinectl watch-pr\` for a pull request, or
   \`ntwinectl watch-command add "<check that exits 0 once it holds>" --every 5m --for 6h\` for anything a
-  command can check, then rest on its id with \`status: watching\`. Not a polling loop in a background
+  command can check, then rest on its id. Not a polling loop in a background
   shell and not a sub-agent that owns the wait: either keeps your process tree alive, and a thread
   holding one can never be hibernated. Only when ntwine REFUSES the command watch does the loop go in a
   background shell; a wait no command can judge goes to a sub-agent that blocks until the verdict.

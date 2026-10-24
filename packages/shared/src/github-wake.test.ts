@@ -715,6 +715,15 @@ test("text ntwine wrote in its old \"the human\" wording is still recognized", (
   assert.equal(isInterruptEndedWake(interruptEndedSubAgentsMessage([{ label: "x" }])), true)
 })
 
+// The human-watch trailers named `status:` and `for:` until ntwine derived both (2026-10-24); a wake
+// written before that still strips. Spelled out literally for the reason the test above gives.
+test("a human-watch trailer written before the fence was derived still strips", () => {
+  const prOld = "(The user registered this PR watcher from your done card — STILL ARMED. It reports again on the next CI change, review, comment, label, conflict or review request. Leave it armed. The user chose to follow this, so put it in front of them: rest on it with `status: needs_input` and one or two sentences on what happened, unless it needs work from you first. It does not block `done`.)"
+  const quietOld = "(The user registered this PR watcher from your done card — STILL ARMED. Green CI alone needs nothing from the user: rest on it with the fence alone, naming it under `prs:` with `status: watching` and a long `for:`. It does not block `done`.)"
+  for (const old of [prOld, quietOld]) assert.equal(stripWakeTrailer(`📬 news\n\n${old}`), "📬 news")
+  for (const now of [PR_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_QUIET_TRAILER, ISSUE_WATCH_HUMAN_TRAILER]) assert.doesNotMatch(now, /status:|`for:`/)
+})
+
 // The strip runs BEFORE the chat parses, so a parser that lost its anchor would trade the boilerplate
 // for a lost divider — the same defect wearing the other face.
 test("stripping the trailer leaves every parser's anchor intact", () => {
@@ -799,14 +808,14 @@ test("prWatchExpiredWakeMessage: an issue's expiry parses through the same head 
 test("a human's watch surfaces everything but green CI alone", () => {
   const green = { verdict: "passing" as const, passed: 3, failed: 0, failing: [] }
   const red = { verdict: "failing" as const, passed: 2, failed: 1, failing: ["core"] }
-  assert.ok(prWatchWakeMessage({ target: "a/b#1", checks: green, byHuman: true }).includes("`status: watching`"))
+  assert.ok(prWatchWakeMessage({ target: "a/b#1", checks: green, byHuman: true }).includes("rest on it with the fence alone"))
   for (const m of [
     prWatchWakeMessage({ target: "a/b#1", checks: red, byHuman: true }),
     prWatchWakeMessage({ target: "a/b#1", checks: green, review: "💬 new review", byHuman: true }),
     prWatchWakeMessage({ target: "a/b#1", changes: ["now CONFLICTS with the base branch"], byHuman: true }),
     issueWatchWakeMessage({ target: "a/b#2", review: "💬 new comment", byHuman: true }),
   ]) {
-    assert.ok(m.includes("`status: needs_input`"), m)
-    assert.ok(!m.includes("`status: watching`"), m)
+    assert.ok(m.includes("one or two sentences on what happened under the fence's `---`"), m)
+    assert.ok(!m.includes("the fence alone"), m)
   }
 })

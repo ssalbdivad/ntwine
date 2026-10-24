@@ -427,7 +427,7 @@ test("`watch-command` registers for the calling thread, reads a refusal as exit 
     assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", command: "npm view ntwine@0.13.12 version", every: "5m", for: "6h" })
     assert.match(armed.stdout, /^Watching as cmw_abc: ntwine runs it every 5m until it exits 0/)
     assert.match(armed.stdout, /Its first check exited 1\./)
-    assert.match(armed.stdout, /`commands: \[cmw_abc\]`, `status: watching`/)
+    assert.match(armed.stdout, /NAME IT IN YOUR ```awaiting FENCE \(`commands: \[cmw_abc\]`\)/)
     assert.match(armed.stdout, /cmw_abc {2}every 5m, until 2026-10-11T20:00:00.000Z — 1 check, last check exited 1\n {4}\$ npm view ntwine@0\.13\.12 version/)
 
     mode = "refused"
