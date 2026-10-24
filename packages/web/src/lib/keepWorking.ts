@@ -54,7 +54,7 @@ export function offersKeepWorking(
   if (fence.kind !== "awaiting") return false
   const hints: readonly AwaitingHint[] = fence.hints ?? []
   if (awaitingSteps(hints).length > 0 || awaitingQuestions(hints).length > 0) return false
-  if (awaitingStatus(hints) !== "needs_input") return false
+  if (awaitingStatus({ hints, body: fence.body ?? "" }) !== "needs_input") return false
   if (runningSubAgent) return true
   const live = liveWorkHandles(thread)
   return hints.some((h) => (h.kind === "shell" || h.kind === "agent") && live.has(h.value.trim()))

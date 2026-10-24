@@ -925,9 +925,9 @@ test("under the answer-required contract a running child no longer parks: the re
     assert.equal(fence?.kind, "awaiting")
     const live = liveActivityOf({ bgShells: [shell()], subAgents: [child()] }, new Set(), new Set())
     const spoke = Date.parse("2026-08-12T00:00:00.000Z")
-    assert.equal(needsInputParkHolds(fence!.hints, live, spoke, spoke + 60_000), true)
+    assert.equal(needsInputParkHolds(fence!, live, spoke, spoke + 60_000), true)
     // Negative control: once the child has returned, the same fence no longer holds.
-    assert.equal(needsInputParkHolds(fence!.hints, liveActivityOf({ bgShells: [shell()], subAgents: [] }, new Set(), new Set()), spoke, spoke + 60_000), false)
+    assert.equal(needsInputParkHolds(fence!, liveActivityOf({ bgShells: [shell()], subAgents: [] }, new Set(), new Set()), spoke, spoke + 60_000), false)
   } finally { h.close() }
 })
 

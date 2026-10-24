@@ -1,5 +1,5 @@
 import { threadAwaitKey } from "./thread-mentions.ts"
-import { AWAITING_FOR_MAX_MS, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, terminalOutcome, type AwaitingHint, type AwaitingItemKind, type ThreadTerminal } from "@ntwine/shared"
+import { AWAITING_FOR_MAX_MS, awaitingDefaultForMs, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, terminalOutcome, type AwaitingFenceShape, type AwaitingHint, type AwaitingItemKind, type ThreadTerminal } from "@ntwine/shared"
 
 // The PR-reference vocabulary shared by the PR-watching scheduler and the board. It lives here rather
 // than in scheduler.ts so a reader can resolve a ref without pulling in the whole waker; scheduler.ts
@@ -37,9 +37,11 @@ export interface AwaitingItem {
 
 export interface AwaitingPark {
   items: AwaitingItem[]
-  /** `for:` in ms AS WRITTEN, uncapped, or null when it is missing or not a duration. NULL IS NOT A
-   *  PARK. Uncapped here because the ceiling depends on what the park NAMES (parkForMaxMs), which this
-   *  field alone cannot know — `parkExpiresAt` is the one place it is applied. */
+  /** `for:` in ms AS WRITTEN, uncapped — or, when the fence writes none (or none that is a duration),
+   *  the default its items earn (awaitingDefaultForMs, 2026-10-24). Null only for a fence that names no
+   *  item and writes no `for:`: a wait on the human alone, which has no clock, or a fence naming nothing,
+   *  which is not a park. Uncapped here because the ceiling depends on what the park NAMES (parkForMaxMs),
+   *  which this field alone cannot know — `parkExpiresAt` is the one place it is applied. */
   forMs: number | null
   /** `steps:` — what the HUMAN must perform. Non-empty means the park waits on them, which needs no
    *  item and no `for:`: their reply is the wake (see parkIsHonoured). */
@@ -58,15 +60,16 @@ export interface AwaitingPark {
  *  BODY and is read there; a park is items and a duration. */
 export function readAwaitingPark(hints: readonly AwaitingHint[]): AwaitingPark {
   const items: AwaitingItem[] = []
-  let forMs: number | null = null
+  let written: number | null = null
   for (const h of hints) {
     const value = h.value.trim()
     if (isAwaitingItemKind(h.kind)) {
       if (value) items.push({ kind: h.kind, value })
     } else if (h.kind === "for") {
-      forMs = parseAwaitingDurationRaw(value)
+      written = parseAwaitingDurationRaw(value)
     }
   }
+  const forMs = written ?? awaitingDefaultForMs(items.map((i) => i.kind))
   return { items, forMs, steps: awaitingSteps(hints), questions: awaitingQuestions(hints) }
 }
 
@@ -192,7 +195,8 @@ function liveKey(i: AwaitingItem): string {
   return i.value
 }
 
-/** Is this a park ntwine will honour — at least one item, every item live, and a usable `for:`?
+/** Is this a park ntwine will honour — at least one item, and every item live? (`for:` no longer
+ *  decides it: a fence that writes none takes its items' default, readAwaitingPark.)
  *
  *  AT LEAST ONE ITEM is not pedantry. An awaiting fence naming nothing is a worker claiming to wait with
  *  no way to be woken, which is precisely the silent stall the grammar exists to make impossible.
@@ -209,7 +213,6 @@ function liveKey(i: AwaitingItem): string {
 export function parkIsHonoured(park: AwaitingPark, live: LiveActivity): boolean {
   const onHuman = parkOnHuman(park)
   if (park.items.length === 0 && !onHuman) return false
-  if (park.forMs === null && !onHuman) return false
   return unaccountedItems(park.items, live).length === 0
 }
 
@@ -220,18 +223,18 @@ export function parkOnHuman(park: AwaitingPark): boolean {
 }
 
 /** Does this fence keep a NEW-CONTRACT thread out of the queue (see `needsInputRequired` in
- *  @ntwine/shared)? The worker answered `status: working` or `status: watching` (or the older
- *  `needs_input: false`), and the park is one ntwine can honour and has not run out. Anything less —
- *  `needs_input`, no answer, a dead name, an elapsed `for:` — and the thread queues, which is the safe
- *  direction: a wrong answer must never be a way to disappear. Which band it sits in once out of the
+ *  @ntwine/shared)? Its answer — written, or derived from what it names (awaitingStatus) — is `working`
+ *  or `watching`, and the park is one ntwine can honour and has not run out. Anything less —
+ *  `needs_input`, a fence naming nothing, a dead name, an elapsed `for:` — and the thread queues, which
+ *  is the safe direction: a wrong answer must never be a way to disappear. Which band it sits in once out of the
  *  queue is board.deriveWaitStatus's call, not this one's.
  *
  *  `fenceAtMs` is when the fence landed (the worker's last word). An unknown instant does NOT hold —
  *  without it there is no `for:` to run out, and a park that cannot run out is the stall this grammar
  *  was built to make impossible. */
-export function needsInputParkHolds(hints: readonly AwaitingHint[], live: LiveActivity, fenceAtMs: number, nowMs: number): boolean {
-  if (awaitingNeedsInput(hints) !== false) return false
-  const park = readAwaitingPark(hints)
+export function needsInputParkHolds(fence: AwaitingFenceShape, live: LiveActivity, fenceAtMs: number, nowMs: number): boolean {
+  if (awaitingNeedsInput(fence) !== false) return false
+  const park = readAwaitingPark(fence.hints ?? [])
   if (!parkIsHonoured(park, live)) return false
   const expiresAt = parkExpiresAt(park, fenceAtMs)
   return expiresAt !== null && nowMs < expiresAt

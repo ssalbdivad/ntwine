@@ -44,25 +44,24 @@ function needsYou(r: SessionRow, t: SessionTelemetry, extra: { now?: number; git
 // ---- THE GRAMMAR ---------------------------------------------------------------------------------
 
 test("the fence carries the answer as structure, never as prose", () => {
-  const { hints, body } = splitAwaitingFrontmatter("agents: [a01b2d20]\nneeds_input: false\nfor: 1h")
-  assert.deepEqual(hints, [{ kind: "agent", value: "a01b2d20" }, { kind: "needs_input", value: "false" }, { kind: "for", value: "1h" }])
-  assert.equal(body, "", "a quiet park is the fence alone")
-  assert.equal(awaitingNeedsInput(hints), false)
+  const quiet = splitAwaitingFrontmatter("agents: [a01b2d20]\nneeds_input: false\nfor: 1h")
+  assert.deepEqual(quiet.hints, [{ kind: "agent", value: "a01b2d20" }, { kind: "needs_input", value: "false" }, { kind: "for", value: "1h" }])
+  assert.equal(quiet.body, "", "a quiet park is the fence alone")
+  assert.equal(awaitingNeedsInput(quiet), false)
 
   const loud = splitAwaitingFrontmatter("agents: [a01b2d20]\nneeds_input: true\nfor: 1h\n---\nThree audits are ready to read.")
-  assert.equal(awaitingNeedsInput(loud.hints), true)
+  assert.equal(awaitingNeedsInput(loud), true)
   assert.equal(loud.body, "Three audits are ready to read.")
   // The underscore is what the key regex used to refuse: the line fell to the BODY as a sentence and the
   // fence carried no answer at all.
   assert.doesNotMatch(loud.body, /needs_input/)
 })
 
-test("the hyphenated spelling is the same key; anything but true or false is no answer", () => {
-  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("shells: [x]\nneeds-input: true\nfor: 1h").hints), true)
-  const yes = splitAwaitingFrontmatter("shells: [x]\nneeds_input: yes\nfor: 1h").hints
-  assert.deepEqual(yes.find((h) => h.kind === "needs_input"), { kind: "needs_input", value: "yes" }, "kept as written, so the correction can quote it")
-  assert.equal(awaitingNeedsInput(yes), null)
-  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("shells: [x]\nfor: 1h").hints), null)
+test("the hyphenated spelling is the same key; anything but true or false is no answer, and the fence's own reading stands", () => {
+  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("shells: [x]\nneeds-input: true\nfor: 1h")), true)
+  const yes = splitAwaitingFrontmatter("shells: [x]\nneeds_input: yes\nfor: 1h\n---\nThe dev server is up.")
+  assert.deepEqual(yes.hints.find((h) => h.kind === "needs_input"), { kind: "needs_input", value: "yes" }, "kept as written")
+  assert.equal(awaitingNeedsInput(yes), true, "the prose under the `---` is what it says")
 })
 
 test("the contract is by dispatch instant, and an unknown instant is legacy", () => {
@@ -102,18 +101,23 @@ test("a rest with no fence queues while its Workflow runs, and still cards as th
   assert.equal(deriveAwaitingBackground(row(), tele({ subAgents: [{ id: "ae07", label: "revise", startedAt: AT, state: "running", depth: 2, parentId: "toolu_wf" }] }), "turn-idle", false, NOW), false)
 })
 
-test("no answer, or one that is neither true nor false, queues — it is never a park", () => {
-  assert.equal(needsYou(row(), tele({ subAgents: [LIVE_AGENT], ...agentPark() })), true)
-  assert.equal(needsYou(row(), tele({ subAgents: [LIVE_AGENT], ...agentPark("yes") })), true)
+// DERIVED SINCE 2026-10-24: a fence that writes no answer, or one ntwine cannot read, is answered by what
+// it says — here a running child alone (working), or words for the user (needs_input).
+test("no answer line parks on what the fence names, and prose under the `---` queues it", () => {
+  assert.equal(needsYou(row(), tele({ subAgents: [LIVE_AGENT], ...agentPark() })), false, "a running child finishes by itself")
+  assert.equal(needsYou(row(), tele({ subAgents: [LIVE_AGENT], ...agentPark("yes") })), false, "an unreadable alias leaves the derivation standing")
+  const loud = { lastFence: { ...agentPark().lastFence, body: "The first audit is ready to read." } }
+  assert.equal(needsYou(row(), tele({ subAgents: [LIVE_AGENT], ...loud })), true, "words for the user are the queue's")
 })
 
-test("a false ntwine cannot honour queues: a dead name, a run-out for:, no for:, a dead worker", () => {
+test("a false ntwine cannot honour queues: a dead name, a run-out for:, an unwritten for: past its default, a dead worker", () => {
   const dead = tele({ subAgents: [], ...agentPark("false") })
   assert.equal(needsYou(row(), dead), true, "the sub-agent it names is not running")
   const live = tele({ subAgents: [LIVE_AGENT], ...agentPark("false", "2h") })
   assert.equal(needsYou(row(), live, { now: Date.parse(AT) + 3 * 3_600_000 }), true, "its 2h ran out an hour ago")
   const noFor = tele({ subAgents: [LIVE_AGENT], ...awaiting({ kind: "agent", value: "a01b2d20" }, { kind: "needs_input", value: "false" }) })
-  assert.equal(needsYou(row(), noFor), true, "no for: is no park — nothing would ever re-check it")
+  assert.equal(needsYou(row(), noFor), false, "no for: takes the default, a day for a sub-agent")
+  assert.equal(needsYou(row(), noFor, { now: Date.parse(AT) + 25 * 3_600_000 }), true, "…and queues once the day is out")
   assert.equal(needsYou(row(), live, { runtime: "exited" }), true, "a worker that is gone is waiting on nothing")
 })
 
@@ -229,8 +233,8 @@ test("a step written as a YAML quoted scalar renders without its quotes", () => 
 })
 
 test("steps ARE the needs_input answer: the line may be left out, and a false beside them reads true", () => {
-  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("steps:\n  - Sign in").hints), true)
-  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("needs_input: false\nsteps:\n  - Sign in").hints), true, "a thread waiting on its human never hides from them")
+  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("steps:\n  - Sign in")), true)
+  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("needs_input: false\nsteps:\n  - Sign in")), true, "a thread waiting on its human never hides from them")
   // The retired `human:` gate now points at steps for an act, and at a question for a decision.
   assert.match(RETIRED_AWAITING_REPLACEMENT.human, /`steps:`/)
   assert.match(RETIRED_AWAITING_REPLACEMENT.human, /registered with `ntwinectl ask`/)
@@ -256,8 +260,8 @@ test("questions have a cap of their own, after the hints' cap, so they never cro
 })
 
 test("questions ARE the needs_input answer: the line may be left out, and a false beside them reads true", () => {
-  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("questions: [qst_ab12]").hints), true)
-  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("needs_input: false\nshells: [x]\nquestions: [qst_ab12]\nfor: 1h").hints), true)
+  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("questions: [qst_ab12]")), true)
+  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("needs_input: false\nshells: [x]\nquestions: [qst_ab12]\nfor: 1h")), true)
 })
 
 const stepsFence = (...extra: AwaitingHint[]) => awaiting({ kind: "step", value: "Run `npm login`" }, { kind: "step", value: "Approve the prompt" }, ...extra)

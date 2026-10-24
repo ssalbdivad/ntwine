@@ -8,7 +8,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { activeBandThread, agentParked, awaitingNeedsInput, awaitingStatus, hasLiveOps, isSnoozed, NEEDS_INPUT_REQUIRED_AT, sectionOf, splitAwaitingFrontmatter, type AwaitingHint, type GithubWatchStatus, type ThreadView } from "@ntwine/shared"
+import { activeBandThread, agentParked, awaitingNeedsInput, awaitingStatus, hasLiveOps, isSnoozed, NEEDS_INPUT_REQUIRED_AT, needsInputRequired, sectionOf, splitAwaitingFrontmatter, type AwaitingHint, type GithubWatchStatus, type ThreadView } from "@ntwine/shared"
 import { createBoard, deriveAwaitingBackground, deriveNeedsYou, deriveWaitStatus, type RegisteredWatch } from "./board.ts"
 import { GITHUB_STATUS_SETTING, type GithubStatusBook } from "./awaiting.ts"
 import { Bus } from "./bus.ts"
@@ -54,47 +54,47 @@ function place(r: SessionRow, t: SessionTelemetry, extra: { github?: GithubStatu
   const watches = extra.watches ?? []
   const needsYou = deriveNeedsYou(r, t, runtime, false, now, undefined, true, false, github, prs, timers, watches, 0, extra.inFlight ?? false)
   const card = deriveAwaitingBackground(r, t, runtime, false, now, undefined, false, github, prs, timers, watches, 0)
-  return { needsYou, waitStatus: deriveWaitStatus(t, runtime, needsYou, card, extra.inFlight ?? false, now, github, prs, watches) }
+  return { needsYou, waitStatus: deriveWaitStatus(t, runtime, needsYou, card, extra.inFlight ?? false, now, github, prs, watches, needsInputRequired(r.spawned_at)) }
 }
 
 // ---- THE GRAMMAR ---------------------------------------------------------------------------------
 
 test("`status:` is one structural line with three words, read case- and hyphen-blind", () => {
   for (const word of ["working", "watching", "needs_input"] as const) {
-    const { hints, body } = splitAwaitingFrontmatter(`shells: [bzvtnt3ig]\nstatus: ${word}\nfor: 2h`)
-    assert.deepEqual(hints.find((h) => h.kind === "status"), { kind: "status", value: word })
-    assert.equal(body, "", "a quiet park is the fence alone")
-    assert.equal(awaitingStatus(hints), word)
-    assert.equal(awaitingNeedsInput(hints), word === "needs_input", "the queue reads the same answer")
+    const fence = splitAwaitingFrontmatter(`shells: [bzvtnt3ig]\nstatus: ${word}\nfor: 2h`)
+    assert.deepEqual(fence.hints.find((h) => h.kind === "status"), { kind: "status", value: word })
+    assert.equal(fence.body, "", "a quiet park is the fence alone")
+    assert.equal(awaitingStatus(fence), word)
+    assert.equal(awaitingNeedsInput(fence), word === "needs_input", "the queue reads the same answer")
   }
-  assert.equal(awaitingStatus(splitAwaitingFrontmatter("shells: [x]\nstatus: Needs-Input\nfor: 2h").hints), "needs_input")
-  assert.equal(awaitingStatus(splitAwaitingFrontmatter("shells: [x]\nstatus: WATCHING\nfor: 2h").hints), "watching")
+  assert.equal(awaitingStatus(splitAwaitingFrontmatter("shells: [x]\nstatus: Needs-Input\nfor: 2h")), "needs_input")
+  assert.equal(awaitingStatus(splitAwaitingFrontmatter("shells: [x]\nstatus: WATCHING\nfor: 2h")), "watching")
 })
 
-test("a word ntwine cannot read is no answer — kept as written so the correction can quote it", () => {
-  const hints = splitAwaitingFrontmatter("shells: [x]\nstatus: busy\nfor: 2h").hints
-  assert.deepEqual(hints.find((h) => h.kind === "status"), { kind: "status", value: "busy" })
-  assert.equal(awaitingStatus(hints), null)
-  assert.equal(awaitingNeedsInput(hints), null)
+test("a word ntwine cannot read is no answer, so the fence's own derivation stands", () => {
+  const fence = splitAwaitingFrontmatter("prs: [acme/app#1]\nstatus: busy\nfor: 2h")
+  assert.deepEqual(fence.hints.find((h) => h.kind === "status"), { kind: "status", value: "busy" })
+  assert.equal(awaitingStatus(fence), "watching")
+  assert.equal(awaitingNeedsInput(fence), false)
   // …unless the older line answers beside it.
-  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("shells: [x]\nstatus: busy\nneeds_input: false\nfor: 2h").hints), false)
+  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("shells: [x]\nstatus: busy\nneeds_input: false\nfor: 2h")), false)
 })
 
 test("the older `needs_input:` line is an alias: true is the queue, false leaves the place to ntwine", () => {
-  const yes = splitAwaitingFrontmatter("shells: [x]\nneeds_input: true\nfor: 2h").hints
+  const yes = splitAwaitingFrontmatter("shells: [x]\nneeds_input: true\nfor: 2h")
   assert.equal(awaitingStatus(yes), "needs_input")
-  const no = splitAwaitingFrontmatter("shells: [x]\nneeds_input: false\nfor: 2h").hints
+  const no = splitAwaitingFrontmatter("shells: [x]\nneeds_input: false\nfor: 2h")
   assert.equal(awaitingStatus(no), null, "no place was named — deriveWaitStatus reads the work")
   assert.equal(awaitingNeedsInput(no), false, "but it still answers the queue")
   // `status:` wins over the older line when both are written.
-  assert.equal(awaitingStatus(splitAwaitingFrontmatter("shells: [x]\nneeds_input: true\nstatus: watching\nfor: 2h").hints), "watching")
+  assert.equal(awaitingStatus(splitAwaitingFrontmatter("shells: [x]\nneeds_input: true\nstatus: watching\nfor: 2h")), "watching")
 })
 
 test("steps and questions wait on the human, so they are `needs_input` whatever the line says", () => {
-  const steps = splitAwaitingFrontmatter("steps:\n  - Run `npm login`\nstatus: watching").hints
+  const steps = splitAwaitingFrontmatter("steps:\n  - Run `npm login`\nstatus: watching")
   assert.equal(awaitingStatus(steps), "needs_input")
   assert.equal(awaitingNeedsInput(steps), true)
-  const asked = splitAwaitingFrontmatter("questions: [qst_ab12cd34]\nstatus: working").hints
+  const asked = splitAwaitingFrontmatter("questions: [qst_ab12cd34]\nstatus: working")
   assert.equal(awaitingStatus(asked), "needs_input")
 })
 
@@ -102,11 +102,63 @@ test("the hint cap counts items only, so a full fence keeps its answer and its d
   // Eight items is AWAITING_HINT_MAX. Until 2026-10-05 the cap counted every line, so the scalars after
   // the eighth item were dropped — a fence the correction could never satisfy, however it was re-sent.
   const shells = Array.from({ length: 9 }, (_, i) => `b${i}`).join(", ")
-  const { hints } = splitAwaitingFrontmatter(`shells: [${shells}]\nstatus: working\nfor: 2h\ntitle: Nine shards`)
-  assert.equal(hints.filter((h) => h.kind === "shell").length, 8, "the items are still capped")
-  assert.equal(awaitingStatus(hints), "working")
+  const fence = splitAwaitingFrontmatter(`prs: [${shells}]\nstatus: working\nfor: 2h\ntitle: Nine shards`)
+  const { hints } = fence
+  assert.equal(hints.filter((h) => h.kind === "pr").length, 8, "the items are still capped")
+  assert.equal(awaitingStatus(fence), "working", "the written line survives the cap and overrides the derived watching")
   assert.deepEqual(hints.find((h) => h.kind === "for"), { kind: "for", value: "2h" })
   assert.deepEqual(hints.find((h) => h.kind === "title"), { kind: "title", value: "Nine shards" })
+})
+
+// ---- THE DERIVATION (maintainer 2026-10-24) -----------------------------------------------------------
+// A fence that writes no `status:` is answered by what it says: words for the user queue it, its own work
+// alone is Working, and anything waiting on the world is Waiting. A written line overrides all three.
+
+const derived = (text: string) => awaitingStatus(splitAwaitingFrontmatter(text))
+
+test("prose under the `---` derives needs_input, whatever it names", () => {
+  assert.equal(derived("shells: [bzvtnt3ig]\n---\nThe dev server is up on :5173; try the new sidebar."), "needs_input")
+  assert.equal(derived("prs: [acme/app#391]\n---\nCI is green; the PR is ready for your review."), "needs_input")
+})
+
+test("only shells, agents and timers derive working", () => {
+  assert.equal(derived("shells: [bzvtnt3ig]"), "working")
+  assert.equal(derived("agents: [a01b2d20]\ntimers: [tmr_a1]"), "working")
+})
+
+test("one outside item derives watching, beside the thread's own work or alone", () => {
+  for (const outside of ["prs: [acme/app#391]", "threads: [@release-bot]", "commands: [cmw_ab12]", "terminals: [@nub-run-dev]"]) {
+    assert.equal(derived(outside), "watching", outside)
+    assert.equal(derived(`shells: [bzvtnt3ig]\nagents: [a01b2d20]\n${outside}`), "watching", `${outside} beside a shell and an agent`)
+  }
+})
+
+test("a written status overrides the derivation, prose included", () => {
+  assert.equal(derived("prs: [acme/app#391]\nstatus: working"), "working")
+  assert.equal(derived("shells: [bzvtnt3ig]\nstatus: watching"), "watching")
+  assert.equal(derived("shells: [bzvtnt3ig]\nstatus: watching\n---\nPolling the release feed."), "watching")
+})
+
+test("a fence that names nothing derives nothing", () => {
+  assert.equal(derived("for: 2h"), null)
+  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("for: 2h")), null)
+})
+
+test("the three shapes land in their bands with no `status:` or `for:` written", () => {
+  const shell = tele({ bgShells: [LIVE_SHELL], ...fence({ kind: "shell", value: "bzvtnt3ig" }) })
+  assert.deepEqual(place(row(), shell), { needsYou: false, waitStatus: "working" })
+  const pr = tele(fence({ kind: "pr", value: PR }))
+  assert.deepEqual(place(row(), pr, { prs: [PR] }), { needsYou: false, waitStatus: "watching" })
+  const prose = tele({ bgShells: [LIVE_SHELL], lastFence: { kind: "awaiting", body: "Try the dev server now.", hints: [{ kind: "shell", value: "bzvtnt3ig" }] } })
+  assert.deepEqual(place(row(), prose), { needsYou: true, waitStatus: undefined })
+})
+
+test("a legacy thread's fence with no answer line is not derived", () => {
+  // Dispatched before the cut: the shell park is read as it always was (a shell alone is a watch), not
+  // as the derived `working` a new-contract thread gets.
+  const t = tele({ bgShells: [LIVE_SHELL], ...fence({ kind: "shell", value: "bzvtnt3ig" }, FOR_2H) })
+  assert.deepEqual(place(row({ spawned_at: LEGACY_SPAWN }), t), { needsYou: false, waitStatus: "watching" })
+  assert.deepEqual(place(row(), t), { needsYou: false, waitStatus: "working" })
 })
 
 // ---- THE VERDICT ---------------------------------------------------------------------------------

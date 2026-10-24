@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { createHash, randomUUID } from "node:crypto"
-import { awaitingNeedsInput, awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_NEEDS_INPUT_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, terminalOutcome, terminalWakeMessage, terminalWatchExpiredWakeMessage, terminalControlWakeMessage, type ThreadTerminal, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@ntwine/shared"
+import { awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, terminalOutcome, terminalWakeMessage, terminalWatchExpiredWakeMessage, terminalControlWakeMessage, type ThreadTerminal, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@ntwine/shared"
 import { GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, terminalLives, terminalAwaitKey, type TerminalLive, liveActivityOf, parkExpiresAt, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems, type LiveActivity } from "./awaiting.ts"
 import { isHeldRow, terminalNotesOf, type ThreadTerminalRow, type CommandWatchRow, type PrWatchRow, type SessionRow, type Storage, type ThreadQuestionRow } from "./storage.ts"
 import type { CommandRunResult, CommandWatchService } from "./command-watch.ts"
@@ -2731,58 +2731,15 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // tick, exactly as the sign-off nudge's reset is. It deliberately does NOT `continue`: an honoured
       // park can still have run out, and that bump is owed.
       //
-      // NO ANSWER (2026-10-01). A worker dispatched under the answer-required contract owes every park an
-      // answer to "where does this rest sit?" (NEEDS_INPUT_REQUIRED_AT in @ntwine/shared) — `status:` since
-      // 2026-10-05, `needs_input:` before it and still read. A fence without one — or with a value ntwine
-      // cannot read — is not a park ntwine may honour (the board queues the thread: needsInputParkHolds), so
-      // it does not give the allowance back either: a worker that keeps leaving the line out would
-      // otherwise reset its own cap on every rest.
-      const unanswered = needsInputRequired(row.spawned_at) && awaitingNeedsInput(tele.lastFence.hints) === null
-      if (parkIsHonoured(park, live) && !unanswered && (row.park_bumps ?? 0) > 0) deps.storage.resetParkBumps(row.slug)
-      if (dead.length === 0 && !expired && !nameless) {
-        // The answer is corrected only once the ITEMS are right. A fence that names dead work or none is
-        // told about that first — adding `status:` would not make it a park, and a worker waiting on
-        // nothing should end in ```done or a question, not be taught one more line of a fence it should
-        // not be writing. Counted against PARK_BUMP_MAX like every other correction, keyed on the rest.
-        if (!unanswered || (row.park_bumps ?? 0) >= PARK_BUMP_MAX) continue
-        const fenceId = parkFenceId("needs-input", spokeAt)
-        const deliveryId = wakeDeliveryId(row.slug, row.session_id, fenceId)
-        if (outbox.get(deliveryId)) continue
-        // Quoted back when the worker wrote SOMETHING, so it sees the exact value ntwine could not read —
-        // the `status:` line it wrote, or else the older `needs_input:` one.
-        const written = [...tele.lastFence.hints].reverse().find((h) => h.kind === "status") ?? [...tele.lastFence.hints].reverse().find((h) => h.kind === "needs_input")
-        const message = [
-          `${PARK_CORRECTION_NEEDS_INPUT_LEAD}\`status:\` that ntwine can read — \`working\`, \`watching\` or \`needs_input\`${written ? ` (it says \`${written.kind}: ${written.value}\`)` : ""} — so ntwine did not park it, and your thread is in the user's queue.`,
-          "",
-          "Every ```awaiting fence answers one question: where does this rest sit while the work runs?",
-          "",
-          "- `status: working` — the work finishes by itself: a test run, a build, CI, a sub-agent doing a job.",
-          "  The thread shows as running until the work wakes you.",
-          "- `status: watching` — the wait is on something outside the thread: a review, a release, a",
-          "  reporter, another agent's merge. The thread is snoozed until the watch wakes you.",
-          "- `status: needs_input` — the user can act on something now while the work runs. The thread goes",
-          "  into their queue, and the prose under `---` says what to look at.",
-          "",
-          "With `working` or `watching` the fence alone is the whole message: no write-up.",
-          "",
-          "Re-send the same fence with that line added.",
-        ].join("\n")
-        const item = outbox.enqueue({
-          id: deliveryId,
-          slug: row.slug,
-          sessionId: row.session_id,
-          fenceId,
-          hintKey: fenceId,
-          message: `${message}\n\n${wakeTimeHeader(nowMs, spokeAt)}`,
-          reason: "awaiting fence gives no status answer",
-        }, nowMs).delivery
-        deps.storage.countParkBump(row.slug, fenceId)
-        log(`waker: queued ${row.slug} — ${item.reason}`)
-        checkpoint("after-enqueue", item)
-        continue
-      }
-      // No `for:` at all is a MALFORMED fence rather than a wrong one, and the sign-off nudge teaches the
-      // whole grammar in one message — a better teacher than a correction aimed at one line.
+      // NO "WHERE DOES THIS SIT?" CORRECTION ANY MORE (2026-10-24). From 2026-10-01 a new-contract fence
+      // with no readable `status:` was refused here and the worker told to re-send it with the line added.
+      // ntwine now derives the answer from what the fence names (awaitingStatus in @ntwine/shared), so a
+      // fence that names something always has one, and the only fence left without one names nothing —
+      // which the `nameless` correction below already covers.
+      if (parkIsHonoured(park, live) && (row.park_bumps ?? 0) > 0) deps.storage.resetParkBumps(row.slug)
+      if (dead.length === 0 && !expired && !nameless) continue
+      // A park with no `for:` here is one on the human alone (steps or questions): it has no clock, so
+      // nothing below applies. Every park naming an item has one — written, or its items' default.
       if (park.forMs === null && !nameless) continue
 
       // FINISHED IS NOT THE SAME AS MISSING, and conflating them is what drove the worst churn observed.
@@ -2946,9 +2903,9 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           "prs:    [owner/repo#123]      PRs registered with `ntwinectl watch-pr add`",
           "commands: [cmw_…]             command watches from `ntwinectl watch-command add`",
           "threads: [@handle]            threads asked with `--await-reply`, or terminals",
-          "for:    2h                    REQUIRED — a DURATION, never an instant",
+          "for:    2h                    optional — a DURATION, never an instant",
           "---",
-          "one or two sentences: what is running, and what it gates",
+          "only when the user can act now: one or two sentences on what to look at",
           "```",
           "",
           "Keep the keys you need and drop the rest. There is NO prose above the `---`: a colon or a ` #`",
@@ -2984,7 +2941,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         // fallback and prints its agent-facing body verbatim as a bordered card. The wording is
         // unchanged — only its address is.
         : expired
-        ? parkExpiredWakeMessage(status, park.items.some((i) => i.kind === "agent"), requested, requested ? null : awaitingStatus(tele.lastFence.hints))
+        ? parkExpiredWakeMessage(status, park.items.some((i) => i.kind === "agent"), requested)
         : allFinished
         ? parkFinishedWakeMessage(status, dead.length !== 1)
         : dead.every(silentItem)
@@ -4115,7 +4072,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (heldQuestionRows(deps.storage.listThreadQuestions(slug, { openOnly: true }), tele).length > 0) return true
     const fence = tele.lastFence
     if (fence?.kind === "awaiting") {
-      if (awaitingStatus(fence.hints) === "needs_input") return true
+      if (awaitingStatus(fence) === "needs_input") return true
       if (parkOnHuman(readAwaitingPark(fence.hints))) return true
     }
     return false

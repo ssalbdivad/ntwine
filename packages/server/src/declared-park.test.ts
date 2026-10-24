@@ -16,7 +16,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { declaredWaitIds, hasDeclaredBackgroundPark, hasDeclaredWait } from "./board.ts"
 import { parkExpiresAt, parkForMaxMs, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems } from "./awaiting.ts"
-import { AWAITING_FOR_MAX_MS, isParkCorrection, parseParkWake, NEEDS_INPUT_REQUIRED_AT, PARK_CORRECTION_NEEDS_INPUT_LEAD, PR_WATCH_FOR_MAX_MS, splitAwaitingFrontmatter } from "@ntwine/shared"
+import { AWAITING_FOR_MAX_MS, isParkCorrection, parseParkWake, NEEDS_INPUT_REQUIRED_AT, PR_WATCH_FOR_MAX_MS, splitAwaitingFrontmatter } from "@ntwine/shared"
 import { createScheduler } from "./scheduler.ts"
 import type { FenceView, SessionTelemetry } from "./tailer.ts"
 import { mkdtempSync, rmSync } from "node:fs"
@@ -432,7 +432,7 @@ test("a fence using a RETIRED kind is bumped by name, with what replaced it", as
     for (const key of ["shells:", "agents:", "timers:", "prs:", "for:"]) {
       assert.ok(rows[0].message.includes(key), `the supported set must name ${key}`)
     }
-    assert.match(rows[0].message, /REQUIRED — a DURATION, never an instant/)
+    assert.match(rows[0].message, /optional — a DURATION, never an instant/)
     // The frontmatter is YAML, so the correction has to say the two things that break it: prose above the
     // delimiter, and the `reason:` key that used to carry it.
     assert.match(rows[0].message, /NO prose above the `---`/)
@@ -605,7 +605,7 @@ test("requestCheckIn wakes a live agent park early with the check-in, once", asy
     assert.equal(h.sent.length, 1)
     assert.match(h.sent[0], /^👋 The user asked for an update/)
     assert.match(h.sent[0], /SUB-AGENT CHECK-IN/)
-    assert.match(h.sent[0], /re-park with `status: needs_input`/)
+    assert.match(h.sent[0], /under your re-park's `---`, so it reaches them/)
     assert.deepEqual(parseParkWake(h.sent[0]), { kind: "requested", items: ["- `agents: [a01b2d20b32feab11]` — still running"] })
     assert.match(h.queued()[0].fence_id, /^park:requested:/)
     for (let i = 0; i < 3; i++) await h.s.tick()
@@ -613,28 +613,27 @@ test("requestCheckIn wakes a live agent park early with the check-in, once", asy
   } finally { h.close() }
 })
 
-// THE CHECK-IN KEEPS THE BAND. It used to say "else \`working\`" whatever the worker had answered, so @3-0,
-// parked \`watching\` on two Workflows, re-parked \`working\` at its check-in with nothing changed and its row
-// jumped from Snoozed to the spinning Working band (2026-10-06).
-test("a sub-agent check-in tells the worker to keep the status its last park answered", async () => {
+// THE CHECK-IN TEACHES NO BAND (2026-10-24). It used to say "else \`working\`" whatever the worker had
+// answered, so @3-0, parked \`watching\` on two Workflows, re-parked \`working\` at its check-in with nothing
+// changed and its row jumped from Snoozed to Working (2026-10-06); then it told the worker to keep its last
+// answer. ntwine derives the band now, so the wake says only where the note goes.
+test("a sub-agent check-in asks for no `status:`, only where the note goes", async () => {
   const t0 = Date.parse("2026-10-06T23:23:00.000Z")
   const live = { id: "toolu_A", taskId: "wygmxtip8", label: "design", startedAt: "2026-10-06T23:00:00.000Z", state: "running" as const }
-  for (const status of ["watching", "working"] as const) {
-    // A shell beside the child, so the park runs out on its own `for:` (one on children alone never does).
-    const h = parkHarness([{ kind: "agent", value: "wygmxtip8" }, { kind: "shell", value: "bsuite" }, { kind: "status", value: status }, { kind: "for", value: "1h" }], {
-      agents: [live],
-      shells: [{ id: "bsuite", taskId: "bsuite", label: "suite", state: "running" }],
-      restedAt: new Date(t0).toISOString(),
-      now: () => t0 + 60 * 60_000 + 1000,
-    })
-    try {
-      await h.s.tick()
-      assert.equal(h.sent.length, 1)
-      assert.match(h.sent[0], /SUB-AGENT CHECK-IN/)
-      assert.match(h.sent[0], new RegExp(`keep\\n   \`status: ${status}\`, which your last park answered`))
-      assert.doesNotMatch(h.sent[0], /else `working`/)
-    } finally { h.close() }
-  }
+  // A shell beside the child, so the park runs out on its own `for:` (one on children alone never does).
+  const h = parkHarness([{ kind: "agent", value: "wygmxtip8" }, { kind: "shell", value: "bsuite" }, { kind: "status", value: "watching" }, { kind: "for", value: "1h" }], {
+    agents: [live],
+    shells: [{ id: "bsuite", taskId: "bsuite", label: "suite", state: "running" }],
+    restedAt: new Date(t0).toISOString(),
+    now: () => t0 + 60 * 60_000 + 1000,
+  })
+  try {
+    await h.s.tick()
+    assert.equal(h.sent.length, 1)
+    assert.match(h.sent[0], /SUB-AGENT CHECK-IN/)
+    assert.match(h.sent[0], /Put it under the fence's `---` only when the user can read or act on something now/)
+    assert.doesNotMatch(h.sent[0], /`status:/)
+  } finally { h.close() }
 })
 
 // A PARK ON NOTHING BUT RUNNING SUB-AGENTS NEVER EXPIRES (maintainer 2026-10-24): 791 thirty-minute
@@ -1090,50 +1089,64 @@ test("a fence still naming `issues:` is bumped by name, and told to end in done 
   } finally { h.close() }
 })
 
+// AN UNWRITTEN `for:` (2026-10-24) takes a default from what the park names — the backstop for a wait whose
+// own wake should come first — and the shortest one when it names several kinds. A written one still wins,
+// and is still capped by what the park names.
+test("readAwaitingPark: an unwritten for: takes its items' default, the shortest when mixed; a written one wins", () => {
+  const H = 3_600_000
+  const forOf = (...hints: FenceView["hints"]) => readAwaitingPark(hints).forMs
+  assert.equal(forOf({ kind: "shell", value: "b1" }), H)
+  assert.equal(forOf({ kind: "agent", value: "a1" }), 24 * H)
+  assert.equal(forOf({ kind: "timer", value: "tmr_1" }, { kind: "thread", value: "@x" }, { kind: "terminal", value: "@y" }), 24 * H)
+  assert.equal(forOf({ kind: "pr", value: "acme/app#1" }), 7 * 24 * H)
+  assert.equal(forOf({ kind: "command", value: "cmw_1" }), 7 * 24 * H)
+  assert.equal(forOf({ kind: "pr", value: "acme/app#1" }, { kind: "shell", value: "b1" }), H, "the shell in the list is still a shell")
+  assert.equal(forOf({ kind: "shell", value: "b1" }, { kind: "for", value: "3h" }), 3 * H)
+  assert.equal(forOf({ kind: "shell", value: "b1" }, { kind: "for", value: "soon" }), H, "a for: that is not a duration is no for:")
+  assert.equal(forOf({ kind: "step", value: "Run `npm login`" }), null, "a wait on the human alone has no clock")
+  // Still capped: a shell's written week runs out at the day a shell earns.
+  assert.equal(parkExpiresAt(readAwaitingPark([{ kind: "shell", value: "b1" }, { kind: "for", value: "7d" }]), 0), AWAITING_FOR_MAX_MS)
+})
+
 test("parkForMaxMs: a sub-agent takes a session process's day, like a shell", () => {
   const lanes = { items: [{ kind: "agent" as const, value: "wzkorrv4u" }, { kind: "agent" as const, value: "wt5dxjxhp" }], forMs: 8 * 60 * 60_000, steps: [], questions: [] }
   assert.equal(parkForMaxMs(lanes), AWAITING_FOR_MAX_MS)
   assert.equal(parkForMaxMs({ items: [{ kind: "agent", value: "a1" }, { kind: "pr", value: "acme/app#7" }], forMs: 1, steps: [], questions: [] }), AWAITING_FOR_MAX_MS)
 })
 
-// ---- THE `status:` ANSWER (2026-10-01 as `needs_input:`, 2026-10-05 as `status:`) ----------------
-// A worker dispatched at or after NEEDS_INPUT_REQUIRED_AT owes every park an answer to "where does this
-// rest sit?". A fence without one is not a park the board will honour, so the worker is told which line
-// is missing — but only once the items are right, because a fence naming dead work or none is wrong for a
-// reason the answer would not fix. The older `needs_input:` line still answers it.
+// ---- THE `status:` ANSWER (2026-10-01 as `needs_input:`, 2026-10-05 as `status:`, derived 2026-10-24) ---
+// From 2026-10-01 to 2026-10-24 a new-contract fence with no readable answer was refused here with a
+// correction naming the missing line. ntwine derives the answer from what the fence names now, so a fence
+// that names live work is a park whether or not it writes the line, and nothing corrects the line.
 const NEW_CONTRACT = new Date(Date.parse(NEEDS_INPUT_REQUIRED_AT) + 60_000).toISOString()
 
-test("a new-contract park that gives no answer is corrected for exactly that line", async () => {
-  const h = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "2h" }], { shells: [LIVE_SHELL], spawnedAt: NEW_CONTRACT })
+test("a new-contract park with no `status:` and no `for:` is honoured on what it names", async () => {
+  const h = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }], { shells: [LIVE_SHELL], spawnedAt: NEW_CONTRACT })
+  try {
+    await h.s.tick()
+    assert.deepEqual(h.queued(), [])
+  } finally { h.close() }
+})
+
+test("an answer ntwine cannot read draws no correction either", async () => {
+  for (const hint of [{ kind: "status" as const, value: "wrking" }, { kind: "needs_input" as const, value: "yes" }]) {
+    const h = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "2h" }, hint], { shells: [LIVE_SHELL], spawnedAt: NEW_CONTRACT })
+    try {
+      await h.s.tick()
+      assert.deepEqual(h.queued(), [], `${hint.kind}: ${hint.value}`)
+    } finally { h.close() }
+  }
+})
+
+test("an unwritten for: runs out on its items' default: an hour for a shell", async () => {
+  const restedAt = new Date(Date.now() - 61 * 60_000).toISOString()
+  const h = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }], { shells: [LIVE_SHELL], spawnedAt: NEW_CONTRACT, restedAt })
   try {
     await h.s.tick()
     const rows = h.queued()
     assert.equal(rows.length, 1)
-    assert.match(rows[0].fence_id, /^park:needs-input:/)
-    assert.ok(rows[0].message.startsWith(PARK_CORRECTION_NEEDS_INPUT_LEAD))
-    assert.equal(isParkCorrection(rows[0].message), true, "invisible in the chat like every other correction")
-    // It teaches the three places, by the words the worker writes.
-    assert.match(rows[0].message, /`status: working` — the work finishes by itself/)
-    assert.match(rows[0].message, /`status: watching` — the wait is on something outside the thread/)
-    assert.match(rows[0].message, /`status: needs_input` — the user can act on something now/)
-    assert.match(rows[0].message, /no write-up/)
-    // One per rest, however many ticks run over it.
-    await h.s.tick()
-    assert.equal(h.queued().length, 1)
+    assert.match(rows[0].fence_id, /^park:expired:/)
   } finally { h.close() }
-})
-
-test("an answer ntwine cannot read is quoted back — the `status:` line it wrote, else the older one", async () => {
-  for (const [hint, quoted] of [
-    [{ kind: "status" as const, value: "wrking" }, "status: wrking"],
-    [{ kind: "needs_input" as const, value: "yes" }, "needs_input: yes"],
-  ] as const) {
-    const h = parkHarness([{ kind: "shell", value: "bzvtnt3ig" }, { kind: "for", value: "2h" }, hint], { shells: [LIVE_SHELL], spawnedAt: NEW_CONTRACT })
-    try {
-      await h.s.tick()
-      assert.ok(h.queued()[0].message.includes(`(it says \`${quoted}\`)`), quoted)
-    } finally { h.close() }
-  }
 })
 
 test("an answered new-contract park on live work is left alone — every `status:`, and the older line", async () => {
@@ -1152,7 +1165,7 @@ test("an answered new-contract park on live work is left alone — every `status
   }
 })
 
-test("a dead name outranks a missing answer — the item correction speaks first", async () => {
+test("a dead name on a fence with no answer line is corrected as a dead name", async () => {
   const h = parkHarness([{ kind: "shell", value: "bGONE" }, { kind: "for", value: "2h" }], { shells: [LIVE_SHELL], spawnedAt: NEW_CONTRACT })
   try {
     await h.s.tick()

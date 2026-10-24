@@ -37,7 +37,7 @@ export function restHandoff(
     questions,
     signoff: {
       kind: "awaiting",
-      status: awaitingStatus(fence.hints),
+      status: awaitingStatus(fence),
       waitsOn: park.items.map((i) => `${i.kind} ${i.value}`),
       steps: park.steps,
     },

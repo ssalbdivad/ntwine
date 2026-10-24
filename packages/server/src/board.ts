@@ -9,7 +9,7 @@ import { dirname, join } from "node:path"
 import watcher from "@parcel/watcher"
 import { parseTodoStarters, type TodoStarter } from "./todo-steps.ts"
 import type { BoardSnapshot, ClaudeModel, ThreadScheduleRef, ThreadTerminal, ThreadView, RuntimeState, ThreadRecurringPrompt, ProviderError } from "@ntwine/shared"
-import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingNeedsInput, awaitingStatus, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionPassedOver, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
+import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingStatus, awaitingStatusWritten, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionPassedOver, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import { workDirOf, type Project } from "./project.ts"
 import { liftWorkingDir } from "./thread-cwd.ts"
@@ -1545,18 +1545,20 @@ export function deriveNeedsYou(
   // A done the human chose to watch from its card — see doneParkedOnWatch. After every hard gate above:
   // a question, a crash or a limit stop still queues it.
   if (runtime === "turn-idle" && doneParkedOnWatch(row, tele, registeredPrWatches)) return false
-  // THE WORKER'S OWN ANSWER (2026-10-01). A thread dispatched at or after NEEDS_INPUT_REQUIRED_AT says
-  // with `status:` (2026-10-05; `needs_input:` before it, still read) whether its rest needs the human,
+  // THE FENCE'S OWN ANSWER (2026-10-01). A thread dispatched at or after NEEDS_INPUT_REQUIRED_AT has its
+  // rest's answer read off the fence — derived from what it names since 2026-10-24, with `status:` (and
+  // the older `needs_input:`) as the override — for whether its rest needs the human,
   // and every per-wait rule below is the guess that answer replaces — so none of them is consulted for
   // it. Placed after every hard gate above: an ask, a crash, a limit stop and the human's own snooze are
   // facts about the thread, not guesses about a wait. WHICH BAND a rest out of the queue sits in is a
   // separate verdict — deriveWaitStatus — because the queue only asks whether the human is needed.
   //
-  // AN ANSWER IS HONOURED FROM ANY THREAD, not only a new-contract one. A cold resume re-applies the
-  // CURRENT worker prompt (router followUp / context.ts), so a thread dispatched before the cut can read
-  // the key after an upgrade and start writing it — and a `needs_input: true` it wrote must queue it, where
-  // the legacy park rule would have excused it. The cut decides only whether the answer is REQUIRED.
-  const answered = tele?.lastFence?.kind === "awaiting" && awaitingNeedsInput(tele.lastFence.hints) !== null
+  // A WRITTEN ANSWER IS HONOURED FROM ANY THREAD, not only a new-contract one. A cold resume re-applies
+  // the CURRENT worker prompt (router followUp / context.ts), so a thread dispatched before the cut can
+  // read the key after an upgrade and start writing it — and a `needs_input: true` it wrote must queue it,
+  // where the legacy park rule would have excused it. A legacy thread's fence that writes NO answer keeps
+  // the legacy rules below: deriving one for it would move rests that predate the contract.
+  const answered = tele?.lastFence?.kind === "awaiting" && awaitingStatusWritten(tele.lastFence.hints)
   if (answered || needsInputRequired(row.spawned_at)) {
     return needsInputQueues(row, tele, runtime, nowMs, excuseLiveOwnWork, registeredPrWatches, armedTimerIds)
   }
@@ -1655,13 +1657,13 @@ export function deriveNeedsYou(
 // dispatched under the answer-required contract (NEEDS_INPUT_REQUIRED_AT in @ntwine/shared). Three rules,
 // where the legacy tail has one per kind of wait:
 //
-//  1. `status: working` or `status: watching` (or the older `needs_input: false`) on a park ntwine can
-//     honour keeps the thread OUT of the queue. Which band it then sits in — Working or Waiting — is
+//  1. A `working` or `watching` answer — derived from what the fence names, or written as `status:` (or
+//     the older `needs_input: false`) — on a park ntwine can honour keeps the thread OUT of the queue. Which band it then sits in — Working or Waiting — is
 //     deriveWaitStatus's verdict. "Honour" is the scheduler's own reading (awaiting.needsInputParkHolds):
 //     every named item live and the `for:` not yet run out — so a wrong answer cannot hide a thread that
 //     nothing will wake.
-//  2. Any other rest on running work QUEUES, with the resting card: `needs_input`, a
-//     fence with no answer (the scheduler bumps it), and a rest with work out and no fence at all (the
+//  2. Any other rest on running work QUEUES, with the resting card: `needs_input` (prose under the
+//     `---`, steps, questions), a fence naming nothing, and a rest with work out and no fence at all (the
 //     sign-off nudge teaches the fence). This is where a live sub-agent, a registered watch and a PR whose
 //     CI is still running used to excuse the thread on ntwine's guess; the worker says so now, or it queues.
 //  3. A `done` handoff and a rest with nothing out queue as they always did.
@@ -1693,7 +1695,7 @@ function needsInputQueues(
     fence?.kind === "awaiting" &&
     // `armedTimerIds` carries the command watches too, split back by kind here (isCommandWatchId).
     needsInputParkHolds(
-      fence.hints,
+      fence,
       liveActivityOf(
         tele,
         registeredPrWatches,
@@ -1815,7 +1817,8 @@ export function deriveAwaitingBackground(
 // `awaitingBackground` as motion, so a thread parked for a day on a CI watcher spun in the Running band
 // and counted as running work on the project rail (maintainer 2026-10-03: "This doesn't need input, but
 // that doesn't mean that it should be marked as currently active. It's just kind of like a watcher
-// thread"). Two answers, and the worker gives them in the fence's `status:` line:
+// thread"). Two answers, read off the fence (awaitingStatus: derived from what it names since 2026-10-24,
+// `status:` as the override):
 //
 //  - `working` — the wait finishes BY ITSELF: a benchmark, a test run, a sub-agent doing a job. Running,
 //    with a spinner. Believed only while something it names is actually MOVING — a live sub-agent, a
@@ -1825,7 +1828,7 @@ export function deriveAwaitingBackground(
 //    (Snoozed until 2026-10-14), and still. Honoured even beside a live sub-agent, because the contract
 //    hands a long wait to a sub-agent; the child keeps its own spinner on its own row.
 //
-// A fence that answers with the older `needs_input: false`, and a legacy fence with neither line, get
+// A fence that answers with the older `needs_input: false`, and a legacy fence that writes no answer, get
 // ntwine's reading instead: `working` while a live sub-agent or moving CI is out, `watching` otherwise —
 // shells included, since a shell alone cannot say whether it is a test run or a watcher. That is what
 // moved the reported thread, a 23h shell watcher on a pre-cut fence, out of Running with no fence change.
@@ -1843,12 +1846,16 @@ export function deriveWaitStatus(
   github: GithubStatusBook = {},
   registeredPrWatches: ReadonlySet<string> = new Set(),
   armedWatches: readonly RegisteredWatch[] = [],
+  deriveAnswer = true,
 ): ThreadView["waitStatus"] {
   if (runtime !== "turn-idle" || needsYou || messageInFlight) return undefined
   const liveChild = hasLiveBackgroundWork(tele)
   if (!awaitingBackground && !liveChild) return undefined
   const fence = tele?.lastFence?.kind === "awaiting" ? tele.lastFence : undefined
-  const declared = fence ? awaitingStatus(fence.hints) : null
+  // A legacy thread's fence (dispatched before NEEDS_INPUT_REQUIRED_AT) that writes no answer keeps the
+  // board's own reading below, as its queue rule does (deriveNeedsYou); every other fence's answer is
+  // read or derived (awaitingStatus).
+  const declared = fence && (deriveAnswer || awaitingStatusWritten(fence.hints)) ? awaitingStatus(fence) : null
   if (declared === "needs_input") return undefined
   // A PARK ON ITS OWN TIMERS ALONE IS WORK (maintainer 2026-10-22): the worker comes back on its own
   // clock, so nothing outside the thread can stall it. Waiting is kept for a wait on the world — a PR, a
@@ -2396,7 +2403,7 @@ function sessionThreadView(
     // A done the human parked on its watch is a `watching` rest — deriveWaitStatus reads only awaiting
     // fences and live work, and a done is neither (doneParkedOnWatch).
     : runtime === "turn-idle" && !needsYou && !messageInFlight && doneParkedOnWatch(row, tele, registeredPrWatches) ? "watching"
-    : deriveWaitStatus(tele, runtime, needsYou, awaitingBackground, messageInFlight, nowMs, github, registeredPrWatches, armedWatches)
+    : deriveWaitStatus(tele, runtime, needsYou, awaitingBackground, messageInFlight, nowMs, github, registeredPrWatches, armedWatches, needsInputRequired(row.spawned_at))
   // A worker that exited with work still outstanding — a turn in flight, OR a sub-agent still reading
   // "running" (its parent is gone, so it cannot actually be live) — is a crash/stall, not a clean
   // handoff, so it cards as "stalled" not a bare "rest". Mirrors deriveNeedsYou's surfacing above.

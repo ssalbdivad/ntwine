@@ -440,10 +440,8 @@ test("parseParkWake: a sub-agent check-in keeps the item list to the parked item
   assert.match(message, /SUB-AGENT CHECK-IN/)
   assert.doesNotMatch(parkExpiredWakeMessage(status), /CHECK-IN/)
   assert.deepEqual(parseParkWake(message), { kind: "expired", items: status })
-  // Its prior answer rides along, and the readout is unchanged by it.
-  const kept = parkExpiredWakeMessage(status, true, false, "watching")
-  assert.match(kept, /keep\n   `status: watching`/)
-  assert.deepEqual(parseParkWake(kept), { kind: "expired", items: status })
+  // No band to choose since 2026-10-24: a re-park naming the same things derives the same one.
+  assert.doesNotMatch(message, /`status:/)
 })
 
 test("parseParkWake: a finished park round-trips in both its singular and plural wordings", () => {

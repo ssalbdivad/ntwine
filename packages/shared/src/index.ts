@@ -690,16 +690,17 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //   agents: [<runtime agent id>, …]  sub-agents it dispatched        → checked against live telemetry
 //   timers: [tmr_…, …]               timers it set                   → checked against thread_timer
 //   prs:    [owner/repo#123, …]      PR watchers it registered       → checked against its PR registry
-//   for:    2h                       REQUIRED. How long the park may stand (parseAwaitingDurationRaw).
+//   for:    2h                       OPTIONAL since 2026-10-24 (awaitingDefaultForMs gives it from what the
+//                                    fence names). How long the park may stand (parseAwaitingDurationRaw).
 //                                    Capped at a day — or at PR_WATCH_FOR_MAX_MS when every item is a
 //                                    `prs:` entry, because an external PR does not move on a day's clock.
 //                                    A park on running `agents:` alone never expires: each return wakes it.
 //   title:  Waiting on the CI run    OPTIONAL. The resting card's heading, in the worker's own words.
-//   status: watching                 REQUIRED for a thread dispatched at or after NEEDS_INPUT_REQUIRED_AT.
-//                                    Where the thread sits while it waits, in the worker's own word:
-//                                    `needs_input` (the human should look now — the queue), `working`
-//                                    (its own work finishes by itself — Running) or `watching` (something
-//                                    must happen outside the thread — Snoozed). See awaitingStatus.
+//   status: watching                 OPTIONAL since 2026-10-24: an override of the band ntwine derives
+//                                    from the fence itself (awaitingStatus). `needs_input` (the human
+//                                    should look now — the queue), `working` (its own work finishes by
+//                                    itself — Working) or `watching` (something must happen outside the
+//                                    thread — Waiting).
 //   needs_input: false               The 2026-10-01 spelling of the same answer, read as an alias:
 //                                    `true` is `status: needs_input`; `false` leaves the band to the
 //                                    board's default (see awaitingNeedsInput, board.deriveWaitStatus).
@@ -1170,27 +1171,47 @@ export function awaitingFenceTitle(hints: readonly AwaitingHint[] | undefined): 
 }
 
 // ONE ANSWER FOR THREE PLACES (maintainer 2026-10-05). A rest on running work lands in one of three
-// places — the queue, Running or Snoozed — and the 2026-10-01 `needs_input: true|false` chose between
+// places — the queue, Working or Waiting — and the 2026-10-01 `needs_input: true|false` chose between
 // only two of them, so "nothing for the human" was drawn as "working": a thread polling five model
 // catalogs every 30 minutes for a day sat in Running behind a spinner ("it looks like it's actively
 // working on stuff, but it's obviously not"). A second boolean beside it was proposed and rejected —
-// two lines give four combinations for three places, and `needs_input: true` with `working: true` means
-// nothing `needs_input: true` does not ("Maybe we should just consolidate all of this to a status
-// enum"). So the answer is one REQUIRED enum, in the worker's own words:
+// two lines give four combinations for three places ("Maybe we should just consolidate all of this to a
+// status enum"). So the answer is one enum:
 //
 //   needs_input  the human can read, try or answer something now          → the queue
 //   working      the named work finishes by itself (a test, a build, CI,
-//                a sub-agent with a task)                                  → Running, with the spinner
+//                a sub-agent with a task)                                  → Working, with the spinner
 //   watching     something must happen outside the thread (a release, a
-//                review, another agent's merge, tomorrow's cycle)          → Snoozed
+//                review, another agent's merge, tomorrow's cycle)          → Waiting
 //
-// The worker says it because ntwine cannot see it: a background shell is a build or a poller through the
-// same telemetry, and the contract routes long waits to sub-agents, so a sub-agent can be a watcher too.
+// NTWINE DERIVES IT; `status:` IS AN OVERRIDE (maintainer 2026-10-24). From 2026-10-05 every fence had to
+// write the line, and the contract taught it as a top-down test that was already mechanical: "any words
+// for them at all ⇒ needs_input; else something you named doing a job ⇒ working; else ⇒ watching". So
+// every park was a classification exercise the worker could get wrong, a missing line drew a correction
+// and queued the thread, and the sub-agent check-in had to teach the worker to keep its last answer. The
+// same test now runs here, on what the fence says (awaitingDerivedStatus), and a written line still wins:
+//
+//   steps: / questions:                      → needs_input (the human is the wait, whatever else it says)
+//   `status:` (or the `needs_input:` alias)  → as written (a bare `needs_input: false` still leaves the
+//                                              band to the board, as it did before)
+//   any prose under the `---`                → needs_input (words for the human are the queue's)
+//   only shells, agents and timers           → working (the thread's own work comes back by itself)
+//   any pr, thread, command or terminal      → watching (one outside item makes the whole wait the world's,
+//                                              as the board already reads a park on its own timers alone
+//                                              as Working and anything beside them as Waiting)
+//   names nothing                            → null: not a park, and the scheduler says so
+//
 // What ntwine CAN see still bounds it, in the safe direction only: `working` with nothing named in motion
 // draws no spinner (board.deriveWaitStatus), and every park still holds only while each named item is
 // live and its `for:` has not run out (awaiting.needsInputParkHolds).
 export const AWAITING_STATUSES = ["needs_input", "working", "watching"] as const
 export type AwaitingStatus = (typeof AWAITING_STATUSES)[number]
+
+/** A fence as the status readers take it: its structural hints and the prose under its `---`. */
+export interface AwaitingFenceShape {
+  hints?: readonly AwaitingHint[]
+  body: string
+}
 
 /** What a `status:` value names, or null for one that is none of the three. `needs-input` is read as the
  *  value spelled the way the alias key's own hyphenated form is. */
@@ -1221,35 +1242,60 @@ function fenceWaitsOnHuman(hints: readonly AwaitingHint[] | undefined): boolean 
   return awaitingSteps(hints).length > 0 || awaitingQuestions(hints).length > 0
 }
 
-/** The fence's answer to WHERE the thread sits while it waits — `needs_input`, `working` or `watching` —
- *  or null when it said no more than `needs_input: false` (out of the queue, band left to the board's
- *  default) or nothing usable at all. A valid `status:` outranks the `needs_input:` alias beside it, so a
- *  fence that writes both reads as its newer line; `needs_input: true` alone is `needs_input`.
- *
- *  STEPS AND QUESTIONS ARE THE ANSWER, whatever the line says (see awaitingNeedsInput). */
-export function awaitingStatus(hints: readonly AwaitingHint[] | undefined): AwaitingStatus | null {
-  if (fenceWaitsOnHuman(hints)) return "needs_input"
-  const { status, needsInput } = restAnswerLines(hints)
-  if (status) return status
-  return needsInput === true ? "needs_input" : null
+/** The item kinds that come back BY THEMSELVES: the thread's own processes and its own clock. Every other
+ *  kind (a PR, another thread's reply, a command watch, a terminal) waits on the world. */
+const SELF_FINISHING_KINDS: ReadonlySet<string> = new Set<AwaitingItemKind>(["shell", "agent", "timer"])
+
+/** The band the fence's NAMED ITEMS alone give: `working` when every one finishes by itself, `watching`
+ *  when any waits on the world, null when it names none. */
+function itemsStatus(hints: readonly AwaitingHint[] | undefined): "working" | "watching" | null {
+  const kinds = (hints ?? []).filter((h) => isAwaitingItemKind(h.kind) && h.value.trim() !== "").map((h) => h.kind)
+  if (kinds.length === 0) return null
+  return kinds.every((k) => SELF_FINISHING_KINDS.has(k)) ? "working" : "watching"
 }
 
-/** The fence's answer to "does the human need to look now?": `true` (`status: needs_input`, or the alias
- *  `needs_input: true`), `false` (`status: working`/`watching`, or `needs_input: false`), or null when the
- *  fence gave no answer or one that is none of them — which a new-contract thread is bumped for and
- *  queued on, never parked on. This is the QUEUE's question alone; which band a `false` lands in is
- *  awaitingStatus's.
- *
- *  STEPS ARE THE ANSWER, whatever the line says. A fence listing `steps:` is waiting on the human to
- *  perform them, so the human is needed now by construction: the line may be left out, and a `false`
- *  beside steps is a contradiction read the safe way — a thread that is waiting on its human must never
- *  be the one that disappears from their queue. Questions are the same answer for the same reason: a
- *  fence still waiting on the human's ANSWER is waiting on the human. */
-export function awaitingNeedsInput(hints: readonly AwaitingHint[] | undefined): boolean | null {
+/** Where the fence sits when it writes no answer line: needs_input on steps, questions or any prose
+ *  under the `---`, else what its items give (itemsStatus). The written line is awaitingStatus's. */
+export function awaitingDerivedStatus(fence: AwaitingFenceShape): AwaitingStatus | null {
+  if (fenceWaitsOnHuman(fence.hints)) return "needs_input"
+  if (fence.body.trim() !== "") return "needs_input"
+  return itemsStatus(fence.hints)
+}
+
+/** Did the fence WRITE its answer — steps or questions, a `status:` ntwine can read, or the
+ *  `needs_input:` alias? The board's legacy queue rule (deriveNeedsYou) is skipped only for a thread that
+ *  either did or was dispatched under the answer-required contract; every other reader wants
+ *  awaitingStatus, which derives what was not written. */
+export function awaitingStatusWritten(hints: readonly AwaitingHint[] | undefined): boolean {
   if (fenceWaitsOnHuman(hints)) return true
   const { status, needsInput } = restAnswerLines(hints)
-  if (status) return status === "needs_input"
-  return needsInput
+  return status !== null || needsInput !== null
+}
+
+/** The fence's answer to WHERE the thread sits while it waits — `needs_input`, `working` or `watching` —
+ *  or null for a fence that names nothing to wait on and writes no answer, or that says no more than
+ *  `needs_input: false` (out of the queue, band left to the board's own reading, exactly as it read
+ *  before derivation). Precedence, top-down: steps or questions (always `needs_input`, whatever a line
+ *  beside them says — a thread waiting on its human must never be the one that disappears from their
+ *  queue), a valid `status:`, the `needs_input:` alias, then the derivation. */
+export function awaitingStatus(fence: AwaitingFenceShape | undefined): AwaitingStatus | null {
+  if (!fence) return null
+  if (fenceWaitsOnHuman(fence.hints)) return "needs_input"
+  const { status, needsInput } = restAnswerLines(fence.hints)
+  if (status) return status
+  if (needsInput === true) return "needs_input"
+  if (needsInput === false) return null
+  return awaitingDerivedStatus(fence)
+}
+
+/** The fence's answer to "does the human need to look now?": `true` when awaitingStatus is `needs_input`,
+ *  `false` for `working`/`watching` (and for a bare `needs_input: false`, which says no more than "not the
+ *  queue"), null for a fence that names nothing and answers nothing. This is the QUEUE's question alone;
+ *  which band a `false` lands in is awaitingStatus's. */
+export function awaitingNeedsInput(fence: AwaitingFenceShape | undefined): boolean | null {
+  const status = awaitingStatus(fence)
+  if (status !== null) return status === "needs_input"
+  return restAnswerLines(fence?.hints).needsInput === false ? false : null
 }
 
 export const AWAITING_ITEM_KINDS = ["shell", "agent", "timer", "pr", "thread", "command", "terminal"] as const
@@ -1285,6 +1331,33 @@ export function parseAwaitingDurationRaw(value: string): number | null {
   if (!m) return null
   const ms = Number(m[1]) * DURATION_UNIT_MS[m[2]]
   if (!Number.isFinite(ms) || ms <= 0) return null
+  return ms
+}
+
+/** The `for:` a park takes when its fence writes none (or none that is a duration), by what it names
+ *  (maintainer 2026-10-24: "both become optional overrides"). Each is the backstop for a wait whose own
+ *  wake should come first, so none of them is the worker's estimate of how long the work takes:
+ *
+ *    shell     1h    a shell's exit wakes the thread; an hour is the re-check on one that hangs, and
+ *                    the same hour the sign-off nudge pre-filled (SIGNOFF_WAITING_FOR)
+ *    agent     1d    a child's return wakes the parent, and a park on running children alone never
+ *                    expires at all (scheduler evalParkIntegrity); the day is for a mixed park
+ *    timer     1d    a timer is at most a day out, so the park lasts until it fires
+ *    thread    1d    a reply wait is a timer underneath, with its own expiry wake
+ *    terminal  1d    a prompt or an exit is the wake
+ *    pr        7d    a PR moves on its maintainers' clock; seven quiet days is worth a look
+ *    command   7d    the watch's own `for` (at most COMMAND_WATCH_FOR_MAX_MS) expires and wakes first
+ *
+ *  A park mixing kinds takes the SHORTEST of them, for the reason parkForMaxMs caps a mixed park low: the
+ *  shell in the list is still a shell. Null for a fence that names nothing. */
+export function awaitingDefaultForMs(kinds: Iterable<AwaitingItemKind>): number | null {
+  let ms: number | null = null
+  for (const kind of kinds) {
+    const each = kind === "shell" ? 60 * 60 * 1000
+      : kind === "pr" || kind === "command" ? 7 * 24 * 60 * 60 * 1000
+      : AWAITING_FOR_MAX_MS
+    ms = ms === null ? each : Math.min(ms, each)
+  }
   return ms
 }
 
@@ -2497,9 +2570,10 @@ export const PARK_CORRECTION_RETIRED_LEAD = "⛔ Your ```awaiting fence uses "
  *  questions by NAMING every one under `questions:`; the refusal is for the ones it leaves out, or names
  *  that are not open questions at all. The lead is unchanged, so old corrections on disk still fold. */
 export const PARK_CORRECTION_QUESTION_LEAD = "⚠️ Your ```awaiting fence landed while "
-/** The fourth (2026-10-01): a worker dispatched under the answer-required contract parked without saying
- *  where the thread sits while it waits — no `status:` (2026-10-05; `needs_input:` before it), or a value
- *  that is none of its answers. The lead is unchanged across the rename, so old corrections still fold. */
+/** The fourth (2026-10-01 to 2026-10-24): a worker dispatched under the answer-required contract parked
+ *  without saying where the thread sits while it waits. NO LONGER SENT — ntwine derives the answer from
+ *  what the fence names (awaitingStatus) — and kept only so the corrections already in transcripts still
+ *  fold out of the chat. */
 export const PARK_CORRECTION_NEEDS_INPUT_LEAD = "⚠️ Your ```awaiting fence gives no "
 /** Is this delivered wake one of ntwine's fence corrections? */
 export function isParkCorrection(text: string): boolean {
@@ -2772,7 +2846,7 @@ export function parseLimitResumeWake(text: string): { window: LimitWindow } | nu
 
 /** Scheduler SOURCE 12, cause `expired`: the `for:` ran out and nothing resolved. `status` is the live
  *  readout of what the fence named, already formatted by the caller. */
-export function parkExpiredWakeMessage(status: readonly string[], checkIn = false, requested = false, prior: AwaitingStatus | null = null): string {
+export function parkExpiredWakeMessage(status: readonly string[], checkIn = false, requested = false): string {
   return [
     requested ? PARK_REQUESTED_LEAD : "⏰ Your wait expired, nothing resolved. Check back in on everything.",
     "",
@@ -2783,7 +2857,7 @@ export function parkExpiredWakeMessage(status: readonly string[], checkIn = fals
     ...(requested
       ? [
         "The user is waiting to read this one: write the progress note — what landed, what is running,",
-        "what changed — and re-park with `status: needs_input` so it reaches them.",
+        "what changed — under your re-park's `---`, so it reaches them.",
         "",
       ]
       : []),
@@ -2799,14 +2873,13 @@ export function parkExpiredWakeMessage(status: readonly string[], checkIn = fals
         "3. Report: a short progress note above the fence — what landed, what is running, what changed.",
         "   Write it for someone who has read nothing since their last message: where the effort stands",
         "   against its goal, in their words, with no names you coined (round numbers, phase codes, ids).",
-        // KEEP THE BAND THE LAST PARK CHOSE. This line used to read "else `working`", and it overrode a
-        // worker's own `watching`: @3-0 parked `watching` on two Workflows, woke here 6m later with nothing
-        // changed, obeyed, and its row jumped from Snoozed to the spinning Working band (maintainer
-        // 2026-10-06: "went from awaiting … to working status without me interacting or seemingly any
-        // change in its state"). `prior` is that last park's own answer.
-        prior === "working" || prior === "watching"
-          ? `   \`status: needs_input\` when the user can read or act on something now; otherwise keep\n   \`status: ${prior}\`, which your last park answered, unless the wait itself changed.`
-          : "   `status: needs_input` when the user can read or act on something now, else `working` —\n   or `watching` when the children only watch the world for you.",
+        // NO BAND TO CHOOSE (2026-10-24). This line taught `status:` until ntwine derived it, and on
+        // 2026-10-06 had to grow a "keep the status your last park answered" branch after it overrode a
+        // worker's own `watching` (@3-0 jumped from Snoozed to Working with nothing changed). A re-park
+        // naming the same things now lands where the last one did by construction; only the note's place
+        // is the worker's call.
+        "   Put it under the fence's `---` only when the user can read or act on something now: that",
+        "   puts the thread in their queue.",
         "4. Ask now. A decision the work has surfaced that is the user's to make goes to `ntwinectl ask`",
         "   at this check-in — never into the note or a file \"for the user\", which nobody is prompted to",
         "   answer. The children keep running while it waits; rest on the question, with no fence.",

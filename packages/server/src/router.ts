@@ -1232,7 +1232,7 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
  *  board's own reading of the same fence, so "the card could have shown it" means what the queue meant. */
 const isQuietPark = (text: string): boolean => {
   const fence = parseSignalFence(text)
-  return fence?.kind === "awaiting" && awaitingNeedsInput(fence.hints) === false
+  return fence?.kind === "awaiting" && awaitingNeedsInput(fence) === false
 }
 
 /** More than one paragraph: an answer or a write-up, as against a line of narration between tool calls. */
