@@ -64,7 +64,7 @@ test("a batch of held wakes draws one hairline per wake, and the fallback card r
             unread: delivery("batched-unread"),
             // Two wakes that arrived APART, one above the other: the pitch a merged pair must match.
             lonePitch: top("w3") - top("w2"),
-            ownWatch: ["w19b", "w19c"].map((id) => document.querySelector(`[data-ntwine-msg="${id}"][data-wake-divider]`)?.textContent ?? ""),
+            hidden: ["w19b", "w19c", "w19d"].filter((id) => document.querySelector(`[data-ntwine-msg="${id}"]`)),
             // EVERY hairline on the page — a rule, the label, a rule — as it is drawn: how much rule
             // shows either side, and the label as the eye reads it (`innerText` leaves out what the
             // narrow reading hides, which `textContent` above does not).
@@ -93,8 +93,8 @@ test("a batch of held wakes draws one hairline per wake, and the fallback card r
         // row can do without leave whole, and what stays is the news and the PR it is about.
         const reads = (start: string) => result.hairlines.some((line) => line.reads.startsWith(start))
         const readings = width < 500
-          ? ["Wait over · expand ·", "« Running the update harness against the built shell and server » finished ·", "comment #756 ·", "review comment #587 ·", "CI passed #761 · 2h ago", "PR merged #756 ·", "Watcher expired #777 ·", "Watch expired ·", "Weekly limit reset — resuming ·", "Fable 5 → Opus ·", "1 question cancelled ·", "Timer · expand ·"]
-          : ["Wait over — its work finished · Click to expand ·", "Agent terminal « Running the update harness against the built shell and server » finished ·", "New comment from @dana on nubjs/nub#756 ·", "New review comment from @pullfrog on nubjs/nub#587 ·", "CI passed on nubjs/nub#761 · 7 checks green ·", "PR merged on nubjs/nub#756 ·", "Watcher expired on nubjs/nub#777 ·", "Watch expired on a background shell ·", "Weekly usage limit reset — resuming ·", "Fable 5 limit — switched to Opus ·", "1 question cancelled — the worker decides it itself ·", "Timer · Click to expand ·"]
+          ? ["Wait over · expand ·", "« Running the update harness against the built shell and server » finished ·", "comment #756 ·", "review comment #587 ·", "CI passed #761 · 2h ago", "PR merged #756 ·", "Watcher expired #777 ·", "Weekly limit reset — resuming ·", "Fable 5 → Opus ·", "1 question cancelled ·", "Timer · expand ·", "« nub run test packages/web » passed ·", "Time limit set for 15:30 ·", "Time limit · 45m left ·", "Time limit removed ·", "« vite --port 5199 --strictPort » over 30m ·", "Goal stopped ·", "2 ended · expand ·", "Goal · compacted ·", "Wait expired · expand ·"]
+          : ["Wait over — its work finished · Click to expand ·", "Agent terminal « Running the update harness against the built shell and server » finished ·", "New comment from @dana on nubjs/nub#756 ·", "New review comment from @pullfrog on nubjs/nub#587 ·", "CI passed on nubjs/nub#761 · 7 checks green ·", "PR merged on nubjs/nub#756 ·", "Watcher expired on nubjs/nub#777 ·", "Weekly usage limit reset — resuming ·", "Fable 5 limit — switched to Opus ·", "1 question cancelled — the agent decides ·", "Timer · Click to expand ·", "Command watch « nub run test packages/web » passed ·", "Time limit set for 15:30 ·", "Time limit · 45m left ·", "Time limit removed ·", "Agent terminal « vite --port 5199 --strictPort » ran past its 30m limit ·", "Goal stopped · 5 of 5 runs ·", "2 sub-agents ended by your interrupt · Click to expand ·", "Goal · after compaction ·", "Wait expired 12 times — nothing resolved · Click to expand ·"]
         for (const reading of readings) assert.ok(reads(reading), `${width}px ${font}: no hairline reads "${reading}…", got ${result.hairlines.map((line) => line.reads).join(" | ")}`)
         // THE REPORTED DELIVERY: a park ending beside the shell that ended it. Two hairlines, in the
         // order they were queued, and none of the envelope — not its lead, not the scheduler's reason
@@ -121,8 +121,8 @@ test("a batch of held wakes draws one hairline per wake, and the fallback card r
         assert.equal(result.unread.cards.length, 1)
         assert.match(result.unread.cards[0], /Its text survives, in a card of its own\./)
         assert.doesNotMatch(result.unread.text, /ntwine held|###|ntwine sends this because/)
-        assert.match(result.ownWatch[0], /^Watch expired on a background shell/)
-        assert.match(result.ownWatch[1], /^Watch expired on a sub-agent/)
+        // A lapsed watch of the worker's own and a sign-off nudge draw nothing at all.
+        assert.deepEqual(result.hidden, [])
         assert.deepEqual(result.headings, ["What it carries"])
         assert.ok(result.codes.includes("shells: [bc3rwp1k7]"))
         assert.equal(result.bold, "finished")

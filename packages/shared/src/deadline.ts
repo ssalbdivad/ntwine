@@ -248,3 +248,29 @@ export const OwnDeadlineResult = z.object({
   deadline: ThreadDeadlineView.nullable(),
 }).strict()
 export type OwnDeadlineResult = z.infer<typeof OwnDeadlineResult>
+
+// ---- THE DEADLINE WAKES, READ BACK -----------------------------------------------------------------
+// The worker-facing text is composed in the server (deadline.ts there: deadlineCheckInMessage and
+// deadlineNoticeMessage), and it is a paragraph of instructions to the agent. The chat draws one line of
+// news from each, so their heads are read back here, the one package both sides reach.
+// server/src/deadline.test.ts round-trips every composer through this parser, so a reworded head fails
+// there rather than falling back to the agent-facing card.
+export type DeadlineWake =
+  | { kind: "set" | "extended" | "earlier" | "kept"; clock: string }
+  | { kind: "cleared" }
+  | { kind: "check"; left: string }
+  | { kind: "over" }
+
+const DEADLINE_NOTICE_HEAD = /^⏰ The user (set a time limit|extended your deadline|moved your deadline earlier|kept your deadline): your deadline is now (.+?), \S+(?: \S+)? from now\./
+const DEADLINE_CHECK_HEAD = /^⏰ Time check: (?:half your time is gone — )?(.+?) left until your deadline at /
+const NOTICE_KIND = { "set a time limit": "set", "extended your deadline": "extended", "moved your deadline earlier": "earlier", "kept your deadline": "kept" } as const
+
+export function parseDeadlineWake(text: string): DeadlineWake | null {
+  const lead = text.trim()
+  if (lead.startsWith("⏰ The user removed your time limit.")) return { kind: "cleared" }
+  if (lead.startsWith("⏰ Your time is up: the deadline was ")) return { kind: "over" }
+  const notice = DEADLINE_NOTICE_HEAD.exec(lead)
+  if (notice) return { kind: NOTICE_KIND[notice[1] as keyof typeof NOTICE_KIND], clock: notice[2]! }
+  const check = DEADLINE_CHECK_HEAD.exec(lead)
+  return check ? { kind: "check", left: check[1]! } : null
+}

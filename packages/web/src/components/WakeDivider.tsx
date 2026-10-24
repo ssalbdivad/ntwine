@@ -159,7 +159,9 @@ export function DividerHint({ open }: { open?: boolean }) {
  *  survives whole. The lead names the kind of thing, which the divider's icon already does, so it is the
  *  first part to go on a narrow row, with any `note` after the outcome ("(completion relayed)"). The
  *  full title is the hover, for when it was cut. */
-export function DividerQuotedTitle({ lead, title, tail, note }: { lead?: string; title: string; tail?: string; note?: string }) {
+// `narrowTail` is a shorter outcome for a narrow row, where a long rigid tail would leave the title no
+// room at all ("ran past its 30m limit" squeezed the shell's name to «»).
+export function DividerQuotedTitle({ lead, title, tail, narrowTail, note }: { lead?: string; title: string; tail?: string; narrowTail?: string; note?: string }) {
   // The spaces INSIDE the lead, tail and note are for the text, not the layout: a flex item's edge
   // whitespace draws nothing (the label's gap is what spaces the parts), but without it the row's
   // `textContent` — what find-in-page, a copy and every test read — runs the words together.
@@ -171,7 +173,8 @@ export function DividerQuotedTitle({ lead, title, tail, note }: { lead?: string;
         <span className="min-w-0 truncate">{title}</span>
         <span className="shrink-0">»</span>
       </span>
-      {tail && <span className="shrink-0"> {tail}</span>}
+      {tail && <span className={narrowTail ? `shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}` : "shrink-0"}> {tail}</span>}
+      {tail && narrowTail && <span className={`shrink-0 ${WAKE_DIVIDER_NARROW_ONLY}`}> {narrowTail}</span>}
       {note && <span className={`shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}`}> {note}</span>}
     </>
   )
