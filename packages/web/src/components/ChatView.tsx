@@ -34,7 +34,7 @@ import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
 import { DoneWatchButtons, doneWatchable, useDoneWatchRefs } from "./DoneWatchButtons.tsx"
 import { ProviderErrorCard, providerErrorVisible } from "./ProviderErrorCard.tsx"
 import { answersForDisplay, answersNote, parseAnswersCard, pairAllAnswers, settledAnswerKeys, unrenderedAnswers, withoutSettledAnswers, type PairedAnswer } from "../lib/answersMessage.ts"
-import { questionsByAnchor } from "../lib/questionAnchor.ts"
+import { questionsAboveNewestRest, questionsByAnchor } from "../lib/questionAnchor.ts"
 import { fenceStandsFor, placedRestEnds, placeQuestions, registeredStandingAt, type QuestionPlacement } from "../lib/questionShadow.ts"
 import { settledQuestionPositions, type SettledPlacement } from "../lib/settledQuestions.ts"
 import { NtwineWake, ShellWakeText } from "./NtwineWake.tsx"
@@ -1265,28 +1265,25 @@ function VirtualizedThreadTranscript({
   const anchorRestoreUntilRef = useRef(0)
   const openHoldFrameRef = useRef(0)
 
-  // THE WAY BACK TO A QUESTION THE HUMAN TYPED PAST (maintainer 2026-10-20). Such a card stays at the rest
-  // that asked it (lib/questionAnchor, 2026-10-14) — on @precompile-design that was ~9,800px up, under an
-  // hour of wakes, and the worker's newest rest still said "both questions are still open" over nothing
-  // the human could find ("i don't see the questions anywhere?"). So the tail carries a link to the
+  // THE WAY BACK TO AN OPEN QUESTION ABOVE THE NEWEST REST. Such a card stays at the rest that asked it
+  // (lib/questionAnchor) — on @precompile-design that was ~9,800px up, under an hour of wakes, and the
+  // worker's newest rest still said "both questions are still open" over nothing the human could find
+  // (maintainer 2026-10-20: "i don't see the questions anywhere?"). So the tail carries a link to the
   // NEWEST row holding one: the card stays where it was asked, and only the pointer is at the bottom.
   // A placed card (a marker inside a message) is reached through that message's row.
-  const typedPastAbove = useMemo(() => {
-    let count = 0
-    let target = -1
-    rows.forEach((row, index) => {
-      const here = row.kind === "questions" ? row.questions
-        : row.kind === "message" ? placement.placed.get(row.messageIndex) ?? []
-        : []
-      const passed = here.filter((q) => q.passedOver).length
-      if (passed === 0) return
-      count += passed
-      target = index
-    })
-    return { count, target }
-  }, [rows, placement])
-  const jumpToTypedPast = useCallback(() => {
-    const index = typedPastAbove.target
+  //
+  // It was for questions the human TYPED PAST alone until 2026-10-24, when a HELD question became the
+  // sign-off of every rest instead of the worker re-naming it under `questions:` at each one: a CI wake's
+  // rest now leaves the ask a rest up, and this pointer is how the newest handoff shows it. The card is
+  // not redrawn at the bottom — that was the 2026-08-31..10-05 rule, under which a stack of old asks
+  // superseded the worker's own sign-off. A held card already in the newest rest is the tail's own
+  // (lib/questionAnchor questionsAboveNewestRest).
+  const questionsAbove = useMemo(() => questionsAboveNewestRest(messages, rows.map((row) =>
+    row.kind === "questions" ? { questions: row.questions }
+    : row.kind === "message" ? { questions: placement.placed.get(row.messageIndex) ?? [], messageIndex: row.messageIndex }
+    : undefined)), [rows, placement, messages])
+  const jumpToQuestionsAbove = useCallback(() => {
+    const index = questionsAbove.target
     if (index < 0) return
     const rowKey = rows[index].key
     // Same two steps as opening at the last message: mount the virtual row, then re-align while the
@@ -1305,7 +1302,7 @@ function VirtualizedThreadTranscript({
       requestAnimationFrame(settle)
     }
     requestAnimationFrame(settle)
-  }, [rows, typedPastAbove.target, virtualizer, transcriptRef])
+  }, [rows, questionsAbove.target, virtualizer, transcriptRef])
 
   const requestEarlier = useCallback((pages = 1, reader = true) => {
     const scroller = transcriptRef.current
@@ -1733,12 +1730,12 @@ function VirtualizedThreadTranscript({
                     in-flight answer stays here whatever the questions do: it is the human's newest turn,
                     and the delivered copy of it lands at the tail a second later. */}
                 <RegisteredQuestionStack thread={thread} questions={questionGroups.tail} inFlight={inFlightAnswers} className="px-6 pt-5" />
-                {typedPastAbove.count > 0 ? (
+                {questionsAbove.count > 0 ? (
                   <div className="px-6 pt-4">
                     <button
                       type="button"
-                      data-typed-past-jump
-                      onClick={jumpToTypedPast}
+                      data-questions-above-jump
+                      onClick={jumpToQuestionsAbove}
                       // Measured in sans at dsf 8: the arrow paints 8 of its 12 box px, so `gap-[3px]` draws
                       // a 5px ink gap (gap-1.5 drew 8, over twice the word space), and the -ml-0.5 evens
                       // the pill's ink padding to 12px each side. Vertically the arrow sits on the cap band
@@ -1746,7 +1743,7 @@ function VirtualizedThreadTranscript({
                       className="flex items-baseline gap-[3px] rounded-full border border-border px-3 py-1 text-[12px] text-muted hover:bg-panel-2 hover:text-fg"
                     >
                       <ArrowUp size={12} className="-ml-0.5 shrink-0 self-baseline translate-y-[calc(0.5em_-_0.5cap)]" />
-                      {typedPastAbove.count === 1 ? "1 unanswered question above" : `${typedPastAbove.count} unanswered questions above`}
+                      {questionsAbove.count === 1 ? "1 unanswered question above" : `${questionsAbove.count} unanswered questions above`}
                     </button>
                   </div>
                 ) : null}

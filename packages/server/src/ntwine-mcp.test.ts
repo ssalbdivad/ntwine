@@ -2186,7 +2186,7 @@ test("`activity` puts an awaited thread in the ready fence under `threads:`", as
 // THE QUESTIONS ARE READ OUT TOO, in their own section (maintainer 2026-08-28: "Is there a way for the
 // agent to read out the current set of watchers and questions?"). They must NOT reach the fence block:
 // a question waits on a person, and there is no `questions:` key in the awaiting grammar to hold one.
-test("`activity` reads the open questions back, with the ids `unask` takes and a fence names them by", async () => {
+test("`activity` reads the open questions back, with the ids `unask` takes, and the ready fence names none", async () => {
   const http = createServer((_req, res) => {
     res.writeHead(200, { "content-type": "application/json" })
     res.end(JSON.stringify({ result: {
@@ -2212,12 +2212,11 @@ test("`activity` reads the open questions back, with the ids `unask` takes and a
     assert.match(text, /2 questions still owed an answer:\n\n {2}question: qst_ab12cd34ef56\n.*\n {2}question: qst_0011223344ff\n/)
     assert.match(text, /1 question the user typed past:\n\n {2}question: qst_99887766aabb\n.*\n\nStill answerable where you asked, and an answer still reaches you, but they hold nothing/)
     assert.match(text, /Should the settings store use SQLite or a JSON file\?/)
-    // The ready fence names the shell AND every held question under `questions:` (2026-10-05) — never one
-    // typed past, which a fence may not name.
+    // A held question signs off every rest by itself (2026-10-24), so the ready fence names only the
+    // running work; from 2026-10-05 it carried every held one under `questions:`.
     const fence = text.slice(text.indexOf("```awaiting"), text.indexOf("```\n\nDrop the lines"))
-    assert.match(fence, /shells: \[bzvtnt3ig\]/)
-    assert.match(fence, /questions: \[qst_ab12cd34ef56, qst_0011223344ff\]/)
-    assert.match(fence, /status: needs_input/, "a fence on questions always needs the human")
+    assert.match(fence, /shells: \[bzvtnt3ig\]\n {2}status: working\n/)
+    assert.doesNotMatch(text, /questions:/)
   } finally {
     rpc.kill()
     http.close()
@@ -2247,6 +2246,7 @@ test("`activity` with only a question open does not send the worker to ```done",
     assert.match(text, /1 question still owed an answer/)
     assert.match(text, /qst_ab12cd34ef56/)
     assert.doesNotMatch(text, /End with ```done/, "an open question blocks done — do not point at it")
+    assert.match(text, /Your open questions are your sign-off: rest with no fence\./)
   } finally {
     rpc.kill()
     http.close()

@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { questionAnchorIndex, questionClaims, questionsByAnchor, type AnchorMessage } from "./questionAnchor.ts"
+import { questionAnchorIndex, questionClaims, questionsAboveNewestRest, questionsByAnchor, type AnchorMessage } from "./questionAnchor.ts"
 
 const at = (n: number) => new Date(Date.UTC(2026, 7, 27, 20, n)).toISOString()
 const msg = (role: string, minute: number, kind?: string): AnchorMessage => ({ role, at: at(minute), ...(kind ? { kind } : {}) })
@@ -104,8 +104,9 @@ test("a mount placed at an older rest never draws the in-flight answer", () => {
 // From 2026-08-31 every open question moved to the CURRENT rest whenever the thread was at rest, so a
 // question the human had replied past, or one a wake had buried, was pulled out of the prose that set it
 // up and stacked under whatever the worker said last — superseding its own sign-off (maintainer
-// 2026-10-05). Now the worker says which old questions it still needs, by naming them under `questions:`
-// in its ```awaiting fence, and a rest that says nothing about a question leaves its card alone.
+// 2026-10-05). Now a rest that says nothing about a question leaves its card alone, and a fence that names
+// it under `questions:` (taught 2026-10-05 to 2026-10-24, still read) moves it to that rest. ChatView's
+// tail pointer is what shows a held card left a rest up.
 
 test("a later rest that says nothing about a question leaves its card at the rest that asked it", () => {
   const messages = [
@@ -154,7 +155,7 @@ test("a claim brings a question asked above the loaded window into it", () => {
 })
 
 // A QUESTION THE HUMAN TYPED PAST NEVER MOVES (2026-10-14): it stays at the rest that asked it, and a later
-// fence naming it is ignored (the server refuses that fence too).
+// fence naming it is ignored.
 test("a claim on a question the human typed past is ignored: the card stays at the rest that asked it", () => {
   const messages = [msg("user", 0), msg("assistant", 2), msg("user", 3), said(4, fence("questions: [qst_a]"))]
   assert.deepEqual([...questionsByAnchor(messages, [{ id: "qst_a", askedAt: at(2), passedOver: true as const }]).keys()], [1])
@@ -178,4 +179,23 @@ test("a claim is read case-blind and down from a gloss, and only off a worker's 
 test("no open questions produces no groups", () => {
   const messages = [msg("user", 0), said(1, fence("questions: [qst_a]"))]
   assert.equal(questionsByAnchor(messages, []).size, 0)
+})
+
+// ---- THE TAIL'S LINK TO A QUESTION ABOVE THE NEWEST REST (2026-10-20, held ones since 2026-10-24) ------
+// A held question signs off every rest, but its card stays at the rest that asked it, so after a wake the
+// newest handoff's ask is a rest up. The link counts what the reader must scroll up to: a card row, a
+// placed card in an older rest, and anything the human typed past — never a card already in the newest rest.
+const WOKEN = [msg("user", 0), msg("assistant", 2), msg("user", 3), msg("assistant", 4)] // asked at 1, a wake at 2
+const held = { id: "qst_held" }
+const typedPast = { id: "qst_past", passedOver: true as const }
+
+test("a held card left at an older rest, and a placed one in an older message, are both above", () => {
+  const groups = [undefined, { questions: [held] }, undefined, { questions: [{ id: "qst_placed" }], messageIndex: 1 }, undefined]
+  assert.deepEqual(questionsAboveNewestRest(WOKEN, groups), { count: 2, target: 3 })
+})
+
+test("a held card placed in the newest rest is that rest's own, but a typed-past one there still counts", () => {
+  const groups = [{ questions: [held, typedPast], messageIndex: 3 }]
+  assert.deepEqual(questionsAboveNewestRest(WOKEN, groups), { count: 1, target: 0 })
+  assert.deepEqual(questionsAboveNewestRest(WOKEN, [{ questions: [held], messageIndex: 3 }]), { count: 0, target: -1 })
 })

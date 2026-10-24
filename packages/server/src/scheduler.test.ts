@@ -322,9 +322,11 @@ function askQ(h: Harness, slug: string, id: string, question: string) {
   return id
 }
 
-// A QUESTION THE HUMAN TYPED PAST HOLDS NOTHING (2026-10-14): the worker's reply to their message is not
-// nudged to name or withdraw it, and ntwine withdraws nothing. One carried past a WAKE still is.
-test("question: a rest after a typed message is not nudged about the question typed past; a rest after a wake is", async () => {
+// AN OPEN QUESTION IS NEVER NAGGED ABOUT, AND NTWINE WITHDRAWS NOTHING. One the human TYPED PAST holds
+// nothing (2026-10-14), so the worker's reply to their message stands as its own handoff; one still HELD
+// after a wake signs off that rest too (2026-10-24 — until then the rest was nudged to name it under
+// `questions:` or withdraw it).
+test("question: neither a rest after a typed message nor a rest after a wake is nudged about an open question", async () => {
   const h = harness()
   const t0 = h.clock.ms
   h.storage.upsertSession(row("typed"))
@@ -336,9 +338,8 @@ test("question: a rest after a typed message is not nudged about the question ty
   const s = h.make()
   await s.tick()
   assert.equal(h.storage.getThreadQuestion("qst_typed")?.state, "open", "ntwine never withdraws it")
-  assert.deepEqual(h.resumes.map((r) => r.slug), ["woken"])
-  assert.match(h.resumes[0].message, /qst_woken/)
-  assert.match(h.resumes[0].message, /questions:/)
+  assert.equal(h.storage.getThreadQuestion("qst_woken")?.state, "open")
+  assert.deepEqual(h.resumes, [])
   h.storage.close()
 })
 

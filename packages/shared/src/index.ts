@@ -680,10 +680,9 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 // ---- THE AWAITING FENCE ---------------------------------------------------------------------------
 // A worker ends every turn in ONE terminal state: it needs the human, it is waiting on work that is
 // actually running, or it is finished. Each is now said EITHER by a fence or by a registration — a
-// `thread_question` row asked at THIS rest is a standing sign-off on its own, and so is an armed watch or
-// a recorded done, which is why a worker that has just asked rests normally and writes no fence at all.
-// A question still open from an EARLIER rest is not: the worker names it under `questions:` or withdraws
-// it (2026-10-05). This is the FENCE form of the middle one, and it is PURE STRUCTURE — a list of things
+// held `thread_question` row is a standing sign-off of every rest until it is answered or withdrawn
+// (2026-10-24), and so is an armed watch or a recorded done, which is why a worker that has asked rests
+// normally and writes no fence at all. This is the FENCE form of the middle one, and it is PURE STRUCTURE — a list of things
 // ntwine can look up, a duration, and one line of prose.
 //
 //   shells: [<runtime task id>, …]   background shells it launched   → checked against live telemetry
@@ -708,11 +707,11 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //     - Approve the browser prompt   line, read VERBATIM (see awaitingSteps). A fence carrying them
 //                                    waits on the human: it needs no other name and no `for:`, and it
 //                                    always queues (awaitingNeedsInput reads it as `true`).
-//   questions: [qst_…, …]            The worker's registered questions it is STILL waiting on. A fence
-//                                    beside open questions must name every one of them (anything else
-//                                    is withdrawn with `unask`), and a card it names is drawn at THIS
-//                                    rest (see awaitingQuestions). Like `steps:` it names the human as
-//                                    the wait: no other name and no `for:` needed, and it always queues.
+//   questions: [qst_…, …]            OPTIONAL and no longer taught (2026-10-24): registered questions
+//                                    the fence waits on. Read because older workers and transcripts
+//                                    write it — a held question signs off every rest whether a fence
+//                                    names it or not. Like `steps:` it names the human as the wait: no
+//                                    other name and no `for:` needed, and it always queues.
 //
 // THE FRONTMATTER IS REAL YAML (2026-08-24), parsed by the `yaml` package — the keys are PLURAL and take
 // SEQUENCES, block or flow. A bare scalar where a sequence is expected is accepted and normalised to a
@@ -894,9 +893,9 @@ const AWAITING_SCALAR_KINDS: ReadonlySet<AwaitingHint["kind"]> = new Set(["for",
 export const AWAITING_STEPS_MAX = 12
 export const AWAITING_STEP_VALUE_MAX = 2_000
 
-/** `questions:` rides after the capped hints for the same reason `steps:` does: a thread carrying many
- *  open questions must still be able to name every one of them — the park is refused for any it leaves
- *  out — without crowding a `prs:` entry out of AWAITING_HINT_MAX. */
+/** `questions:` rides after the capped hints for the same reason `steps:` does: a fence naming many
+ *  open questions (an older worker's habit, 2026-10-05 to 2026-10-24, when every held one had to be
+ *  named) must not crowd a `prs:` entry out of AWAITING_HINT_MAX. */
 export const AWAITING_QUESTIONS_MAX = 24
 
 /** `title:` — the resting card's heading in the WORKER'S OWN WORDS, replacing the derived one
@@ -1095,10 +1094,12 @@ export function awaitingSteps(hints: readonly AwaitingHint[] | undefined): strin
  *  the thread had most recently reached, and it refused any awaiting fence outright — so a question the
  *  human had replied past, or one a CI wake had buried, kept reappearing UNDER the worker's newest
  *  handoff and took its place as the sign-off ("the pending questions that may or may not be relevant
- *  kind of supersede how the agent actually signed off"). Now the card stays where it was asked, and a
- *  worker that still needs the answer says so here; one it no longer needs it withdraws. A value that
- *  carries more than the id (`qst_ab12 — the cache call`) is read down to the id, so a gloss never costs
- *  the name. */
+ *  kind of supersede how the agent actually signed off"). Then the card stayed where it was asked, and a
+ *  worker that still needed the answer had to say so here at every later rest. Since 2026-10-24 a held
+ *  question signs off every rest by itself and the key is no longer taught; it is still read, so an
+ *  older worker's fence parks on the human as before and its card is drawn at the rest that names it
+ *  (web lib/questionAnchor). A value that carries more than the id (`qst_ab12 — the cache call`) is read
+ *  down to the id, so a gloss never costs the name. */
 export function awaitingQuestions(hints: readonly AwaitingHint[] | undefined): string[] {
   return (hints ?? []).filter((h) => h.kind === "question").map((h) => questionIdOf(h.value))
 }
@@ -2413,10 +2414,6 @@ function signoffNudgeText(needsInput: boolean): string {
   "  every value the act needs written in. ntwine reads them verbatim. Steps name the USER as the wait,",
   "  so the fence needs no other name and no `for:`, and the thread goes into their queue. Their Done",
   "  comes back to you as their reply; anything else they need to say comes as a message of their own.",
-  "- `` ```awaiting `` with `questions:` — a question you registered at an EARLIER rest is still open and",
-  "  you still need its answer. Name every such question (`questions: [qst_…]`) and withdraw the rest with",
-  "  `ntwinectl unask <id>`: a fence that leaves an open question out is refused. A named card is drawn at",
-  "  this rest; an unnamed one stays where you asked it.",
   "",
   "**STILL OWED counts things you are not going to do yourself.** A decision you are RECOMMENDING, a",
   "draft you wrote but did not send, follow-up work you discovered — all of it dies with the card, even",
@@ -2439,33 +2436,9 @@ export const SIGNOFF_NUDGE_MESSAGE = signoffNudgeText(false)
  *  which it teaches as `status:` since 2026-10-05. */
 export const SIGNOFF_NUDGE_MESSAGE_NEEDS_INPUT = signoffNudgeText(true)
 
-/** The reminder for a fenceless rest that leaves questions from an EARLIER rest open (2026-10-05). A
- *  question asked at THIS rest is the rest's own sign-off; one carried from before is not, because its
- *  card is no longer drawn under the newest handoff — it stays where it was asked — so a rest that says
- *  nothing about it reads as a bare stop while the thread sits in the queue on an ask nobody can see at
- *  the bottom. The worker settles each one: name it, or withdraw it. Same marker as the reminder above,
- *  so it folds out of the chat the same way. */
-export function carriedQuestionsNudgeMessage(questions: readonly { id: string; question: string }[], ops?: SignoffLiveOps, needsInput = false): string {
-  const one = questions.length === 1
-  const lines = [
-    `${SIGNOFF_NUDGE_MARKER} Nothing about your task has changed, and no new work is being asked of you.`,
-    "",
-    `${one ? "A question you registered at an EARLIER rest is" : "Questions you registered at EARLIER rests are"} still open, and this rest neither names ${one ? "it" : "them"} nor withdraws ${one ? "it" : "them"}:`,
-    "",
-    ...questions.map((q) => `- \`${q.id}\` — ${q.question}`),
-    "",
-    "ntwine does not draw an earlier rest's question under your newest handoff: its card stays where you",
-    `asked it. So say where ${one ? "it stands" : "each one stands"}:`,
-    "",
-    "- STILL NEED THE ANSWER → end with an ```awaiting fence naming it, `questions: [qst_…]`. A fence on",
-    "  questions needs no other name and no `for:`, and the thread stays in the user's queue. The card is",
-    "  drawn at this rest, under the reasoning you write below the `---` — what changed since you asked,",
-    "  if anything did.",
-    "- NO LONGER NEED IT → withdraw it with `ntwinectl unask <id>`, then sign off as you otherwise would.",
-    ...liveOpsLines(ops, needsInput),
-  ]
-  return lines.join("\n")
-}
+// The reminder for a fenceless rest beside a question from an EARLIER rest (carriedQuestionsNudgeMessage,
+// 2026-10-05 to 2026-10-24) is gone: a held question signs off every rest now, so there is nothing to
+// name or withdraw. It used the same marker as the reminder above, so the copies on disk still fold.
 
 // ---- THE FENCE CORRECTIONS (scheduler SOURCE 12) -------------------------------------------------
 // ntwine refusing a park and telling the worker why: a fence naming something that is not running, a
@@ -2490,12 +2463,11 @@ export function carriedQuestionsNudgeMessage(questions: readonly { id: string; q
 // The scheduler draws the same line for its bump cap (`cause !== "expired"`).
 export const PARK_CORRECTION_NAMES_LEAD = "⚠️ Your ```awaiting fence names "
 export const PARK_CORRECTION_RETIRED_LEAD = "⛔ Your ```awaiting fence uses "
-/** The third refusal (2026-08-28): the fence was well-formed and everything it named was live, but a
- *  REGISTERED QUESTION stood open on the thread. A question outranks a park everywhere else — the queue
- *  rule, the resting card — so the fence was refused outright rather than drawn beside the ask
- *  (maintainer: "it should not be allowed, basically"). Since 2026-10-05 a fence may stand beside open
- *  questions by NAMING every one under `questions:`; the refusal is for the ones it leaves out, or names
- *  that are not open questions at all. The lead is unchanged, so old corrections on disk still fold. */
+/** The third refusal, RETIRED 2026-10-24: a fence beside a REGISTERED QUESTION. From 2026-08-28 any open
+ *  question refused the park (maintainer: "it should not be allowed, basically"); from 2026-10-05 the
+ *  fence had to name every held one under `questions:`. A held question signs off every rest now and
+ *  queues the thread whatever the fence says, so nothing is refused. ntwine no longer writes this lead;
+ *  it is kept so the corrections already on disk still fold. */
 export const PARK_CORRECTION_QUESTION_LEAD = "⚠️ Your ```awaiting fence landed while "
 /** The fourth (2026-10-01): a worker dispatched under the answer-required contract parked without saying
  *  where the thread sits while it waits — no `status:` (2026-10-05; `needs_input:` before it), or a value
@@ -3756,9 +3728,9 @@ export function questionRepliedPast(q: { asked_at: number }, lastHumanAt: string
 
 /** IS THIS OPEN QUESTION PASSED OVER — the human typed past it (2026-10-14)? Then it stays open and its
  *  card stays answerable where it was asked, and an answer still reaches the worker; but it no longer
- *  holds the thread. It does not queue it, refuse `done`, need naming under `questions:` (a fence naming
- *  it is refused, so its card never moves down to a later rest), sign off a rest, or take ntwine's
- *  default answer, and `ask` refuses it again in the same words.
+ *  holds the thread. It does not queue it, refuse `done`, sign off a rest, move down to a later rest
+ *  (a fence naming it under `questions:` is ignored by the web), or take ntwine's default answer, and
+ *  `ask` refuses it again in the same words.
  *
  *  WHY (maintainer 2026-10-14): "The questions should move along with the conversation and not be
  *  re-asked if the user moves on — they can still go back up and provide an answer, but I don't like it
@@ -6238,8 +6210,8 @@ export const OwnThreadActivityResult = z.object({
   activity: z.array(ThreadActivityItem),
   links: z.array(ThreadLinkView).optional(),
   /** Every question still owed an answer. NOT a `ThreadActivityItem` and deliberately its own list: a
-   *  question is not running work, it waits on a PERSON, and the awaiting fence names one only by id,
-   *  under `questions:` (2026-10-05), never as an item to wait on. Until 2026-08-28 a worker could read its open questions back only
+   *  question is not running work, it waits on a PERSON, and holds the thread by itself until it is
+   *  answered or withdrawn — never an item a fence waits on. Until 2026-08-28 a worker could read its open questions back only
    *  as a side effect of `ask` (which registers another) or `unask` (which withdraws one) — so the ids
    *  that block `done` were readable only by mutating something (maintainer: "Is there a way for the
    *  agent to read out the current set of watchers and questions?"). */

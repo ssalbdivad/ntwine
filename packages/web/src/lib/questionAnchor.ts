@@ -1,6 +1,6 @@
 // WHERE A REGISTERED QUESTION SITS IN THE TRANSCRIPT: at the newest rest that CLAIMS it — the rest it
-// was asked at, or a later rest whose ```awaiting fence names it under `questions:`. Never at a rest that
-// says nothing about it.
+// was asked at, or a later rest whose ```awaiting fence names it under `questions:` (no longer taught,
+// still read). Never moved down to a rest that says nothing about it.
 //
 // A ```question fence needs none of this — it IS a message, so it renders where it was written. A
 // REGISTERED question is a row in `thread_question` with no message to live in, so its position is a
@@ -22,17 +22,19 @@
 //   questions asked here since 2026-09-11, 38% outlived a later rest, and 72% of those resumes were
 //   wakes, not the human.
 //
-// The fix for the 2026-08-31 report now lives in the CONTRACT, not here: a question is a sign-off only at
-// the rest that asked it, and at every later rest the worker names each one it still needs under
-// `questions:` or withdraws it (server scheduler.evalSignoffNudges / evalParkIntegrity). So the newest
-// rest never reads as a bare stop with an ask hidden above it, and this file only has to honour what the
-// worker said: a card stays where it was asked until a later rest claims it, and a claim moves it to the
-// end of that rest — under the fence that named it.
+// The fix for the 2026-08-31 report lived in the CONTRACT from 2026-10-05: a question was a sign-off only
+// at the rest that asked it, and at every later rest the worker named each one it still needed under
+// `questions:` or withdrew it. Since 2026-10-24 the server keeps a HELD question as every rest's sign-off
+// and the worker names nothing, so the newest rest is signed off by an ask that may sit a rest or more
+// up; ChatView's tail pointer ("1 unanswered question above") is what keeps that ask in sight, and this
+// file still leaves the card where it was asked. A fence that names one under `questions:` (older
+// workers and transcripts) is still honoured: the claim moves the card to the end of that rest — under
+// the fence that named it.
 //
 // - 2026-10-14: a question the human TYPED PAST (`passedOver`, shared questionPassedOver) no longer holds
 //   the thread, and it never moves again: it stays at the rest that asked it, answerable there, and a
 //   later claim on it is ignored (maintainer: "they can still go back up and provide an answer, but I
-//   don't like it staying at the bottom of the dialog"). The server refuses such a claim as well.
+//   don't like it staying at the bottom of the dialog").
 
 import { awaitingQuestions } from "@ntwine/shared"
 import { splitFenceBlocks } from "./fenceBlocks.ts"
@@ -118,4 +120,31 @@ export function questionsByAnchor<Q extends { askedAt: string; id?: string; pass
     else byAnchor.set(anchor, [q])
   }
   return byAnchor
+}
+
+/** The open questions a reader has to scroll UP to from the newest rest, for the tail's "N unanswered
+ *  questions above" link (ChatView): how many, and the index of the NEWEST group holding one, which the
+ *  link scrolls to. `groups` is one entry per transcript row — undefined for a row holding no cards, a
+ *  card row's own group (always above the newest rest: the tail's cards ride the interactions row), or a
+ *  message's PLACED cards with its `messageIndex`, which count only when that message is not in the
+ *  newest rest. A question the human typed past counts wherever it sits; it never moves down.
+ *
+ *  Held questions joined on 2026-10-24, when a held question became the sign-off of every rest instead of
+ *  the worker re-naming it under `questions:` at each one: a wake's rest then leaves the ask a rest up. */
+export function questionsAboveNewestRest<Q extends { passedOver?: true }>(
+  messages: readonly AnchorMessage[],
+  groups: readonly ({ questions: readonly Q[]; messageIndex?: number } | undefined)[],
+): { count: number; target: number } {
+  let count = 0
+  let target = -1
+  const tail = messages.length - 1
+  groups.forEach((group, index) => {
+    if (!group) return
+    const inNewestRest = group.messageIndex !== undefined && restEnd(messages, group.messageIndex) >= tail
+    const above = group.questions.filter((q) => q.passedOver || !inNewestRest).length
+    if (above === 0) return
+    count += above
+    target = index
+  })
+  return { count, target }
 }

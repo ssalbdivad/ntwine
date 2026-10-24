@@ -133,8 +133,10 @@ test("questions: registered, recommended first, actor-explicit, self-contained, 
     assert.match(c, /never on a decision the work builds on/)
     assert.match(c, /Ask last, then rest/)
     assert.match(c, /drawn at the BOTTOM of the handoff of the rest that asked it, so every word of explanation goes before it, and the prose never restates the question/)
-    assert.match(c, /A question the user types past\*\* stays answerable where you asked it, and its answer still reaches you, but it holds nothing: it does not block `done`, is never named under `questions:`, needs no `unask`, and is never asked again/)
-    assert.match(c, /At every later rest, say where each other open question stands:\*\* name it under `questions: \[qst_…\]` in an awaiting fence, which redraws its card there, or withdraw it with `ntwinectl unask <id>`/)
+    assert.match(c, /An open question signs off every later rest too\*\*, until it is answered: never restate it or re-list it in a fence. `ntwinectl unask <id>` one you decide yourself/)
+    assert.match(c, /A question the user types past\*\* stays answerable where you asked it, and its answer still reaches you, but it holds nothing: it does not block `done`, needs no `unask`, and is never asked again/)
+    // 2026-10-24: `questions:` is still read in a fence but never taught, so the contract never names it.
+    assert.doesNotMatch(c, /questions:/)
     assert.doesNotMatch(c, /does not close it/)
     assert.match(c, /A discussion is not a decision/)
   }

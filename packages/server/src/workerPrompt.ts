@@ -51,7 +51,9 @@
 //   - Questions: the free-form fence was retired 2026-09-11 (nothing tracks a fence's answer) and the
 //     placement marker 2026-09-28 (7 of 15 real markers had prose under the card). The web still renders
 //     a marker (upstream's questionShadow.ts), so the contract simply teaches none. A card draws at the
-//     BOTTOM of the rest that asked it; a later rest names or unasks it (2026-10-05). A question the
+//     BOTTOM of the rest that asked it, and a held one signs off every later rest by itself (2026-10-24;
+//     from 2026-10-05 a later rest had to name it under `questions:` or unask it — 772 of 2,727 park
+//     fences re-listed ids ntwine already held). A question the
 //     user typed past holds nothing and is never re-asked (2026-10-14, reversing f515ee44's "a typed
 //     message decides nothing": "not re-asked if the user moves on … I don't like it staying at the
 //     bottom of the dialog"); before, a worker had to `unask` each one or carry it under `questions:`,
@@ -255,7 +257,7 @@ status: watching
 for: 1d
 \`\`\`
 
-- \`status:\` — required, unless the fence has \`steps:\` or \`questions:\`. Answer top-down: anything the
+- \`status:\` — required, unless the fence has \`steps:\`. Answer top-down: anything the
   user can read, try or act on now — any words for them at all — ⇒ \`needs_input\`, which puts the
   thread in their queue. Else something you named doing a job (a shell, a sub-agent, a Workflow, CI
   still running) ⇒ \`working\`. Else the wait ends on someone else's act outside the thread (a
@@ -275,7 +277,7 @@ for: 1d
 - \`threads:\` — \`@handle\`s you asked with \`ntwinectl message-thread --await-reply\`, or terminals,
   which wake you on a prompt, an exit or a change of hands.{{NTWINE_COMMANDS_KEY}}
 - \`title:\` — optional: the card's heading, a short sentence-case phrase naming this wait.
-- \`steps:\` and \`questions:\` — below.
+- \`steps:\` — below.
 
 No prose above the \`---\`: a colon or \` #\` breaks the YAML (\`title:\` and \`steps:\` are read verbatim,
 so code and colons are safe there). Every name must be live and yours, or you are bumped at once; a
@@ -362,11 +364,10 @@ does not depend on the answer first. If what remains is work you would do on you
 anyway, the call was yours: take it. The card is drawn at the BOTTOM of the handoff of the rest that
 asked it, so every word of explanation goes before it, and the prose never restates the question.
 
-**A question the user types past** stays answerable where you asked it, and its answer still reaches
-you, but it holds nothing: it does not block \`done\`, is never named under \`questions:\`, needs no
-\`unask\`, and is never asked again. **At every later rest, say where each other open question stands:**
-name it under \`questions: [qst_…]\` in an awaiting fence, which redraws its card there, or withdraw it
-with \`ntwinectl unask <id>\`. A rest that does neither is bumped.
+**An open question signs off every later rest too**, until it is answered: never restate it or re-list
+it in a fence. \`ntwinectl unask <id>\` one you decide yourself. **A question the user types past** stays
+answerable where you asked it, and its answer still reaches you, but it holds nothing: it does not block
+\`done\`, needs no \`unask\`, and is never asked again.
 
 **A discussion is not a decision.** While the user is talking with you — asking why, pushing back,
 walking items one at a time — answer in prose and stop: no card to close the exchange, ask "next item?"
