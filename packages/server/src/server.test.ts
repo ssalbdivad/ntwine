@@ -245,7 +245,7 @@ test("composePrompt: scratch-directory orientation + task, and NOT the operator'
   // The fixed worker prompt still rides --append-system-prompt (buildClaudeCommand), not this message.
   assert.ok(out.includes(".ntwine/threads/sid-123/"))
   assert.ok(!out.includes("scratch.md"), "no filename is reserved in that directory")
-  assert.ok(!out.includes("You are a dispatched worker agent"))
+  assert.ok(!out.includes("You are a worker ntwine dispatched"))
   assert.ok(!out.includes("You own")) // the old ownership contract is gone
   assert.ok(!out.includes("status: blocked"))
   // There is no operator preamble anywhere any more — project conventions live in NTWINE.md alone.
@@ -313,7 +313,7 @@ test("buildClaudeCommand: pins session-id, permission mode, optional model/effor
   // Default (no injection): the shipped WORKER_PROMPT.md rides --append-system-prompt-file.
   const dflt = buildClaudeCommand({ sessionId: "u", permissionMode: "auto", prompt: "p" })
   assert.ok(dflt.includes("--append-system-prompt-file"))
-  assert.ok(systemPromptOf(dflt).startsWith("You are a dispatched worker agent"))
+  assert.ok(systemPromptOf(dflt).startsWith("You are a worker ntwine dispatched"))
 })
 
 test("buildClaudeResumeCommand: -r <sessionId> with the follow-up + worker system prompt", () => {
@@ -323,7 +323,7 @@ test("buildClaudeResumeCommand: -r <sessionId> with the follow-up + worker syste
   const dflt = buildClaudeResumeCommand({ sessionId: "sid", permissionMode: "auto", message: "m" })
   assert.ok(dflt.includes("--append-system-prompt-file"))
   const system = systemPromptOf(dflt)
-  assert.ok(system.startsWith("You are a dispatched worker agent"))
+  assert.ok(system.startsWith("You are a worker ntwine dispatched"))
   // A dead-session follow-up rebuilds the system prompt, so the awaiting re-entry invariant must ride
   // the ACTUAL `claude -r` invocation—not live only in a companion skill the worker may not reload.
   // Whitespace-normalized: pin the RULE, not the line-wrap.
@@ -356,7 +356,7 @@ test("dispatch: the editor section rides the contract only while an editor has t
   windows = [{ app: "Visual Studio Code", kind: "vscode", focused: true, folders: [h.dir] }]
   await h.dispatcher.dispatch({ prompt: "Editor open.", model: "opus", effort: "high" })
   const [without, withEditor] = h.spawned.map((s) => systemPromptOf(s.cmd))
-  assert.ok(without.startsWith("You are a dispatched worker agent"))
+  assert.ok(without.startsWith("You are a worker ntwine dispatched"))
   assert.ok(!without.includes(EDITOR_SECTION) && !without.includes("mcp__ntwine__editor"), "no editor: no section, and the tool goes unnamed")
   assert.ok(withEditor.includes(EDITOR_SECTION), "an editor on the project: the section is rendered")
   // Asked about the folder the project's agents work in, once per dispatch.

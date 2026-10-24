@@ -50,14 +50,13 @@ not a narrative. Open with one of these four tokens, bolded, then the outcome in
 | **Not fixed** | investigated, nothing landed — say what's next | `ntwinectl ask` about the next step |
 | **Needs you** | blocked on a human-owned call, or on an act only the human can perform | `ntwinectl ask` for a call, then rest normally; an ` ```awaiting ` fence with `steps:` for an act |
 
-**The tokens are for a rest that ends WORK** — a change, a fix, an investigation that was meant to end in one. **An answer, an explanation, an opinion or a recommendation carries no token and no card**: it is a plain reply, the contract's "Nothing" exit, and the maintainer answers it in the prompt box. Opening "what do you think of X?" with `**Needs you**` and a yes/no card that restates the reply is the ceremony this rule exists to stop (maintainer 2026-10-24: 19 of 51 sign-off nudges over 2026-10-14..24 turned an answer already given into a question card).
+**The tokens are for a rest that ends WORK** — a change, a fix, an investigation meant to end in one. An answer, opinion or recommendation carries no token and no card: it is a plain reply (2026-10-24: 19 of 51 nudges turned an answer already given into a question card).
 
 **None of these apply while the instruction still has parts left — then you do not write up at all,
 you keep working in the same turn.** This table is for a turn that has genuinely ended; reaching for
 it early is the most common way an effort dies half-finished. A verified milestone, a green test run
-and a long turn are not endings. Neither is announcing the next step, and neither is writing it into
-your scratch directory — notes are optional crash insurance, never a handoff, and writing "next: X"
-when the human asked for X is not progress on X. Two rows above describe INCOMPLETE work resting; both mean
+and a long turn are not endings. Neither is announcing the next step or writing it into your scratch
+directory. Two rows above describe INCOMPLETE work resting; both mean
 "nothing further is possible right now", never "I stopped at a good spot".
 
 **A quiet park is not a write-up at all.** When you rest on work that is still running — a sub-agent, a build, CI — and the maintainer has nothing to act on yet, end with the ` ```awaiting ` fence alone, naming what you wait on: no verdict token, no progress report, no prose. The thread stays out of the queue, so nobody is meant to read that message (maintainer 2026-10-01: an agent that rests without needing input "doesn't need to … give some big write-up of its progress so far"). The table above belongs to the rest that DOES need the maintainer — prose under the fence's `---`, a question, or the finished work — and that write-up covers everything since their last message, the quiet stretches included.
