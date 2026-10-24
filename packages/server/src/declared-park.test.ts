@@ -16,7 +16,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { declaredWaitIds, hasDeclaredBackgroundPark, hasDeclaredWait } from "./board.ts"
 import { parkExpiresAt, parkForMaxMs, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems } from "./awaiting.ts"
-import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, isParkCorrection, parseParkWake, NEEDS_INPUT_REQUIRED_AT, PARK_CORRECTION_NEEDS_INPUT_LEAD, PR_WATCH_FOR_MAX_MS, splitAwaitingFrontmatter } from "@ntwine/shared"
+import { AWAITING_FOR_MAX_MS, isParkCorrection, parseParkWake, NEEDS_INPUT_REQUIRED_AT, PARK_CORRECTION_NEEDS_INPUT_LEAD, PR_WATCH_FOR_MAX_MS, splitAwaitingFrontmatter } from "@ntwine/shared"
 import { createScheduler } from "./scheduler.ts"
 import type { FenceView, SessionTelemetry } from "./tailer.ts"
 import { mkdtempSync, rmSync } from "node:fs"
@@ -620,10 +620,12 @@ test("a sub-agent check-in tells the worker to keep the status its last park ans
   const t0 = Date.parse("2026-10-06T23:23:00.000Z")
   const live = { id: "toolu_A", taskId: "wygmxtip8", label: "design", startedAt: "2026-10-06T23:00:00.000Z", state: "running" as const }
   for (const status of ["watching", "working"] as const) {
-    const h = parkHarness([{ kind: "agent", value: "wygmxtip8" }, { kind: "status", value: status }, { kind: "for", value: "1h" }], {
+    // A shell beside the child, so the park runs out on its own `for:` (one on children alone never does).
+    const h = parkHarness([{ kind: "agent", value: "wygmxtip8" }, { kind: "shell", value: "bsuite" }, { kind: "status", value: status }, { kind: "for", value: "1h" }], {
       agents: [live],
+      shells: [{ id: "bsuite", taskId: "bsuite", label: "suite", state: "running" }],
       restedAt: new Date(t0).toISOString(),
-      now: () => t0 + 30 * 60_000 + 1000,
+      now: () => t0 + 60 * 60_000 + 1000,
     })
     try {
       await h.s.tick()
@@ -635,67 +637,25 @@ test("a sub-agent check-in tells the worker to keep the status its last park ans
   }
 })
 
-// THE CHECK-IN IS ANCHORED ON THE LAST CHECK-IN, NOT THE LAST REST (scheduler.ts checkInAnchors). Any
-// other wake — here a PR event — makes the worker rest again, and keyed on the rest that restarted the 30
-// minutes, so a thread kept busy by its PR never reported on its children (@zod-json-validation,
-// 2026-10-06: a workflow 41 minutes in with no progress report, the next one due at 71).
-test("a wake in between does not push the sub-agent check-in back", async () => {
+// A PARK ON NOTHING BUT RUNNING SUB-AGENTS NEVER EXPIRES (maintainer 2026-10-24): 791 thirty-minute
+// check-ins over two weeks, each re-reading the orchestrator's whole context for a note nobody was queued
+// to read. The child's return is the wake; one that stops running is corrected as dead.
+test("a park on running sub-agents is not woken when its for: runs out; one whose child stopped running is", async () => {
   const t0 = Date.parse("2026-10-06T09:46:00.000Z")
   let clock = t0 + 60_000
-  const live = { id: "toolu_A", taskId: "wuscd823t", label: "yes-types-lean", startedAt: "2026-10-06T09:35:00.000Z", state: "running" as const }
+  const child = { id: "toolu_A", taskId: "wuscd823t", label: "yes-types-lean", startedAt: "2026-10-06T09:35:00.000Z", state: "running" as const }
   const h = parkHarness([{ kind: "agent", value: "wuscd823t" }, { kind: "for", value: "30m" }], {
-    agents: [live],
+    agents: [child],
     restedAt: new Date(t0).toISOString(),
     now: () => clock,
   })
   try {
+    clock = t0 + 6 * 60 * 60_000
     await h.s.tick()
-    assert.equal(h.sent.length, 0, "inside its 30 minutes")
-    // 29 minutes in, a PR wake: the worker answers it and re-parks on the same child.
-    clock = t0 + 29 * 60_000
-    h.rest(new Date(clock).toISOString())
+    assert.equal(h.sent.length, 0, "six hours past its for:, the child still running")
+    h.rest(new Date(t0).toISOString(), { agents: [{ ...child, state: "stale" as const }] })
     await h.s.tick()
-    assert.equal(h.sent.length, 0, "the check-in is not due yet")
-    clock = t0 + 30 * 60_000 + 1000
-    await h.s.tick()
-    assert.equal(h.sent.length, 1, "due 30 minutes after the FIRST rest, not the second")
-    assert.match(h.sent[0], /SUB-AGENT CHECK-IN/)
-    // The check-in is the next anchor: a re-park right after it waits a full 30 minutes again.
-    h.rest(new Date(clock + 10_000).toISOString())
-    clock += 29 * 60_000
-    await h.s.tick()
-    assert.equal(h.sent.length, 1, "a fresh 30 minutes from the check-in")
-    clock += 2 * 60_000
-    await h.s.tick()
-    assert.equal(h.sent.length, 2)
-  } finally { h.close() }
-})
-
-// THE NEGATIVE CONTROL: a different set of children is a new run. The turn that launched them read the
-// old ones' result, so it was the report, and the clock starts over from that rest.
-test("a new set of sub-agents starts the check-in clock over", async () => {
-  const t0 = Date.parse("2026-10-06T09:46:00.000Z")
-  let clock = t0 + 60_000
-  const h = parkHarness([{ kind: "agent", value: "wFIRST" }, { kind: "for", value: "30m" }], {
-    agents: [{ id: "toolu_A", taskId: "wFIRST", label: "first", startedAt: "2026-10-06T09:35:00.000Z", state: "running" as const }],
-    restedAt: new Date(t0).toISOString(),
-    now: () => clock,
-  })
-  try {
-    await h.s.tick()
-    // 29 minutes in the first child returns, and the worker launches another and parks on it.
-    clock = t0 + 29 * 60_000
-    h.rest(new Date(clock).toISOString(), {
-      hints: [{ kind: "agent", value: "wSECOND" }, { kind: "for", value: "30m" }],
-      agents: [{ id: "toolu_B", taskId: "wSECOND", label: "second", startedAt: new Date(clock).toISOString(), state: "running" as const }],
-    })
-    await h.s.tick()
-    clock = t0 + 31 * 60_000
-    await h.s.tick()
-    assert.equal(h.sent.length, 0, "a fresh child's park runs its own 30 minutes")
-    clock = t0 + 59 * 60_000 + 1000
-    await h.s.tick()
-    assert.equal(h.sent.length, 1, "…and checks in when they run out")
+    assert.equal(h.sent.length, 1, "a child that went stale is no longer something to wait on")
   } finally { h.close() }
 })
 
@@ -1130,14 +1090,10 @@ test("a fence still naming `issues:` is bumped by name, and told to end in done 
   } finally { h.close() }
 })
 
-test("parkForMaxMs: a sub-agent anywhere in the park caps it at the 30-minute check-in", () => {
-  const at = Date.parse("2026-10-03T10:00:00Z")
+test("parkForMaxMs: a sub-agent takes a session process's day, like a shell", () => {
   const lanes = { items: [{ kind: "agent" as const, value: "wzkorrv4u" }, { kind: "agent" as const, value: "wt5dxjxhp" }], forMs: 8 * 60 * 60_000, steps: [], questions: [] }
-  assert.equal(parkForMaxMs(lanes), AGENT_PARK_FOR_MAX_MS)
-  assert.equal(parkExpiresAt(lanes, at), at + AGENT_PARK_FOR_MAX_MS, "for: 8h becomes a 30-minute check-in")
-  assert.equal(parkExpiresAt({ ...lanes, forMs: 10 * 60_000 }, at), at + 10 * 60_000, "a shorter for: stands as written")
-  assert.equal(parkForMaxMs({ items: [{ kind: "agent", value: "a1" }, { kind: "pr", value: "acme/app#7" }], forMs: 1, steps: [], questions: [] }), AGENT_PARK_FOR_MAX_MS)
-  assert.equal(parkForMaxMs({ items: [{ kind: "shell", value: "bash_1" }], forMs: 1, steps: [], questions: [] }), AWAITING_FOR_MAX_MS)
+  assert.equal(parkForMaxMs(lanes), AWAITING_FOR_MAX_MS)
+  assert.equal(parkForMaxMs({ items: [{ kind: "agent", value: "a1" }, { kind: "pr", value: "acme/app#7" }], forMs: 1, steps: [], questions: [] }), AWAITING_FOR_MAX_MS)
 })
 
 // ---- THE `status:` ANSWER (2026-10-01 as `needs_input:`, 2026-10-05 as `status:`) ----------------

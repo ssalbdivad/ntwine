@@ -1096,9 +1096,9 @@ function AwaitingStopShells({ slug, ids }: { slug: string; ids: readonly string[
   )
 }
 
-/** THE CARD'S THIRD VERB: wake the worker now with its check-in. A park on sub-agents already checks in
- *  every 30 minutes (server AGENT_PARK_FOR_MAX_MS); this is the same wake on demand, for the human who wants to
- *  know where a long run stands without waiting out the interval (router.requestParkCheckIn). The worker
+/** THE CARD'S THIRD VERB: wake the worker now with its check-in. A park on running sub-agents never wakes
+ *  its worker on its own (server evalParkIntegrity); this is the check-in on demand, for the human who wants to
+ *  know where a long run stands before a child returns (router.requestParkCheckIn). The worker
  *  answers with a progress note and re-parks, so the card comes back with that note on top.
  *
  *  Outlined, as the Stop is: Snooze keeps the card's one white verb. Spent once per rest — `restedAt`

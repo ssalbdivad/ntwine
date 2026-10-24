@@ -5570,9 +5570,9 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
-    // ASK FOR AN UPDATE — the resting card's verb for a parked thread. A park on sub-agents already wakes
-    // its worker every 30 minutes to check in (AGENT_PARK_FOR_MAX_MS); this is the same wake on demand, so the
-    // human need not wait out the interval to hear where a long orchestration stands. The scheduler mints it
+    // ASK FOR AN UPDATE — the resting card's verb for a parked thread. A park on running sub-agents never
+    // wakes its worker on its own (scheduler evalParkIntegrity); this is the check-in on demand, so the
+    // human need not wait for a child's return to hear where a long orchestration stands. The scheduler mints it
     // (SOURCE 12) rather than this handler, so it shares the expiry's status lines, its check-in steps and
     // its dedupe. Refused unless the thread is resting on an awaiting fence: anything else has no park
     // to check in on, and a working thread will report on its own.

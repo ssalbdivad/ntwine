@@ -59,7 +59,8 @@ test("done records the body and re-derives the board", async () => {
   try {
     h.storage.upsertSession(row("t"))
     const result = await h.router.markOwnDone.handler({ input: { slug: "t", body: "- **Fixed** the thing" } })
-    assert.deepEqual(result, { done: true, blockingQuestions: [], blockingWatches: [] })
+    // `unwritten` too: this thread has no transcript, so nothing it wrote has reached the human.
+    assert.deepEqual(result, { done: true, blockingQuestions: [], blockingWatches: [], unwritten: true })
     assert.deepEqual(h.storage.getThreadDone("t")?.body, "- **Fixed** the thing")
     assert.equal(h.refreshes() > 0, true, "the card only appears when the board re-derives")
   } finally { h.close() }

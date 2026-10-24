@@ -1,5 +1,5 @@
 import { threadAwaitKey } from "./thread-mentions.ts"
-import { AGENT_PARK_FOR_MAX_MS, AWAITING_FOR_MAX_MS, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, terminalOutcome, type AwaitingHint, type AwaitingItemKind, type ThreadTerminal } from "@ntwine/shared"
+import { AWAITING_FOR_MAX_MS, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, terminalOutcome, type AwaitingHint, type AwaitingItemKind, type ThreadTerminal } from "@ntwine/shared"
 
 // The PR-reference vocabulary shared by the PR-watching scheduler and the board. It lives here rather
 // than in scheduler.ts so a reader can resolve a ref without pulling in the whole waker; scheduler.ts
@@ -245,13 +245,12 @@ export function needsInputParkHolds(hints: readonly AwaitingHint[], live: LiveAc
  *  maintainers take — and capping that one at a day is what woke a thread daily for four days against a
  *  PR nobody had touched. Mixed ⇒ the low ceiling, because the shell in the list is still a shell.
  *
- *  A SUB-AGENT anywhere in the list caps it at 30 minutes: that wake is the parent's check-in on its
- *  children, not a timeout (AGENT_PARK_FOR_MAX_MS). */
+ *  A sub-agent is a process of the session like a shell, so it takes the day. A park on nothing but
+ *  running sub-agents never expires at all (scheduler evalParkIntegrity): each child's return is its wake. */
 export function parkForMaxMs(park: AwaitingPark): number {
   // Steps or questions alone move on the HUMAN's clock, which is no more a day's than a maintainer's
   // review is.
   if (park.items.length === 0) return parkOnHuman(park) ? PR_WATCH_FOR_MAX_MS : AWAITING_FOR_MAX_MS
-  if (park.items.some((i) => i.kind === "agent")) return AGENT_PARK_FOR_MAX_MS
   if (park.items.every((i) => i.kind === "pr")) return PR_WATCH_FOR_MAX_MS
   // A COMMAND WATCH earns its own registration's ceiling, a week (2026-10-11): it is a server-run check
   // with its own `for`, not a process of the session's, so the day a shell gets is the wrong clock for

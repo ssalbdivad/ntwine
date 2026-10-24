@@ -693,7 +693,7 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //   for:    2h                       REQUIRED. How long the park may stand (parseAwaitingDurationRaw).
 //                                    Capped at a day — or at PR_WATCH_FOR_MAX_MS when every item is a
 //                                    `prs:` entry, because an external PR does not move on a day's clock.
-//                                    An `agents:` entry caps it at 30m instead: AGENT_PARK_FOR_MAX_MS.
+//                                    A park on running `agents:` alone never expires: each return wakes it.
 //   title:  Waiting on the CI run    OPTIONAL. The resting card's heading, in the worker's own words.
 //   status: watching                 REQUIRED for a thread dispatched at or after NEEDS_INPUT_REQUIRED_AT.
 //                                    Where the thread sits while it waits, in the worker's own word:
@@ -1278,15 +1278,6 @@ const DURATION_UNIT_MS: Record<string, number> = { s: 1_000, m: 60_000, h: 3_600
  *  already dead. A PULL REQUEST is nothing like that and gets its own, far higher ceiling — see
  *  PR_WATCH_FOR_MAX_MS. */
 export const AWAITING_FOR_MAX_MS = 24 * 60 * 60 * 1000
-/** The ceiling for a park that names a SUB-AGENT, and it is a check-in cadence rather than a timeout.
- *  An orchestrator parked on its children for the full day reports nothing for the whole run: @3-0 rested
- *  `for: 8h` on five lanes of fixers and the board showed one stale line while they landed work
- *  (David 2026-10-03: "the top level thread should regularly be reporting back feedback and
- *  communicating with sub agents … avoid long periods of top level no updates"). Expiry wakes the parent
- *  with parkExpiredWakeMessage's check-in steps, and re-parking stays unlimited. Shipped at an hour, cut
- *  to 20 minutes and settled at 30 the same day: each check-in re-reads the orchestrator's whole
- *  context, a 20-minute wake would often land mid-task with no news (unmeasured), and "Ask for update" covers impatience. */
-export const AGENT_PARK_FOR_MAX_MS = 30 * 60 * 1000
 /** Milliseconds as WRITTEN, uncapped — for a caller that has to know whether the ceiling bit. Every
  *  wait applies one; none of them may apply it silently. */
 export function parseAwaitingDurationRaw(value: string): number | null {
@@ -2796,8 +2787,8 @@ export function parkExpiredWakeMessage(status: readonly string[], checkIn = fals
         "",
       ]
       : []),
-    // A park on sub-agents expires on AGENT_PARK_FOR_MAX_MS, so this wake is the parent's regular
-    // check-in. No line here may open with "- ": parkWakeItems reads those as the parked items.
+    // A park naming sub-agents reaches this on the human's "Ask for update", or when a mixed park's `for:`
+    // runs out (one on running children alone never expires). No line here may open with "- ": parkWakeItems reads those as the parked items.
     ...(checkIn
       ? [
         "THIS IS YOUR SUB-AGENT CHECK-IN. Before re-parking:",

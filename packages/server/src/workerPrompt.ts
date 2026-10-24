@@ -262,8 +262,8 @@ for: 1d
   reviewer, a release, a reply) ⇒ \`watching\`. The user's review of what you handed over is
   \`needs_input\`, never \`watching\`.
 - \`for:\` — required, a duration: \`30s\`, \`15m\`, \`2h\`, \`3d\`. When it runs out you are woken to
-  re-check. Capped at a day; at 30 minutes on a park naming \`agents:\`, whose expiry is your check-in;
-  up to a year on one naming only \`prs:\`{{NTWINE_COMMANDS_FOR}}. A PR in someone else's repo moves on its
+  re-check. Capped at a day, and never reached on a park naming only running \`agents:\`, whose returns
+  wake you; up to a year on one naming only \`prs:\`{{NTWINE_COMMANDS_FOR}}. A PR in someone else's repo moves on its
   maintainers' clock: \`for: 180d\`, with the same \`--for\` on \`ntwinectl watch-pr add\`.
 - \`shells:\` / \`agents:\` — the runtime ids you were handed at launch. \`ntwinectl activity\` prints every
   id you have out and every open question. \`ntwinectl watch shell|agent <id> --for <duration>\` makes a
@@ -452,8 +452,6 @@ const BACKEND: Record<BackendKind, string> = {
 - **A child reports upward with \`SendMessage({to: "main", …})\`.** When you want blocker or milestone
   reports, tell it so, and tell it to load the tool first (\`ToolSearch\` with \`select:SendMessage\`) —
   it will find neither on its own. A child's shell has \`ntwinectl\`, acting as your thread.
-- **A park naming \`agents:\` expires within 30 minutes, and that wake is your check-in**; the short
-  progress note it asks for is the one body a quiet park carries.
 - **A critique loop stops when its confirmed findings stop falling** — at the first round after round 1
   that is not clearly lower, go back to the design or to the user with the counts. Cap the rounds in any
   Workflow; a round whose reviewers failed did not run.
