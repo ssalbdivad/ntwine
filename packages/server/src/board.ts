@@ -714,10 +714,12 @@ export function signoffNudgeVerdict(
     tele.lastFence ||
     tele.pendingQuestion ||
     registeredDoneFence(facts.done(), tele.lastUserAt, tele.lastToolCallAt, tele) !== undefined ||
-    // AN OPEN QUESTION IS A SIGN-OFF ONLY AT THE REST THAT ASKED IT (upstream 2026-10-05). One CARRIED
-    // from an earlier rest is the worker's to name under `questions:` or withdraw, so a rest beside one
-    // is nudged (the carried variant, scheduler SOURCE 9).
-    openQuestionsSignOff(facts.questionRows(), tele) ||
+    // A HELD QUESTION SIGNS OFF EVERY REST until it is answered or withdrawn (2026-10-24). From
+    // 2026-10-05 it signed off only the rest that asked it, and a later rest beside it was nudged to
+    // name it under `questions:` or `unask` it — copying ids the server already held: 772 of 2,727 park
+    // fences re-listed questions, and 136 rests carried a "…question is still open" line. One the human
+    // TYPED PAST holds nothing (heldQuestionRows), so it signs off nothing either.
+    heldQuestionRows(facts.questionRows(), tele).length > 0 ||
     answersInFlight(facts.questionRows(), tele.lastUserAt, row.recurring_on_rest === 1 && Boolean(row.recurring_prompt?.trim())) !== undefined ||
     // EXCEPT A WATCH, UNDER THE `needs_input:` CONTRACT (2026-10-01). A registration says WHEN the worker
     // wakes; it cannot say whether the human is needed meanwhile, and on a thread dispatched at or after
@@ -777,15 +779,6 @@ export function rowPassedOver(q: ThreadQuestionRow, tele: Pick<SessionTelemetry,
   return q.state === "open" && questionPassedOver(q, safeQuestionSpec(q.spec), tele?.lastHumanAt)
 }
 
-/** The held questions CARRIED into this rest from an earlier one: asked no later than the newest user
- *  record — a wake, since a typed message passes over every question open when it lands. Upstream's
- *  2026-10-05 rule: such a question is not this rest's sign-off and its card is not redrawn under the
- *  new handoff, so the worker names it under `questions:` in an awaiting fence or withdraws it. */
-export function carriedQuestionRows(rows: readonly ThreadQuestionRow[], tele: Pick<SessionTelemetry, "lastUserAt" | "lastHumanAt"> | undefined): ThreadQuestionRow[] {
-  const restFrom = tele?.lastUserAt ? Date.parse(tele.lastUserAt) : Number.NEGATIVE_INFINITY
-  return heldQuestionRows(rows, tele).filter((q) => q.asked_at <= restFrom)
-}
-
 /** Is this rest a reply in a live conversation: it answers a turn the human TYPED after the dispatch
  *  prompt — or the dispatch prompt itself, with no tool call since — and no question is open? Then the
  *  prose IS the handoff and the next move is the human's, so the sign-off nudge stays silent and the
@@ -797,7 +790,7 @@ export function carriedQuestionRows(rows: readonly ThreadQuestionRow[], tele: Pi
  *  the nudge accepted, and the nudge's own text names `ask` as the way out. Maintainer: "the question
  *  tool is being used far too aggressively". Not keyed on "ran no tool": answering "why" often means
  *  reading a file first. The dispatch turn is still asked for a sign-off (the abandonment case the nudge
- *  exists for), and so is a rest beside an open question, whose name-or-withdraw rule stands. */
+ *  exists for). A rest beside a held question never reaches this: the question signs it off. */
 function conversationalReply(tele: SessionTelemetry, rows: readonly ThreadQuestionRow[]): boolean {
   if (!tele.lastHumanAt || !tele.lastUserAt || !tele.firstHumanAt) return false
   const human = Date.parse(tele.lastHumanAt)
@@ -824,11 +817,6 @@ function answeredInWriting(tele: SessionTelemetry, rows: readonly ThreadQuestion
   if (!tele.lastAssistantReply || hasLiveBackgroundWork(tele) || tele.bgShells?.some((sh) => sh.state === "running")) return false
   if (tele.lastToolCallAt && tele.lastAssistantAt && Date.parse(tele.lastToolCallAt) >= Date.parse(tele.lastAssistantAt)) return false
   return heldQuestionRows(rows, tele).length === 0
-}
-
-/** Do this rest's held questions sign it off? Only when there are some and none was carried in. */
-function openQuestionsSignOff(rows: readonly ThreadQuestionRow[], tele: Pick<SessionTelemetry, "lastUserAt" | "lastHumanAt">): boolean {
-  return heldQuestionRows(rows, tele).length > 0 && carriedQuestionRows(rows, tele).length === 0
 }
 
 /** Does this row carry a Goal armed to fire at rest? The same reading answersInFlight is handed above,

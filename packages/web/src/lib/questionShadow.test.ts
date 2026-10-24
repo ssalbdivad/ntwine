@@ -184,8 +184,8 @@ test("a marker in a HUMAN turn places nothing", () => {
 // the placement was scoped to the CURRENT rest whenever the thread was at rest, so the card left the
 // prose it was couched in and fell to the tail — under a handoff that said nothing about it, where it
 // superseded the worker's own sign-off (maintainer 2026-10-05). Now the card stays in its old prose
-// until a later rest CLAIMS it by naming it under `questions:` in its ```awaiting fence; the server
-// makes the worker either name it or withdraw it at that later rest (scheduler.evalSignoffNudges).
+// until a later rest CLAIMS it by naming it under `questions:` in its ```awaiting fence (an older
+// worker's habit; since 2026-10-24 a held question signs off every rest and nothing asks for the claim).
 
 const STALE = [
   { role: "user", at: at(0), text: "Do the thing." },

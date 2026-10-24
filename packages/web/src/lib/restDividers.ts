@@ -1,5 +1,6 @@
 import type { ChatMessage } from "../hooks.ts"
-import { silentSignoffIndexes } from "@ntwine/shared"
+import { silentCheckInIndexes, silentSignoffIndexes } from "@ntwine/shared"
+import { servedMessage } from "./ntwineMachinery.ts"
 import { agentCompletionCall } from "./subAgentCompletion.ts"
 
 // WHEN THE "Agent rested" HAIRLINE SAYS NOTHING THE READER CANNOT ALREADY SEE.
@@ -14,7 +15,7 @@ import { agentCompletionCall } from "./subAgentCompletion.ts"
 //     WorkingIndicator there; a rested one draws nothing (or the awaiting-background card). "The agent
 //     is not spinning" is therefore already on screen, and the hairline is a second copy of it.
 //   · ABOVE ANOTHER DIVIDER, it restates the divider. Nothing can WAKE an agent that had not come to
-//     rest, so "Agent rested" / "ntwine asked for a sign-off" is one fact drawn twice — two hairlines
+//     rest, so "Agent rested" / "Wait over" is one fact drawn twice — two hairlines
 //     stacked with nothing between them (maintainer 2026-08-13: "we're just getting these back-to-back
 //     hairlines that are kind of unnecessary").
 //
@@ -44,8 +45,12 @@ export function isRedundantRestDivider(
   // divider it duplicates must not save it.
   for (let i = index + 1; i < messages.length; i++) {
     const next = messages[i]
-    if (next.queued || rendersNothing(next)) continue
-    return Boolean(next.boundary) || next.wake === true || agentCompletionCall(next) !== undefined
+    if (next.queued) continue
+    // A wake is a seam whether or not it draws: one that draws nothing (a sign-off nudge, lib/
+    // ntwineMachinery) is a bridge, and the reply under it reads as the tail of the turn above.
+    if (next.wake === true) return true
+    if (rendersNothing(next)) continue
+    return Boolean(next.boundary) || agentCompletionCall(next) !== undefined
   }
   return true // nothing below it: the runtime-status slot is the tail's own answer
 }
@@ -61,11 +66,39 @@ export function withoutRedundantRestDividers<T extends { message: ChatMessage }>
   return entries.filter((_, i) => !isRedundantRestDivider(messages, i, rendersNothing))
 }
 
-// A sign-off nudge answered with nothing but `ntwinectl done` and "Signed off." drops out whole — the
-// nudge's hairline, the tool row and the line of filler (shared silentSignoffIndexes). It runs BEFORE
-// the rest-divider pass, which then folds the two rest hairlines it leaves stacked into one. `messages`
-// is the array the entries were coalesced from, so `messageIndex` addresses it.
-export function withoutSilentSignoffs<T extends { messageIndex: number }>(entries: readonly T[], messages: readonly ChatMessage[]): T[] {
-  const silent = silentSignoffIndexes(messages)
-  return silent.size ? entries.filter((entry) => !silent.has(entry.messageIndex)) : [...entries]
+// THE EXCHANGES BETWEEN ntwine AND ITS WORKER THAT ADDED NOTHING, dropped whole — before the rest-divider
+// pass, which then folds the rest hairlines they leave stacked into one:
+//
+//   · a sign-off nudge answered with nothing but `ntwinectl done` and "Signed off." (shared
+//     silentSignoffIndexes): the reply under the nudge, which is the only part still drawn once the
+//     nudge itself draws nothing (lib/ntwineMachinery);
+//   · a wait-expired check-in on work still running, answered by a bare re-park (shared
+//     silentCheckInIndexes). The check-in that does draw after a run of them carries the run's count
+//     (`checkIns`), so twelve silent re-parks read "Wait expired 12 times" once.
+//
+// `messages` is the array the entries were coalesced from, so `messageIndex` addresses it. Each is read
+// as the transcript served it (servedMessage), because a nudge's reply is recognized by the very ntwine
+// calls the chat strips.
+export function withoutSilentExchanges<T extends { message: ChatMessage; messageIndex: number }>(entries: readonly T[], messages: readonly ChatMessage[]): T[] {
+  const served = messages.map(servedMessage)
+  const signoffs = silentSignoffIndexes(served, { trailingAcks: true })
+  const { hidden, folded } = silentCheckInIndexes(served)
+  if (!signoffs.size && !hidden.size && !folded.size) return [...entries]
+  const out: T[] = []
+  for (const entry of entries) {
+    if (signoffs.has(entry.messageIndex) || hidden.has(entry.messageIndex)) continue
+    const count = folded.get(entry.messageIndex)
+    out.push(count ? { ...entry, message: withCheckIns(entry.message, count) } : entry)
+  }
+  return out
+}
+
+// One folded copy per message, so a re-render hands the row the object it drew last time.
+const foldedCopies = new WeakMap<ChatMessage, ChatMessage>()
+function withCheckIns(message: ChatMessage, count: number): ChatMessage {
+  const cached = foldedCopies.get(message)
+  if (cached?.checkIns === count) return cached
+  const copy = { ...message, checkIns: count }
+  foldedCopies.set(message, copy)
+  return copy
 }

@@ -34,7 +34,7 @@ import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
 import { DoneWatchButtons, doneWatchable, useDoneWatchRefs } from "./DoneWatchButtons.tsx"
 import { ProviderErrorCard, providerErrorVisible } from "./ProviderErrorCard.tsx"
 import { answersForDisplay, answersNote, parseAnswersCard, pairAllAnswers, settledAnswerKeys, unrenderedAnswers, withoutSettledAnswers, type PairedAnswer } from "../lib/answersMessage.ts"
-import { questionsByAnchor } from "../lib/questionAnchor.ts"
+import { questionsAboveNewestRest, questionsByAnchor } from "../lib/questionAnchor.ts"
 import { fenceStandsFor, placedRestEnds, placeQuestions, registeredStandingAt, type QuestionPlacement } from "../lib/questionShadow.ts"
 import { settledQuestionPositions, type SettledPlacement } from "../lib/settledQuestions.ts"
 import { NtwineWake, ShellWakeText } from "./NtwineWake.tsx"
@@ -123,7 +123,8 @@ import { ThreadProcessStrip } from "./ThreadTerminals.tsx"
 import { threadProcesses } from "../lib/threadProcesses.ts"
 import { prependEarlierPage } from "../lib/transcriptPagination.ts"
 import { earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, transcriptMessageRows, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
-import { withoutRedundantRestDividers, withoutSilentSignoffs } from "../lib/restDividers.ts"
+import { withoutRedundantRestDividers, withoutSilentExchanges } from "../lib/restDividers.ts"
+import { wakeRendersNothing, withoutNtwineOwnCalls } from "../lib/ntwineMachinery.ts"
 import { coalesceToolActivityMessages, editedFileCount, failedToolCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, settledToolActivityParts, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
 import { CodexDirectiveCard, MermaidDiagram } from "./CodexRichOutput.tsx"
 import { LightboxGallery } from "./Lightbox.tsx"
@@ -190,8 +191,11 @@ function isLiveTranscriptBackgroundTool(tool: TranscriptToolCall): boolean {
 // The transcript's live Codex shells, for the strip (lib/childOps.ts, where it is pure and tested).
 export { transcriptBackgroundShells }
 
+// …and without the worker's successful calls to ntwine itself, whose effect the done card, the question
+// cards and the process strip already draw (lib/ntwineMachinery withoutNtwineOwnCalls).
 export function withoutLiveTranscriptBackgroundTools(messages: readonly ChatMessage[]): ChatMessage[] {
-  return messages.map((message) => {
+  return messages.map((served) => {
+    const message = withoutNtwineOwnCalls(served)
     if (!message.tools.some(isLiveTranscriptBackgroundTool)) return message
     const tools = message.tools.filter((tool) => !isLiveTranscriptBackgroundTool(tool))
     const parts = message.parts?.map((part) =>
@@ -345,7 +349,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
   const restingShown = showsRestingCard(thread)
   const activityMessages = useMemo(() => {
     const all = running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages
-    const entries = withoutSilentSignoffs(all, presentationMessages)
+    const entries = withoutSilentExchanges(all, presentationMessages)
     return withoutRedundantRestDividers(entries, rendersNothingIn(entries, awaitingCut, restingShown))
   }, [coalescedActivityMessages, presentationMessages, running, awaitingCut, restingShown])
   const showWorking = running
@@ -1041,7 +1045,7 @@ function VirtualizedThreadTranscript({
     const all = running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages
     // An answers turn whose every row a greyed settled card already shows has nothing left to draw, so
     // it is not a row at all — a row that rendered null would still spend its spacer.
-    const entries = withoutSilentSignoffs(all, messages).filter((entry) => !answeredBySettledCards(paired[entry.messageIndex], entry.message))
+    const entries = withoutSilentExchanges(all, messages).filter((entry) => !answeredBySettledCards(paired[entry.messageIndex], entry.message))
     return withoutRedundantRestDividers(entries, rendersNothingIn(entries, awaitingCut, restingShown))
   }, [coalescedActivityMessages, messages, running, awaitingCut, restingShown, paired])
   const showWorking = running
@@ -1265,28 +1269,25 @@ function VirtualizedThreadTranscript({
   const anchorRestoreUntilRef = useRef(0)
   const openHoldFrameRef = useRef(0)
 
-  // THE WAY BACK TO A QUESTION THE HUMAN TYPED PAST (maintainer 2026-10-20). Such a card stays at the rest
-  // that asked it (lib/questionAnchor, 2026-10-14) — on @precompile-design that was ~9,800px up, under an
-  // hour of wakes, and the worker's newest rest still said "both questions are still open" over nothing
-  // the human could find ("i don't see the questions anywhere?"). So the tail carries a link to the
+  // THE WAY BACK TO AN OPEN QUESTION ABOVE THE NEWEST REST. Such a card stays at the rest that asked it
+  // (lib/questionAnchor) — on @precompile-design that was ~9,800px up, under an hour of wakes, and the
+  // worker's newest rest still said "both questions are still open" over nothing the human could find
+  // (maintainer 2026-10-20: "i don't see the questions anywhere?"). So the tail carries a link to the
   // NEWEST row holding one: the card stays where it was asked, and only the pointer is at the bottom.
   // A placed card (a marker inside a message) is reached through that message's row.
-  const typedPastAbove = useMemo(() => {
-    let count = 0
-    let target = -1
-    rows.forEach((row, index) => {
-      const here = row.kind === "questions" ? row.questions
-        : row.kind === "message" ? placement.placed.get(row.messageIndex) ?? []
-        : []
-      const passed = here.filter((q) => q.passedOver).length
-      if (passed === 0) return
-      count += passed
-      target = index
-    })
-    return { count, target }
-  }, [rows, placement])
-  const jumpToTypedPast = useCallback(() => {
-    const index = typedPastAbove.target
+  //
+  // It was for questions the human TYPED PAST alone until 2026-10-24, when a HELD question became the
+  // sign-off of every rest instead of the worker re-naming it under `questions:` at each one: a CI wake's
+  // rest now leaves the ask a rest up, and this pointer is how the newest handoff shows it. The card is
+  // not redrawn at the bottom — that was the 2026-08-31..10-05 rule, under which a stack of old asks
+  // superseded the worker's own sign-off. A held card already in the newest rest is the tail's own
+  // (lib/questionAnchor questionsAboveNewestRest).
+  const questionsAbove = useMemo(() => questionsAboveNewestRest(messages, rows.map((row) =>
+    row.kind === "questions" ? { questions: row.questions }
+    : row.kind === "message" ? { questions: placement.placed.get(row.messageIndex) ?? [], messageIndex: row.messageIndex }
+    : undefined)), [rows, placement, messages])
+  const jumpToQuestionsAbove = useCallback(() => {
+    const index = questionsAbove.target
     if (index < 0) return
     const rowKey = rows[index].key
     // Same two steps as opening at the last message: mount the virtual row, then re-align while the
@@ -1305,7 +1306,7 @@ function VirtualizedThreadTranscript({
       requestAnimationFrame(settle)
     }
     requestAnimationFrame(settle)
-  }, [rows, typedPastAbove.target, virtualizer, transcriptRef])
+  }, [rows, questionsAbove.target, virtualizer, transcriptRef])
 
   const requestEarlier = useCallback((pages = 1, reader = true) => {
     const scroller = transcriptRef.current
@@ -1733,12 +1734,12 @@ function VirtualizedThreadTranscript({
                     in-flight answer stays here whatever the questions do: it is the human's newest turn,
                     and the delivered copy of it lands at the tail a second later. */}
                 <RegisteredQuestionStack thread={thread} questions={questionGroups.tail} inFlight={inFlightAnswers} className="px-6 pt-5" />
-                {typedPastAbove.count > 0 ? (
+                {questionsAbove.count > 0 ? (
                   <div className="px-6 pt-4">
                     <button
                       type="button"
-                      data-typed-past-jump
-                      onClick={jumpToTypedPast}
+                      data-questions-above-jump
+                      onClick={jumpToQuestionsAbove}
                       // Measured in sans at dsf 8: the arrow paints 8 of its 12 box px, so `gap-[3px]` draws
                       // a 5px ink gap (gap-1.5 drew 8, over twice the word space), and the -ml-0.5 evens
                       // the pill's ink padding to 12px each side. Vertically the arrow sits on the cap band
@@ -1746,7 +1747,7 @@ function VirtualizedThreadTranscript({
                       className="flex items-baseline gap-[3px] rounded-full border border-border px-3 py-1 text-[12px] text-muted hover:bg-panel-2 hover:text-fg"
                     >
                       <ArrowUp size={12} className="-ml-0.5 shrink-0 self-baseline translate-y-[calc(0.5em_-_0.5cap)]" />
-                      {typedPastAbove.count === 1 ? "1 unanswered question above" : `${typedPastAbove.count} unanswered questions above`}
+                      {questionsAbove.count === 1 ? "1 unanswered question above" : `${questionsAbove.count} unanswered questions above`}
                     </button>
                   </div>
                 ) : null}
@@ -2110,7 +2111,10 @@ export function messageRendersNothing(m: ChatMessage, staleAwaiting?: boolean, c
   return (slots[slot] ??= computeRendersNothing(m, staleAwaiting, cardOwned))
 }
 function computeRendersNothing(m: ChatMessage, staleAwaiting?: boolean, cardOwned?: boolean): boolean {
-  if (m.kind === "event" || m.kind === "reasoning" || m.role === "user") return false
+  if (m.kind === "event" || m.kind === "reasoning") return false
+  // A wake NtwineWake draws nothing for (a sign-off nudge, a lapsed watch of the worker's own). A queued
+  // one is pinned at the bottom, where its bubble stays.
+  if (m.role === "user") return m.wake === true && !m.queued && !m.providerError && !m.commandOutput && wakeRendersNothing(messagePresentationText(m))
   if (m.parts && m.parts.length > 0) return m.parts.every((p) => (p.kind === "tools" ? p.tools.length === 0 : blankText(m, p.text, staleAwaiting, cardOwned)))
   return (m.tools?.length ?? 0) === 0 && blankText(m, m.text, staleAwaiting, cardOwned)
 }
@@ -3731,7 +3735,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
             onMouseDown={(e) => e.preventDefault()}
             onClick={deliverNow}
             disabled={pushNowPending}
-            title="Send now — interrupts what the worker is doing so it reads the queue immediately"
+            title="Send now — interrupts the agent"
             aria-label="Send now"
             className="icon-hover-outline absolute bottom-0 right-full mr-2 flex h-7 w-7 items-center justify-center rounded-lg text-muted opacity-0 outline-none transition-[opacity,color,background-color] group-hover:opacity-100 enabled:hover:bg-panel-2/70 enabled:hover:text-fg enabled:focus-visible:opacity-100 enabled:focus-visible:bg-panel-2/70 enabled:focus-visible:ring-1 enabled:focus-visible:ring-muted/80 enabled:focus-visible:ring-offset-1 enabled:focus-visible:ring-offset-bg enabled:active:bg-elevated"
           >
@@ -3764,7 +3768,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
           terminal", from when a worker sat in a pane an operator could open; there is no such surface
           now, so it states the fact and leaves the next move to them. */}
       {deliveryUnconfirmed && (
-        <div className="text-[11px] text-attention-80">Delivery unconfirmed — no receipt from the worker</div>
+        <div className="text-[11px] text-attention-80">Not confirmed yet — the agent may not have seen this</div>
       )}
       {deliveryFailed && deliveryId && (
         <FailedSendRow deliveryId={deliveryId} text={text} rawText={rawText ?? text} error={deliveryError} />
@@ -3887,7 +3891,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
         </KeepWorkingMarker>
       )
     }
-    if (m.wake) return <NtwineWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} />
+    if (m.wake) return <NtwineWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} checkIns={m.checkIns} />
     // A SIDEWAYS writer of a user turn the human didn't type: another top-level thread messaging this
     // one. An expandable hairline naming and linking the sender — see SessionMessageLine.
     if (m.sessionPeer) return <SessionMessageLine peer={m.sessionPeer} text={text} queued={m.queued} sourceId={m.sourceId} at={m.at} wrap={dense} />

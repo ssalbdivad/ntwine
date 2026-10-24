@@ -273,7 +273,7 @@ export function SnoozeMenu({
               className="button-outline flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[12px] font-medium text-bg outline-none transition-opacity hover:opacity-90 disabled:opacity-45"
             >
               {busy && <Loader2 size={12} className="animate-spin" />}
-              {promptValue.trim() ? "Snooze & bump" : "Snooze"}
+              {promptValue.trim() ? "Snooze and follow up" : "Snooze"}
             </button>
           </>
         }
@@ -342,7 +342,7 @@ export function SnoozeMenu({
           <TextareaCodeFences value={promptValue} />
           <p className="min-h-4 text-[10.5px] text-muted-65">
             {promptValue.trim()
-              ? "ntwine will resume this thread with the prompt at the wake time."
+              ? "Sends this prompt when the snooze ends."
               : "Leave empty to just bring the card back to your queue."}
           </p>
           {customError && <p role="alert" className="text-[11px] text-danger">{customError}</p>}

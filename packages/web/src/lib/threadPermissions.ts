@@ -89,7 +89,7 @@ export function threadPermissionEffectMessage(
   if (effect === "next-turn") {
     return backend === "codex"
       ? `${noun} applied — takes effect on the next turn`
-      : `${noun} saved — the worker restarts on the next turn`
+      : `${noun} saved — applies from the next turn`
   }
   return `${noun} saved for the next resume`
 }

@@ -4,9 +4,10 @@ import { githubRefUrl } from "./githubRef.ts"
 /** AN ```awaiting FENCE THAT NAMES QUESTIONS DRAWS NO CARD (maintainer 2026-10-08: "if there are
  *  questions that are getting rendered, we don't even need to bother rendering the awaiting card").
  *
- *  Since 2026-10-05 `questions:` is how a later rest keeps an old question's card (lib/questionAnchor),
- *  so a worker woken by CI with two answers still owed re-fences on nothing new — and the rest drew an
- *  hourglass card restating the ask directly above the question cards that ARE the ask. The cards are
+ *  From 2026-10-05 to 2026-10-24 `questions:` was how a later rest kept an old question's card
+ *  (lib/questionAnchor), so a worker woken by CI with two answers still owed re-fenced on nothing new —
+ *  and the rest drew an hourglass card restating the ask directly above the question cards that ARE the
+ *  ask. The key is no longer taught, but older workers' fences still carry it. The cards are
  *  the actionable thing and the handoff; what else the fence names is live work, which the ops summary
  *  above the queue card's prompt box and the drawer's ops strip already list with the same rows. So the card goes, and the fence's prose stays as plain handoff text (ChatView Message),
  *  because it is the worker's own words.

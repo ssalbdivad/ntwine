@@ -680,10 +680,9 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 // ---- THE AWAITING FENCE ---------------------------------------------------------------------------
 // A worker ends every turn in ONE terminal state: it needs the human, it is waiting on work that is
 // actually running, or it is finished. Each is now said EITHER by a fence or by a registration — a
-// `thread_question` row asked at THIS rest is a standing sign-off on its own, and so is an armed watch or
-// a recorded done, which is why a worker that has just asked rests normally and writes no fence at all.
-// A question still open from an EARLIER rest is not: the worker names it under `questions:` or withdraws
-// it (2026-10-05). This is the FENCE form of the middle one, and it is PURE STRUCTURE — a list of things
+// held `thread_question` row is a standing sign-off of every rest until it is answered or withdrawn
+// (2026-10-24), and so is an armed watch or a recorded done, which is why a worker that has asked rests
+// normally and writes no fence at all. This is the FENCE form of the middle one, and it is PURE STRUCTURE — a list of things
 // ntwine can look up, a duration, and one line of prose.
 //
 //   shells: [<runtime task id>, …]   background shells it launched   → checked against live telemetry
@@ -709,11 +708,11 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //     - Approve the browser prompt   line, read VERBATIM (see awaitingSteps). A fence carrying them
 //                                    waits on the human: it needs no other name and no `for:`, and it
 //                                    always queues (awaitingNeedsInput reads it as `true`).
-//   questions: [qst_…, …]            The worker's registered questions it is STILL waiting on. A fence
-//                                    beside open questions must name every one of them (anything else
-//                                    is withdrawn with `unask`), and a card it names is drawn at THIS
-//                                    rest (see awaitingQuestions). Like `steps:` it names the human as
-//                                    the wait: no other name and no `for:` needed, and it always queues.
+//   questions: [qst_…, …]            OPTIONAL and no longer taught (2026-10-24): registered questions
+//                                    the fence waits on. Read because older workers and transcripts
+//                                    write it — a held question signs off every rest whether a fence
+//                                    names it or not. Like `steps:` it names the human as the wait: no
+//                                    other name and no `for:` needed, and it always queues.
 //
 // THE FRONTMATTER IS REAL YAML (2026-08-24), parsed by the `yaml` package — the keys are PLURAL and take
 // SEQUENCES, block or flow. A bare scalar where a sequence is expected is accepted and normalised to a
@@ -895,9 +894,9 @@ const AWAITING_SCALAR_KINDS: ReadonlySet<AwaitingHint["kind"]> = new Set(["for",
 export const AWAITING_STEPS_MAX = 12
 export const AWAITING_STEP_VALUE_MAX = 2_000
 
-/** `questions:` rides after the capped hints for the same reason `steps:` does: a thread carrying many
- *  open questions must still be able to name every one of them — the park is refused for any it leaves
- *  out — without crowding a `prs:` entry out of AWAITING_HINT_MAX. */
+/** `questions:` rides after the capped hints for the same reason `steps:` does: a fence naming many
+ *  open questions (an older worker's habit, 2026-10-05 to 2026-10-24, when every held one had to be
+ *  named) must not crowd a `prs:` entry out of AWAITING_HINT_MAX. */
 export const AWAITING_QUESTIONS_MAX = 24
 
 /** `title:` — the resting card's heading in the WORKER'S OWN WORDS, replacing the derived one
@@ -1096,10 +1095,12 @@ export function awaitingSteps(hints: readonly AwaitingHint[] | undefined): strin
  *  the thread had most recently reached, and it refused any awaiting fence outright — so a question the
  *  human had replied past, or one a CI wake had buried, kept reappearing UNDER the worker's newest
  *  handoff and took its place as the sign-off ("the pending questions that may or may not be relevant
- *  kind of supersede how the agent actually signed off"). Now the card stays where it was asked, and a
- *  worker that still needs the answer says so here; one it no longer needs it withdraws. A value that
- *  carries more than the id (`qst_ab12 — the cache call`) is read down to the id, so a gloss never costs
- *  the name. */
+ *  kind of supersede how the agent actually signed off"). Then the card stayed where it was asked, and a
+ *  worker that still needed the answer had to say so here at every later rest. Since 2026-10-24 a held
+ *  question signs off every rest by itself and the key is no longer taught; it is still read, so an
+ *  older worker's fence parks on the human as before and its card is drawn at the rest that names it
+ *  (web lib/questionAnchor). A value that carries more than the id (`qst_ab12 — the cache call`) is read
+ *  down to the id, so a gloss never costs the name. */
 export function awaitingQuestions(hints: readonly AwaitingHint[] | undefined): string[] {
   return (hints ?? []).filter((h) => h.kind === "question").map((h) => questionIdOf(h.value))
 }
@@ -1543,6 +1544,19 @@ export function goalLimitMessage(o: { reason: "runs" | "time"; runs: number; max
   )
 }
 
+const GOAL_LIMIT_RUNS_HEAD = /^Your Goal reached its run limit and stopped: (\d+) of (\d+) runs delivered\./
+const GOAL_LIMIT_TIME_HEAD = /^Your Goal reached its time limit(?: \((\S+)\))? and stopped after (\d+) runs?\./
+
+/** goalLimitMessage read back: which limit ended the Goal, the runs it delivered, and the limit itself
+ *  (`maxRuns`, or the time bound as it was written, `2h`). */
+export function parseGoalLimitWake(text: string): { reason: "runs"; runs: number; maxRuns: number } | { reason: "time"; runs: number; limit?: string } | null {
+  const lead = text.trim()
+  const runs = GOAL_LIMIT_RUNS_HEAD.exec(lead)
+  if (runs) return { reason: "runs", runs: Number(runs[1]), maxRuns: Number(runs[2]) }
+  const time = GOAL_LIMIT_TIME_HEAD.exec(lead)
+  return time ? { reason: "time", runs: Number(time[2]), ...(time[1] ? { limit: time[1] } : {}) } : null
+}
+
 // ---- The opt-out ---------------------------------------------------------------------------------
 // THE OPT-OUT IS THE ```done FENCE, as of 2026-08-11. A worker that signs off as done has said "there
 // is no further work here", and ntwine stops prompting it — every trigger, because a run that keeps
@@ -1755,6 +1769,11 @@ export function isNtwineOwnTool(t: { name: string; command?: string; detail?: st
 const REPLY_MIN_CHARS = 200
 const RITUAL_ACK_MAX = REPLY_MIN_CHARS
 
+/** One short paragraph with no fence: "Signed off.", "Still waiting on the build." — filler, not a reply. */
+function isRitualAck(text: string): boolean {
+  return text.length < RITUAL_ACK_MAX && !/\n\s*\n/.test(text) && !text.includes("```")
+}
+
 /** Is this assistant text a written reply — more than one paragraph, or one long one, fences aside —
  *  rather than a line of narration between tool calls? */
 export function isWrittenReply(text: string): boolean {
@@ -1779,7 +1798,7 @@ export function silentSignoffIndexes(messages: readonly {
   text: string
   displayText?: string
   tools: readonly { name: string; command?: string; detail?: string }[]
-}[]): Set<number> {
+}[], opts: { trailingAcks?: boolean } = {}): Set<number> {
   const hidden = new Set<number>()
   for (let i = 0; i < messages.length; i++) {
     const nudge = messages[i]!
@@ -1806,12 +1825,30 @@ export function silentSignoffIndexes(messages: readonly {
         if (text || acked || !m.tools.every(isNtwineOwnTool)) { silent = false; break }
         called = true
       } else if (text) {
-        if (!called || text.length >= RITUAL_ACK_MAX || /\n\s*\n/.test(text) || text.includes("```")) { silent = false; break }
+        if (!called || !isRitualAck(text)) { silent = false; break }
         acked = true
       }
       reply.push(j)
     }
-    if (!silent || !called) continue
+    if (!silent) {
+      if (!opts.trailingAcks) continue
+      // TRANSCRIPT ONLY (`trailingAcks`). The reply said something of its own — kept — but an acknowledgement that only closes it after
+      // ntwine's own call ("Done." under `ntwinectl done`) is still filler, and goes. Read up to the reply's
+      // own rest, never past it, so a later turn cannot change what this one hid. The queue card does not
+      // ask for this: its rest-by-rest history keys on which messages say anything, and dropping one from
+      // the middle of a turn that already queued would take back prose a card had shown.
+      let prev: (typeof messages)[number] | undefined
+      for (let k = i + 1; k < messages.length && messages[k]!.role !== "user" && messages[k]!.boundary !== "rest"; k++) {
+        const m = messages[k]!
+        if (m.role !== "assistant" || m.kind) continue
+        const text = m.text.trim()
+        if (!text && !m.tools.length) continue
+        if (!m.tools.length && isRitualAck(text) && prev && !prev.text.trim() && prev.tools.length && prev.tools.every(isNtwineOwnTool)) hidden.add(k)
+        prev = m
+      }
+      continue
+    }
+    if (!called) continue
     hidden.add(i)
     for (const r of reply) hidden.add(r)
     i = j - 1
@@ -2122,6 +2159,31 @@ export function interruptEndedSubAgentsMessage(agents: readonly InterruptEndedSu
 export function isInterruptEndedWake(text: string): boolean {
   const lead = text.trimStart()
   return lead.startsWith(INTERRUPT_ENDED_LEAD) || lead.startsWith(legacyHumanWording(INTERRUPT_ENDED_LEAD))
+}
+
+/** The sub-agents the interrupt note names, read back from its list (`- \`id\` — label`, or `- label`
+ *  for a child whose runtime id never arrived), or null when this is not that note. */
+export function parseInterruptEndedWake(text: string): { agents: InterruptEndedSubAgent[] } | null {
+  if (!isInterruptEndedWake(text)) return null
+  const agents: InterruptEndedSubAgent[] = []
+  for (const line of text.trim().split("\n").slice(1)) {
+    if (!line.startsWith("- ")) { if (agents.length) break; continue }
+    const m = /^- `([^`]+)` — (.*)$/.exec(line)
+    agents.push(m ? { taskId: m[1]!, label: m[2]! } : { label: line.slice(2) })
+  }
+  return { agents }
+}
+
+// ---- A BACKGROUND SHELL PAST ITS BUDGET (server shell-budget.ts, scheduler SOURCE 13) -------------
+// The composer is the server's `shellBudgetWarningMessage`, which needs the server's grace constant; its
+// head is read back here so the chat can draw the one line of news. server/src/shell-budget.test.ts
+// round-trips the real composer through this parser, so a change to the head fails there.
+const SHELL_BUDGET_HEAD = /^⏰ Your background shell `([^`]+)` \((.*)\) has been running (.+?), past its (.+?) budget\./
+
+/** A shell-budget warning, read back: the shell's handle and label, how long it ran, and its budget. */
+export function parseShellBudgetWake(text: string): { handle: string; label: string; ran: string; budget: string } | null {
+  const m = SHELL_BUDGET_HEAD.exec(text.trim())
+  return m ? { handle: m[1]!, label: m[2]!, ran: m[3]!, budget: m[4]! } : null
 }
 
 // ---- THE BUILT-IN SIGN-OFF NUDGE (scheduler SOURCE 9) --------------------------------------------
@@ -2481,10 +2543,6 @@ function signoffNudgeText(needsInput: boolean): string {
   "  every value the act needs written in. ntwine reads them verbatim. Steps name the USER as the wait,",
   "  so the fence needs no other name and no `for:`, and the thread goes into their queue. Their Done",
   "  comes back to you as their reply; anything else they need to say comes as a message of their own.",
-  "- `` ```awaiting `` with `questions:` — a question you registered at an EARLIER rest is still open and",
-  "  you still need its answer. Name every such question (`questions: [qst_…]`) and withdraw the rest with",
-  "  `ntwinectl unask <id>`: a fence that leaves an open question out is refused. A named card is drawn at",
-  "  this rest; an unnamed one stays where you asked it.",
   "",
   "**STILL OWED counts things you are not going to do yourself.** A decision you are RECOMMENDING, a",
   "draft you wrote but did not send, follow-up work you discovered — all of it dies with the card, even",
@@ -2507,33 +2565,9 @@ export const SIGNOFF_NUDGE_MESSAGE = signoffNudgeText(false)
  *  taught as `status:` from 2026-10-05, and since 2026-10-24 as the `---` rule, with the band derived. */
 export const SIGNOFF_NUDGE_MESSAGE_NEEDS_INPUT = signoffNudgeText(true)
 
-/** The reminder for a fenceless rest that leaves questions from an EARLIER rest open (2026-10-05). A
- *  question asked at THIS rest is the rest's own sign-off; one carried from before is not, because its
- *  card is no longer drawn under the newest handoff — it stays where it was asked — so a rest that says
- *  nothing about it reads as a bare stop while the thread sits in the queue on an ask nobody can see at
- *  the bottom. The worker settles each one: name it, or withdraw it. Same marker as the reminder above,
- *  so it folds out of the chat the same way. */
-export function carriedQuestionsNudgeMessage(questions: readonly { id: string; question: string }[], ops?: SignoffLiveOps, needsInput = false): string {
-  const one = questions.length === 1
-  const lines = [
-    `${SIGNOFF_NUDGE_MARKER} Nothing about your task has changed, and no new work is being asked of you.`,
-    "",
-    `${one ? "A question you registered at an EARLIER rest is" : "Questions you registered at EARLIER rests are"} still open, and this rest neither names ${one ? "it" : "them"} nor withdraws ${one ? "it" : "them"}:`,
-    "",
-    ...questions.map((q) => `- \`${q.id}\` — ${q.question}`),
-    "",
-    "ntwine does not draw an earlier rest's question under your newest handoff: its card stays where you",
-    `asked it. So say where ${one ? "it stands" : "each one stands"}:`,
-    "",
-    "- STILL NEED THE ANSWER → end with an ```awaiting fence naming it, `questions: [qst_…]`. A fence on",
-    "  questions needs no other name and no `for:`, and the thread stays in the user's queue. The card is",
-    "  drawn at this rest, under the reasoning you write below the `---` — what changed since you asked,",
-    "  if anything did.",
-    "- NO LONGER NEED IT → withdraw it with `ntwinectl unask <id>`, then sign off as you otherwise would.",
-    ...liveOpsLines(ops, needsInput),
-  ]
-  return lines.join("\n")
-}
+// The reminder for a fenceless rest beside a question from an EARLIER rest (carriedQuestionsNudgeMessage,
+// 2026-10-05 to 2026-10-24) is gone: a held question signs off every rest now, so there is nothing to
+// name or withdraw. It used the same marker as the reminder above, so the copies on disk still fold.
 
 // ---- THE FENCE CORRECTIONS (scheduler SOURCE 12) -------------------------------------------------
 // ntwine refusing a park and telling the worker why: a fence naming something that is not running, a
@@ -2558,12 +2592,11 @@ export function carriedQuestionsNudgeMessage(questions: readonly { id: string; q
 // The scheduler draws the same line for its bump cap (`cause !== "expired"`).
 export const PARK_CORRECTION_NAMES_LEAD = "⚠️ Your ```awaiting fence names "
 export const PARK_CORRECTION_RETIRED_LEAD = "⛔ Your ```awaiting fence uses "
-/** The third refusal (2026-08-28): the fence was well-formed and everything it named was live, but a
- *  REGISTERED QUESTION stood open on the thread. A question outranks a park everywhere else — the queue
- *  rule, the resting card — so the fence was refused outright rather than drawn beside the ask
- *  (maintainer: "it should not be allowed, basically"). Since 2026-10-05 a fence may stand beside open
- *  questions by NAMING every one under `questions:`; the refusal is for the ones it leaves out, or names
- *  that are not open questions at all. The lead is unchanged, so old corrections on disk still fold. */
+/** The third refusal, RETIRED 2026-10-24: a fence beside a REGISTERED QUESTION. From 2026-08-28 any open
+ *  question refused the park (maintainer: "it should not be allowed, basically"); from 2026-10-05 the
+ *  fence had to name every held one under `questions:`. A held question signs off every rest now and
+ *  queues the thread whatever the fence says, so nothing is refused. ntwine no longer writes this lead;
+ *  it is kept so the corrections already on disk still fold. */
 export const PARK_CORRECTION_QUESTION_LEAD = "⚠️ Your ```awaiting fence landed while "
 /** The fourth (2026-10-01 to 2026-10-24): a worker dispatched under the answer-required contract parked
  *  without saying where the thread sits while it waits. NO LONGER SENT — ntwine derives the answer from
@@ -2956,6 +2989,93 @@ export function parseParkWake(text: string): ParkWake | null {
   if (trimmed.startsWith(PARK_REQUESTED_LEAD) || trimmed.startsWith(legacyHumanWording(PARK_REQUESTED_LEAD))) return { kind: "requested", items: parkWakeItems(trimmed) }
   if (PARK_FINISHED_HEAD.test(trimmed)) return { kind: "finished", items: parkWakeItems(trimmed) }
   return null
+}
+
+/** A status line that says nothing moved: a named item still running, or questions and steps the
+ *  human has not got to (the scheduler's `status` lines in parkExpiredWakeMessage's caller). */
+export function isPendingParkItem(line: string): boolean {
+  return /— (?:still running|not answered yet|the user has not replied)\b/.test(line)
+}
+
+/** The prose of a reply that holds an ```awaiting fence, in pieces: the text outside the fences, and
+ *  each fence's free text (its lines after `---`, and any line above it that is not a `key:` or a list
+ *  item). `null` when the text holds no awaiting fence at all. */
+function reparkProse(text: string): string[] | null {
+  const pieces: string[] = []
+  let fenced = false
+  const outside = text.replace(/^(`{3,})awaiting[^\n]*\n([\s\S]*?)^\1[ \t]*$/gm, (_, _fence: string, body: string) => {
+    fenced = true
+    const lines = body.split("\n")
+    const rule = lines.findIndex((line) => /^\s*---\s*$/.test(line))
+    const head = rule < 0 ? lines : lines.slice(0, rule)
+    const tail = rule < 0 ? [] : lines.slice(rule + 1)
+    pieces.push([...head.filter((line) => line.trim() && !/^\s*(?:[a-z][a-z_-]*:|-\s)/i.test(line)), ...tail].join("\n").trim())
+    return ""
+  })
+  return fenced ? [outside.trim(), ...pieces].filter(Boolean) : null
+}
+
+/** Wait-expired check-ins that changed nothing, and the replies that only re-parked: transcript indexes
+ *  to hide, and for the check-in that does draw after a run of hidden ones, how many it stands for
+ *  (itself included).
+ *
+ *  WHY (maintainer 2026-10-24, the same request that took the sign-off nudge off the screen). A park on
+ *  sub-agents expires every AGENT_PARK_FOR_MAX_MS, and each expiry drew a "Wait expired" hairline the
+ *  human could do nothing about, since everything it named was still running: one arktype thread drew
+ *  375 of them in 14 days. A check-in is silent when every status line it carried is pending
+ *  (isPendingParkItem) and the worker's reply is a re-park: ntwine's own calls, at most one short
+ *  paragraph of prose (fence text included), and an ```awaiting fence. A reply that ran any other tool or
+ *  wrote a real note is the progress report the check-in asked for, and keeps its divider.
+ *
+ *  THE TAIL IS NEVER HIDDEN. A reply with no later user message is the thread's current rest, and its
+ *  fence is the live wait (the resting card or the question cards hang off it), so that check-in draws —
+ *  carrying the count of the silent ones above it, which is the fold. */
+export function silentCheckInIndexes(messages: readonly {
+  role: string
+  kind?: string
+  text: string
+  displayText?: string
+  tools: readonly { name: string; command?: string; detail?: string }[]
+}[]): { hidden: Set<number>; folded: Map<number, number> } {
+  const hidden = new Set<number>()
+  const folded = new Map<number, number>()
+  let run = 0
+  for (let i = 0; i < messages.length; i++) {
+    const wake = messages[i]!
+    if (wake.role !== "user") continue
+    const park = wake.kind ? null : parseParkWake(wake.displayText ?? wake.text)
+    if (park?.kind !== "expired") { run = 0; continue }
+    const reply: number[] = []
+    let fenced = false
+    let ritual = true
+    let j = i + 1
+    for (; j < messages.length && messages[j]!.role !== "user"; j++) {
+      const m = messages[j]!
+      if (m.role !== "assistant" || m.kind) continue
+      reply.push(j)
+      if (!ritual) continue
+      if (!m.tools.every(isNtwineOwnTool)) { ritual = false; continue }
+      const text = m.text.trim()
+      if (!text) continue
+      const pieces = reparkProse(text)
+      if (pieces) fenced = true
+      // Each piece one short paragraph, and all of them together still short: an acknowledgement
+      // above the fence and a line inside it are one remark, said in two places.
+      const words = pieces ?? [text]
+      if (!words.every(isRitualAck) || !isRitualAck(words.join(" "))) ritual = false
+    }
+    const silent = j < messages.length && ritual && fenced && park.items.length > 0 && park.items.every(isPendingParkItem)
+    if (silent) {
+      hidden.add(i)
+      for (const r of reply) hidden.add(r)
+      run++
+      i = j - 1
+      continue
+    }
+    if (run) folded.set(i, run + 1)
+    run = 0
+  }
+  return { hidden, folded }
 }
 
 const PR_WATCH_EXPIRED_HEAD = /^⏰ Your watcher on (\S+) has expired and is no longer armed\b/
@@ -3516,15 +3636,16 @@ export function commandWatchCancelledWakeMessage(input: { id: string; command: s
   ].join("\n")
 }
 
-/** A command watch's wake, read back — which of the three it is and the watch's id — or null. */
-export function parseCommandWatchWake(text: string): { kind: "passed" | "expired" | "cancelled"; id: string } | null {
+/** A command watch's wake, read back — which of the three it is, the watch's id, and the command it ran
+ *  (the first `sh` block, which every one of the three composers writes right under its head) — or null. */
+export function parseCommandWatchWake(text: string): { kind: "passed" | "expired" | "cancelled"; id: string; command?: string } | null {
   const first = text.trim()
-  const passed = COMMAND_WATCH_PASSED_HEAD.exec(first)
-  if (passed) return { kind: "passed", id: passed[1] }
-  const expired = COMMAND_WATCH_EXPIRED_HEAD.exec(first)
-  if (expired) return { kind: "expired", id: expired[1] }
-  const cancelled = COMMAND_WATCH_CANCELLED_HEAD.exec(first)
-  return cancelled ? { kind: "cancelled", id: cancelled[1] } : null
+  const heads = [["passed", COMMAND_WATCH_PASSED_HEAD], ["expired", COMMAND_WATCH_EXPIRED_HEAD], ["cancelled", COMMAND_WATCH_CANCELLED_HEAD]] as const
+  const [kind, head] = heads.map(([kind, re]) => [kind, re.exec(first)] as const).find(([, m]) => m) ?? []
+  if (!kind || !head) return null
+  // The command block is the first code block under the head, whichever fence length it needed.
+  const command = /^(`{3,})sh\n([\s\S]*?)\n\1$/m.exec(first)?.[2]
+  return { kind, id: head[1]!, ...(command !== undefined ? { command } : {}) }
 }
 
 // ---- THE WORKER'S REGISTERED QUESTIONS (2026-08-26) ------------------------------------------------
@@ -3824,9 +3945,9 @@ export function questionRepliedPast(q: { asked_at: number }, lastHumanAt: string
 
 /** IS THIS OPEN QUESTION PASSED OVER — the human typed past it (2026-10-14)? Then it stays open and its
  *  card stays answerable where it was asked, and an answer still reaches the worker; but it no longer
- *  holds the thread. It does not queue it, refuse `done`, need naming under `questions:` (a fence naming
- *  it is refused, so its card never moves down to a later rest), sign off a rest, or take ntwine's
- *  default answer, and `ask` refuses it again in the same words.
+ *  holds the thread. It does not queue it, refuse `done`, sign off a rest, move down to a later rest
+ *  (a fence naming it under `questions:` is ignored by the web), or take ntwine's default answer, and
+ *  `ask` refuses it again in the same words.
  *
  *  WHY (maintainer 2026-10-14): "The questions should move along with the conversation and not be
  *  re-asked if the user moves on — they can still go back up and provide an answer, but I don't like it
@@ -6306,8 +6427,8 @@ export const OwnThreadActivityResult = z.object({
   activity: z.array(ThreadActivityItem),
   links: z.array(ThreadLinkView).optional(),
   /** Every question still owed an answer. NOT a `ThreadActivityItem` and deliberately its own list: a
-   *  question is not running work, it waits on a PERSON, and the awaiting fence names one only by id,
-   *  under `questions:` (2026-10-05), never as an item to wait on. Until 2026-08-28 a worker could read its open questions back only
+   *  question is not running work, it waits on a PERSON, and holds the thread by itself until it is
+   *  answered or withdrawn — never an item a fence waits on. Until 2026-08-28 a worker could read its open questions back only
    *  as a side effect of `ask` (which registers another) or `unask` (which withdraws one) — so the ids
    *  that block `done` were readable only by mutating something (maintainer: "Is there a way for the
    *  agent to read out the current set of watchers and questions?"). */

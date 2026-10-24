@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { formatGithubWakeSteer, limitModelSwitchSteer, limitResumeSteer, mergedWakeMessage, ownWatchExpiredWakeMessage, parkExpiredWakeMessage, parkFinishedWakeMessage, PR_WATCH_ARMED_TRAILER, prWatchExpiredWakeMessage, prWatchWakeMessage, questionsCancelledWakeMessage, restPromptMessage, shellDoneMessage, timerPromptMessage } from "@ntwine/shared"
+import { commandWatchExpiredWakeMessage, commandWatchPassedWakeMessage, compactionPromptMessage, formatGithubWakeSteer, goalLimitMessage, interruptEndedSubAgentsMessage, limitModelSwitchSteer, limitResumeSteer, mergedWakeMessage, ownWatchExpiredWakeMessage, parkExpiredWakeMessage, signoffNudgeMessage, parkFinishedWakeMessage, PR_WATCH_ARMED_TRAILER, prWatchExpiredWakeMessage, prWatchWakeMessage, questionsCancelledWakeMessage, restPromptMessage, shellDoneMessage, timerPromptMessage } from "@ntwine/shared"
 import type { ChatMessage } from "./hooks.ts"
 import { Message } from "./components/ChatView.tsx"
 import "./styles.css"
@@ -145,9 +145,25 @@ const messages: ChatMessage[] = [
   // act on, so it is the link.
   wake("w19", prWatchExpiredWakeMessage("nubjs/nub#777")),
   // …and the same lapse on one of the worker's OWN waits, a `ntwinectl watch` on a shell or a
-  // sub-agent. It had no parser and was the other wake still drawing the verbatim card on 2026-10-11.
+  // sub-agent, which draws NOTHING since 2026-10-24: the worker registered it and re-decides it, and the
+  // human cannot renew it. So does every sign-off nudge. These three rows must leave no element at all.
   wake("w19b", ownWatchExpiredWakeMessage("shell", "bzvtnt3ig")),
   wake("w19c", ownWatchExpiredWakeMessage("agent", "a01b2d20b32feab11")),
+  wake("w19d", signoffNudgeMessage()),
+  // ntwine's news about the worker's registrations and limits, one line each (2026-10-24). Each of
+  // these printed its agent-facing paragraph in the fallback card before.
+  wake("w22", commandWatchPassedWakeMessage({ id: "cmw_a1b2c3", command: "nub run test packages/web", output: "ok", runs: 4, armedMs: 9 * 60_000 })),
+  wake("w23", commandWatchExpiredWakeMessage({ id: "cmw_d4e5f6", command: "curl -sf https://registry.npmjs.org/ntwine/0.14.2 >/dev/null", lastRun: { outcome: "exit", exitCode: 22, output: "" } })),
+  wake("w24", "⏰ The user set a time limit: your deadline is now 15:30, 1h 30m from now.\n\nPlan to the best deliverable you can hand over by then, not the complete one eventually."),
+  wake("w25", "⏰ Time check: 45m left until your deadline at 15:30 (a 1h 30m budget).\n\nStart nothing new."),
+  wake("w26", "⏰ The user removed your time limit. There is no deadline any more: work to the best deliverable, not to a clock."),
+  wake("w27", "⏰ Your background shell `b5htn6rlx` (vite --port 5199 --strictPort) has been running 31m, past its 30m budget. ntwine stops it in 2m unless you extend it.\n\nIf it must keep running, run `ntwinectl extend-shell b5htn6rlx --for <duration>`."),
+  wake("w28", goalLimitMessage({ reason: "runs", runs: 5, maxRuns: 5 })),
+  wake("w29", interruptEndedSubAgentsMessage([{ taskId: "a8ba0911e38ff92ce", label: "Survey the fence grammar" }, { label: "Draft the migration" }])),
+  wake("w30", compactionPromptMessage("Keep going on the migration.")),
+  // A CHECK-IN STANDING FOR TWELVE: the eleven silent ones above it draw nothing (shared
+  // silentCheckInIndexes), and this line carries their count.
+  { ...wake("w31", parkExpiredWakeMessage(["- `agents: [a8ba0911e38ff92ce]` — still running"], true)), checkIns: 12 },
   // THE PR ITSELF MOVING — a conflict, a label, a reviewer requested. Same watcher and the same class of
   // event as the two hairlines above, and the clauses of one poll stay on ONE line: a label edit must
   // not be given the weight of a red build.

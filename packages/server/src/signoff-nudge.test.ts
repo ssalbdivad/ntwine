@@ -326,48 +326,35 @@ test("a rest that ends on a written reply is not nudged; a one-line stop, or wor
   } finally { for (const h of [answered, stopped, workedAfter, shellRunning]) h.close() }
 })
 
-// A QUESTION IS A SIGN-OFF ONLY AT THE REST THAT ASKED IT (2026-10-05). Until then any open question
-// silenced the nudge at every later rest too, and the web drew the old card under the newest handoff as
-// if it were that rest's ask — superseding what the worker actually said (maintainer 2026-10-05). A
-// question carried past a human turn or a wake is now the worker's to restate under `questions:` or to
-// withdraw, and a later rest that does neither is told so.
+// A HELD QUESTION SIGNS OFF EVERY REST until it is answered or withdrawn (2026-10-24). From 2026-10-05
+// it signed off only the rest that asked it, and a rest after a wake was nudged to name it under
+// `questions:` or `unask` it — bookkeeping over ids ntwine already held (772 of 2,727 park fences
+// re-listed them). A question the human typed past holds nothing, so it signs off nothing either.
 const ASKED_EARLIER = Date.parse("2026-08-11T23:00:00.000Z")
-const LAST_TURN = "2026-08-11T23:59:00.000Z" // a CI wake or a reply, before the rest at 00:00
+const LAST_WAKE = "2026-08-11T23:59:00.000Z" // a CI wake, before the rest at 00:00 — no human turn
 
-test("a question carried from an EARLIER rest is not this rest's sign-off — the worker is told to name it or withdraw it", async () => {
-  const h = nudger({ lastUserAt: LAST_TURN })
+test("a question held from an EARLIER rest signs off the rest after a wake, and gives the allowance back", async () => {
+  const h = nudger({ lastUserAt: LAST_WAKE })
   try {
     h.storage.askThreadQuestion({ id: "qst_old1", slug: h.slug, spec: JSON.stringify({ question: "SQLite or a JSON file?", kind: "question" }), askedAtMs: ASKED_EARLIER })
-    await h.s.tick()
-    const nudges = h.nudges()
-    assert.equal(nudges.length, 1)
-    assert.ok(nudges[0].message.startsWith(SIGNOFF_NUDGE_MARKER), "the nudge's own marker, so it folds like every reminder")
-    assert.match(nudges[0].message, /A question you registered at an EARLIER rest is still open/)
-    assert.match(nudges[0].message, /- `qst_old1` — SQLite or a JSON file\?/, "named, with its own words")
-    assert.match(nudges[0].message, /`questions: \[qst_…\]`/)
-    assert.match(nudges[0].message, /`ntwinectl unask <id>`/)
-  } finally { h.close() }
-})
-
-test("a question asked at THIS rest is still its sign-off, even after an earlier turn", async () => {
-  const h = nudger({ lastUserAt: LAST_TURN })
-  try {
-    h.storage.askThreadQuestion({ id: "qst_new1", slug: h.slug, spec: JSON.stringify({ question: "Which dist-tag?", kind: "question" }), askedAtMs: Date.parse("2026-08-11T23:59:30.000Z") })
+    // An earlier bare rest spent one nudge; only a SIGN-OFF resets it, which tells "signed off" apart from
+    // "ineligible".
+    h.storage.countSignoffNudge(h.slug, "signoff:2026-08-11T22:00:00.000Z")
     await h.s.tick()
     assert.deepEqual(h.nudges(), [])
+    assert.equal(h.storage.getSession(h.slug)?.signoff_nudges, 0)
   } finally { h.close() }
 })
 
-test("a new question does not cover an old one: the nudge lists only the carried question", async () => {
-  const h = nudger({ lastUserAt: LAST_TURN })
+test("a question the human typed past signs off nothing: the rest after it is nudged as a bare one", async () => {
+  // Typed at 23:30, after the ask; the worker then ran a tool and stopped on a one-line narration.
+  const h = nudger({ lastUserAt: LAST_WAKE, lastHumanAt: "2026-08-11T23:30:00.000Z", firstHumanAt: "2026-08-11T22:00:00.000Z", lastToolCallAt: "2026-08-12T00:00:00.000Z" })
   try {
     h.storage.askThreadQuestion({ id: "qst_old1", slug: h.slug, spec: JSON.stringify({ question: "SQLite or a JSON file?", kind: "question" }), askedAtMs: ASKED_EARLIER })
-    h.storage.askThreadQuestion({ id: "qst_new1", slug: h.slug, spec: JSON.stringify({ question: "Which dist-tag?", kind: "question" }), askedAtMs: Date.parse("2026-08-11T23:59:30.000Z") })
     await h.s.tick()
     const nudges = h.nudges()
     assert.equal(nudges.length, 1)
-    assert.match(nudges[0].message, /qst_old1/)
-    assert.doesNotMatch(nudges[0].message, /qst_new1/)
+    assert.doesNotMatch(nudges[0].message, /qst_old1|questions:/)
   } finally { h.close() }
 })
 

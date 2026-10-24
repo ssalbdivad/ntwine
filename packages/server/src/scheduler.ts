@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { createHash, randomUUID } from "node:crypto"
-import { awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_QUESTION_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, terminalOutcome, terminalWakeMessage, terminalWatchExpiredWakeMessage, terminalControlWakeMessage, type ThreadTerminal, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, carriedQuestionsNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@ntwine/shared"
+import { awaitingStatus, needsInputRequired, PARK_CORRECTION_NAMES_LEAD, PARK_CORRECTION_RETIRED_LEAD, interruptEndedSubAgentsMessage, type InterruptEndedSubAgent, parkExpiredWakeMessage, parkFinishedWakeMessage, prWatchExpiredWakeMessage, ownWatchExpiredWakeMessage, mergeAnswerMessages, commandWatchPassedWakeMessage, commandWatchExpiredWakeMessage, commandWatchCancelledWakeMessage, mergedWakeMessage, questionAnswerMessage, threadQuestionDefaults, questionsCancelledWakeMessage, type QuestionAnswer, type QuestionDismissal, RETIRED_AWAITING_REPLACEMENT, retiredAwaitingKindsIn, compactionPromptMessage, goalLimitMessage, limitResumeSteer, limitModelSwitchSteer, formatGithubWakeSteer, GithubWakeItem, type GithubWatchStatus, type GithubIssueStatus, prWatchWakeMessage, issueWatchWakeMessage, shellDoneMessage, terminalOutcome, terminalWakeMessage, terminalWatchExpiredWakeMessage, terminalControlWakeMessage, type ThreadTerminal, restPromptMessage, schedulePromptMessage, timerPromptMessage, signoffNudgeMessage, strayShellsMessage, type SignoffLiveOps, liveOpsLines, isDirectSubAgent, wakeDeliveryToken, wakeTimeHeader, stripWakeTimeHeader, type QuotaSnapshot, deadlineStageDue, type DeadlineStage } from "@ntwine/shared"
 import { GITHUB_ISSUE_STATUS_SETTING, GITHUB_STATUS_SETTING, terminalLives, terminalAwaitKey, type TerminalLive, liveActivityOf, parkExpiresAt, parkIsHonoured, parkOnHuman, readAwaitingPark, unaccountedItems, type LiveActivity } from "./awaiting.ts"
 import { isHeldRow, terminalNotesOf, type ThreadTerminalRow, type CommandWatchRow, type PrWatchRow, type SessionRow, type Storage, type ThreadQuestionRow } from "./storage.ts"
 import type { CommandRunResult, CommandWatchService } from "./command-watch.ts"
@@ -15,7 +15,7 @@ import { createWakeDeliveryStore, WAKE_QUIET_WINDOW_MS, type WakeDelivery } from
 import { armedTimerKeys, replyWaitOf, threadAwaitKey } from "./thread-mentions.ts"
 // The board owns the registered-done lifetime rule, and the waker must read it by exactly the same rule
 // or the two disagree about whether a thread is finished.
-import { withTerminals, answersInFlight, carriedQuestionRows, childJustReturned, heldQuestionRows, registeredDoneFence, rowPassedOver, safeQuestionAnswer, safeQuestionSpec, SIGNOFF_NUDGE_SETTING, signoffNudgeVerdict } from "./board.ts"
+import { withTerminals, answersInFlight, childJustReturned, heldQuestionRows, registeredDoneFence, safeQuestionAnswer, safeQuestionSpec, SIGNOFF_NUDGE_SETTING, signoffNudgeVerdict } from "./board.ts"
 import { ProducerStoppedError } from "./shutdown.ts"
 import { liveShellBudget, SHELL_BUDGET_GRACE_MS, shellBudgetWarningMessage, type ShellStopReason } from "./shell-budget.ts"
 import { deadlineCheckInMessage, deadlineStageToSend, rowDeadline } from "./deadline.ts"
@@ -1247,17 +1247,6 @@ function isStrayShellsFenceId(fenceId: string): boolean {
   return fenceId.startsWith(`${STRAY_SHELLS_FENCE_PREFIX}:`)
 }
 
-/** The question a `thread_question` row asks, as one short line for a correction's list — the worker
- *  never saw the id ntwine minted, so the id alone would not tell it which question is meant. */
-function questionLine(spec: string): string {
-  try {
-    const q = String((JSON.parse(spec) as { question?: unknown }).question ?? "").replace(/\s+/g, " ").trim()
-    return q.length > 120 ? `${q.slice(0, 117)}…` : q
-  } catch {
-    return "(unreadable question)"
-  }
-}
-
 /** SOURCE 12's delivery namespace — `park:<cause>:<the rest it corrects>`. The cause is in the key so a
  *  fence bumped for a dead id and later for expiry is two pieces of news rather than one deduped away. */
 const PARK_FENCE_PREFIX = "park"
@@ -2360,11 +2349,11 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // fence", to a worker whose question ntwine itself had just cancelled) and the Goal stood down for
       // it. The armed-rest flag scopes it to exactly the threads whose dismissals wake on their own.
       //
-      // AN OPEN QUESTION IS A SIGN-OFF ONLY AT THE REST THAT ASKED IT (upstream 2026-10-05). A question
-      // CARRIED from an earlier rest is not this rest's sign-off: its card stays where it was asked, so the
-      // worker names it under `questions:` in an awaiting fence (evalParkIntegrity) or withdraws it, and is
-      // told so below (carriedQuestionsNudgeMessage). A question the human TYPED PAST is not carried: it
-      // holds nothing, so it needs neither (board.heldQuestionRows, shared questionPassedOver).
+      // A HELD QUESTION SIGNS OFF EVERY REST until it is answered or withdrawn (2026-10-24), not only
+      // the rest that asked it: the worker never re-names one, and there is no reminder to. From
+      // 2026-10-05 a later rest beside one was nudged to name it under `questions:` or withdraw it, which
+      // was bookkeeping over ids ntwine already held. A question the human TYPED PAST holds nothing, so it
+      // signs off nothing (board.heldQuestionRows, shared questionPassedOver).
       // A native ask is a question by another route: the thread is frozen on a modal the human has to
       // answer, and telling it to write a ```question fence is telling it to do what it already did.
       // The sentinel still ends the arrangement for sessions that predate the fence (see `saidDone`).
@@ -2428,17 +2417,14 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
           .map((w) => ({ id: `${w.owner}/${w.repo}#${w.number}`, label: `${w.owner}/${w.repo}#${w.number}` })),
         commands: commandWatchOps(deps.storage, row.slug),
       }
-      // A question CARRIED from an earlier rest takes the carried variant instead (upstream 2026-10-05):
-      // the worker names it under `questions:` or withdraws it (board.carriedQuestionRows).
-      const carried = carriedQuestionRows(deps.storage.listThreadQuestions(row.slug), tele)
       const item = outbox.enqueue({
         id: deliveryId,
         slug: row.slug,
         sessionId: row.session_id,
         fenceId,
         hintKey: SIGNOFF_HINT_KEY,
-        message: withClock(carried.length > 0 ? carriedQuestionsNudgeMessage(carried.map((q) => ({ id: q.id, question: questionLine(q.spec) })), ops, needsInput) : signoffNudgeMessage(ops, needsInput), spokeAt),
-        reason: carried.length > 0 ? `rested with ${carried.length} earlier question(s) neither named nor withdrawn` : "rested without signing off",
+        message: withClock(signoffNudgeMessage(ops, needsInput), spokeAt),
+        reason: "rested without signing off",
       }, nowMs).delivery
       log(`waker: queued ${row.slug} — ${item.reason}`)
       checkpoint("after-enqueue", item)
@@ -2512,13 +2498,12 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       if (!spokeAt) continue
       if (tele.lastUserAt && Date.parse(tele.lastUserAt) >= Date.parse(spokeAt)) continue
       if (tele.authFault || tele.apiFault) continue
-      // A fence beside the question names its shells or is SOURCE 12's to correct (a park must name every
-      // open question under `questions:`), so only a bare rest on a question is this case.
+      // A fence beside the question names its shells or is SOURCE 12's to correct, so only a bare rest on
+      // a question is this case — and a held question signs off every bare rest (2026-10-24), not only
+      // the one that asked it. The delivery id is the set of stray shells, so the same shells left behind
+      // across several rests are raised once.
       if (tele.lastFence) continue
-      // …and only a rest the question SIGNS OFF: one carried from an earlier rest draws SOURCE 9's carried
-      // reminder instead (board.carriedQuestionRows), which lists the live shells itself.
-      const questionRows = deps.storage.listThreadQuestions(row.slug)
-      const onQuestion = Boolean(tele.pendingQuestion) || (heldQuestionRows(questionRows, tele).length > 0 && carriedQuestionRows(questionRows, tele).length === 0)
+      const onQuestion = Boolean(tele.pendingQuestion) || heldQuestionRows(deps.storage.listThreadQuestions(row.slug), tele).length > 0
       if (!onQuestion) continue
       const watched = deps.storage.listThreadWatches(row.slug, { armedOnly: true }).filter((w) => w.kind === "shell").map((w) => w.target)
       const stray = (tele.bgShells ?? []).filter((sh) => sh.state === "running" && ![sh.id, sh.taskId, sh.label].some((h) => h !== undefined && watched.includes(h)))
@@ -2590,83 +2575,15 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // the four passes that read "the agent spoke last" agree on what a failed turn is.)
       if (tele.authFault || tele.apiFault) continue
 
-      // AN OPEN QUESTION THE FENCE DOES NOT NAME REFUSES THE PARK, before any look at the rest of it.
-      //
-      // Until 2026-10-05 ANY open question refused it outright. A question outranks a wait everywhere —
-      // deriveNeedsYou queues the thread on the open row before any park excusal — and a fence beside one
-      // drew a parked-looking card above the ask (maintainer 2026-08-28: "Weird that there's both an
-      // awaiting block and open questions"; then "it should not be allowed, basically"). That rule had a
-      // cost nobody priced: it forced every later rest of a thread with an old question open to be a bare
-      // one, and the old card was redrawn under it as the sign-off, whatever the worker had actually said
-      // (maintainer 2026-10-05: "the pending questions that may or may not be relevant kind of supersede
-      // how the agent actually signed off").
-      //
-      // So the fence may stand beside open questions by NAMING every one under `questions:` — which is
-      // the worker saying it still needs those answers — and the cards it names are drawn at this rest.
-      // One it leaves out is refused here, and the worker either names it or withdraws it with `unask`:
-      // nothing stale survives a rest silently. A name that is not an open question of this thread is
-      // refused too, unless it settled AFTER the rest — answered or withdrawn while the park stood, which
-      // its own wake carries. Counted against PARK_BUMP_MAX like the other corrections, keyed on the rest
-      // so one fence draws one bump, and checked BEFORE the honoured-park reset below on purpose.
-      //
-      // A QUESTION THE HUMAN TYPED PAST (2026-10-14) needs no name, and a name on one is refused like a
-      // name on a settled one: it holds nothing, so a fence cannot wait on it, and a claim would move its
-      // card down under this rest — the pull to the bottom of the dialog the maintainer ruled out ("I don't
-      // like it staying at the bottom of the dialog"). Ignoring the name silently was the alternative; it
-      // was rejected because a fence naming only passed-over questions would then still read as a wait on
-      // the human and queue the thread on nothing. The card stays answerable where it was asked.
+      // AN OPEN QUESTION NEVER REFUSES THE PARK (2026-10-24). From 2026-08-28 any open question refused
+      // it outright; from 2026-10-05 the fence had to name every held one under `questions:`, and a name
+      // that was not a held question was refused too. Both were bookkeeping: a held question already
+      // signs off every rest and queues the thread before any park excusal (board.deriveNeedsYou), so
+      // nothing a fence says about it changes where the thread sits. `questions:` is still READ — older
+      // workers and transcripts write it, and a fence naming only questions is a wait on the human
+      // (awaiting.parkOnHuman) that queues — but it is never required and never checked here.
+      // (PARK_CORRECTION_QUESTION_LEAD stays in @ntwine/shared so the corrections on disk still fold.)
       const park = readAwaitingPark(tele.lastFence.hints)
-      const questionRows = deps.storage.listThreadQuestions(row.slug)
-      const heldQuestions = heldQuestionRows(questionRows, tele)
-      const named = new Set(park.questions)
-      const unnamed = heldQuestions.filter((q) => !named.has(q.id.toLowerCase()))
-      const spokeMs = Date.parse(spokeAt)
-      const passedOver: string[] = []
-      const notOpen = park.questions.filter((id) => {
-        const q = questionRows.find((r) => r.id.toLowerCase() === id)
-        if (q && rowPassedOver(q, tele)) {
-          passedOver.push(id)
-          return false
-        }
-        if (q?.state === "open") return false
-        return !q || q.settled_at === null || q.settled_at <= spokeMs
-      })
-      if (unnamed.length > 0 || notOpen.length > 0 || passedOver.length > 0) {
-        if ((row.park_bumps ?? 0) >= PARK_BUMP_MAX) continue
-        const fenceId = parkFenceId("question", spokeAt)
-        const deliveryId = wakeDeliveryId(row.slug, row.session_id, fenceId)
-        if (outbox.get(deliveryId)) continue
-        const one = unnamed.length === 1
-        const head = unnamed.length > 0
-          ? `${one ? "a question of yours was" : `${unnamed.length} questions of yours were`} still OPEN and it does not name ${one ? "it" : "them"}, so ntwine refused the park.`
-          : notOpen.length > 0
-          ? `it names ${notOpen.length === 1 ? "a question that is" : "questions that are"} not open, so ntwine refused the park.`
-          : `it names ${passedOver.length === 1 ? "a question" : "questions"} the user typed past, so ntwine refused the park.`
-        const message = [
-          `${PARK_CORRECTION_QUESTION_LEAD}${head}`,
-          ...(unnamed.length > 0 ? ["", "Open, and not named under `questions:`:", ...unnamed.map((q) => `- \`${q.id}\` — ${questionLine(q.spec)}`)] : []),
-          ...(notOpen.length > 0 ? ["", "Named, but not an open question of yours:", ...notOpen.map((id) => `- \`${id}\``)] : []),
-          ...(passedOver.length > 0 ? ["", "Named, but the user typed past it — drop it; its card stays answerable where you asked it:", ...passedOver.map((id) => `- \`${id}\``)] : []),
-          "",
-          "A fence beside open questions names EVERY one you still need answered — `questions: [qst_…]` —",
-          "and you withdraw the rest with `ntwinectl unask <id>`. A named question's card is drawn at this rest;",
-          "an unnamed one stays where you asked it. Fix the list (or unask), re-send the fence, and the park",
-          "takes. A fence on questions needs no other name and no `for:`.",
-        ].join("\n")
-        const item = outbox.enqueue({
-          id: deliveryId,
-          slug: row.slug,
-          sessionId: row.session_id,
-          fenceId,
-          hintKey: fenceId,
-          message: `${message}\n\n${wakeTimeHeader(nowMs, spokeAt)}`,
-          reason: `awaiting fence leaves ${unnamed.length} open question(s) unnamed${notOpen.length ? `, names ${notOpen.length} that are not open` : ""}${passedOver.length ? `, names ${passedOver.length} typed past` : ""}`,
-        }, nowMs).delivery
-        deps.storage.countParkBump(row.slug, fenceId)
-        log(`waker: queued ${row.slug} — ${item.reason}`)
-        checkpoint("after-enqueue", item)
-        continue
-      }
 
       const live = liveActivityOf(
         tele,
@@ -2860,7 +2777,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         status.push(`- \`steps:\` (${park.steps.length}) — the user has not replied; check whether they were done anyway before you post them again`)
       }
       if (park.questions.length > 0) {
-        status.push(`- \`questions:\` (${park.questions.length}) — not answered yet; name the ones you still need in your next fence and withdraw the rest`)
+        status.push(`- \`questions:\` (${park.questions.length}) — not answered yet; each stays open until it is, and \`ntwinectl unask <id>\` withdraws one you no longer need`)
       }
       // When EVERY dead name simply finished, the news is not "your fence is wrong" — it is "the thing
       // you were waiting for is done". Different fact, different next action.

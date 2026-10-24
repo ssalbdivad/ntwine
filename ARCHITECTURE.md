@@ -184,14 +184,13 @@ A wait always takes the awaiting fence, because where the thread sits meanwhile 
 ntwine only CHECKS what the worker declared:
 
 - **Park integrity** (scheduler SOURCE 12, `evalParkIntegrity`). An awaiting fence must name only live
-  items the thread owns, and name every open question the human has not typed past. One that does not
+  items the thread owns; an open question never refuses it. One that does not
   queues the thread and draws a correction naming the fault, at most `PARK_BUMP_MAX` (3) in a row. An
   expired `for:` wakes the worker to re-check, uncapped.
 - **The sign-off nudge** (SOURCE 9, `evalSignoffNudges`, `board.signoffNudgeVerdict`). A rest with no
   fence and no `done` or `ask` of its own gets the protocol back, at most `SIGNOFF_NUDGE_MAX` (2) in a
   row; a `watch` alone is not a sign-off, and a rest behind a running direct sub-agent waits for the rest
-  its return brings. A bare rest carrying a question from an earlier rest gets
-  `carriedQuestionsNudgeMessage` instead.
+  its return brings. A held question signs off every rest, so a rest beside one is never nudged.
 
 **Where a rest sits is read off the fence** (`awaitingStatus`, `packages/shared`): prose under its `---`,
 steps or questions ⇒ `needs_input`; only shells, sub-agents and timers ⇒ `working`; any PR, thread,
@@ -220,8 +219,9 @@ The fence's other keys name what it waits on:
 - `steps:` — acts only the human can perform, read verbatim (`awaitingSteps`). Steps name the human, so
   the fence needs no other item and no `for:`, and it always queues. The card (`AwaitingSteps.tsx`), headed
   by an "Awaiting human" chip ("To do" until 2026-10-10), draws them as a to-do stepper over one Done button — since 2026-10-12 a numbered marker per step that the human ticks off as they go, the ticks kept in localStorage keyed by the steps’ own text (`lib/stepsTicked.ts`) so the queue card and the drawer agree and a reload keeps the reader’s place; nothing is sent until Done, which sends the ordinary follow-up `Done`. Nothing is registered.
-- `questions:` — the open questions a later rest still needs (`awaitingQuestions`). They name the human
-  too.
+- `questions:` — registered question ids (`awaitingQuestions`). No longer taught or required (2026-10-24),
+  but still read, because older workers and transcripts write it: they name the human too, and a card a
+  fence names is drawn at that rest.
 - `threads:` — threads asked with `ntwinectl message-thread --await-reply`, and terminals, read verbatim
   because YAML reserves `@`. For a thread the call only registers the wait: a one-off timer on the asker
   (`replyWaitPrompt`, `shared/src/thread-handle.ts`), armed for `AWAITING_FOR_MAX_MS` and cancelled the
@@ -249,15 +249,22 @@ worker therefore signs off `done` naming the ref rather than parking on it.
 
 **A question is a row with a lifecycle** (`ntwinectl ask`, `thread_question`). It is open until the
 human answers or dismisses it or the worker withdraws it with `ntwinectl unask`; ntwine never retracts one by
-omission. A question is the sign-off of the rest that asked it, and every later rest names it under
-`questions:` or withdraws it — until the human TYPES PAST it (`questionRepliedPast`; since 2026-10-14,
+omission. A HELD question — open, and not typed past — is the sign-off of every rest until it is
+answered or withdrawn (`board.heldQuestionRows`, 2026-10-24); the worker never restates it, and nothing
+nudges or refuses a rest for leaving it out. From 2026-10-05 it signed off only the rest that asked it,
+and every later rest had to name it under `questions:` or `unask` it — 772 of 2,727 park fences re-listed
+ids the server already held. When the human TYPES PAST it (`questionRepliedPast`; since 2026-10-14,
 maintainer: *"the questions should move along with the conversation and not be re-asked if the user moves
-on"*). A question typed past stays open and answerable where it was asked, but no longer holds the thread:
-it blocks no `done`, needs no `questions:`, queues nothing and gets no reminder. A `secret` or MCP request
+on"*), it stays open and answerable where it was asked, but no longer holds the thread: it blocks no
+`done`, queues nothing and signs off nothing. A `secret` or MCP request
 is exempt: it is an input the worker cannot proceed without. `ask` refuses to re-ask a question the human
 dismissed or typed past, or one the worker withdrew after the human's newest message. On
 the page a card stays at the bottom of the rest that asked it until a later fence claims it, then moves
-to the end of that rest (`questionClaims`, `web/src/lib/questionAnchor.ts`); a wake never moves it. An
+to the end of that rest (`questionClaims`, `web/src/lib/questionAnchor.ts`); a wake never moves it. A
+question whose card sits above the newest rest — held, or typed past — is linked from the transcript's
+tail ("1 unanswered question above", `ChatView` `questionsAbove`), so the newest handoff never reads as a
+bare stop with its ask out of sight; the queue card draws a held one between the rests it shows
+(`lib/queueCardQuestions.ts`). An
 empty placement marker, ```` ```question qst_… ````, draws its card where the marker sits instead
 (`questionShadow.placeQuestions`); the contract tells workers to write none. The free-form question fence
 is prose for every thread dispatched since `QUESTION_FENCE_RETIRED_AT`; an older thread keeps it as an

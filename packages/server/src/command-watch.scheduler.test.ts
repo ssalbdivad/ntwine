@@ -118,7 +118,7 @@ test("a failing check is recorded and wakes nobody; a passing one wakes ONCE, wi
   w = h.storage.getCommandWatch(id)!
   assert.deepEqual([w.state, w.runs, w.last_exit], ["passed", 2, 0])
   assert.equal(h.resumes.length, 1, "the pass is DELIVERED")
-  assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "passed", id })
+  assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "passed", id, command: "test -f /tmp/released" })
   assert.match(h.resumes[0].message, /exited 0 on check 2 \(2 checks over 1m\)/)
   assert.match(h.resumes[0].message, /test -f \/tmp\/released/)
   assert.match(h.resumes[0].message, /0\.13\.12/)
@@ -170,7 +170,7 @@ test("expiry kills a check in flight, settles the watch and wakes the worker onc
   await h.s.tick()
   assert.equal(h.storage.getCommandWatch(id)!.state, "expired")
   assert.equal(h.resumes.length, 1)
-  assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "expired", id })
+  assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "expired", id, command: "test -f /tmp/released" })
   assert.match(h.resumes[0].message, /Its last check exited 1, ending:/)
   assert.match(h.resumes[0].message, /npm error 404/)
   assert.match(h.resumes[0].message, /`ntwinectl watch-command add`/)
@@ -190,7 +190,7 @@ test("a gate that closes after registration cancels the watch before it runs, an
   assert.equal(h.fake.calls.length, 0, "a refused thread's command is never run")
   assert.equal(h.storage.getCommandWatch(id)!.state, "cancelled")
   assert.equal(h.resumes.length, 1)
-  assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "cancelled", id })
+  assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "cancelled", id, command: "test -f /tmp/released" })
   assert.match(h.resumes[0].message, /`default` permission mode/)
   assert.match(h.resumes[0].message, /background shell instead/)
 })
@@ -323,7 +323,7 @@ test("a watch that passes under a rest on it sends ONE wake — no park correcti
   h.fake.script.push({ exitCode: 0, output: "0.13.12" })
   await h.cycle()
   assert.equal(h.resumes.length, 1)
-  assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "passed", id })
+  assert.deepEqual(parseCommandWatchWake(h.resumes[0].message), { kind: "passed", id, command: "test -f /tmp/released" })
   assert.doesNotMatch(h.resumes[0].message, /held 2 wakes|FINISHED/)
   // The wake lands as a user record, which is the worker moving past this rest.
   const landed = h.tele.get("t")!
