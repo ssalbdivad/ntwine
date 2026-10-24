@@ -16,7 +16,9 @@ import { nextShellLogDelay, ShellLogStream } from "./lib/shellLog.ts"
 // on send that hasn't yet appeared in a server refetch. The flag drives the "queued" affordance and
 // is naturally dropped when server truth overwrites the cache — EXCEPT that a blunt overwrite would drop
 // it too early (before the server's own copy lands), so overwrites now route through mergeOptimistic.
-export type ChatMessage = TranscriptMessage & { queued?: boolean; deliveryId?: string }
+// `checkIns` is presentation-only too: on a wait-expired check-in, how many silent check-ins in a row it
+// stands for (lib/restDividers withoutSilentExchanges), so its divider can say so.
+export type ChatMessage = TranscriptMessage & { queued?: boolean; deliveryId?: string; checkIns?: number }
 export type TranscriptData = Partial<Omit<PaginatedTranscriptData, "messages">> & { messages: ChatMessage[] }
 
 // `mergeToolRuns` stays deleted: mutating transcript truth before the ordered-parts walk hoisted tools

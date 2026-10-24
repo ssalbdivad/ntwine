@@ -125,7 +125,7 @@ test("completionHoldSummary names the live sub-agents and shells, with counts", 
 
 test("completionHoldSummary says a cut-off worker is gone, not busy, and points at Retry", () => {
   const summary = completionHoldSummary(hold({ turnInFlight: true, cutOff: true }))
-  assert.match(summary.lead, /cut off mid-turn/)
+  assert.match(summary.lead, /stopped mid-turn/)
   assert.match(summary.lead, /isn’t done/)
   assert.deepEqual(summary.groups, [], "nothing is running under a dead worker, so nothing is listed")
   assert.match(summary.trailer, /Retry resumes it/)
@@ -216,7 +216,7 @@ test("a running terminal on the thread detaches on Done, and is listed only on t
 
   // A dead worker's children cannot be live, but its terminals are not its children.
   const cutOff = completionHoldSummary(hold({ turnInFlight: true, cutOff: true, terminals: [{ label: "npm run dev", state: "running" }], terminalCount: 1 }))
-  assert.match(cutOff.lead, /cut off mid-turn/)
+  assert.match(cutOff.lead, /stopped mid-turn/)
   assert.deepEqual(cutOff.groups.map((g) => g.heading), ["1 terminal"])
   assert.match(cutOff.trailer, /its terminals keep running unless ticked/)
 })

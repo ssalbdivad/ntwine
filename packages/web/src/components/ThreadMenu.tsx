@@ -225,7 +225,7 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
         )}
         {restart && offersRestartWorker(thread, devBuild) && (
           <MenuItem value="restart-worker" onSelect={() => void restartWorker(queryClient, slug)} icon={<RefreshCw size={12} aria-hidden />}>
-            Restart worker
+            Restart agent
           </MenuItem>
         )}
         {ownSession && (

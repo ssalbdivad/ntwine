@@ -222,7 +222,7 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
         <ActionRow data="retry" icon={<RotateCcw size={19} />} label="Retry" onClick={() => dismiss(() => void retryNow())} />
       )}
       {restart && (
-        <ActionRow data="restart-worker" icon={<RefreshCw size={19} />} label="Restart worker" onClick={() => dismiss(() => void restartWorker(queryClient, thread.id))} />
+        <ActionRow data="restart-worker" icon={<RefreshCw size={19} />} label="Restart agent" onClick={() => dismiss(() => void restartWorker(queryClient, thread.id))} />
       )}
       {foot && <div data-thread-actions-foot className="px-[18px] pt-2.5 text-[12.5px] leading-[17px] text-muted">{foot}</div>}
     </div>
@@ -334,7 +334,7 @@ function CustomSnoozeView({ thread, back, dismiss }: { thread: ThreadView; back:
           className="w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-[16px] leading-[22px] text-fg outline-none placeholder:text-muted-50 focus:border-border-strong"
         />
         <p className="text-[12.5px] text-muted">
-          {prompt.trim() ? "ntwine will resume this thread with the prompt at the wake time." : "Leave it empty to just bring the thread back to your queue."}
+          {prompt.trim() ? "Sends this prompt when the snooze ends." : "Leave it empty to just bring the thread back to your queue."}
         </p>
         {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
         <button
@@ -343,7 +343,7 @@ function CustomSnoozeView({ thread, back, dismiss }: { thread: ThreadView; back:
           className="mt-1 flex h-[46px] items-center justify-center gap-2 rounded-xl bg-fg text-[15.5px] font-semibold text-bg outline-none disabled:opacity-45"
         >
           {busy && <Loader2 size={16} className="animate-spin" />}
-          {prompt.trim() ? "Snooze and bump" : "Snooze"}
+          {prompt.trim() ? "Snooze and follow up" : "Snooze"}
         </button>
       </div>
     </form>

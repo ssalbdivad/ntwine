@@ -123,7 +123,8 @@ import { ThreadProcessStrip } from "./ThreadTerminals.tsx"
 import { threadProcesses } from "../lib/threadProcesses.ts"
 import { prependEarlierPage } from "../lib/transcriptPagination.ts"
 import { earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, transcriptMessageRows, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
-import { withoutRedundantRestDividers, withoutSilentSignoffs } from "../lib/restDividers.ts"
+import { withoutRedundantRestDividers, withoutSilentExchanges } from "../lib/restDividers.ts"
+import { wakeRendersNothing, withoutNtwineOwnCalls } from "../lib/ntwineMachinery.ts"
 import { coalesceToolActivityMessages, editedFileCount, failedToolCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, settledToolActivityParts, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
 import { CodexDirectiveCard, MermaidDiagram } from "./CodexRichOutput.tsx"
 import { LightboxGallery } from "./Lightbox.tsx"
@@ -190,8 +191,11 @@ function isLiveTranscriptBackgroundTool(tool: TranscriptToolCall): boolean {
 // The transcript's live Codex shells, for the strip (lib/childOps.ts, where it is pure and tested).
 export { transcriptBackgroundShells }
 
+// …and without the worker's successful calls to ntwine itself, whose effect the done card, the question
+// cards and the process strip already draw (lib/ntwineMachinery withoutNtwineOwnCalls).
 export function withoutLiveTranscriptBackgroundTools(messages: readonly ChatMessage[]): ChatMessage[] {
-  return messages.map((message) => {
+  return messages.map((served) => {
+    const message = withoutNtwineOwnCalls(served)
     if (!message.tools.some(isLiveTranscriptBackgroundTool)) return message
     const tools = message.tools.filter((tool) => !isLiveTranscriptBackgroundTool(tool))
     const parts = message.parts?.map((part) =>
@@ -345,7 +349,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
   const restingShown = showsRestingCard(thread)
   const activityMessages = useMemo(() => {
     const all = running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages
-    const entries = withoutSilentSignoffs(all, presentationMessages)
+    const entries = withoutSilentExchanges(all, presentationMessages)
     return withoutRedundantRestDividers(entries, rendersNothingIn(entries, awaitingCut, restingShown))
   }, [coalescedActivityMessages, presentationMessages, running, awaitingCut, restingShown])
   const showWorking = running
@@ -1041,7 +1045,7 @@ function VirtualizedThreadTranscript({
     const all = running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages
     // An answers turn whose every row a greyed settled card already shows has nothing left to draw, so
     // it is not a row at all — a row that rendered null would still spend its spacer.
-    const entries = withoutSilentSignoffs(all, messages).filter((entry) => !answeredBySettledCards(paired[entry.messageIndex], entry.message))
+    const entries = withoutSilentExchanges(all, messages).filter((entry) => !answeredBySettledCards(paired[entry.messageIndex], entry.message))
     return withoutRedundantRestDividers(entries, rendersNothingIn(entries, awaitingCut, restingShown))
   }, [coalescedActivityMessages, messages, running, awaitingCut, restingShown, paired])
   const showWorking = running
@@ -2107,7 +2111,10 @@ export function messageRendersNothing(m: ChatMessage, staleAwaiting?: boolean, c
   return (slots[slot] ??= computeRendersNothing(m, staleAwaiting, cardOwned))
 }
 function computeRendersNothing(m: ChatMessage, staleAwaiting?: boolean, cardOwned?: boolean): boolean {
-  if (m.kind === "event" || m.kind === "reasoning" || m.role === "user") return false
+  if (m.kind === "event" || m.kind === "reasoning") return false
+  // A wake NtwineWake draws nothing for (a sign-off nudge, a lapsed watch of the worker's own). A queued
+  // one is pinned at the bottom, where its bubble stays.
+  if (m.role === "user") return m.wake === true && !m.queued && !m.providerError && !m.commandOutput && wakeRendersNothing(messagePresentationText(m))
   if (m.parts && m.parts.length > 0) return m.parts.every((p) => (p.kind === "tools" ? p.tools.length === 0 : blankText(m, p.text, staleAwaiting, cardOwned)))
   return (m.tools?.length ?? 0) === 0 && blankText(m, m.text, staleAwaiting, cardOwned)
 }
@@ -3728,7 +3735,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
             onMouseDown={(e) => e.preventDefault()}
             onClick={deliverNow}
             disabled={pushNowPending}
-            title="Send now — interrupts what the worker is doing so it reads the queue immediately"
+            title="Send now — interrupts the agent"
             aria-label="Send now"
             className="icon-hover-outline absolute bottom-0 right-full mr-2 flex h-7 w-7 items-center justify-center rounded-lg text-muted opacity-0 outline-none transition-[opacity,color,background-color] group-hover:opacity-100 enabled:hover:bg-panel-2/70 enabled:hover:text-fg enabled:focus-visible:opacity-100 enabled:focus-visible:bg-panel-2/70 enabled:focus-visible:ring-1 enabled:focus-visible:ring-muted/80 enabled:focus-visible:ring-offset-1 enabled:focus-visible:ring-offset-bg enabled:active:bg-elevated"
           >
@@ -3761,7 +3768,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
           terminal", from when a worker sat in a pane an operator could open; there is no such surface
           now, so it states the fact and leaves the next move to them. */}
       {deliveryUnconfirmed && (
-        <div className="text-[11px] text-attention-80">Delivery unconfirmed — no receipt from the worker</div>
+        <div className="text-[11px] text-attention-80">Not confirmed yet — the agent may not have seen this</div>
       )}
       {deliveryFailed && deliveryId && (
         <FailedSendRow deliveryId={deliveryId} text={text} rawText={rawText ?? text} error={deliveryError} />
@@ -3884,7 +3891,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
         </KeepWorkingMarker>
       )
     }
-    if (m.wake) return <NtwineWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} />
+    if (m.wake) return <NtwineWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} checkIns={m.checkIns} />
     // A SIDEWAYS writer of a user turn the human didn't type: another top-level thread messaging this
     // one. An expandable hairline naming and linking the sender — see SessionMessageLine.
     if (m.sessionPeer) return <SessionMessageLine peer={m.sessionPeer} text={text} queued={m.queued} sourceId={m.sourceId} at={m.at} wrap={dense} />

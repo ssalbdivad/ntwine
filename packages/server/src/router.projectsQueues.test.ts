@@ -414,8 +414,16 @@ test("a sign-off nudge answered with done and an acknowledgement adds nothing to
   assert.deepEqual([...silentSignoffIndexes(ritual)], [2, 3, 4])
   assert.equal(handoffOf(ritual).text, "It queues behind the turn in flight; that is intended.")
   // Work after the nudge, or a real write-up, keeps the whole exchange.
-  assert.equal(silentSignoffIndexes([...answered, nudge, msg("assistant", "", { tools: [tool("git status")] }), done, msg("assistant", "Signed off.")]).size, 0)
+  const worked = [...answered, nudge, msg("assistant", "", { tools: [tool("git status")] }), done, msg("assistant", "Signed off.")]
+  assert.deepEqual([...silentSignoffIndexes(worked, { trailingAcks: true })], [5], "the work stays; the ack after its done does not")
+  assert.equal(silentSignoffIndexes(worked).size, 0)
   assert.equal(silentSignoffIndexes([...answered, nudge, done, msg("assistant", "Committed a3b169c.\n\nThe notes survive a refresh now.")]).size, 0)
+  // Words before the call are the worker's own and stay; the "Done." closing them after the call does not.
+  const said = msg("assistant", "One thing left out: the old keys expire within a day.")
+  const closed = [...answered, nudge, said, done, msg("assistant", "Done.")]
+  assert.deepEqual([...silentSignoffIndexes(closed, { trailingAcks: true })], [5])
+  assert.equal(silentSignoffIndexes(closed).size, 0, "the card keeps it: its history keys on what was said")
+  assert.equal(silentSignoffIndexes([...answered, nudge, said, done, msg("assistant", "Committed a3b169c.\n\nThe notes survive a refresh now.")], { trailingAcks: true }).size, 0)
   // With no answer before the nudge, its reply IS the answer, however short.
   assert.equal(silentSignoffIndexes([answered[0]!, nudge, done, msg("assistant", "Yes, intended.")]).size, 0)
 })

@@ -118,7 +118,7 @@ export function completionHoldSummary(hold: CompletionHold | undefined): Complet
   // the server names none. Its terminals are not its children, so they can be, and are named.
   if (hold.cutOff) {
     return {
-      lead: "This session was cut off mid-turn — its worker ended before the turn finished, so the thread isn’t done.",
+      lead: "This session stopped mid-turn, so the thread isn’t done.",
       groups: terminals ? [terminals] : [],
       trailer: terminals
         ? "Marking it done files it under Done as it is; its terminals keep running unless ticked. Retry resumes it where it left off."

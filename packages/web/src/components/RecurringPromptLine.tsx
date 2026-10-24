@@ -1,4 +1,4 @@
-import { Repeat, Timer, Signpost } from "lucide-react"
+import { Repeat, Timer } from "lucide-react"
 import type { RecurringPrompt } from "@ntwine/shared"
 import { WAKE_DIVIDER_NARROW_ONLY, WAKE_DIVIDER_WIDE_ONLY, WakeDivider } from "./WakeDivider.tsx"
 
@@ -39,32 +39,23 @@ export function RecurringPromptLine(props: { bump: RecurringPrompt; sourceId?: s
   }
   const { bump, sourceId, at } = props
   const scheduled = bump.kind === "schedule"
-  // NTWINE'S OWN SIGN-OFF REMINDER collapses hardest of all, because it is the only delivery here whose
-  // body says nothing about this thread: it is the protocol, restated. Rendered in full it sat as a card
-  // ABOVE the agent's actual handoff and read as the more important of the two (maintainer 2026-08-12:
-  // "We shouldn't show the stop hook message in the UI, at least not by default").
-  if (bump.kind === "signoff") {
-    const label = "ntwine asked for a sign-off"
-    return (
-      <WakeDivider icon={Signpost} sourceId={sourceId} marker="rest" ariaLabel={label} at={at}>
-        {/* A truncating span, never a bare text node: bare, the label is a flex item that WRAPS, and
-            between two 50px rules on a phone this one is long enough to break onto a second line. */}
-        <span className="min-w-0 truncate">
-          <span className={WAKE_DIVIDER_WIDE_ONLY}>{label}</span>
-          <span className={WAKE_DIVIDER_NARROW_ONLY}>Sign-off requested</span>
-        </span>
-      </WakeDivider>
-    )
-  }
+  // NTWINE'S OWN SIGN-OFF REMINDER draws nothing (lib/ntwineMachinery). It was a hairline reading "ntwine
+  // asked for a sign-off" from 2026-08-12, after a card of the protocol restated sat above the agent's
+  // handoff; the hairline still said nothing the human could use, in worker-contract words, between an
+  // answer they already had and the card below it (maintainer 2026-10-24: "should go away").
+  if (bump.kind === "signoff") return null
   // WHICH TRIGGER FIRED is the whole label, because it is the one thing the Goal panel cannot tell you
   // about THIS delivery — the text is shared, so "the agent stopped" and "an hour elapsed" are otherwise
   // indistinguishable in the transcript. The cadence rides along for the same reason: it names the
   // schedule that was in force when this one fired, not the one armed now.
   // "Goal", because that is what the panel, the prompt box's mark and the delivered trailer all call it since
   // 2026-08-11. The divider kept the old name for a day and was the only surface still saying it.
+  // A delivery after a compaction is neither trigger: the window was emptied mid-work, which is the news.
+  // It read "Goal · at rest" until 2026-10-24, with the rest trigger's loop, about a thread that had not
+  // stopped at all.
   const label = scheduled
     ? `Goal${bump.every ? ` · every ${bump.every}` : ""}`
-    : "Goal · at rest"
+    : bump.kind === "compaction" ? "Goal · after compaction" : "Goal · at rest"
   return (
     <WakeDivider
       // TWO glyphs, one per TRIGGER, because a divider marks ONE delivery and the two triggers answer
@@ -78,11 +69,14 @@ export function RecurringPromptLine(props: { bump: RecurringPrompt; sourceId?: s
       // Same square-in-a-circle the footer shed on 2026-08-03, for a related reason.
       icon={scheduled ? Timer : Repeat}
       sourceId={sourceId}
-      marker={scheduled ? "schedule" : "rest"}
+      marker={scheduled ? "schedule" : bump.kind === "compaction" ? "compaction" : "rest"}
       ariaLabel={label}
       at={at}
     >
-      <span className="min-w-0 truncate">{label}</span>
+      {/* Narrow: `Goal · compacted`, which fits where "after compaction" clipped mid-word. */}
+      {bump.kind === "compaction"
+        ? <span className="min-w-0 truncate"><span className={WAKE_DIVIDER_WIDE_ONLY}>{label}</span><span className={WAKE_DIVIDER_NARROW_ONLY}>Goal · compacted</span></span>
+        : <span className="min-w-0 truncate">{label}</span>}
     </WakeDivider>
   )
 }
