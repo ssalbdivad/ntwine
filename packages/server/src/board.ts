@@ -759,6 +759,7 @@ export function signoffNudgeVerdict(
   if (tele.pendingAsk || tele.permPrompt) return "ineligible"
   if (tele.lastAssistantAllDone) return "ineligible"
   if (conversationalReply(tele, facts.questionRows())) return "ineligible"
+  if (answeredInWriting(tele, facts.questionRows())) return "ineligible"
   if ((row.signoff_nudges ?? 0) >= SIGNOFF_NUDGE_MAX) return "ineligible"
   return "nudge"
 }
@@ -807,6 +808,21 @@ function conversationalReply(tele: SessionTelemetry, rows: readonly ThreadQuesti
   // message reading "The LRU cache explanation is in my previous reply" (@lru-cache, 2026-10-16).
   const toolSince = tele.lastToolCallAt !== undefined && Date.parse(tele.lastToolCallAt) >= human
   if (human <= Date.parse(tele.firstHumanAt) && toolSince) return false
+  return heldQuestionRows(rows, tele).length === 0
+}
+
+/** Did this rest END on a written reply — the final message more than a line of narration, no tool
+ *  call after it, nothing still running and no question held? Then it is an answer, wherever in the
+ *  thread it falls, and it queues as one.
+ *
+ *  WHY (maintainer 2026-10-24, on a nudge answered with `done` and then "Signed off.": "dumb shit like
+ *  this that happens because of weird principles should go away"). The dispatch turn was nudged whenever
+ *  it ran a tool, on the theory that a worker might have abandoned the task; 33 of 51 nudges over
+ *  2026-10-14..24 went to a worker that had already answered and bought the human a second message saying
+ *  so. Abandonment looks different: a one-line "Now checking X." and a stop, which is still nudged. */
+function answeredInWriting(tele: SessionTelemetry, rows: readonly ThreadQuestionRow[]): boolean {
+  if (!tele.lastAssistantReply || hasLiveBackgroundWork(tele) || tele.bgShells?.some((sh) => sh.state === "running")) return false
+  if (tele.lastToolCallAt && tele.lastAssistantAt && Date.parse(tele.lastToolCallAt) >= Date.parse(tele.lastAssistantAt)) return false
   return heldQuestionRows(rows, tele).length === 0
 }
 

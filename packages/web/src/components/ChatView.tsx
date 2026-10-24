@@ -123,7 +123,7 @@ import { ThreadProcessStrip } from "./ThreadTerminals.tsx"
 import { threadProcesses } from "../lib/threadProcesses.ts"
 import { prependEarlierPage } from "../lib/transcriptPagination.ts"
 import { earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, transcriptMessageRows, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
-import { withoutRedundantRestDividers } from "../lib/restDividers.ts"
+import { withoutRedundantRestDividers, withoutSilentSignoffs } from "../lib/restDividers.ts"
 import { coalesceToolActivityMessages, editedFileCount, failedToolCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, settledToolActivityParts, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
 import { CodexDirectiveCard, MermaidDiagram } from "./CodexRichOutput.tsx"
 import { LightboxGallery } from "./Lightbox.tsx"
@@ -344,9 +344,10 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
   // that was ONLY the fence renders nothing, which the spacer walk has to know.
   const restingShown = showsRestingCard(thread)
   const activityMessages = useMemo(() => {
-    const entries = running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages
+    const all = running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages
+    const entries = withoutSilentSignoffs(all, presentationMessages)
     return withoutRedundantRestDividers(entries, rendersNothingIn(entries, awaitingCut, restingShown))
-  }, [coalescedActivityMessages, running, awaitingCut, restingShown])
+  }, [coalescedActivityMessages, presentationMessages, running, awaitingCut, restingShown])
   const showWorking = running
   // Question↔answer pairing for "Answers:" user messages, precomputed at the LIST level (the lookback
   // needs the whole list; Message renders per-message). null — a stable primitive — at every ordinary
@@ -1040,9 +1041,9 @@ function VirtualizedThreadTranscript({
     const all = running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages
     // An answers turn whose every row a greyed settled card already shows has nothing left to draw, so
     // it is not a row at all — a row that rendered null would still spend its spacer.
-    const entries = all.filter((entry) => !answeredBySettledCards(paired[entry.messageIndex], entry.message))
+    const entries = withoutSilentSignoffs(all, messages).filter((entry) => !answeredBySettledCards(paired[entry.messageIndex], entry.message))
     return withoutRedundantRestDividers(entries, rendersNothingIn(entries, awaitingCut, restingShown))
-  }, [coalescedActivityMessages, running, awaitingCut, restingShown, paired])
+  }, [coalescedActivityMessages, messages, running, awaitingCut, restingShown, paired])
   const showWorking = running
   // The rows the list draws — skipping what renders nothing (the same cut and resting reason as
   // rendersNothingIn), each with its gap and its time break; a coalesced tool run STARTED at `runStartedAt`

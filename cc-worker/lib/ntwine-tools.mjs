@@ -2795,8 +2795,7 @@ async function done(args) {
       "The user reads your prose and nothing else — not your thinking, not your tool calls. If it does not " +
       "already hold the result in full (the answer itself, when they asked a question), write it now as " +
       "your final message, with no tool call in it. The card draws BELOW your final message, so never point at it or at anything " +
-      "\"above\", and never end on an acknowledgement like \"Signed off as done.\": on the card it is the " +
-      "whole reply." + tail
+      "\"above\". If it already holds the result, end your turn with no further message." + tail
     )
   }
   // REFUSED, with everything that refuses it named by id, so the next move is a command and not a

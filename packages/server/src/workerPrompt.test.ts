@@ -38,7 +38,7 @@ test("every rest ends in done, a question, an awaiting fence, or a conversationa
     assert.match(c, /\*\*Done\*\* — `ntwinectl done`/)
     assert.match(c, /\*\*A question\*\* — `ntwinectl ask`/)
     assert.match(c, /\*\*An ` ```awaiting ` fence\*\*/)
-    assert.match(c, /\*\*Nothing\*\* — only when replying to a message the user typed that asks for an answer/)
+    assert.match(c, /\*\*Nothing\*\* — when what the user asked for is an answer .* the opening task included/)
     assert.match(c, /If work you parked on is still running, end the reply with that same awaiting fence/)
     assert.match(c, /bare rest — an item nobody can triage/)
     assert.match(c, /A wait always takes the fence/)

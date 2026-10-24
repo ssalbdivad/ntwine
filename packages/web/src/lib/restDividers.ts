@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../hooks.ts"
+import { silentSignoffIndexes } from "@ntwine/shared"
 import { agentCompletionCall } from "./subAgentCompletion.ts"
 
 // WHEN THE "Agent rested" HAIRLINE SAYS NOTHING THE READER CANNOT ALREADY SEE.
@@ -58,4 +59,13 @@ export function withoutRedundantRestDividers<T extends { message: ChatMessage }>
 ): T[] {
   const messages = entries.map((entry) => entry.message)
   return entries.filter((_, i) => !isRedundantRestDivider(messages, i, rendersNothing))
+}
+
+// A sign-off nudge answered with nothing but `ntwinectl done` and "Signed off." drops out whole — the
+// nudge's hairline, the tool row and the line of filler (shared silentSignoffIndexes). It runs BEFORE
+// the rest-divider pass, which then folds the two rest hairlines it leaves stacked into one. `messages`
+// is the array the entries were coalesced from, so `messageIndex` addresses it.
+export function withoutSilentSignoffs<T extends { messageIndex: number }>(entries: readonly T[], messages: readonly ChatMessage[]): T[] {
+  const silent = silentSignoffIndexes(messages)
+  return silent.size ? entries.filter((entry) => !silent.has(entry.messageIndex)) : [...entries]
 }

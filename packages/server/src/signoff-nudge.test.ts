@@ -229,6 +229,10 @@ for (const [what, spawnedAt, nudged] of [
     } as SessionRow)
     writeFileSync(join(logDir, "sid.jsonl"), [
       JSON.stringify({ type: "user", timestamp: "2026-08-12T00:00:00.000Z", message: { role: "user", content: "go" } }),
+      // A tool call first: a dispatch prompt answered with no tool at all is not nudged whatever it ends on
+      // (board conversationalReply, 2026-10-16), which would hide the gate this pins.
+      JSON.stringify({ type: "assistant", timestamp: "2026-08-12T00:00:00.500Z", message: { content: [{ type: "tool_use", id: "toolu_1", name: "Read", input: { file_path: "/x" } }] } }),
+      JSON.stringify({ type: "user", timestamp: "2026-08-12T00:00:00.700Z", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "x" }] } }),
       JSON.stringify({ type: "assistant", timestamp: "2026-08-12T00:00:01.000Z", message: { stop_reason: "end_turn", content: [{ type: "text", text: "Two ways forward.\n\n```question\nWhich store?\n\n- A. sqlite\n- B. postgres\n```" }] } }),
     ].map((l) => l + "\n").join(""))
     const tailer = createTailer({
@@ -302,6 +306,24 @@ test("a prose-only reply to the human after a registered done is not nudged; one
     assert.deepEqual(talked.nudges(), [])
     assert.equal(worked.nudges().length, 1)
   } finally { talked.close(); worked.close() }
+})
+
+// 2026-10-24: 33 of 51 nudges since 10-14 went to a worker that had already answered, and bought a second
+// message saying so ("Signed off."). A rest that ENDS on a written reply is an answer; a one-line stop is
+// still asked, and so is a reply with a tool call after it or work still running.
+test("a rest that ends on a written reply is not nudged; a one-line stop, or work after the reply, is", async () => {
+  const turn = { lastUserAt: "2026-08-11T23:00:00.000Z", lastHumanAt: "2026-08-11T23:00:00.000Z", firstHumanAt: "2026-08-11T23:00:00.000Z", lastToolCallAt: "2026-08-11T23:30:00.000Z" }
+  const answered = nudger({ ...turn, lastAssistantReply: true })
+  const stopped = nudger({ ...turn, lastAssistantReply: false })
+  const workedAfter = nudger({ ...turn, lastAssistantReply: true, lastToolCallAt: "2026-08-12T00:00:00.000Z" })
+  const shellRunning = nudger({ ...turn, lastAssistantReply: true, bgShells: [{ id: "b1", taskId: "b1", state: "running", label: "suite" }] as SessionTelemetry["bgShells"] })
+  try {
+    for (const h of [answered, stopped, workedAfter, shellRunning]) await h.s.tick()
+    assert.deepEqual(answered.nudges(), [])
+    assert.equal(stopped.nudges().length, 1)
+    assert.equal(workedAfter.nudges().length, 1)
+    assert.equal(shellRunning.nudges().length, 1)
+  } finally { for (const h of [answered, stopped, workedAfter, shellRunning]) h.close() }
 })
 
 // A QUESTION IS A SIGN-OFF ONLY AT THE REST THAT ASKED IT (2026-10-05). Until then any open question

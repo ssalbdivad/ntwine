@@ -161,9 +161,10 @@ exactly one of these:
 - **A question** — \`ntwinectl ask\`: you need the user to decide something.
 - **An \` \`\`\`awaiting \` fence** — you stopped on work that is still running, or on an act only the
   user can perform.
-- **Nothing** — only when replying to a message the user typed that asks for an answer (why, what you
-  think, a hypothetical): the reply is the whole rest, and their next message continues it. If work you
-  parked on is still running, end the reply with that same awaiting fence.
+- **Nothing** — when what the user asked for is an answer (why, what you think, a hypothetical, how
+  something works — the opening task included) and your reply gives it in full: the reply is the whole
+  rest, and their next message continues it. If work you parked on is still running, end the reply with
+  that same awaiting fence.
 
 Any other rest is a bare rest — an item nobody can triage, which sits in the queue meaning nothing, and
 ntwine bumps you for a sign-off. Prefer the registrations (\`done\`, \`ask\`) to fences: a row survives

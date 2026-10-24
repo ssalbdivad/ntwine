@@ -6,7 +6,7 @@ import { promisify } from "node:util"
 import { basename, dirname, isAbsolute, join, resolve, win32 } from "node:path"
 import { homedir, tmpdir } from "node:os"
 import type { AskQuestion, AwaitingHint, CodexModel, LiveTool, SubAgentDirectoryEntry, WorkCheckout } from "@ntwine/shared"
-import { insideFence, isAllInjectedNoise, isInterruptMarker, isWakeDelivery, parseAskUserQuestionInput, parseCrossSessionMessage, PermissionMode, questionFencesLive, saysAllDone, splitAwaitingFrontmatter } from "@ntwine/shared"
+import { insideFence, isAllInjectedNoise, isInterruptMarker, isWakeDelivery, parseAskUserQuestionInput, parseCrossSessionMessage, PermissionMode, questionFencesLive, saysAllDone, isWrittenReply, splitAwaitingFrontmatter } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import { permMarkerPath, workDirOf, type Project } from "./project.ts"
 import { isBrokerClaudeRow, isHeadlessRow, isHeldRow } from "./storage.ts"
@@ -1287,6 +1287,7 @@ export function newTailState(
     sawRecords: false,
     lastAssistantHasQuestion: false,
     lastAssistantAllDone: false,
+    lastAssistantReply: false,
     subAgents: new Map(),
     retiredSubAgents: new Map(),
     queuedReports: new Map(),
@@ -1364,6 +1365,7 @@ function setAssistantPreview(state: FoldState, raw: string): void {
   if (preview === undefined) return
   state.lastAssistant = preview
   state.lastAssistantLine = firstTextLine(raw)
+  state.lastAssistantReply = isWrittenReply(raw)
 }
 
 // Minimal server-side MIRROR of the web's ```question fence convention (web/src/lib/questionBlocks.ts
@@ -2767,6 +2769,7 @@ export function applyRecord(state: TailState, rec: Record): void {
     // structurally impossible"). isHumanSpeaking asks the question the CHAT asks, off the SHARED
     // classifier, so the two projections cannot drift again.
     state.lastAssistantAllDone = false
+    state.lastAssistantReply = false
     state.lastFence = undefined
     const humanSpoke = isHumanSpeaking(rec, userText, systemUserRec, compactSummaryRec)
     if (humanSpoke) state.lastAssistantHasQuestion = false
@@ -2859,6 +2862,7 @@ export function applyEvent(state: FoldState, ev: NormalizedEvent): void {
       state.lastAssistantLine = firstTextLine(ev.error.message)
       state.lastFence = undefined
       state.lastAssistantAllDone = false
+      state.lastAssistantReply = false
       state.lastAssistantHasQuestion = false
       if (typeof ev.at === "string") state.lastAssistantAt = ev.at
       break
@@ -2904,6 +2908,7 @@ export function applyEvent(state: FoldState, ev: NormalizedEvent): void {
       state.sawRecords = true
       state.turn = "in-flight"
       state.lastAssistantAllDone = false
+      state.lastAssistantReply = false
       state.lastFence = undefined
       if (!ev.synthetic) {
         // …and the QUESTION is the human's to discharge, so it rides the same gate as the row-order
@@ -6814,7 +6819,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     // thread has no row and reads as legacy, which is what `questionFencesLive` does with unknown.
     const pendingQuestion = s.lastAssistantHasQuestion && questionFencesLive(row?.spawned_at)
     const nowMs = now()
-    return { primed: s.primed, turn: s.turn, permPrompt: s.permPrompt, permPolicy: s.permPolicy, permDenies: s.permDenies, model: s.model, effort: s.effort, profileAt: s.profileAt, profileRevision: s.profileRevision, permissionMode: s.permissionMode, permissionModeAt: s.permissionModeAt, permissionModeRevision: s.permissionModeRevision, lastActivityAt: s.lastActivityAt, lastAssistantAt: s.lastAssistantAt, lastAssistant: s.lastAssistant, lastAssistantLine: s.lastAssistantLine, liveTool: newestLiveTool(s), aiTitle: s.aiTitle, customTitle: s.customTitle, customTitleRevision: s.customTitleRevision, subAgents: subAgentViews(s, nowMs), droppedReports: [...s.queuedReports.values()], bgShells: [...bgShellViews(s), ...codexBgShellViews(s)], retiredShells: retiredShellViews(s), retiredSubAgents: retiredSubAgentViews(s), pendingAsk: s.pendingAsk, pendingQuestion, lastAssistantAllDone: s.lastAssistantAllDone, lastUserAt: s.lastUserAt, lastHumanAt: s.lastHumanAt, firstHumanAt: s.firstHumanAt, lastToolCallAt: s.lastToolCallAt, lastUserText: s.lastUserText, firstUserText: s.firstUserText, lastFence: s.lastFence, noTranscript: s.noTranscript, authFault: s.authFault, apiFault: s.apiFault, providerError: s.providerError, limitFault: s.limitFault, contextTokens: s.contextTokens, contextWindow: s.contextWindow, lastCompactionAt: s.lastCompactionAt, ...workingDirTelemetry(s) }
+    return { primed: s.primed, turn: s.turn, permPrompt: s.permPrompt, permPolicy: s.permPolicy, permDenies: s.permDenies, model: s.model, effort: s.effort, profileAt: s.profileAt, profileRevision: s.profileRevision, permissionMode: s.permissionMode, permissionModeAt: s.permissionModeAt, permissionModeRevision: s.permissionModeRevision, lastActivityAt: s.lastActivityAt, lastAssistantAt: s.lastAssistantAt, lastAssistant: s.lastAssistant, lastAssistantLine: s.lastAssistantLine, liveTool: newestLiveTool(s), aiTitle: s.aiTitle, customTitle: s.customTitle, customTitleRevision: s.customTitleRevision, subAgents: subAgentViews(s, nowMs), droppedReports: [...s.queuedReports.values()], bgShells: [...bgShellViews(s), ...codexBgShellViews(s)], retiredShells: retiredShellViews(s), retiredSubAgents: retiredSubAgentViews(s), pendingAsk: s.pendingAsk, pendingQuestion, lastAssistantAllDone: s.lastAssistantAllDone, lastAssistantReply: s.lastAssistantReply, lastUserAt: s.lastUserAt, lastHumanAt: s.lastHumanAt, firstHumanAt: s.firstHumanAt, lastToolCallAt: s.lastToolCallAt, lastUserText: s.lastUserText, firstUserText: s.firstUserText, lastFence: s.lastFence, noTranscript: s.noTranscript, authFault: s.authFault, apiFault: s.apiFault, providerError: s.providerError, limitFault: s.limitFault, contextTokens: s.contextTokens, contextWindow: s.contextWindow, lastCompactionAt: s.lastCompactionAt, ...workingDirTelemetry(s) }
   }
 
   // ---- the provisional reading (2026-09-30) ------------------------------------------------------

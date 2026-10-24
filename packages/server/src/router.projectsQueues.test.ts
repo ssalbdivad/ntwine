@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { tmpdir } from "node:os"
 import test from "node:test"
-import { parkExpiredWakeMessage, parseParkWake, questionAnswerMessage, SIGNOFF_NUDGE_MESSAGE, type BoardSnapshot, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
+import { parkExpiredWakeMessage, parseParkWake, questionAnswerMessage, SIGNOFF_NUDGE_MESSAGE, silentSignoffIndexes, type BoardSnapshot, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
 import { createRouter, handoffOf, nothingWrittenSinceHuman, signedOffInPlace } from "./router.ts"
 import type { AppContext } from "./context.ts"
 import type { BoardManager } from "./board.ts"
@@ -280,7 +280,8 @@ test("a wake mid-turn does not end a rest, and a done after it never takes it ba
     rest,
   ])
   assert.deepEqual(precompile.earlier, [{ text: examples, at: "2026-10-16T12:46:00.000Z" }])
-  assert.equal(precompile.text, "The examples above are my full answer.\n\nEverything is on `precompile`, not merged.")
+  // The line after that done is not: `done` had told the worker to write nothing more (silentSignoffIndexes).
+  assert.equal(precompile.text, "The examples above are my full answer.")
 })
 
 test("a quiet park after the answer never queued, so it is not carried; the answer is, even when it parked", () => {
@@ -400,4 +401,21 @@ test("a done that is the whole reply to the sign-off nudge stands on the message
   assert.equal(signedOffInPlace([...answered, nudge, msg("assistant", "I kept the guards.", { tools: [tool("ntwinectl done --body-file -")] })]), false)
   // A done with no nudge before it is an ordinary sign-off.
   assert.equal(signedOffInPlace([...answered, msg("assistant", "", { tools: [tool("ntwinectl done --body-file -")] })]), false)
+})
+
+// 2026-10-24: told "End your turn now and write nothing more", two workers wrote "Signed off." anyway, and
+// the card carried it under the answer. The nudge's reply is the answer before it, and nothing more.
+test("a sign-off nudge answered with done and an acknowledgement adds nothing to the card or the transcript", () => {
+  const tool = (command: string) => ({ name: "Bash", detail: command, command }) as TranscriptMessage["tools"][number]
+  const done = msg("assistant", "", { tools: [tool("ntwinectl done --body-file -")] })
+  const answered = [msg("user", "does ctrl+enter queue?"), msg("assistant", "It queues behind the turn in flight; that is intended.")]
+  const nudge = msg("user", SIGNOFF_NUDGE_MESSAGE, { wake: true })
+  const ritual = [...answered, nudge, done, msg("assistant", "Signed off.")]
+  assert.deepEqual([...silentSignoffIndexes(ritual)], [2, 3, 4])
+  assert.equal(handoffOf(ritual).text, "It queues behind the turn in flight; that is intended.")
+  // Work after the nudge, or a real write-up, keeps the whole exchange.
+  assert.equal(silentSignoffIndexes([...answered, nudge, msg("assistant", "", { tools: [tool("git status")] }), done, msg("assistant", "Signed off.")]).size, 0)
+  assert.equal(silentSignoffIndexes([...answered, nudge, done, msg("assistant", "Committed a3b169c.\n\nThe notes survive a refresh now.")]).size, 0)
+  // With no answer before the nudge, its reply IS the answer, however short.
+  assert.equal(silentSignoffIndexes([answered[0]!, nudge, done, msg("assistant", "Yes, intended.")]).size, 0)
 })

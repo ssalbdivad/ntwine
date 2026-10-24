@@ -1678,6 +1678,81 @@ export function parseRecurringPrompt(text: string | undefined): RecurringPrompt 
     : { kind: "rest", prompt }
 }
 
+/** A call to ntwine itself — `ntwinectl …` or the retired `mcp__ntwine__*` tools — rather than work. */
+export function isNtwineOwnTool(t: { name: string; command?: string; detail?: string }): boolean {
+  return t.name.startsWith("mcp__ntwine__") || /^(?:export PATH=\S+;\s*)?ntwinectl\s/.test((t.command ?? t.detail ?? "").trim())
+}
+
+/** Below this, one paragraph of prose with no fence is narration or an acknowledgement, not a reply:
+ *  "Looks right. Waiting on the naming agent." and its kin sit under it, "**Fixed** — the divider now
+ *  shows …, `749a37b` on `main`." over it. */
+const REPLY_MIN_CHARS = 200
+const RITUAL_ACK_MAX = REPLY_MIN_CHARS
+
+/** Is this assistant text a written reply — more than one paragraph, or one long one, fences aside —
+ *  rather than a line of narration between tool calls? */
+export function isWrittenReply(text: string): boolean {
+  const prose = text.replace(/^(`{3,})[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, "").trim()
+  return /\S\s*\n\s*\n\s*\S/.test(prose) || prose.length >= REPLY_MIN_CHARS
+}
+
+/** Transcript indexes of every sign-off nudge whose reply added nothing, with that reply: the nudge, the
+ *  worker's `ntwinectl` calls, and an acknowledgement like "Signed off." — drawn, they read as a
+ *  divider, a tool row and a line of filler under an answer the human already has. A reply that did any
+ *  other work, or wrote more than one short paragraph or a fence, keeps all of it.
+ *
+ *  WHY (maintainer 2026-10-24, with a screenshot of exactly that exchange: "dumb shit like this that
+ *  happens because of weird principles should go away"). `done`'s reply already says "End your turn now
+ *  and write nothing more"; measured on two threads the same day, the model wrote "Signed off." after it
+ *  anyway, so nothing the worker is told can keep it off the screen. Only a nudge that followed an
+ *  actual answer counts: after a rest with no prose, the reply is the answer, however short. */
+export function silentSignoffIndexes(messages: readonly {
+  role: string
+  kind?: string
+  boundary?: string
+  text: string
+  displayText?: string
+  tools: readonly { name: string; command?: string; detail?: string }[]
+}[]): Set<number> {
+  const hidden = new Set<number>()
+  for (let i = 0; i < messages.length; i++) {
+    const nudge = messages[i]!
+    if (nudge.role !== "user" || nudge.kind || parseRecurringPrompt(nudge.displayText ?? nudge.text)?.kind !== "signoff") continue
+    let answered = false
+    for (let j = i - 1; j >= 0 && messages[j]!.role !== "user"; j--) {
+      const m = messages[j]!
+      if (m.role === "assistant" && !m.kind && m.text.trim()) { answered = true; break }
+    }
+    if (!answered) continue
+    // The reply's shape is `done`'s "standing" case (router signedOffInPlace): ntwine's own calls with
+    // no words, then at most an acknowledgement with no call. Words BEFORE the call are the worker's
+    // own reply to the nudge and stay.
+    const reply: number[] = []
+    let called = false
+    let acked = false
+    let silent = true
+    let j = i + 1
+    for (; j < messages.length && messages[j]!.role !== "user"; j++) {
+      const m = messages[j]!
+      if (m.role !== "assistant" || m.kind) continue
+      const text = m.text.trim()
+      if (m.tools.length) {
+        if (text || acked || !m.tools.every(isNtwineOwnTool)) { silent = false; break }
+        called = true
+      } else if (text) {
+        if (!called || text.length >= RITUAL_ACK_MAX || /\n\s*\n/.test(text) || text.includes("```")) { silent = false; break }
+        acked = true
+      }
+      reply.push(j)
+    }
+    if (!silent || !called) continue
+    hidden.add(i)
+    for (const r of reply) hidden.add(r)
+    i = j - 1
+  }
+  return hidden
+}
+
 // ---- ONE-OFF TIMERS (scheduler SOURCE 6) ---------------------------------------------------------
 // A worker's own alarm clock: text it asks ntwine to hand back at ONE instant, once. It is the recurring
 // prompt's ON SCHEDULE trigger with the repetition taken out — same durable outbox, same mid-turn

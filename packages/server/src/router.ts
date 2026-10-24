@@ -205,6 +205,9 @@ import {
   spinoffForkPrompt,
   spinoffNameSource,
   parseRecurringPrompt,
+  isNtwineOwnTool,
+  isWrittenReply,
+  silentSignoffIndexes,
 } from "@ntwine/shared"
 import { type AppContext } from "./context.ts"
 import { listAcpAgentsCached } from "./backend/acp-agents.ts"
@@ -1128,7 +1131,9 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   for (let i = messages.length - 1; i >= 0; i--) {
     if (isHumanTurn(messages[i]!)) { anchor = i; break }
   }
-  const says = (m: TranscriptMessage) => m.role === "assistant" && !m.kind && m.text.trim() !== ""
+  // A nudge answered with nothing but `done` and "Signed off." is not on the card: the answer before it is.
+  const silent = new Set([...silentSignoffIndexes(messages)].map((i) => messages[i]!))
+  const says = (m: TranscriptMessage) => m.role === "assistant" && !m.kind && m.text.trim() !== "" && !silent.has(m)
   const isNudge = (m: TranscriptMessage) => parseRecurringPrompt(m.displayText ?? m.text)?.kind === "signoff"
   // A REPLY TO THE SIGN-OFF NUDGE IS THE TAIL OF THE MESSAGE IT SIGNS OFF, not a handoff of its own. The
   // nudge tells the worker not to repeat itself — "the human reads both together" — so its answer is
@@ -1233,10 +1238,6 @@ const isQuietPark = (text: string): boolean => {
 /** More than one paragraph: an answer or a write-up, as against a line of narration between tool calls. */
 const isParagraphs = (text: string): boolean => /\S\s*\n\s*\n\s*\S/.test(text.trim())
 
-/** Narration this long or longer reads as a reply, even in one paragraph ("**Fixed** — the divider now
- *  shows …, `749a37b` on `main`."). Below it sit "Looks right. Waiting on the naming agent." and its kin. */
-const REPLY_MIN_CHARS = 200
-
 /** Is this `done` the WHOLE reply to the sign-off nudge: since the nudge, no prose and no tool but ntwine's
  *  own, after a rest that said something? Then the message before the nudge is the reply, and `done`
  *  tells the worker to end its turn rather than inviting another message. Asking for one there, however
@@ -1251,10 +1252,8 @@ export function signedOffInPlace(messages: readonly TranscriptMessage[]): boolea
     break
   }
   if (nudge === -1) return false
-  const ntwineOwn = (t: TranscriptMessage["tools"][number]) =>
-    t.name.startsWith("mcp__ntwine__") || /^(?:export PATH=\S+;\s*)?ntwinectl\s/.test((t.command ?? t.detail ?? "").trim())
   const after = messages.slice(nudge + 1).filter((m) => m.role === "assistant" && !m.kind)
-  if (after.some((m) => m.text.trim() !== "" || !m.tools.every(ntwineOwn))) return false
+  if (after.some((m) => m.text.trim() !== "" || !m.tools.every(isNtwineOwnTool))) return false
   return messages.slice(0, nudge).some((m) => m.role === "assistant" && !m.kind && m.text.trim() !== "")
 }
 
@@ -1272,11 +1271,7 @@ export function nothingWrittenSinceHuman(messages: readonly TranscriptMessage[])
   for (let i = messages.length - 1; i >= 0; i--) {
     if (isHumanTurn(messages[i]!)) { anchor = i; break }
   }
-  return !messages.slice(anchor + 1).some((m) => {
-    if (m.role !== "assistant" || m.kind) return false
-    const prose = m.text.replace(/^(`{3,})[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, "").trim()
-    return isParagraphs(prose) || prose.length >= REPLY_MIN_CHARS
-  })
+  return !messages.slice(anchor + 1).some((m) => m.role === "assistant" && !m.kind && isWrittenReply(m.text))
 }
 
 /** What a transcript message SAID, as the chat shows it. */
