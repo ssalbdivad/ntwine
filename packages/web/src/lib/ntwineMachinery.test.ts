@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { carriedQuestionsNudgeMessage, mergedWakeMessage, ownWatchExpiredWakeMessage, shellDoneMessage, signoffNudgeMessage, strayShellsMessage, terminalWatchExpiredWakeMessage, type TranscriptToolCall } from "@ntwine/shared"
+import { mergedWakeMessage, ownWatchExpiredWakeMessage, shellDoneMessage, SIGNOFF_NUDGE_MARKER, signoffNudgeMessage, strayShellsMessage, terminalWatchExpiredWakeMessage, type TranscriptToolCall } from "@ntwine/shared"
 import type { ChatMessage } from "../hooks.ts"
 import { servedMessage, wakeRendersNothing, withoutNtwineOwnCalls } from "./ntwineMachinery.ts"
 import { coalesceToolActivityMessages, liveToolActivityTail } from "./toolActivity.ts"
@@ -12,7 +12,9 @@ const turn = (sourceId: string, text: string, ...calls: TranscriptToolCall[]): C
 test("a sign-off nudge draws nothing in every variant that shares its marker", () => {
   assert.equal(wakeRendersNothing(signoffNudgeMessage()), true)
   assert.equal(wakeRendersNothing(strayShellsMessage([{ id: "b5htn6rlx", label: "vite" }])), true)
-  assert.equal(wakeRendersNothing(carriedQuestionsNudgeMessage([{ id: "qst_1", question: "Ship it?" }])), true)
+  // The carried-questions reminder (2026-10-05 to 2026-10-24) is no longer sent, but its copies on disk
+  // still carry the marker.
+  assert.equal(wakeRendersNothing(`${SIGNOFF_NUDGE_MARKER} Nothing about your task has changed, and no new work is being asked of you.\n\nA question you registered at an EARLIER rest is still open, and this rest neither names it nor withdraws it:\n\n- \`qst_1\` — Ship it?`), true)
 })
 
 test("a lapsed watch on the worker's own shell, sub-agent or terminal draws nothing", () => {
