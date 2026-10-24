@@ -30,8 +30,8 @@
 // shell has a body; and three marks on one row that all looked clickable (an underlined title, an
 // accent ref, the corner glyph) with no hierarchy between them.
 import { Fragment, useContext, useId, useRef, useState, type ReactNode } from "react"
-import { AlarmClock, Bell, Bot, Github, Hourglass, MessageCircleOff, RefreshCw, TerminalSquare } from "lucide-react"
-import { isGithubWakeBacklog, isInjectedNoise, isParkCorrection, parseGithubWakeSteer, parseLimitModelSwitchWake, parseLimitResumeWake, parseMergedWake, parseOwnWatchExpiredWake, parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake, parsePrWatchWake, parseQuestionsCancelledWake, parseRecurringPrompt, parseShellDoneWake, parseTerminalControlWake, parseTerminalWake, parseTerminalWatchExpiredWake, type TerminalControlEvent, parseTimerWake, stripWakeTrailer, type GithubWakeSteer, type LimitWindow, type MergedWakePart, type ParkWake, type PrWatchStateWake, type PrWatchWake, type ShellDoneWake, type TimerWake } from "@ntwine/shared"
+import { AlarmClock, Bell, Bot, Clock, Github, Hourglass, MessageCircleOff, RefreshCw, Repeat, TerminalSquare } from "lucide-react"
+import { isGithubWakeBacklog, parseCommandWatchWake, parseDeadlineWake, parseGithubWakeSteer, parseGoalLimitWake, parseInterruptEndedWake, parseLimitModelSwitchWake, parseLimitResumeWake, parseMergedWake, parseParkWake, parsePrWatchExpiredWake, parsePrWatchStateWake, parsePrWatchWake, parseQuestionsCancelledWake, parseRecurringPrompt, parseShellBudgetWake, parseShellDoneWake, parseTerminalControlWake, parseTerminalWake, type TerminalControlEvent, parseTimerWake, stripWakeTrailer, type DeadlineWake, type GithubWakeSteer, type InterruptEndedSubAgent, type LimitWindow, type MergedWakePart, type ParkWake, type PrWatchStateWake, type PrWatchWake, type ShellDoneWake, type ThreadView, type TimerWake } from "@ntwine/shared"
 import { useMermaidIslands } from "./CodexRichOutput.tsx"
 import { BLOCK_RADIUS, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 import { RecurringPromptLine } from "./RecurringPromptLine.tsx"
@@ -44,6 +44,8 @@ import { githubRefUrl } from "../lib/githubRef.ts"
 import { wakeCardTitle } from "../lib/githubWakeCard.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { useInnerHtml } from "../lib/innerHtml.ts"
+import { isHiddenWake, shownMergedParts } from "../lib/ntwineMachinery.ts"
+import { parkItemLine } from "../lib/parkItems.ts"
 
 // The divider's own link language. It is NOT the accent `CARD_LINK` the cards use: a divider is quiet
 // transcript punctuation, and an accent-gold link inside one shouts louder than the event does. This is
@@ -75,11 +77,16 @@ export const DIVIDER_LINK = "rounded-sm underline decoration-muted/30 underline-
  *  name link lives there. Asked for each part of a merged delivery too. */
 export type WakeAgentMessage = (text: string, sourceId: string | undefined, at: string | undefined) => ReactNode | null
 
-export function NtwineWake({ steer: served, text, sourceId, at, wrap, agentMessage }: { steer?: GithubWakeSteer; text: string; sourceId?: string; at?: string; wrap?: boolean; agentMessage?: WakeAgentMessage }) {
+/** `checkIns`: on a wait-expired check-in, how many silent ones in a row it stands for (lib/restDividers
+ *  withoutSilentExchanges). */
+export function NtwineWake({ steer: served, text, sourceId, at, wrap, agentMessage, checkIns }: { steer?: GithubWakeSteer; text: string; sourceId?: string; at?: string; wrap?: boolean; agentMessage?: WakeAgentMessage; checkIns?: number }) {
   // SEVERAL WAKES IN ONE DELIVERY, before anything else: every parser below reads a wake from its own
   // first line, and a merged delivery's first line is the envelope's.
   const merged = parseMergedWake(text)
   if (merged) return <MergedWake parts={merged} sourceId={sourceId} at={at} wrap={wrap} agentMessage={agentMessage} />
+  // ntwine talking to its own worker draws nothing (lib/ntwineMachinery, which ChatView's
+  // computeRendersNothing reads too, so no spacer is spent on it).
+  if (isHiddenWake(text)) return null
   const spoken = agentMessage?.(text, sourceId, at)
   if (spoken) return spoken
   // A recurring prompt (either trigger) REPEATS by design — the same paragraph every few minutes on a
@@ -105,14 +112,25 @@ export function NtwineWake({ steer: served, text, sourceId, at, wrap, agentMessa
   if (switched) return <LimitModelSwitchDivider capped={switched.capped} to={switched.to} sourceId={sourceId} at={at} />
   const park = parseParkWake(text)
   if (park?.kind === "requested") return <UpdateRequestedMarker sourceId={sourceId} items={park.items} />
-  if (park) return <ParkDivider wake={park} sourceId={sourceId} at={at} />
+  if (park) return <ParkDivider wake={park} sourceId={sourceId} at={at} checkIns={checkIns} />
   const lapsed = parsePrWatchExpiredWake(text)
   if (lapsed) return <PrWatchExpiredDivider watchRef={lapsed.ref} sourceId={sourceId} at={at} />
-  const ownLapsed = parseOwnWatchExpiredWake(text)
-  if (ownLapsed) return <OwnWatchExpiredDivider kind={ownLapsed.kind} sourceId={sourceId} at={at} />
   const terminal = parseTerminalWake(text)
   if (terminal) return <TerminalWakeDivider handle={terminal.handle} event={terminal.event} sourceId={sourceId} at={at} />
-  if (parseTerminalWatchExpiredWake(text)) return <OwnWatchExpiredDivider kind="terminal" sourceId={sourceId} at={at} />
+  // ntwine's own news about the worker's registrations and limits: one line each, the instructions to
+  // the worker dropped. Every one of these printed its whole agent-facing body in the fallback card below
+  // until 2026-10-24 ("register it again with `ntwinectl watch-command add` …", "Plan to the best
+  // deliverable …", "stop it now (`TaskStop` with task id …)").
+  const command = parseCommandWatchWake(text)
+  if (command) return <CommandWatchDivider kind={command.kind} command={command.command} sourceId={sourceId} at={at} />
+  const deadline = parseDeadlineWake(text)
+  if (deadline) return <DeadlineDivider wake={deadline} sourceId={sourceId} at={at} />
+  const budget = parseShellBudgetWake(text)
+  if (budget) return <ShellBudgetDivider handle={budget.handle} label={budget.label} budget={budget.budget} sourceId={sourceId} at={at} />
+  const goal = parseGoalLimitWake(text)
+  if (goal) return <GoalLimitDivider wake={goal} sourceId={sourceId} at={at} />
+  const interrupted = parseInterruptEndedWake(text)
+  if (interrupted) return <InterruptEndedDivider agents={interrupted.agents} sourceId={sourceId} at={at} />
   const control = parseTerminalControlWake(text)
   if (control) return <TerminalControlDivider event={control.event} handle={control.handle} other={control.other} sourceId={sourceId} at={at} />
   // The ONE wake on the registered-question path ntwine writes in its own voice. Its sibling — the human's
@@ -218,7 +236,8 @@ function MergedWake({ parts, sourceId, at, wrap, agentMessage }: { parts: Merged
   // the delivery and so only ever reached the last one. And what the server drops when it arrives alone
   // is left out here: a fence correction is not a message (it marks the fence it refused instead), and
   // relay plumbing never was one.
-  const shown = parts.map((part) => stripWakeTrailer(part.body)).filter((body) => !isParkCorrection(body) && !isInjectedNoise(body))
+  // A sign-off nudge or a lapsed watch of the worker's own is dropped too (lib/ntwineMachinery).
+  const shown = shownMergedParts(parts.map((part) => part.body))
   if (!shown.length) return null
   return (
     // ONE element with a real STEP between its hairlines, for the reason the PR-watch branch below
@@ -319,7 +338,7 @@ function TimerDivider({ wake, sourceId }: { wake: TimerWake; sourceId?: string }
 // the instruction that rides with it to the worker ("decide it yourself") is not addressed to the reader.
 function QuestionsCancelledDivider({ count, sourceId, at }: { count: number; sourceId?: string; at?: string }) {
   const news = `${count} question${count === 1 ? "" : "s"} cancelled`
-  const why = ` — the worker decides ${count === 1 ? "it" : "them"} itself`
+  const why = " — the agent decides"
   return (
     <WakeDivider icon={MessageCircleOff} sourceId={sourceId} marker="event" ariaLabel={`${news}${why}`} at={at}>
       <span className="min-w-0 truncate">
@@ -353,25 +372,31 @@ export function UpdateRequestedMarker({ sourceId, items = [] }: { sourceId?: str
   )
 }
 
-function ParkDivider({ wake, sourceId, at }: { wake: ParkWake; sourceId?: string; at?: string }) {
+function ParkDivider({ wake, sourceId, at, checkIns = 1 }: { wake: ParkWake; sourceId?: string; at?: string; checkIns?: number }) {
   const [open, setOpen] = useState(false)
   const bodyId = useId()
+  const thread = useWakeThread()
   // Terse, because every sibling on this rule is ("PR merged on …", "Agent terminal «…» finished"). The
   // first draft read "The declared wait is over — its work finished" and was the longest line on the
   // page by half again.
+  //
+  // A FOLDED RUN says how many check-ins it stands for (shared silentCheckInIndexes): the silent ones
+  // above it draw nothing, and this line is the one place their count survives. A tally, so wide only.
   const news = wake.kind === "expired" ? "Wait expired" : "Wait over"
+  const times = wake.kind === "expired" && checkIns > 1 ? ` ${checkIns} times` : ""
   const why = wake.kind === "expired" ? " — nothing resolved" : " — its work finished"
   // The clause explains the news and is the first thing a narrow row gives up (WAKE_DIVIDER_WIDE_ONLY).
   const sentence = (
     <span className="min-w-0 truncate">
       {news}
+      {times && <span className={WAKE_DIVIDER_WIDE_ONLY}>{times}</span>}
       <span className={WAKE_DIVIDER_WIDE_ONLY}>{why}</span>
     </span>
   )
   // No disclosure without items: an empty aside is a control that opens onto nothing.
   if (!wake.items.length) {
     return (
-      <WakeDivider icon={Hourglass} sourceId={sourceId} marker="event" ariaLabel={`${news}${why}`} at={at}>
+      <WakeDivider icon={Hourglass} sourceId={sourceId} marker="event" ariaLabel={`${news}${times}${why}`} at={at}>
         {sentence}
       </WakeDivider>
     )
@@ -392,11 +417,27 @@ function ParkDivider({ wake, sourceId, at }: { wake: ParkWake; sourceId?: string
       </WakeDivider>
       {open && (
         <div id={bodyId} className="mt-1.5 whitespace-pre-wrap border-l border-border/70 pl-3 text-[13px] text-muted [overflow-wrap:anywhere]">
-          {wake.items.join("\n")}
+          {/* Names and states, not the fence lines the worker was handed (lib/parkItems). */}
+          {wake.items.map((line) => parkItemLine(line, (key, value) => nameOnBoard(thread, key, value))).join("\n")}
         </div>
       )}
     </div>
   )
+}
+
+/** The thread this transcript belongs to, from the board, for a divider that names one of its children. */
+function useWakeThread(): ThreadView | undefined {
+  const slug = useContext(ThreadSlugContext)
+  const board = useBoard()
+  return slug ? threadBySlug(board, slug) : undefined
+}
+
+/** A wait item's label on the board — a sub-agent's or a shell's, by the runtime id the fence names. */
+function nameOnBoard(thread: ThreadView | undefined, key: string, value: string): string | undefined {
+  if (!thread) return undefined
+  if (key === "agents") return thread.subAgents?.find((a) => a.taskId === value || a.id === value)?.label
+  if (key === "shells") return [...(thread.bgShells ?? []), ...(thread.endedShells ?? [])].find((s) => s.taskId === value || s.id === value)?.label
+  return undefined
 }
 
 // A registered watcher whose own `for:` ran out. One line, and the ref is the only thing on it a reader
@@ -453,24 +494,6 @@ function RefText({ value }: { value: string }) {
       <span className={WAKE_DIVIDER_WIDE_ONLY}>{value.slice(0, hash)}</span>
       {value.slice(hash)}
     </>
-  )
-}
-
-// The same lapse on one of the worker's OWN waits — a `ntwinectl watch` on a background shell or a
-// sub-agent whose `for:` ran out. It names the KIND and not the target: the target is a runtime id
-// (`bzvtnt3ig`), the handle a worker writes on a fence and nothing a reader correlates by eye, which is
-// the reason the shell-finished line below never draws one either. The glyph is the subject's own, as
-// it is on the PR line above — the terminal every shell divider wears, the bot every sub-agent one does.
-function OwnWatchExpiredDivider({ kind, sourceId, at }: { kind: "shell" | "agent" | "terminal"; sourceId?: string; at?: string }) {
-  // State first, like the PR one above — and on a narrow row the glyph alone says which kind of wait.
-  const what = ` on a ${kind === "agent" ? "sub-agent" : kind === "terminal" ? "terminal" : "background shell"}`
-  return (
-    <WakeDivider icon={kind === "agent" ? Bot : TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={`Watch expired${what}`} at={at}>
-      <span className="min-w-0 truncate">
-        Watch expired
-        <span className={WAKE_DIVIDER_WIDE_ONLY}>{what}</span>
-      </span>
-    </WakeDivider>
   )
 }
 
@@ -577,13 +600,7 @@ function ShellDoneDivider({ wake, sourceId, at }: { wake: ShellDoneWake; sourceI
   // The runtime's own divider names a shell by the strip's noun (server transcript.ts shellWakeNoun), and so does
   // this one. The delivery does not say whether it was a Monitor, so it takes the common noun.
   const label = `Agent terminal «${desc}» ${wake.outcome}`
-  // THE TASK ID IS THE HANDLE BACK TO IT: the thread's shells (finished ones included — the strip's
-  // endedShells) name the same id, so this line opens that terminal's drawer as the runtime's twin does.
-  const slug = useContext(ThreadSlugContext)
-  const board = useBoard()
-  const thread = slug && wake.taskId ? threadBySlug(board, slug) : undefined
-  const shell = thread ? [...(thread.endedShells ?? []), ...(thread.bgShells ?? [])].find((s) => s.taskId === wake.taskId && s.id) : undefined
-  const open = slug && shell?.id ? () => pushBackgroundShellDrawer(slug, shell.id!, { label: shell.label, ...(shell.startedAt ? { startedAt: shell.startedAt } : {}) }) : undefined
+  const open = useShellOpener(wake.taskId)
   return (
     <WakeDivider icon={TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={open ? undefined : label} at={at}>
       {/* The TITLE is the elastic part, not the sentence (ShellWakeText): a long description must not
@@ -591,6 +608,118 @@ function ShellDoneDivider({ wake, sourceId, at }: { wake: ShellDoneWake; sourceI
           the same way, which is what keeps the two identical. */}
       <ShellWakeText text={label} onOpen={open} />
     </WakeDivider>
+  )
+}
+
+// THE TASK ID IS THE HANDLE BACK TO A SHELL: the thread's shells (finished ones included — the strip's
+// endedShells) name the same id, so a line naming one opens that terminal's drawer as the runtime's own
+// wake line does. Undefined when there is nothing on the board to open.
+function useShellOpener(taskId: string | undefined): (() => void) | undefined {
+  const slug = useContext(ThreadSlugContext)
+  const board = useBoard()
+  const thread = slug && taskId ? threadBySlug(board, slug) : undefined
+  const shell = thread ? [...(thread.endedShells ?? []), ...(thread.bgShells ?? [])].find((s) => s.taskId === taskId && s.id) : undefined
+  return slug && shell?.id ? () => pushBackgroundShellDrawer(slug, shell.id!, { label: shell.label, ...(shell.startedAt ? { startedAt: shell.startedAt } : {}) }) : undefined
+}
+
+// ---- ntwine'S OWN NEWS ABOUT THE WORKER'S REGISTRATIONS AND LIMITS (2026-10-24) ---------------------
+// Five wakes that had no parser here and so printed their whole body in the fallback card: paragraphs
+// addressed to the worker about re-registering, planning to a clock or calling TaskStop. Each is one line
+// of news now, in the family's shape, and the instructions stay with the worker.
+
+/** A long title cut the way the server cuts a shell's (64 chars), on its first line. */
+function dividerTitle(text: string): string {
+  const line = text.split("\n")[0]!.trim()
+  const cut = line.length > 64 ? `${line.slice(0, 63)}…` : line
+  return text.includes("\n") && !cut.endsWith("…") ? `${cut} …` : cut
+}
+
+/** `Command watch «nub run test» passed`: the command is the elastic part, the outcome is the news. */
+function CommandWatchDivider({ kind, command, sourceId, at }: { kind: "passed" | "expired" | "cancelled"; command?: string; sourceId?: string; at?: string }) {
+  const title = command ? dividerTitle(command) : undefined
+  const label = title ? `Command watch «${title}» ${kind}` : `Command watch ${kind}`
+  return (
+    <WakeDivider icon={TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={label} at={at}>
+      {title ? <DividerQuotedTitle lead="Command watch" title={title} tail={kind} /> : <span className="min-w-0 truncate">{label}</span>}
+    </WakeDivider>
+  )
+}
+
+/** The thread's time limit: the human moving it, and the check-ins on the way to it. */
+function DeadlineDivider({ wake, sourceId, at }: { wake: DeadlineWake; sourceId?: string; at?: string }) {
+  const label = wake.kind === "set" ? `Time limit set for ${wake.clock}`
+    : wake.kind === "extended" ? `Time limit extended to ${wake.clock}`
+    : wake.kind === "earlier" ? `Time limit moved up to ${wake.clock}`
+    : wake.kind === "kept" ? `Time limit kept at ${wake.clock}`
+    : wake.kind === "cleared" ? "Time limit removed"
+    : wake.kind === "check" ? `Time limit · ${wake.left} left`
+    : "Time limit reached"
+  return (
+    <WakeDivider icon={Clock} sourceId={sourceId} marker="deadline" ariaLabel={label} at={at}>
+      <span className="min-w-0 truncate">{label}</span>
+    </WakeDivider>
+  )
+}
+
+/** A background shell that outran its budget: `Agent terminal «vite» ran past its 30m limit`, the name
+ *  opening the terminal as the finished-shell line's does. */
+function ShellBudgetDivider({ handle, label, budget, sourceId, at }: { handle: string; label: string; budget: string; sourceId?: string; at?: string }) {
+  const text = `Agent terminal «${dividerTitle(label)}» ran past its ${budget} limit`
+  const open = useShellOpener(handle)
+  return (
+    <WakeDivider icon={TerminalSquare} sourceId={sourceId} marker="event" ariaLabel={open ? undefined : text} at={at}>
+      <ShellWakeText text={text} onOpen={open} narrowTail={`over ${budget}`} />
+    </WakeDivider>
+  )
+}
+
+/** A Goal that disarmed itself at its limit. The tally is what a narrow row gives up. */
+function GoalLimitDivider({ wake, sourceId, at }: { wake: NonNullable<ReturnType<typeof parseGoalLimitWake>>; sourceId?: string; at?: string }) {
+  const runs = (n: number) => `${n} run${n === 1 ? "" : "s"}`
+  const tally = wake.reason === "runs" ? `${wake.runs} of ${runs(wake.maxRuns)}` : `${wake.limit ? `${wake.limit} limit · ` : ""}${runs(wake.runs)}`
+  return (
+    <WakeDivider icon={Repeat} sourceId={sourceId} marker="goal-limit" ariaLabel={`Goal stopped · ${tally}`} at={at}>
+      <span className="min-w-0 truncate">
+        Goal stopped
+        <span className={WAKE_DIVIDER_WIDE_ONLY}> · {tally}</span>
+      </span>
+    </WakeDivider>
+  )
+}
+
+/** The human's interrupt ended running sub-agents. Which ones is the disclosure. */
+function InterruptEndedDivider({ agents, sourceId, at }: { agents: readonly InterruptEndedSubAgent[]; sourceId?: string; at?: string }) {
+  const [open, setOpen] = useState(false)
+  const bodyId = useId()
+  const news = `${agents.length} sub-agent${agents.length === 1 ? "" : "s"} ended`
+  const why = " by your interrupt"
+  // Narrow: `2 ended`, the bot glyph saying what ended. `2 agents ended` was two characters past what
+  // a 390px row leaves beside the hint and the age, and clipped mid-word.
+  const sentence = (
+    <span className="min-w-0 truncate">
+      {agents.length}<span className={WAKE_DIVIDER_WIDE_ONLY}> sub-agent{agents.length === 1 ? "" : "s"}</span> ended
+      <span className={WAKE_DIVIDER_WIDE_ONLY}>{why}</span>
+    </span>
+  )
+  if (!agents.length) {
+    return (
+      <WakeDivider icon={Bot} sourceId={sourceId} marker="event" ariaLabel={`${news}${why}`} at={at}>
+        {sentence}
+      </WakeDivider>
+    )
+  }
+  return (
+    <div data-ntwine-msg={sourceId} className="flex flex-col">
+      <WakeDivider icon={Bot} marker="event" at={at} onClick={() => setOpen((v) => !v)} ariaExpanded={open} ariaControls={bodyId} ariaLabel={`${open ? "Collapse" : "Expand"} which sub-agents ended`}>
+        {sentence}
+        <DividerHint open={open} />
+      </WakeDivider>
+      {open && (
+        <div id={bodyId} className="mt-1.5 whitespace-pre-wrap border-l border-border/70 pl-3 text-[13px] text-muted [overflow-wrap:anywhere]">
+          {agents.map((a) => a.label).join("\n")}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -602,11 +731,11 @@ function ShellDoneDivider({ wake, sourceId, at }: { wake: ShellDoneWake; sourceI
  *
  *  `Lead «title» outcome (note)`, the shape the server's `backgroundWakeLabel` writes. Greedy on the
  *  title, so a description that itself contains a guillemet still ends at the LAST one. */
-export function ShellWakeText({ text, onOpen }: { text: string; onOpen?: () => void }) {
+export function ShellWakeText({ text, onOpen, narrowTail }: { text: string; onOpen?: () => void; narrowTail?: string }) {
   const parts = /^([^«]+?) «(.+)» ([^»(]+?)(?: (\([^»]*\)))?$/.exec(text)
   if (!parts) return <span className="min-w-0 truncate">{text}</span>
   const [, lead, title, tail, note] = parts
-  if (!onOpen) return <DividerQuotedTitle lead={lead} title={title} tail={tail} note={note} />
+  if (!onOpen) return <DividerQuotedTitle lead={lead} title={title} tail={tail} narrowTail={narrowTail} note={note} />
   // The same nodes as DividerQuotedTitle, with the title a button. The spaces inside the lead, tail and
   // note are for `textContent`, not the layout (see DividerQuotedTitle).
   return (
@@ -627,7 +756,8 @@ export function ShellWakeText({ text, onOpen }: { text: string; onOpen?: () => v
         </button>
         <span className="shrink-0">»</span>
       </span>
-      <span className="shrink-0"> {tail}</span>
+      <span className={narrowTail ? `shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}` : "shrink-0"}> {tail}</span>
+      {narrowTail && <span className={`shrink-0 ${WAKE_DIVIDER_NARROW_ONLY}`}> {narrowTail}</span>}
       {note && <span className={`shrink-0 ${WAKE_DIVIDER_WIDE_ONLY}`}> {note}</span>}
     </>
   )

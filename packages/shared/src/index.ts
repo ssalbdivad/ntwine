@@ -1468,6 +1468,19 @@ export function goalLimitMessage(o: { reason: "runs" | "time"; runs: number; max
   )
 }
 
+const GOAL_LIMIT_RUNS_HEAD = /^Your Goal reached its run limit and stopped: (\d+) of (\d+) runs delivered\./
+const GOAL_LIMIT_TIME_HEAD = /^Your Goal reached its time limit(?: \((\S+)\))? and stopped after (\d+) runs?\./
+
+/** goalLimitMessage read back: which limit ended the Goal, the runs it delivered, and the limit itself
+ *  (`maxRuns`, or the time bound as it was written, `2h`). */
+export function parseGoalLimitWake(text: string): { reason: "runs"; runs: number; maxRuns: number } | { reason: "time"; runs: number; limit?: string } | null {
+  const lead = text.trim()
+  const runs = GOAL_LIMIT_RUNS_HEAD.exec(lead)
+  if (runs) return { reason: "runs", runs: Number(runs[1]), maxRuns: Number(runs[2]) }
+  const time = GOAL_LIMIT_TIME_HEAD.exec(lead)
+  return time ? { reason: "time", runs: Number(time[2]), ...(time[1] ? { limit: time[1] } : {}) } : null
+}
+
 // ---- The opt-out ---------------------------------------------------------------------------------
 // THE OPT-OUT IS THE ```done FENCE, as of 2026-08-11. A worker that signs off as done has said "there
 // is no further work here", and ntwine stops prompting it — every trigger, because a run that keeps
@@ -1680,6 +1693,11 @@ export function isNtwineOwnTool(t: { name: string; command?: string; detail?: st
 const REPLY_MIN_CHARS = 200
 const RITUAL_ACK_MAX = REPLY_MIN_CHARS
 
+/** One short paragraph with no fence: "Signed off.", "Still waiting on the build." — filler, not a reply. */
+function isRitualAck(text: string): boolean {
+  return text.length < RITUAL_ACK_MAX && !/\n\s*\n/.test(text) && !text.includes("```")
+}
+
 /** Is this assistant text a written reply — more than one paragraph, or one long one, fences aside —
  *  rather than a line of narration between tool calls? */
 export function isWrittenReply(text: string): boolean {
@@ -1731,7 +1749,7 @@ export function silentSignoffIndexes(messages: readonly {
         if (text || acked || !m.tools.every(isNtwineOwnTool)) { silent = false; break }
         called = true
       } else if (text) {
-        if (!called || text.length >= RITUAL_ACK_MAX || /\n\s*\n/.test(text) || text.includes("```")) { silent = false; break }
+        if (!called || !isRitualAck(text)) { silent = false; break }
         acked = true
       }
       reply.push(j)
@@ -2035,6 +2053,31 @@ export function interruptEndedSubAgentsMessage(agents: readonly InterruptEndedSu
 export function isInterruptEndedWake(text: string): boolean {
   const lead = text.trimStart()
   return lead.startsWith(INTERRUPT_ENDED_LEAD) || lead.startsWith(legacyHumanWording(INTERRUPT_ENDED_LEAD))
+}
+
+/** The sub-agents the interrupt note names, read back from its list (`- \`id\` — label`, or `- label`
+ *  for a child whose runtime id never arrived), or null when this is not that note. */
+export function parseInterruptEndedWake(text: string): { agents: InterruptEndedSubAgent[] } | null {
+  if (!isInterruptEndedWake(text)) return null
+  const agents: InterruptEndedSubAgent[] = []
+  for (const line of text.trim().split("\n").slice(1)) {
+    if (!line.startsWith("- ")) { if (agents.length) break; continue }
+    const m = /^- `([^`]+)` — (.*)$/.exec(line)
+    agents.push(m ? { taskId: m[1]!, label: m[2]! } : { label: line.slice(2) })
+  }
+  return { agents }
+}
+
+// ---- A BACKGROUND SHELL PAST ITS BUDGET (server shell-budget.ts, scheduler SOURCE 13) -------------
+// The composer is the server's `shellBudgetWarningMessage`, which needs the server's grace constant; its
+// head is read back here so the chat can draw the one line of news. server/src/shell-budget.test.ts
+// round-trips the real composer through this parser, so a change to the head fails there.
+const SHELL_BUDGET_HEAD = /^⏰ Your background shell `([^`]+)` \((.*)\) has been running (.+?), past its (.+?) budget\./
+
+/** A shell-budget warning, read back: the shell's handle and label, how long it ran, and its budget. */
+export function parseShellBudgetWake(text: string): { handle: string; label: string; ran: string; budget: string } | null {
+  const m = SHELL_BUDGET_HEAD.exec(text.trim())
+  return m ? { handle: m[1]!, label: m[2]!, ran: m[3]!, budget: m[4]! } : null
 }
 
 // ---- THE BUILT-IN SIGN-OFF NUDGE (scheduler SOURCE 9) --------------------------------------------
@@ -2890,6 +2933,93 @@ export function parseParkWake(text: string): ParkWake | null {
   return null
 }
 
+/** A status line that says nothing moved: a named item still running, or questions and steps the
+ *  human has not got to (the scheduler's `status` lines in parkExpiredWakeMessage's caller). */
+export function isPendingParkItem(line: string): boolean {
+  return /— (?:still running|not answered yet|the user has not replied)\b/.test(line)
+}
+
+/** The prose of a reply that holds an ```awaiting fence, in pieces: the text outside the fences, and
+ *  each fence's free text (its lines after `---`, and any line above it that is not a `key:` or a list
+ *  item). `null` when the text holds no awaiting fence at all. */
+function reparkProse(text: string): string[] | null {
+  const pieces: string[] = []
+  let fenced = false
+  const outside = text.replace(/^(`{3,})awaiting[^\n]*\n([\s\S]*?)^\1[ \t]*$/gm, (_, _fence: string, body: string) => {
+    fenced = true
+    const lines = body.split("\n")
+    const rule = lines.findIndex((line) => /^\s*---\s*$/.test(line))
+    const head = rule < 0 ? lines : lines.slice(0, rule)
+    const tail = rule < 0 ? [] : lines.slice(rule + 1)
+    pieces.push([...head.filter((line) => line.trim() && !/^\s*(?:[a-z][a-z_-]*:|-\s)/i.test(line)), ...tail].join("\n").trim())
+    return ""
+  })
+  return fenced ? [outside.trim(), ...pieces].filter(Boolean) : null
+}
+
+/** Wait-expired check-ins that changed nothing, and the replies that only re-parked: transcript indexes
+ *  to hide, and for the check-in that does draw after a run of hidden ones, how many it stands for
+ *  (itself included).
+ *
+ *  WHY (maintainer 2026-10-24, the same request that took the sign-off nudge off the screen). A park on
+ *  sub-agents expires every AGENT_PARK_FOR_MAX_MS, and each expiry drew a "Wait expired" hairline the
+ *  human could do nothing about, since everything it named was still running: one arktype thread drew
+ *  375 of them in 14 days. A check-in is silent when every status line it carried is pending
+ *  (isPendingParkItem) and the worker's reply is a re-park: ntwine's own calls, at most one short
+ *  paragraph of prose (fence text included), and an ```awaiting fence. A reply that ran any other tool or
+ *  wrote a real note is the progress report the check-in asked for, and keeps its divider.
+ *
+ *  THE TAIL IS NEVER HIDDEN. A reply with no later user message is the thread's current rest, and its
+ *  fence is the live wait (the resting card or the question cards hang off it), so that check-in draws —
+ *  carrying the count of the silent ones above it, which is the fold. */
+export function silentCheckInIndexes(messages: readonly {
+  role: string
+  kind?: string
+  text: string
+  displayText?: string
+  tools: readonly { name: string; command?: string; detail?: string }[]
+}[]): { hidden: Set<number>; folded: Map<number, number> } {
+  const hidden = new Set<number>()
+  const folded = new Map<number, number>()
+  let run = 0
+  for (let i = 0; i < messages.length; i++) {
+    const wake = messages[i]!
+    if (wake.role !== "user") continue
+    const park = wake.kind ? null : parseParkWake(wake.displayText ?? wake.text)
+    if (park?.kind !== "expired") { run = 0; continue }
+    const reply: number[] = []
+    let fenced = false
+    let ritual = true
+    let j = i + 1
+    for (; j < messages.length && messages[j]!.role !== "user"; j++) {
+      const m = messages[j]!
+      if (m.role !== "assistant" || m.kind) continue
+      reply.push(j)
+      if (!ritual) continue
+      if (!m.tools.every(isNtwineOwnTool)) { ritual = false; continue }
+      const text = m.text.trim()
+      if (!text) continue
+      const pieces = reparkProse(text)
+      if (pieces) fenced = true
+      // Each piece one short paragraph, and all of them together still short: an acknowledgement
+      // above the fence and a line inside it are one remark, said in two places.
+      const words = pieces ?? [text]
+      if (!words.every(isRitualAck) || !isRitualAck(words.join(" "))) ritual = false
+    }
+    const silent = j < messages.length && ritual && fenced && park.items.length > 0 && park.items.every(isPendingParkItem)
+    if (silent) {
+      hidden.add(i)
+      for (const r of reply) hidden.add(r)
+      run++
+      i = j - 1
+      continue
+    }
+    if (run) folded.set(i, run + 1)
+    run = 0
+  }
+  return { hidden, folded }
+}
+
 const PR_WATCH_EXPIRED_HEAD = /^⏰ Your watcher on (\S+) has expired and is no longer armed\b/
 
 /** The PR whose watcher lapsed, or null. One hairline: the registration is gone, and the ref is the
@@ -3448,15 +3578,16 @@ export function commandWatchCancelledWakeMessage(input: { id: string; command: s
   ].join("\n")
 }
 
-/** A command watch's wake, read back — which of the three it is and the watch's id — or null. */
-export function parseCommandWatchWake(text: string): { kind: "passed" | "expired" | "cancelled"; id: string } | null {
+/** A command watch's wake, read back — which of the three it is, the watch's id, and the command it ran
+ *  (the first `sh` block, which every one of the three composers writes right under its head) — or null. */
+export function parseCommandWatchWake(text: string): { kind: "passed" | "expired" | "cancelled"; id: string; command?: string } | null {
   const first = text.trim()
-  const passed = COMMAND_WATCH_PASSED_HEAD.exec(first)
-  if (passed) return { kind: "passed", id: passed[1] }
-  const expired = COMMAND_WATCH_EXPIRED_HEAD.exec(first)
-  if (expired) return { kind: "expired", id: expired[1] }
-  const cancelled = COMMAND_WATCH_CANCELLED_HEAD.exec(first)
-  return cancelled ? { kind: "cancelled", id: cancelled[1] } : null
+  const heads = [["passed", COMMAND_WATCH_PASSED_HEAD], ["expired", COMMAND_WATCH_EXPIRED_HEAD], ["cancelled", COMMAND_WATCH_CANCELLED_HEAD]] as const
+  const [kind, head] = heads.map(([kind, re]) => [kind, re.exec(first)] as const).find(([, m]) => m) ?? []
+  if (!kind || !head) return null
+  // The command block is the first code block under the head, whichever fence length it needed.
+  const command = /^(`{3,})sh\n([\s\S]*?)\n\1$/m.exec(first)?.[2]
+  return { kind, id: head[1]!, ...(command !== undefined ? { command } : {}) }
 }
 
 // ---- THE WORKER'S REGISTERED QUESTIONS (2026-08-26) ------------------------------------------------

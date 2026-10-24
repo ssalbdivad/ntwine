@@ -72,6 +72,6 @@ test("thread permission control: feedback distinguishes a live apply from next r
   // there, and real `claude` refuses to move a live session to bypass at all. So its sentence names the
   // restart rather than borrowing codex's retune wording: the thread just lost its process and its
   // in-memory sub-agents, and the operator has to be told that rather than discover it.
-  assert.equal(threadPermissionEffectMessage("next-turn", "claude"), "Permissions saved — the worker restarts on the next turn")
+  assert.equal(threadPermissionEffectMessage("next-turn", "claude"), "Permissions saved — applies from the next turn")
   assert.equal(threadPermissionEffectMessage("next-resume", "claude"), "Permissions saved for the next resume")
 })

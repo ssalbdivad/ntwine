@@ -1252,7 +1252,7 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
       // wake. The mark can no longer say [?] (it would advertise a card nobody can open), so the tooltip
       // is where the unanswered ask stays legible until then.
       const asking = (t.questions?.length ?? 0) > 0 || t.pendingQuestion === true || Boolean(t.pendingAsk)
-      return { node: parkMark, tip: popover(t, asking ? `${parked}\nA question is unanswered behind this park` : parked) }
+      return { node: parkMark, tip: popover(t, asking ? `${parked}\nA question is waiting for you` : parked) }
     }
     // A usage-limit park is NOT in this family any more (2026-08-31): a limit kill queues as a failed
     // thread and wears the yellow "limit" mark above. What still reaches this arm with a limitPause set
