@@ -81,7 +81,7 @@ export function withoutRedundantRestDividers<T extends { message: ChatMessage }>
 // calls the chat strips.
 export function withoutSilentExchanges<T extends { message: ChatMessage; messageIndex: number }>(entries: readonly T[], messages: readonly ChatMessage[]): T[] {
   const served = messages.map(servedMessage)
-  const signoffs = silentSignoffIndexes(served)
+  const signoffs = silentSignoffIndexes(served, { trailingAcks: true })
   const { hidden, folded } = silentCheckInIndexes(served)
   if (!signoffs.size && !hidden.size && !folded.size) return [...entries]
   const out: T[] = []

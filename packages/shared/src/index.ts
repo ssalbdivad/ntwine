@@ -1722,7 +1722,7 @@ export function silentSignoffIndexes(messages: readonly {
   text: string
   displayText?: string
   tools: readonly { name: string; command?: string; detail?: string }[]
-}[]): Set<number> {
+}[], opts: { trailingAcks?: boolean } = {}): Set<number> {
   const hidden = new Set<number>()
   for (let i = 0; i < messages.length; i++) {
     const nudge = messages[i]!
@@ -1754,7 +1754,25 @@ export function silentSignoffIndexes(messages: readonly {
       }
       reply.push(j)
     }
-    if (!silent || !called) continue
+    if (!silent) {
+      if (!opts.trailingAcks) continue
+      // TRANSCRIPT ONLY (`trailingAcks`). The reply said something of its own — kept — but an acknowledgement that only closes it after
+      // ntwine's own call ("Done." under `ntwinectl done`) is still filler, and goes. Read up to the reply's
+      // own rest, never past it, so a later turn cannot change what this one hid. The queue card does not
+      // ask for this: its rest-by-rest history keys on which messages say anything, and dropping one from
+      // the middle of a turn that already queued would take back prose a card had shown.
+      let prev: (typeof messages)[number] | undefined
+      for (let k = i + 1; k < messages.length && messages[k]!.role !== "user" && messages[k]!.boundary !== "rest"; k++) {
+        const m = messages[k]!
+        if (m.role !== "assistant" || m.kind) continue
+        const text = m.text.trim()
+        if (!text && !m.tools.length) continue
+        if (!m.tools.length && isRitualAck(text) && prev && !prev.text.trim() && prev.tools.length && prev.tools.every(isNtwineOwnTool)) hidden.add(k)
+        prev = m
+      }
+      continue
+    }
+    if (!called) continue
     hidden.add(i)
     for (const r of reply) hidden.add(r)
     i = j - 1
