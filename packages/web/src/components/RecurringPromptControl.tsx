@@ -803,7 +803,7 @@ export function PromptPanel({ thread, armed, close, heading = true }: {
             over an unanswered question, and the delivery tells the worker to decide it. So the clause no
             longer says "or is waiting on you" — that promised a hold this trigger stopped honouring, and
             this panel must not be the one surface describing a delivery the scheduler does not make. */}
-        <span className="text-muted">every rest — unless it signed off or parked on a wait</span>
+        <span className="text-muted">each time the agent stops, unless it finished or is waiting on something</span>
 
         <Switch
           testId="heartbeat"
