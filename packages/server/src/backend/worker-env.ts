@@ -135,14 +135,44 @@ export function launchEnvironment(source: NodeJS.ProcessEnv = process.env): Node
   return env
 }
 
+// ── WHAT NUB INJECTED WHEN IT LAUNCHED NTWINE ─────────────────────────────────────────────────────
+// `nub run dev` starts ntwine with its runner's environment on top of the operator's, and records what it
+// did: for each key K it changed, `__NUB_AUGMENTED_K_PRESENT=1`, and the operator's own value in
+// `__NUB_COMPAT_K` (empty when they had none). Workers inherited all of it, so every plain `node`, `pnpm`
+// or mocha a worker ran wrote into nub's compile cache (NODE_COMPILE_CACHE) and resolved through nub's
+// runtime (NODE_PATH). The compile cache keys entries on a module's absolute path and never shares them
+// across paths, so arktype's differential suite — ~18k generated files in a fresh mkdtemp per run —
+// left ~18k entries per run, part of a 21G cache on a full disk (2026-10-26). Same rule as NODE_ENV
+// above: the operator's value comes through, the launcher's does not. PATH is left alone here: the
+// provider sanitizer (claude-agent-sdk.ts) already drops nub's node shim from it, and the compat copy is
+// a snapshot that would undo any PATH an operator's `workerEnv` relies on. The markers go too, so a
+// `nub` the worker runs starts from a clean slate rather than "restoring" ntwine's launch values.
+const NUB_MARKER_PREFIX = "__NUB_"
+const NUB_AUGMENTED = /^__NUB_AUGMENTED_(.+)_PRESENT$/
+
+/** `env` with what nub's launcher injected put back to the operator's values, and nub's markers removed. */
+export function withoutNubAugmentation(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const out = { ...env }
+  for (const [marker, present] of Object.entries(env)) {
+    const key = NUB_AUGMENTED.exec(marker)?.[1]
+    if (!key || present !== "1" || key === "PATH") continue
+    const original = env[`__NUB_COMPAT_${key}`]
+    if (original) out[key] = original
+    else delete out[key]
+  }
+  for (const key of Object.keys(out)) if (key.startsWith(NUB_MARKER_PREFIX)) delete out[key]
+  return out
+}
+
 /** The environment a dispatched worker starts from: `source` (ntwine's own process env by default) with
- *  the runtime-written keys put back to their launch values (see launchEnvironment), ntwine's
- *  control-plane variables and the editor-attach variables removed, and undefined values dropped.
+ *  the runtime-written keys put back to their launch values (see launchEnvironment), what nub's launcher
+ *  injected undone (see withoutNubAugmentation), ntwine's control-plane variables and the editor-attach
+ *  variables removed, and undefined values dropped.
  *  Callers merge their per-thread `workerEnv` on top — that is what puts the NTWINE_ variables a worker
  *  DOES need back, with this thread's values rather than the server's. */
 export function inheritWorkerEnvironment(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const env: Record<string, string> = {}
-  for (const [key, value] of Object.entries(launchEnvironment(source))) {
+  for (const [key, value] of Object.entries(withoutNubAugmentation(launchEnvironment(source)))) {
     if (value === undefined || isNtwineInternalEnvKey(key) || isEditorAttachEnvKey(key)) continue
     env[key] = value
   }

@@ -192,3 +192,24 @@ test("in this process too: a later write is replaced by the launch value, which 
     else process.env.NODE_ENV = before
   }
 })
+
+// nub's launcher records each key it changed (`__NUB_AUGMENTED_<K>_PRESENT=1`) and the operator's value
+// (`__NUB_COMPAT_<K>`). The env below is the shape a `nub run dev` ntwine really carried on 2026-10-26.
+test("what nub injected at launch is undone for workers; what the operator exported survives", () => {
+  const env = inheritWorkerEnvironment({
+    HOME: "/home/u",
+    PATH: "/usr/bin",
+    NODE_COMPILE_CACHE: "/home/u/.cache/nub/v8-compile-cache",
+    __NUB_AUGMENTED_NODE_COMPILE_CACHE_PRESENT: "1",
+    __NUB_COMPAT_NODE_COMPILE_CACHE: "",
+    NODE_PATH: "/home/u/.cache/nub/runtime/node_modules",
+    __NUB_AUGMENTED_NODE_PATH_PRESENT: "1",
+    __NUB_COMPAT_NODE_PATH: "/opt/lib",
+    UV_THREADPOOL_SIZE: "4",
+    __NUB_AUGMENTED_UV_THREADPOOL_SIZE_PRESENT: "0",
+    __NUB_AUGMENTED_PATH_PRESENT: "1",
+    __NUB_COMPAT_PATH: "/old",
+    __NUB_VERSION: "0.9.3",
+  })
+  assert.deepEqual(env, { HOME: "/home/u", PATH: "/usr/bin", NODE_PATH: "/opt/lib", UV_THREADPOOL_SIZE: "4" })
+})
