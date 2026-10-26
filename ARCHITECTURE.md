@@ -140,7 +140,8 @@ projects or a project's page —
   registered project's `<main checkout>/.ntwine/worktrees` once it has been idle 7d (Settings → Remove
   idle worktrees after, `removeIdleWorktreesDays`; Never turns it off) — idle meaning no commit on its
   HEAD and no tracked or untracked file modified in that long. Only when nothing could be lost: git says
-  it is clean, every ignored file is dependency or build output (a `.env` or a `.db` keeps it), its HEAD
+  it is clean, no ignored file is a secret or local data (a `.env`, a key or a `.db` keeps it, unless
+  the main checkout holds an identical copy; build and test output goes), its HEAD
   is on a ref, no registered project lives in it, and no Working, Ready, Pinned or Snoozed thread on
   this server works in it; any check it cannot answer keeps it, and a repository with a registered
   project this server has not opened is skipped. `git worktree remove` without `--force`, then

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { existsSync, lstatSync, readdirSync, realpathSync } from "node:fs"
+import { type Dirent, existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { promisify } from "node:util"
 import { log as ntwineLog } from "./logging.ts"
@@ -29,14 +29,18 @@ import { log as ntwineLog } from "./logging.ts"
 //      project's worktree; and a repository with a registered project this server has not opened (one
 //      served by another ntwine) is skipped whole, because that server's threads are invisible here.
 //   4. GIT SAYS IT IS CLEAN: no modified, staged or untracked file (`git status --porcelain`).
-//   5. EVERY IGNORED FILE IS REGENERABLE. `git worktree remove` without --force refuses modified and
-//      untracked files but deletes IGNORED ones silently, and a `.env`, a local database or a hand-made
-//      fixture is ignored precisely because it is not in git. An ignored entry may go only when it is,
-//      or lies under, a dependency or build folder named in REGENERABLE_DIRS, or is a file named in
-//      REGENERABLE_FILES, or is a `.ntwine/` folder holding only ntwine's own `.id` / `.gitignore`
-//      markers. A NAME list, not a size or age heuristic: what makes a file safe to delete is that a
-//      command rebuilds it, and the name is the only evidence of that git gives. A build output this
-//      list does not know keeps its worktree, which is the cheap direction to be wrong in.
+//   5. NO IGNORED FILE HOLDS A SECRET OR LOCAL DATA. `git worktree remove` without --force refuses
+//      modified and untracked files but deletes IGNORED ones silently, and a `.env`, a key or a local
+//      database is ignored precisely because it is not in git. So every ignored file is walked (minus
+//      the dependency and build folders of REGENERABLE_DIRS, which are skipped whole) and one whose name
+//      KEEP_FILES matches keeps the worktree, unless the main checkout holds an identical copy at the
+//      same path (a `.env` copied in to run the tests loses nothing). A `.ntwine/` folder keeps it
+//      unless it holds only ntwine's own `.id` / `.gitignore` markers, since a thread's notes live there.
+//      Everything else ignored is build or test output and goes.
+//      Until 2026-10-26 this was the other way round, an ALLOW list of build-folder names, and on a real
+//      repository it removed nothing: arktype's ten idle worktrees were each kept for an `out/`, an
+//      `.attest/`, a `__tests__/temp/` or generated docs, while 9.6G of them sat on a full disk. Every
+//      repository names its outputs differently; what must never be lost has a short list of names.
 //   6. ITS HEAD IS ON A REF. Removing a DETACHED worktree whose commit no branch or tag contains would
 //      leave that commit dangling until the next gc. A worktree on a branch passes trivially: branches
 //      are never deleted here.
@@ -59,35 +63,81 @@ export const WORKTREE_FIRST_SWEEP_MS = 10 * 60_000
  *  ignores it too; router.ts settleWorktreePath repairs links into it). */
 export const WORKTREE_FOLDER = path.join(".ntwine", "worktrees")
 
-/** Dependency and build folders: whatever is under one is rebuilt by an install or a build. */
+/** Dependency and build folders: whatever is under one is rebuilt by an install or a build, so the walk
+ *  of check 5 skips them whole rather than reading node_modules file by file. */
 export const REGENERABLE_DIRS: ReadonlySet<string> = new Set([
   "node_modules", "dist", "build", "web-dist", "coverage",
   ".turbo", ".cache", ".vite", ".next", ".nuxt", ".svelte-kit", ".parcel-cache", ".eslintcache",
   "target", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".gradle",
 ])
-const REGENERABLE_FILES = [/\.tsbuildinfo$/, /^\.DS_Store$/, /\.py[co]$/, /^\.eslintcache$/]
+/** Ignored names that hold what no command rebuilds: environment files, keys and certificates, local
+ *  databases, and the `*.local.*` convention for per-machine settings. A template (`.env.example`) is not
+ *  one. */
+const KEEP_FILES = [
+  /^\.env(rc)?$/, /^\.env\.(?!example$|sample$|template$|defaults$).+$/, /\.env$/,
+  /\.(pem|key|p12|pfx|jks|keystore)$/, /^id_(rsa|ed25519|ecdsa)$/,
+  /\.(db|sqlite|sqlite3|db3)$/, /\.(db|sqlite|sqlite3)-(wal|shm|journal)$/,
+  /\.local(\.[^.]+)?$/,
+]
+/** Past this many files in one ignored folder, the walk stops and the worktree is kept. */
+const WALK_LIMIT = 200_000
 /** What ntwine itself writes into a folder it resolves as a project (project-root.ts). */
 const NTWINE_MARKERS: ReadonlySet<string> = new Set([".id", ".gitignore"])
 
-/** Whether an ignored entry (a `git status --ignored` path relative to the worktree; a trailing `/` is a
- *  wholly ignored folder) is safe to delete with its worktree. See check 5. */
-export function regenerable(entry: string, worktree: string): boolean {
-  const segments = entry.replace(/\/$/, "").split("/")
-  if (segments.slice(0, -1).some((s) => REGENERABLE_DIRS.has(s))) return true
-  const last = segments.at(-1)!
-  if (entry.endsWith("/")) {
-    if (REGENERABLE_DIRS.has(last)) return true
-    if (last === ".ntwine") {
-      try {
-        return readdirSync(path.join(worktree, entry)).every((name) => NTWINE_MARKERS.has(name))
-      } catch {
-        return false
-      }
-    }
+function identicalInMain(rel: string, worktree: string, main: string | undefined): boolean {
+  if (!main) return false
+  try {
+    const a = path.join(worktree, rel)
+    const b = path.join(main, rel)
+    if (lstatSync(a).size !== lstatSync(b).size) return false
+    return readFileSync(a).equals(readFileSync(b))
+  } catch {
     return false
   }
-  if (segments.at(-2) === ".ntwine" && NTWINE_MARKERS.has(last)) return true
-  return REGENERABLE_FILES.some((re) => re.test(last))
+}
+
+/**
+ * What in an ignored entry (a `git status --ignored` path relative to the worktree; a trailing `/` is a
+ * wholly ignored folder) must not be deleted with its worktree, as paths relative to it; empty when it
+ * may all go. See check 5. `main` is the repository's main checkout, for the identical-copy exemption.
+ */
+export function unrestorable(entry: string, worktree: string, main?: string): string[] {
+  const rel = entry.replace(/\/$/, "")
+  const segments = rel.split("/")
+  if (segments.some((s) => REGENERABLE_DIRS.has(s))) return []
+  const last = segments.at(-1)!
+  const keep = (file: string): boolean => KEEP_FILES.some((re) => re.test(path.basename(file))) && !identicalInMain(file, worktree, main)
+  if (!entry.endsWith("/")) {
+    if (segments.at(-2) === ".ntwine" && NTWINE_MARKERS.has(last)) return []
+    return keep(rel) ? [rel] : []
+  }
+  if (last === ".ntwine") {
+    try {
+      return readdirSync(path.join(worktree, rel)).every((name) => NTWINE_MARKERS.has(name)) ? [] : [entry]
+    } catch {
+      return [entry]
+    }
+  }
+  const found: string[] = []
+  const stack = [rel]
+  let seen = 0
+  while (stack.length > 0) {
+    const dir = stack.pop()!
+    let names: Dirent[]
+    try {
+      names = readdirSync(path.join(worktree, dir), { withFileTypes: true })
+    } catch {
+      return [`${dir}/ (could not read it)`]
+    }
+    for (const dirent of names) {
+      if (++seen > WALK_LIMIT) return [`${entry} (over ${WALK_LIMIT} files)`]
+      const child = `${dir}/${dirent.name}`
+      if (dirent.isDirectory()) {
+        if (!REGENERABLE_DIRS.has(dirent.name)) stack.push(child)
+      } else if (keep(child)) found.push(child)
+    }
+  }
+  return found
 }
 
 /** A folder an open thread is working in, for check 3. `by` names the thread in the log. */
@@ -99,6 +149,8 @@ export type FolderInUse = { dir: string; by: string }
  */
 export interface WorktreeFacts {
   path: string
+  /** The repository's main checkout, whose identical copy of an ignored file lets it go (check 5). */
+  main?: string
   locked?: boolean
   prunable?: boolean
   /** A registered ntwine project at or under the worktree (check 2). */
@@ -130,7 +182,7 @@ export function idleWorktreeKeepReason(facts: WorktreeFacts, days: number, now =
   if (facts.changes === undefined) return "could not read its status"
   if (facts.changes.length > 0) return `it has uncommitted changes: ${list(facts.changes)}`
   if (facts.ignored === undefined) return "could not read its ignored files"
-  const handMade = facts.ignored.filter((entry) => !regenerable(entry, facts.path))
+  const handMade = facts.ignored.flatMap((entry) => unrestorable(entry, facts.path, facts.main))
   if (handMade.length > 0) return `it holds ignored files git cannot restore: ${list(handMade)}`
   if (facts.headOnRef === undefined) return "could not tell whether a ref holds its HEAD"
   if (!facts.headOnRef) return "its detached HEAD is on no branch or tag; removing it would orphan the commit"
@@ -302,6 +354,7 @@ export async function sweepRepoWorktrees(input: RepoSweepInput): Promise<RepoSwe
     const busy = inUse.find((use) => isAtOrInside(dir, use.canonical))
     const cheap: WorktreeFacts = {
       path: dir,
+      main,
       locked: entry.locked,
       prunable: entry.prunable,
       ...(project ? { project: project.name } : {}),

@@ -15,7 +15,7 @@ import type { AppContext } from "./context.ts"
 import type { Project } from "./project.ts"
 import { threadFoldersInUse } from "./router.ts"
 import { createStorage } from "./storage.ts"
-import { idleWorktreeKeepReason, parseWorktreeList, regenerable, sweepIdleWorktrees, type WorktreeFacts } from "./worktree-sweep.ts"
+import { idleWorktreeKeepReason, parseWorktreeList, sweepIdleWorktrees, unrestorable, type WorktreeFacts } from "./worktree-sweep.ts"
 
 const DAY = 86_400_000
 const NOW = Date.parse("2026-10-07T12:00:00.000Z")
@@ -43,7 +43,7 @@ test("each check keeps the worktree on its own", () => {
     [{ changes: [" M src/a.ts"] }, /uncommitted changes: {2}M src\/a\.ts/],
     [{ changes: ["?? notes.md"] }, /uncommitted changes/],
     [{ ignored: [".env"] }, /ignored files git cannot restore: \.env/],
-    [{ ignored: ["node_modules/", "data/app.db"] }, /data\/app\.db/],
+    [{ ignored: ["node_modules/", "data/app.db"] }, /restore: data\/app\.db$/],
     [{ headOnRef: false }, /orphan/],
     // Idle is measured from the NEWER of the commit and the newest file.
     [{ newestFileMs: NOW - 2 * DAY }, /used 2d ago, under 7d/],
@@ -62,24 +62,57 @@ test("0 days is off", () => {
   assert.match(idleWorktreeKeepReason(facts(), 0, NOW) ?? "", /off/)
 })
 
-test("only dependency and build output counts as regenerable", () => {
-  for (const entry of ["node_modules/", "packages/web/node_modules/", "dist/", "build/", ".turbo/", ".cache/", ".next/", "coverage/", "tsconfig.tsbuildinfo", "packages/x/tsconfig.tsbuildinfo", "dist/inner.env", "__pycache__/", "a.pyc", ".DS_Store"]) {
-    assert.equal(regenerable(entry, "/nowhere"), true, entry)
-  }
-  for (const entry of [".env", ".env.local", "data/app.db", "local.sqlite", "secrets/", "fixtures/big.json", ".venv/", "out/", ".ntwine/"]) {
-    assert.equal(regenerable(entry, "/nowhere"), false, entry)
+test("ignored build output goes; secrets and local data keep the worktree", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-wt-ignored-"))
+  try {
+    const put = (rel: string, body = "x") => {
+      mkdirSync(join(dir, rel, ".."), { recursive: true })
+      writeFileSync(join(dir, rel), body)
+    }
+    // Output no list names: arktype's `out/`, `.attest/`, generated docs.
+    put("out/index.js")
+    put(".attest/cache.json")
+    put("public/docs/intro.md")
+    put("node_modules/pkg/.env")
+    for (const entry of ["out/", ".attest/", "public/docs/", "node_modules/", "tsconfig.tsbuildinfo", ".env.example"]) {
+      assert.deepEqual(unrestorable(entry, dir), [], entry)
+    }
+    for (const entry of [".env", ".env.local", "local.sqlite", "data/app.db", "certs/server.pem", ".claude/settings.local.json"]) {
+      assert.deepEqual(unrestorable(entry, dir), [entry], entry)
+    }
+    // A wholly ignored folder is walked, and names what it holds.
+    put("secrets/prod.env")
+    put("secrets/readme.txt")
+    assert.deepEqual(unrestorable("secrets/", dir), ["secrets/prod.env"])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test("a .ntwine folder is regenerable only when it holds nothing but ntwine's markers", () => {
+test("a secret identical to the main checkout's copy may go", () => {
+  const main = mkdtempSync(join(tmpdir(), "ntwine-wt-main-"))
+  const wt = mkdtempSync(join(tmpdir(), "ntwine-wt-copy-"))
+  try {
+    writeFileSync(join(main, ".env"), "TOKEN=1\n")
+    writeFileSync(join(wt, ".env"), "TOKEN=1\n")
+    assert.deepEqual(unrestorable(".env", wt, main), [])
+    writeFileSync(join(wt, ".env"), "TOKEN=2\n")
+    assert.deepEqual(unrestorable(".env", wt, main), [".env"])
+  } finally {
+    rmSync(main, { recursive: true, force: true })
+    rmSync(wt, { recursive: true, force: true })
+  }
+})
+
+test("a .ntwine folder may go only when it holds nothing but ntwine's markers", () => {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-wt-markers-"))
   try {
     mkdirSync(join(dir, ".ntwine"))
     writeFileSync(join(dir, ".ntwine", ".id"), "x")
     writeFileSync(join(dir, ".ntwine", ".gitignore"), "*\n")
-    assert.equal(regenerable(".ntwine/", dir), true)
+    assert.deepEqual(unrestorable(".ntwine/", dir), [])
     mkdirSync(join(dir, ".ntwine", "threads"))
-    assert.equal(regenerable(".ntwine/", dir), false)
+    assert.deepEqual(unrestorable(".ntwine/", dir), [".ntwine/"])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

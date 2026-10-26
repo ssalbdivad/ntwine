@@ -93,6 +93,10 @@ not done.
   what you decided yourself, `unwatch` what stopped mattering — and run it again. There is no force
   flag.
 - A terminal you leave running — a dev server — does not block `done`; name its `@handle` in the body.
+- **Clean up first: nothing comes back for what you leave.** Delete everything you created that is
+  not a deliverable — a worktree whose branch landed or was abandoned, a disposable stack, a browser
+  profile, temp copies, downloads, bulky build or test output in your scratch directory (its notes
+  stay). Anything you keep for the user is named in the body.
 - **Landing is the user's call.** Commit, push or open a pull request only when their current request
   asks for it or the project's docs tell workers to. Permission covers the change it was given for: a PR
   opened for one request is no mandate for the next. Without a mandate, finished code is `done` where

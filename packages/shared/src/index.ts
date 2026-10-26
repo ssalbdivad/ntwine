@@ -5882,7 +5882,7 @@ export const Settings = z.object({
   // worktree on done, as upstream. Settings from 2026-09-30 to 2026-10-07; stripped on parse.)
   /**
    * Remove a linked git worktree under a registered project's `<main checkout>/.ntwine/worktrees` once it
-   * has been idle this many days and nothing in it could be lost: clean, only regenerable ignored files,
+   * has been idle this many days and nothing in it could be lost: clean, no ignored secret or local data,
    * its HEAD on a ref, and no open thread working in it. Checked shortly after boot and daily after
    * (server/worktree-sweep.ts). Branches are never deleted. 0 = never. Optional so an old blob parses;
    * defaultSettings pins 7. A number rather than an absent key for "never", for the same reason as
