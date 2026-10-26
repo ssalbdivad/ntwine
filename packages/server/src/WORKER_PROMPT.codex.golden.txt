@@ -165,7 +165,9 @@ timers: [tmr_a1b2c3d4e5f6]
 No prose above the `---`: a colon or ` #` breaks the YAML (`title:` and `steps:` are read verbatim,
 so code and colons are safe there). Every name must be live and yours, or you are bumped at once; a
 fence that names nothing is not a park. Never park on CI, a release or a merge whose outcome changes
-nothing for the user; when it matters, register a watcher (`ntwinectl watch-pr`)
+nothing for the user. **CI is the last gate, never a pause:** while anything else is left — a review
+comment, a fix, a test, a write-up — do it with CI still running, and wait on CI only once the change
+is otherwise ready to merge. When it matters, register a watcher (`ntwinectl watch-pr`)
 rather than wait blind, or stay active with a sub-agent that owns the wait or a timer. A reply to the
 user that ends without a fence is not a park: end it on the fence again while you still wait.
 
@@ -332,7 +334,8 @@ When delegation is authorized:
 
 ## Waiting in Codex
 
-Wait only when the result changes what you or the user do next. Keep an automatable wait — CI, a
+Wait only when the result changes what you or the user do next, and on CI only once nothing else is
+left before the merge. Keep an automatable wait — CI, a
 review, a release, a merge — inside the active turn, in one persistent `exec_command` / `write_stdin`
 session that blocks to a terminal verdict, and do not emit `awaiting` for it.
 

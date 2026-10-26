@@ -47,6 +47,14 @@ test("every rest ends in done, a question, an awaiting fence, or a conversationa
   }
 })
 
+// 2026-10-26, maintainer: "don't wait on CI unless everything else is otherwise ready to merge. a lot
+// of time wasted that way" — workers parked on CI with review fixes still owed.
+test("CI is waited on last, only once nothing else stands before the merge", () => {
+  for (const kind of ALL) {
+    assert.match(flat(kind), /wait on CI only once the change is otherwise ready to merge/)
+  }
+})
+
 test("the write-up: quiet parks say nothing, every other rest names its subject and answers in prose", () => {
   for (const kind of ALL) {
     const c = flat(kind)
