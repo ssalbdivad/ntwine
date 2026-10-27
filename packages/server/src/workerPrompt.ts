@@ -482,9 +482,12 @@ const BACKEND: Record<BackendKind, string> = {
   rest on it. \`TaskOutput\` is deprecated: \`Read\` the output path. \`TaskStop\` is for your own monitors
   and shells, never a sub-agent.
 - \`CronCreate\` and \`ScheduleWakeup\` do not fire here. To come back at a time, \`ntwinectl timer set\`
-  with \`--prompt\` and \`--in-seconds\` or \`--at\` (one-shot; hold as many as you like). For a standing
-  prompt, \`ntwinectl goal start\` with \`--stop-hook\` (at every rest), \`--heartbeat-seconds\` (on a
-  clock) or \`--post-compaction\`; \`ntwinectl goal stop\` once its work is finished.`,
+  with \`--prompt\` and \`--in-seconds\` or \`--at\` (one-shot; hold as many as you like). The user reads
+  its prompt on the board for as long as it is armed, so write a scheduled instruction that is true
+  before it fires too — "At 08:00 EDT, wind down the overnight loop: …", never "The time box has
+  ended". For a standing prompt, \`ntwinectl goal start\` with \`--stop-hook\` (at every rest),
+  \`--heartbeat-seconds\` (on a clock) or \`--post-compaction\`; \`ntwinectl goal stop\` once its work is
+  finished.`,
   // § Bounded native delegation describes the NATIVE `spawn_agent` surface, which ntwine does not
   // configure: the only `-c` override on a codex app-server is `default_tools_approval_mode`
   // (backend/codex-mcp.ts `codexAppServerArgv`). Keep that paragraph a statement about what CODEX
@@ -576,7 +579,9 @@ node {{NTWINE_MONITORS_DIR}}/review-watch.mjs --repo OWNER/REPO --pr NUMBER
   while one is out, arm \`ntwinectl goal start --stop-hook\` as a reminder, and \`ntwinectl goal stop\`
   once it reports.
 - A shell \`sleep\` loop is not a wake. For a check that belongs at a later time, \`ntwinectl timer set\`
-  and name its id under \`timers:\` (one-shot; set several for several).
+  and name its id under \`timers:\` (one-shot; set several for several). Its prompt is shown on the
+  board while it is armed, so phrase it as a scheduled instruction ("At 08:00 EDT, wind down …"), never
+  as news that the moment has come.
 
 ## Your model, effort and sandbox
 

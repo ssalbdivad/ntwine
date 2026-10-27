@@ -245,7 +245,11 @@ const TIMER = {
     "done yet\" is strictly worse than being woken when it is.\n\n" +
     "The text arrives VERBATIM as an ordinary user turn, so write it as an instruction to your future " +
     "self — self-contained and actionable, because you may receive it with none of the context you have " +
-    "now. Give exactly one of `--in-seconds` or `--at`. You can only ever set a timer on your OWN thread.",
+    "now. The user also sees it, as the timer's label, for the whole time it is ARMED, so write it as a " +
+    "scheduled instruction that reads true both while it waits and when it fires: \"At 08:00 EDT, wind " +
+    "down the overnight loop: …\", never \"The time box has ended\", which tells a user reading it hours " +
+    "early that it already has. Give exactly one of `--in-seconds` or `--at`. You can only ever set a " +
+    "timer on your OWN thread.",
   inputSchema: {
     type: "object",
     properties: {
@@ -259,7 +263,10 @@ const TIMER = {
       },
       prompt: {
         type: "string",
-        description: "Required for `set`. The text delivered to you when it fires, verbatim, as a user turn.",
+        description:
+          "Required for `set`. The text delivered to you when it fires, verbatim, as a user turn — and " +
+          "shown to the user as the timer's label until then, so phrase it as a scheduled instruction " +
+          "(\"At 08:00 EDT, wind down …\"), not as news that the moment has come.",
       },
       in_seconds: {
         type: "integer",
