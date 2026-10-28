@@ -10,7 +10,7 @@ import { type ClaimSignIn, createRemoteControlHandler } from "./remote-setup.ts"
 
 /**
  * Remote access on a running board, wired the same way by every launcher that owns one: `ntwine-dev`
- * (src/index.ts), the published `ntwine` (src/production.ts), and `nub run dev` (src/dev.ts).
+ * (src/index.ts), the published `ntwine` (src/production.ts), and `pnpm run dev` (src/dev.ts).
  *
  * In one order, once the supervisor listens: serve the saved setup, offer it to Settings → Remote
  * access (the supervisor answers that over loopback only), and bind L and R in the terminal when there

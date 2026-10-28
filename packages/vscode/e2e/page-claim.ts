@@ -5,7 +5,7 @@
 //
 // `scripts/e2e.ts --stack` runs it beside the suite. Standalone, against an ntwine you started:
 //
-//   nub packages/vscode/e2e/page-claim.ts --origin=http://127.0.0.1:<port> --project=<slug> \
+//   node packages/vscode/e2e/page-claim.ts --origin=http://127.0.0.1:<port> --project=<slug> \
 //     --token=@sample.ts:2-3 [--shot=<png>] [--timeout-ms=240000]
 //
 // Headless, always: never a window on the human's screen. Headless Chrome reports no OS focus, and the
@@ -93,7 +93,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const project = flag("project")
   const token = flag("token")
   if (!origin || !project || !token) {
-    console.error("usage: nub packages/vscode/e2e/page-claim.ts --origin=<url> --project=<slug> --token=<@file:lines> [--shot=<png>] [--timeout-ms=<ms>]")
+    console.error("usage: node packages/vscode/e2e/page-claim.ts --origin=<url> --project=<slug> --token=<@file:lines> [--shot=<png>] [--timeout-ms=<ms>]")
     process.exit(2)
   }
   const result = await watchPageClaim({ origin, project, token, shot: flag("shot"), timeoutMs: Number(flag("timeout-ms")) || undefined })

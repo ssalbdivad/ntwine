@@ -277,7 +277,7 @@ function memoKey(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, home: string
  * restart of the SERVER and change only with a restart of the whole process tree.
  *
  * Memoising inside one process was not enough on its own (review of 2026-10-02, reproduced against a
- * real `nub src/dev.ts`): the dev supervisor — which is what the maintainer's live board is, and what
+ * real `node src/dev.ts`): the dev supervisor — which is what the maintainer's live board is, and what
  * the production launcher runs too (src/production.ts `startDevSupervisor`) — forks a FRESH server
  * child on every source edit, every crash and every Update & Restart. That child resolved again at its
  * own boot, so once a stray `~/.ntwine/registry.json` existed, the next landed commit restarted the

@@ -1,8 +1,8 @@
-// `nub run desktop`: the Electron window onto the dev board, rebuilt and relaunched on every edit to
+// `pnpm run desktop`: the Electron window onto the dev board, rebuilt and relaunched on every edit to
 // this package.
 //
 // Two reload loops, and they never overlap. The BOARD hot-reloads itself — the window shows the page
-// `nub run dev` serves, so Vite HMR and the dev supervisor's control-plane recycles reach it exactly as
+// `pnpm run dev` serves, so Vite HMR and the dev supervisor's control-plane recycles reach it exactly as
 // they reach a browser tab, and this script has nothing to do with them. The SHELL (main.ts, preload.ts
 // and what they import) is bundled here with esbuild in watch mode, and a rebuild restarts Electron,
 // because a main process cannot be swapped in place. The window reopens where it was (main.ts keeps
@@ -19,7 +19,7 @@
 // window joins whichever board of ours answers (server.ts), and starts one when none does (launch.ts).
 // Extra arguments go to Electron.
 import { spawn, type ChildProcess } from "node:child_process"
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { delimiter, dirname, join, resolve } from "node:path"
@@ -38,7 +38,7 @@ const electronBinary = createRequire(import.meta.url)("electron") as string
 const urlFlag = process.argv.find((arg) => arg.startsWith("--url="))
 const pinnedUrl = urlFlag?.slice("--url=".length)
 const onWindows = isWsl() && !process.argv.includes("--wslg")
-// `nub run desktop -- …` passes its own `--` through, and Electron would read everything after it as
+// `pnpm run desktop -- …` passes its own `--` through, and Electron would read everything after it as
 // app arguments rather than Chromium switches.
 const electronArgs = process.argv.slice(2).filter((arg) => arg !== urlFlag && arg !== "--" && arg !== "--wslg")
 const env: NodeJS.ProcessEnv = { ...process.env, ...(pinnedUrl ? { NTWINE_DESKTOP_URL: pinnedUrl } : {}) }
@@ -57,22 +57,21 @@ mkdirSync(dist, { recursive: true })
 copyFileSync(join(pkg, "..", "web", "public", "icon-512.png"), join(dist, "icon.png"))
 copyFileSync(join(pkg, "icon.ico"), join(dist, "icon.ico"))
 // What the window needs to start ntwine when none is running (src/launch.ts) and, from Windows, to look
-// for it. This terminal's PATH, less what `nub run` put on it (package bins, a node shim in the temp
-// directory), is the one nub and the board's agents get.
+// for it. This terminal's PATH, less what `pnpm run` put on it (package bins, anything in the temp
+// directory), is the one the board and its agents get; the node is the one running this script.
 const path = (process.env.PATH ?? "").split(delimiter).filter((dir) => dir && !dir.includes("node_modules") && !dir.startsWith(tmpdir())).join(delimiter)
-const nub = path.split(delimiter).map((dir) => join(dir, "nub")).find((file) => existsSync(file))
 const distro = process.env.WSL_DISTRO_NAME
-if (nub && (!windows || distro)) {
+if (!windows || distro) {
   const roots = ntwinePathsNow()
   const launch: ServerLaunch = {
     repo: resolve(pkg, "..", ".."),
-    nub,
+    node: process.execPath,
     path,
     log: join(roots.state, "desktop-server.log"),
     ...(windows ? { distro, roots: { data: toWindowsPath(roots.data), state: toWindowsPath(roots.state) } } : {}),
   }
   writeFileSync(join(dist, "server.json"), JSON.stringify(launch))
-} else if (windows && !pinnedUrl) console.log("[desktop] no WSL distro or nub found: the window can neither find nor start a board; pass --url=")
+} else if (windows && !pinnedUrl) console.log("[desktop] no WSL distro found: the window can neither find nor start a board; pass --url=")
 
 let electron: ChildProcess | undefined
 let quitting = false

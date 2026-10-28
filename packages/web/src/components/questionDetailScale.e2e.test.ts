@@ -7,8 +7,8 @@ import test from "node:test"
 // utility, so the detail rendered at the card's 13px under its 12px label (2026-10-05). Pinned as the
 // RELATIONS the card is built on, in a real browser — the cascade is the thing under test, and nothing
 // DOM-free computes it. Skipped unless a Vite URL serving the fixtures is provided:
-//   cd packages/web && nubx vite --port 5233 --strictPort --host 127.0.0.1 &
-//   NTWINE_QUESTION_DETAIL_SCALE_E2E_URL=http://127.0.0.1:5233 nub --test src/components/questionDetailScale.e2e.test.ts
+//   cd packages/web && pnpm exec vite --port 5233 --strictPort --host 127.0.0.1 &
+//   NTWINE_QUESTION_DETAIL_SCALE_E2E_URL=http://127.0.0.1:5233 node --test src/components/questionDetailScale.e2e.test.ts
 const baseUrl = process.env.NTWINE_QUESTION_DETAIL_SCALE_E2E_URL
 
 test("an option's detail steps down from its label, and a trailing note from the question", { skip: !baseUrl, timeout: 60_000 }, async () => {

@@ -69,7 +69,13 @@ test("a notification click opens the thread in the project it was raised for, no
   class FakeNotification {
     static permission = "granted"
     onclick: (() => void) | null = null
-    constructor(readonly title: string, readonly opts: { body?: string; tag?: string }) { raised.push(this) }
+    readonly title: string
+    readonly opts: { body?: string; tag?: string }
+    constructor(title: string, opts: { body?: string; tag?: string }) {
+      this.title = title
+      this.opts = opts
+      raised.push(this)
+    }
     close(): void {}
   }
   // The page is Everything at `/`; which project it is showing is its FOCUS (lib/base-path.ts).

@@ -18,7 +18,7 @@
 //      the outbox row ALSO reads `delivered`, the watcher's cursor has advanced past the event, and no
 //      later tick ever re-sends it. That is the lost wake.
 //
-// Usage: nub scripts/verify-prwatch-wake-cold-resume.mjs   (exit 0 = the bug is FIXED, exit 1 = reproduced)
+// Usage: node scripts/verify-prwatch-wake-cold-resume.mjs   (exit 0 = the bug is FIXED, exit 1 = reproduced)
 // Pass --expect-bug to invert: exit 0 when the bug reproduces (the pre-fix baseline).
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"

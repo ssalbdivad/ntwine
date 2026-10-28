@@ -19,8 +19,8 @@
 // rather than quietly subtracting a bogus bias.
 //
 // Usage:
-//   cd packages/web && nubx vite --port 5731 --strictPort
-//   nub scripts/verify-md-code-copy-button.mjs --url=http://localhost:5731/syntax-highlighting-fixture.html
+//   cd packages/web && pnpm exec vite --port 5731 --strictPort
+//   node scripts/verify-md-code-copy-button.mjs --url=http://localhost:5731/syntax-highlighting-fixture.html
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 

@@ -1,4 +1,4 @@
-// The Windows half of `nub run desktop` on WSL: a native Windows Electron, driven from Linux.
+// The Windows half of `pnpm run desktop` on WSL: a native Windows Electron, driven from Linux.
 //
 // Under WSL the Linux Electron renders through WSLg — a Wayland window in a remote-desktop surface, with
 // its own fonts, scaling, clipboard bridge and no real taskbar entry. The Windows build of the SAME
@@ -88,7 +88,7 @@ export async function prepareWindowsElectron(): Promise<WindowsElectron> {
     start(dist, args) {
       for (const file of ["main.mjs", "preload.cjs", "icon.ico"]) copyFileSync(join(dist, file), join(appDir, file))
       // How the app starts ntwine, and finds it, from Windows (src/launch.ts). A launch that could not
-      // write one (no nub or WSL_DISTRO_NAME in its environment, as in an agent's sandbox) keeps the one
+      // write one (no WSL_DISTRO_NAME in its environment, as in an agent's sandbox) keeps the one
       // already here rather than deleting it: this folder is also what a taskbar pin opens, and without
       // the record that window can neither find the board nor start it (2026-10-22: a staging run on
       // 2026-10-21 deleted it, and the pinned window sat on "No board is running" beside a live board).

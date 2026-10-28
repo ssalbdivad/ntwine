@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Is either bundled runtime behind its vendor's latest release?
 //
-//   nub scripts/check-runtime-pins.mjs            a human-readable verdict
-//   nub scripts/check-runtime-pins.mjs --json     the same thing for a script to read
+//   node scripts/check-runtime-pins.mjs            a human-readable verdict
+//   node scripts/check-runtime-pins.mjs --json     the same thing for a script to read
 //
 // ntwine pins ONE Claude Code and ONE Codex (packages/server/src/runtimes.ts) and provisions that exact
 // binary from the vendor's own npm package. A stale pin is not a conservative one — it is a broken

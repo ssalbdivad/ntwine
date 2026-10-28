@@ -1,4 +1,4 @@
-#!/usr/bin/env nub
+#!/usr/bin/env node
 /**
  * A relayed terminal against the REAL access gate.
  *

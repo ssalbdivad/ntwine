@@ -9,7 +9,7 @@
 // Run against snoozed-rows-fixture.html on a plain Vite dev server (fixtures are NOT servable through the
 // ntwine stack — its Vite runs in middleware mode and falls back to index.html for every unknown path):
 //   (cd packages/web && npx vite --port 5418 --strictPort)
-//   nub scripts/verify-snooze-tooltip.mjs --url=http://localhost:5418/snoozed-rows-fixture.html
+//   node scripts/verify-snooze-tooltip.mjs --url=http://localhost:5418/snoozed-rows-fixture.html
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 

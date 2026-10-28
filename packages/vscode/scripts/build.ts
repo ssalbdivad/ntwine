@@ -4,8 +4,8 @@
 // JS when they are absent, which in an editor they always are. `vscode` is provided by the host at
 // runtime.
 //
-//   nub scripts/build.ts          the extension
-//   nub scripts/build.ts --e2e    also the end-to-end suite (dist/e2e/suite.cjs) and the real-page sidebar
+//   node scripts/build.ts          the extension
+//   node scripts/build.ts --e2e    also the end-to-end suite (dist/e2e/suite.cjs) and the real-page sidebar
 //                                 run's editor half (dist/e2e/sidebar-agent.cjs), never packaged
 
 import { execFileSync } from "node:child_process"

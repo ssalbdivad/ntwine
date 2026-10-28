@@ -38,7 +38,7 @@ export function waitingPage(url?: string, canStart = false): string {
     ? `<p>Waiting for <code>${escapeHtml(url)}</code> to answer.</p>`
     : canStart
       ? `<p>It opens here as soon as one is up.</p><div class="actions"><button class="primary" onclick="ntwineDesktop.retry()">Start ntwine</button></div>`
-      : `<p>Start one with <code>nub run dev</code>. It opens here as soon as it is up.</p>`
+      : `<p>Start one with <code>pnpm run dev</code>. It opens here as soon as it is up.</p>`
   return page("ntwine", `<h1>No board is running</h1>${where}`)
 }
 

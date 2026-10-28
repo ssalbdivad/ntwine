@@ -19,7 +19,7 @@
 // THE INVARIANT under test, in every scenario: a followUp that RESOLVES handed its text to a live
 // claude process. A followUp that cannot promise that must REJECT, so the operator's send rolls back.
 //
-//   run: nub scripts/verify-broker-resume-race.mjs     → PASS/FAIL lines; exit 1 on any fail. ~4 min.
+//   run: node scripts/verify-broker-resume-race.mjs     → PASS/FAIL lines; exit 1 on any fail. ~4 min.
 //
 // Scenarios:
 //   1. two concurrent follow-ups to a hibernated thread, with the event loop stalled past the loser's

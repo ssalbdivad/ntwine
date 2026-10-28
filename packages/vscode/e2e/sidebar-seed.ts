@@ -81,7 +81,7 @@ export async function seedSidebarStack(options: { stack: Stack; workspace: Stack
   const seedLog = join(scratch, "seed.log")
   const out = openSync(seedLog, "w")
   try {
-    execFileSync("nub", ["scripts/seed-all-queues.mjs", `--stack=${stack.logFile}`], { cwd: repo, env, stdio: ["ignore", out, out], timeout: 120_000 })
+    execFileSync(process.execPath, ["scripts/seed-all-queues.mjs", `--stack=${stack.logFile}`], { cwd: repo, env, stdio: ["ignore", out, out], timeout: 120_000 })
   } catch (error) {
     throw new Error(`scripts/seed-all-queues.mjs failed (${(error as Error).message}); see ${seedLog}`)
   } finally {

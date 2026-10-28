@@ -5,8 +5,8 @@ import test from "node:test"
 
 // Opt-in like the other *.e2e.test.ts here. Needs a REAL ntwine serving at least two projects, which
 // `scripts/adhoc-stack.mjs` builds in one command:
-//   nub scripts/adhoc-stack.mjs --port=45781 --project=/abs/a --also-project=/abs/b > /tmp/stack.log 2>&1 &
-//   NTWINE_PROJECT_SWITCH_E2E_URL=http://127.0.0.1:45781 nub --test --test-force-exit \
+//   node scripts/adhoc-stack.mjs --port=45781 --project=/abs/a --also-project=/abs/b > /tmp/stack.log 2>&1 &
+//   NTWINE_PROJECT_SWITCH_E2E_URL=http://127.0.0.1:45781 node --test --test-force-exit \
 //     packages/web/src/lib/projectSwitch.e2e.test.ts
 // The stale-render test below also seeds threads, so it needs the sandbox HOME the stack printed:
 //   NTWINE_PROJECT_SWITCH_E2E_HOME=<the "home" field of the stack's json line>

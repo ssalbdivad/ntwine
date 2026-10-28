@@ -4,8 +4,8 @@ import test from "node:test"
 // Point at the BOARD URL of an isolated adhoc-stack, never the live instance. Only the supervisor is
 // simulated, and every POST to it is REJECTED, so no state here can update or restart a real ntwine:
 // the real App chooses its shell and renders the shared update control (useUpdateRestart).
-// Start with `nub scripts/adhoc-stack.mjs --port=49637 --project=/path/to/disposable/demo`, then run
-// `NTWINE_MOBILE_UPDATE_E2E_URL=<board URL> nub run test packages/web/src/components/mobileUpdate.e2e.test.ts`.
+// Start with `node scripts/adhoc-stack.mjs --port=49637 --project=/path/to/disposable/demo`, then run
+// `NTWINE_MOBILE_UPDATE_E2E_URL=<board URL> pnpm run test packages/web/src/components/mobileUpdate.e2e.test.ts`.
 //
 // The phone shape is the maintainer's (2026-10-08, on #52): the board header keeps its gear, the gear
 // wears a dot for a new release line only, and "Update ntwine" is a row on the phone Settings page.

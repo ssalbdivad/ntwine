@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// THE BROWSER E2E SUITE — `nub run test:e2e`. Boots a vite over `packages/web`, points every
+// THE BROWSER E2E SUITE — `pnpm run test:e2e`. Boots a vite over `packages/web`, points every
 // `*.e2e.test.ts` at it, runs them ONE AT A TIME, and tears the server back down.
 //
 // It exists because the suite had rotted in place with nothing on screen to say so. Each of these
@@ -22,9 +22,9 @@
 // shared window server, not on cores. `--test-concurrency=1` costs wall-clock and buys a run whose
 // failures mean something.
 //
-//   nub run test:e2e                     the whole browser suite
-//   nub run test:e2e -- --url=http://…   against a vite you already have running
-//   nub run test:e2e -- <file> <file>    just these, still serial, still against a fresh vite
+//   pnpm run test:e2e                     the whole browser suite
+//   pnpm run test:e2e -- --url=http://…   against a vite you already have running
+//   pnpm run test:e2e -- <file> <file>    just these, still serial, still against a fresh vite
 //
 // NOT EVERY e2e FILE IS HERE. `lib/projectSwitch.e2e.test.ts` needs a real multi-project ntwine rather
 // than a plain vite over the fixtures — see its own header for the `adhoc-stack.mjs` invocation. It is
@@ -56,7 +56,7 @@ const NEEDS_REAL_STACK = [
   // Steps the real picker through ≥3 projects with icons, which only an `adhoc-stack.mjs` serves.
   "packages/web/src/components/projectPickerIcon.e2e.test.ts",
   // Boots, seeds and tears down its OWN three stacks (17 projects at the heaviest), so it needs nothing
-  // from this script and is too slow for it: `NTWINE_CAPACITY_E2E=1 nub run test <file>`, see its header.
+  // from this script and is too slow for it: `NTWINE_CAPACITY_E2E=1 pnpm run test <file>`, see its header.
   "packages/web/src/sidebarFit.e2e.test.ts",
   "packages/web/src/components/mobileThreadBack.e2e.test.ts",
   "packages/web/src/components/mobileUpdate.e2e.test.ts",
@@ -146,12 +146,13 @@ async function waitForServer(url, child) {
 
 let vite;
 let url = urlFlag;
-// THE WHOLE GROUP, NOT THE PID WE HOLD. `nubx vite` is a launcher: it forks the real `node vite.js` as
-// its own child and waits on it, so the pid `spawn` returns is nubx's. A SIGKILL to that pid killed
-// nubx alone and left vite serving with launchd as its parent — one orphaned vite per run, measured
-// 2026-10-05 (pid 77213, ppid 1, still listening on the run's port after the suite had exited). So vite
-// starts in its own process group (`detached`) and teardown signals the group. Windows has no groups to
-// signal and does not run this suite; it keeps the plain kill.
+// THE WHOLE GROUP, NOT THE PID WE HOLD. `pnpm exec vite` is a launcher: it forks the real `node vite.js`
+// as its own child and waits on it, so the pid `spawn` returns is the launcher's. A SIGKILL to that pid
+// killed the launcher (then `nubx`) alone and left vite serving with launchd as its parent — one
+// orphaned vite per run, measured 2026-10-05 (pid 77213, ppid 1, still listening on the run's port
+// after the suite had exited). So vite starts in its own process group (`detached`) and teardown
+// signals the group. Windows has no groups to signal and does not run this suite; it keeps the plain
+// kill.
 const killVite = () => {
   if (!vite) return;
   try {
@@ -164,12 +165,12 @@ const killVite = () => {
 if (!url) {
   const port = await freePort();
   url = `http://127.0.0.1:${port}`;
-  vite = spawn("nubx", ["vite", "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
+  vite = spawn("pnpm", ["exec", "vite", "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
     cwd: path.join(root, "packages", "web"),
     stdio: ["ignore", "pipe", "pipe"],
-    // Its own process group, so one signal reaches all of it. `nubx` is not vite: it starts `node vite.js`,
-    // which re-execs node with its flags, and a SIGKILL cannot be forwarded — killing `nubx` alone left
-    // those two orphaned and still listening after every run.
+    // Its own process group, so one signal reaches all of it. `pnpm exec` is not vite: it starts
+    // `node vite.js`, and a SIGKILL cannot be forwarded — killing the launcher alone left vite orphaned
+    // and still listening after every run.
     detached: process.platform !== "win32",
     // No watcher, no HMR (see vite.config.ts): a concurrent agent editing the tree mid-run must not
     // reload a fixture page in the middle of a test.
@@ -204,7 +205,7 @@ const runner = spawn(
   { cwd: root, stdio: "inherit", env },
 );
 
-// Not gated on nubx's own exit code: the launcher can be gone while the vite it forked still serves.
+// Not gated on the launcher's own exit code: the launcher can be gone while the vite it forked still serves.
 const shutdown = killVite;
 process.on("SIGINT", () => { shutdown(); process.exit(130); });
 process.on("SIGTERM", () => { shutdown(); process.exit(143); });

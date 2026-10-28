@@ -1623,7 +1623,7 @@ function editorWindowReport(w, checkout) {
   if (!e) {
     return (
       `${head} has this project open, but it has not reported what it shows: its ntwine extension predates ` +
-      `this, or it connected a moment ago. Updating the extension (\`nub run vscode:install\` in an ntwine ` +
+      `this, or it connected a moment ago. Updating the extension (\`pnpm run vscode:install\` in an ntwine ` +
       `checkout) enables it. ${EDITOR_FALLBACK}`
     )
   }
@@ -2522,12 +2522,12 @@ async function terminal(args) {
   let body
   if (action === "start") {
     const command = typeof args.command === "string" ? args.command.trim() : ""
-    if (!command) throw new Error('`start` needs the command: ntwinectl terminal start "nub run dev"')
+    if (!command) throw new Error('`start` needs the command: ntwinectl terminal start "pnpm run dev"')
     const cwd = typeof args.cwd === "string" && args.cwd.trim() ? resolvePath(process.cwd(), args.cwd.trim().replace(/^~(?=$|\/)/, process.env.HOME ?? "~")) : undefined
     body = { slug, action, command, ...(cwd ? { cwd } : {}) }
   } else {
     const handle = typeof args.handle === "string" ? args.handle.trim() : ""
-    if (!handle) throw new Error(`\`${action}\` needs the terminal's @handle: ntwinectl terminal ${action} @nub-run-dev`)
+    if (!handle) throw new Error(`\`${action}\` needs the terminal's @handle: ntwinectl terminal ${action} @pnpm-run-dev`)
     body = { slug, action, handle }
   }
   const r = (await callRpc("ownTerminal", body))?.result
@@ -3031,7 +3031,7 @@ const CLI = {
     group: "Waiting",
     summary: "Register a wait on a background shell, a sub-agent or a terminal",
     positional: ["kind", "target"],
-    examples: ["ntwinectl watch shell bzvtnt3ig --for 2h", "ntwinectl watch agent a01b2d20b32feab11 --for 1h", "ntwinectl watch terminal @nub-run-dev --for 2h"],
+    examples: ["ntwinectl watch shell bzvtnt3ig --for 2h", "ntwinectl watch agent a01b2d20b32feab11 --for 1h", "ntwinectl watch terminal @pnpm-run-dev --for 2h"],
   },
   unwatch: {
     group: "Waiting",
@@ -3090,11 +3090,11 @@ const CLI = {
     positional: ["action"],
     then: { start: ["command"], stop: ["handle"], restart: ["handle"], release: ["handle"] },
     examples: [
-      'ntwinectl terminal start "nub run dev"',
-      "ntwinectl read-thread @nub-run-dev",
-      "ntwinectl message-thread @nub-run-dev --message y",
-      "ntwinectl terminal stop @nub-run-dev",
-      "ntwinectl terminal release @nub-run-dev",
+      'ntwinectl terminal start "pnpm run dev"',
+      "ntwinectl read-thread @pnpm-run-dev",
+      "ntwinectl message-thread @pnpm-run-dev --message y",
+      "ntwinectl terminal stop @pnpm-run-dev",
+      "ntwinectl terminal release @pnpm-run-dev",
     ],
   },
   title: {

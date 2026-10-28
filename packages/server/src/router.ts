@@ -1579,8 +1579,8 @@ export function createRouter(ctx: AppContext) {
    * box's top-level `$ cmd`, a thread's `t` / Open terminal / `$ cmd` line, and (next) an agent's
    * `ntwinectl terminal start`, which passes `parent` and `startedBy` as the calling thread's slug and its
    * working folder (`threadWorkingDir`). The handle avoids every open thread's name in EVERY open project, as
-   * a thread's name does (thread-names.ts header), so `@nub-run-dev` names one thing wherever it is typed — a
-   * second project's dev server is `@nub-run-dev-2`. `cwd` is already checked (terminalFolder) by the caller.
+   * a thread's name does (thread-names.ts header), so `@pnpm-run-dev` names one thing wherever it is typed — a
+   * second project's dev server is `@pnpm-run-dev-2`. `cwd` is already checked (terminalFolder) by the caller.
    */
   function startTerminalThread(input: { parent?: string; startedBy: string; command?: string; cwd: string }): Promise<{ id: string; handle: string }> {
     const elsewhere = openThreadsElsewhere(ctx.activeTenants?.() ?? [], ctx.project.id)
@@ -5988,7 +5988,7 @@ export function createRouter(ctx: AppContext) {
           const other = elsewhere && routersByContext.get(elsewhere.tenant)
           const read = other ? await other.readThread.handler({ input }) : undefined
           if (read?.found) return { ...read, project: elsewhere!.tenant.project.name }
-          // Open terminals are handles too: listed after the threads, so a typo of `@nub-run-dev` is answered.
+          // Open terminals are handles too: listed after the threads, so a typo of `@pnpm-run-dev` is answered.
           const terminals = (ctx.terminalRunner?.terminals?.() ?? []).filter(({ row }) => row.state === "open" && row.handle && row.slug !== input.slug).map(({ row }) => `@${row.handle} (terminal)`)
           return { found: false, known: [...knownHandles(threads, input.slug), ...terminals.slice(0, 20)] }
         }

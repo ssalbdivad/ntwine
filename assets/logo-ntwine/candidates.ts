@@ -1,5 +1,5 @@
 // Every direction tried for the ntwine mark, round by round, with what each round taught.
-// `nub assets/logo-ntwine/concepts.ts` renders them all into ntwine-concepts.html.
+// `node assets/logo-ntwine/concepts.ts` renders them all into ntwine-concepts.html.
 import { arch, circle, line, smoothstep, tailedPlait, TRI, type PlaitParams, type Spec } from "./lib.ts"
 
 export type Candidate = { id: string; title: string; note: string; spec: Spec; paint?: { inks: string[] }; woven?: boolean }

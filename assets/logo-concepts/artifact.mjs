@@ -3,8 +3,8 @@
 // real rsvg render inlined as a data URI, so a page can be opened, mailed or
 // archived on its own — nothing here is a CSS approximation of a mark.
 //
-//   nub artifact.mjs                # every sheet
-//   nub artifact.mjs signature-f    # just one
+//   node artifact.mjs                # every sheet
+//   node artifact.mjs signature-f    # just one
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"

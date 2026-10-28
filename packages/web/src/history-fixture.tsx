@@ -10,8 +10,8 @@ import "./styles.css"
 // `threadsSearch` — seed Done threads first. A click names the entry it would open; the page decides
 // what opening means.
 //
-//   nub scripts/adhoc-stack.mjs --port=N …
-//   nub scripts/shot.mjs http://127.0.0.1:N/all out.png --before="import('/src/history-fixture.tsx')"
+//   node scripts/adhoc-stack.mjs --port=N …
+//   node scripts/shot.mjs http://127.0.0.1:N/all out.png --before="import('/src/history-fixture.tsx')"
 //   `window.__historyLens = ["<project id>"]` before the import sets the lens.
 
 document.documentElement.dataset.font = "sans"

@@ -14,8 +14,8 @@ const baseUrl = process.env.NTWINE_TERMINAL_CONTROL_E2E_URL
 //   4. a short handle is never cut, and the long one is cut at a phone width (so rule 2 was exercised).
 //
 // Run it against a plain vite over packages/web:
-//   nubx vite --port 5392 --strictPort --host 127.0.0.1
-//   NTWINE_TERMINAL_CONTROL_E2E_URL=http://127.0.0.1:5392 nub --test packages/web/src/components/terminalControlBar.e2e.test.ts
+//   pnpm exec vite --port 5392 --strictPort --host 127.0.0.1
+//   NTWINE_TERMINAL_CONTROL_E2E_URL=http://127.0.0.1:5392 node --test packages/web/src/components/terminalControlBar.e2e.test.ts
 test("the terminal control bar keeps its words whole and its button inside, at every width", {
   skip: !baseUrl,
   timeout: 120_000,

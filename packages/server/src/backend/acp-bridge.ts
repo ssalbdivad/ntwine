@@ -273,8 +273,10 @@ export class AcpBridge {
   private readonly opening = new Map<string, ReturnType<AcpBridge["open"]>>()
   private readonly unsubscribe: (() => void) | undefined
   private closed = false
+  private readonly options: AcpBridgeOptions
 
-  constructor(private readonly options: AcpBridgeOptions) {
+  constructor(options: AcpBridgeOptions) {
+    this.options = options
     // A resolved (or cancelled/expired) card answers the agent. The store is the durable holder; this
     // map only knows which live request each card is attached to.
     this.unsubscribe = options.interactions?.subscribe((change) => {

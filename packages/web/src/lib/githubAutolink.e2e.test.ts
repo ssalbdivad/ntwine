@@ -2,8 +2,8 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 // Opt-in, like every other e2e here: start `vite` in packages/web and point this at its origin.
-//   cd packages/web && nubx vite --port 5199 &
-//   NTWINE_GITHUB_AUTOLINK_E2E_URL=http://127.0.0.1:5199 nub --test src/lib/githubAutolink.e2e.test.ts
+//   cd packages/web && pnpm exec vite --port 5199 &
+//   NTWINE_GITHUB_AUTOLINK_E2E_URL=http://127.0.0.1:5199 node --test src/lib/githubAutolink.e2e.test.ts
 const baseUrl = process.env.NTWINE_GITHUB_AUTOLINK_E2E_URL
 
 // githubAutolink.test.ts drives the token rewrite; this drives the whole shipped path — useMarkdownHtml

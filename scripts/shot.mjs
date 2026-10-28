@@ -5,7 +5,7 @@
 // (occlusion/clip/alignment/optical-center) against the live app.
 //
 // Usage:
-//   nub scripts/shot.mjs <url> [out.png] [evalExprOr@file] [--before=exprOr@file] [--hover=<css selector>]
+//   node scripts/shot.mjs <url> [out.png] [evalExprOr@file] [--before=exprOr@file] [--hover=<css selector>]
 //     [--mouse] [--light] [--w=1440] [--h=900] [--wait=1500] [--clip=<css selector>] [--pad=8] [--dsf=2]
 //   evalExpr: a JS expression string evaluated in page context (completion value → printed as JSON).
 //   @file:    read the expression from a file (e.g. an occlusion routine).
@@ -37,7 +37,7 @@ const H = Number(flags.h) || 900
 const WAIT = Number(flags.wait) || 1500
 
 if (!url) {
-  console.error("usage: nub shot.mjs <url> [out.png] [evalExprOr@file] [--w=] [--h=] [--wait=]")
+  console.error("usage: node shot.mjs <url> [out.png] [evalExprOr@file] [--w=] [--h=] [--wait=]")
   process.exit(1)
 }
 

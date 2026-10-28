@@ -6,7 +6,7 @@ import test from "node:test"
 
 // A file dragged ANYWHERE onto a queue card goes into that card's prompt box (lib/fileDrop). Skipped
 // unless a Vite URL serving the fixtures is provided: start `vite` in packages/web and set
-// NTWINE_QUEUE_CARD_FILE_DROP_E2E_URL to its origin (or run `nub run test:e2e`). Drives the queue-card
+// NTWINE_QUEUE_CARD_FILE_DROP_E2E_URL to its origin (or run `pnpm run test:e2e`). Drives the queue-card
 // fixture's two real cross-project queue cards (AllQueuesCard; upstream drove its board's TodosView cards). The drags are Chrome's OWN drag pipeline (CDP Input.dispatchDragEvent
 // with a real file path, the way a Finder drag arrives), not synthetic DOM events, so the browser decides
 // which element is under the pointer and what `relatedTarget` a dragleave carries. Only the /attach upload

@@ -20,9 +20,9 @@ A lowercase n of three threads: they rise parallel up the left stem, run togethe
 ## Rebuild and install
 
 ```sh
-nub assets/logo-ntwine/final.ts             # write final/
-nub assets/logo-ntwine/final.ts --install   # and install it
-nub assets/logo-ntwine/concepts.ts          # regenerate the concepts page
+node assets/logo-ntwine/final.ts             # write final/
+node assets/logo-ntwine/final.ts --install   # and install it
+node assets/logo-ntwine/concepts.ts          # regenerate the concepts page
 ```
 
 `--install` writes:

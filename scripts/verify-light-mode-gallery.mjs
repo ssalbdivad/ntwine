@@ -67,7 +67,7 @@ try {
     if (width === 1100) {
       const scope = '.group:has(textarea[data-surface="iconRhythmFixtureGoal"])'
       const selectors = `${scope} [aria-label="Goal"],${scope} [title^="Attach"],${scope} button[title^="Send"]`
-      const ink = await promisify(execFile)('nub', [join(root, 'scripts/ink-gaps.mjs'), page.url(), selectors, `--browser=${browser.wsEndpoint()}`, '--dsf=8', '--w=1100', '--h=1000', '--pad=0', `--before=document.documentElement.dataset.theme='${theme}'`], { cwd: root })
+      const ink = await promisify(execFile)(process.execPath, [join(root, 'scripts/ink-gaps.mjs'), page.url(), selectors, `--browser=${browser.wsEndpoint()}`, '--dsf=8', '--w=1100', '--h=1000', '--pad=0', `--before=document.documentElement.dataset.theme='${theme}'`], { cwd: root })
       writeFileSync(join(out, `${theme}-composer-ink.txt`), ink.stdout)
       const gaps = JSON.parse(ink.stdout).gaps.map(row => row.inkGap)
       assert.ok(gaps.every(gap => gap >= 13.5 && gap <= 15.5) && Math.abs(gaps[0] - gaps[1]) < 1, `Bare composer icons keep even ink gaps: ${gaps}`)

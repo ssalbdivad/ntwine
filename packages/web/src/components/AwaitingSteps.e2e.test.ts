@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 // Opt-in, like every other e2e here: start `vite` in packages/web and point this at its origin (or run
-// `nub run test:e2e`, which does both).
-//   cd packages/web && nubx vite --port 5233 --strictPort --host 127.0.0.1 &
-//   NTWINE_AWAITING_STEPS_E2E_URL=http://127.0.0.1:5233 nub --test src/components/AwaitingSteps.e2e.test.ts
+// `pnpm run test:e2e`, which does both).
+//   cd packages/web && pnpm exec vite --port 5233 --strictPort --host 127.0.0.1 &
+//   NTWINE_AWAITING_STEPS_E2E_URL=http://127.0.0.1:5233 node --test src/components/AwaitingSteps.e2e.test.ts
 const baseUrl = process.env.NTWINE_AWAITING_STEPS_E2E_URL
 
 // STEPS FOR THE HUMAN (2026-10-03): an ```awaiting fence carrying `steps:` draws them on the resting card

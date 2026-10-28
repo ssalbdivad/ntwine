@@ -158,8 +158,8 @@ export async function bootStack(options: BootOptions): Promise<Stack> {
   const port = await freePort()
   const logFile = join(scratch, "stack.log")
   const out = openSync(logFile, "w")
-  // Its own process group (`detached`), so the teardown reaches nub's node child with one signal.
-  const child: ChildProcess = spawn("nub", [
+  // Its own process group (`detached`), so the teardown reaches the stack's node children with one signal.
+  const child: ChildProcess = spawn(process.execPath, [
     "scripts/adhoc-stack.mjs", `--port=${port}`, `--project=${launcher}`, ...tenantDirs.map((dir) => `--also-project=${dir}`), `--home=${home}`, ...(options.creds ? ["--creds"] : []),
   ], { cwd: join(import.meta.dirname, "..", "..", ".."), env, stdio: ["ignore", out, out], detached: true })
   closeSync(out)

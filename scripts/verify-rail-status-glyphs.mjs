@@ -29,7 +29,7 @@
 // CONSTRUCTION at the same size: if IT does not measure centred, the instrument is off at this scale
 // and the run fails rather than quietly subtracting a bogus offset.
 //
-// Usage: nub scripts/verify-rail-status-glyphs.mjs --url=http://localhost:5261/rail-status-glyphs-fixture.html
+// Usage: node scripts/verify-rail-status-glyphs.mjs --url=http://localhost:5261/rail-status-glyphs-fixture.html
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 

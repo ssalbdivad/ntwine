@@ -1,4 +1,4 @@
-// The completeness check behind `nub run test` — see scripts/run-tests.mjs for why it exists.
+// The completeness check behind `pnpm run test` — see scripts/run-tests.mjs for why it exists.
 //
 // Pure on purpose: run-tests.mjs does the file reading and the process handling, this decides
 // whether a run proved anything. Every problem it returns is a reason the run must NOT be green.

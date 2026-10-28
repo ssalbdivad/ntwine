@@ -8,7 +8,7 @@
 // row's `pinned_at`, a snooze its `snoozed_until`; an external session is a transcript in the project's
 // directory with NO session row, which the tailer surfaces as a foreign thread (server/board.ts).
 //
-// Usage: nub scripts/seed-focus-mode.mjs --stack=/abs/stack.log
+// Usage: node scripts/seed-focus-mode.mjs --stack=/abs/stack.log
 import { execFileSync, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
@@ -18,7 +18,7 @@ const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")),
 )
 if (!flags.stack) {
-  console.error("usage: nub scripts/seed-focus-mode.mjs --stack=/abs/stack.log")
+  console.error("usage: node scripts/seed-focus-mode.mjs --stack=/abs/stack.log")
   process.exit(1)
 }
 const line = readFileSync(flags.stack, "utf8").split("\n").find((l) => l.startsWith("{\"url\""))

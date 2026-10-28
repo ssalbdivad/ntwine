@@ -1,5 +1,5 @@
 // A simulated transcript plus real files for filePanelStack.e2e.test.ts. No provider is dispatched.
-// Usage: nub scripts/seed-file-panel-stack.mjs --home=<adhoc-stack HOME>
+// Usage: node scripts/seed-file-panel-stack.mjs --home=<adhoc-stack HOME>
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { mkdirSync, writeFileSync } from "node:fs"

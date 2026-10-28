@@ -229,15 +229,15 @@ function exitScreen(exit: TerminalExitRecord): string {
   return exit.startFailure ? exit.screen + startFailureScreen(exit.startFailure.what, exit.startFailure.message) : exit.screen
 }
 
-// How many of a command's words its handle keeps: `nub run dev` is the whole of it, and a long line's first
+// How many of a command's words its handle keeps: `pnpm run dev` is the whole of it, and a long line's first
 // three words still say which program it is (`printf 'Continue? '; read x` → `printf-continue-read`).
 const HANDLE_WORDS = 3
 
 /**
- * A terminal's `@handle`, from its command (plans/terminal-threads.md § The model): `$ nub run dev` →
- * `nub-run-dev`, a bare shell `shell`, its first words kebab-cased as a thread's name is (shared threadHandle)
+ * A terminal's `@handle`, from its command (plans/terminal-threads.md § The model): `$ pnpm run dev` →
+ * `pnpm-run-dev`, a bare shell `shell`, its first words kebab-cased as a thread's name is (shared threadHandle)
  * and held to a thread handle's length at a word boundary. A handle another thread already carries gets the
- * first free `-2`, `-3`, … suffix, so `@nub-run-dev` always names one thing.
+ * first free `-2`, `-3`, … suffix, so `@pnpm-run-dev` always names one thing.
  */
 export function terminalHandle(command: string | undefined, taken: Iterable<string> = []): string {
   // A program named by its path is named by its file: `./node_modules/.bin/vite --port 3000` → `vite-port-3000`.

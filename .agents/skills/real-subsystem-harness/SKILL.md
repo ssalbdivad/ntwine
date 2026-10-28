@@ -1,6 +1,6 @@
 ---
 name: real-subsystem-harness
-description: Verify backend behavior a browser cannot reach — the broker socket, spawn/exec paths, resume and wake, SQLite migrations, the scheduler, a detached daemon's environment — by writing a small `nub` script that spins the REAL resource and asserts the REAL function, with a negative control that proves the harness can fail. Load this when the thing you changed has no UI, when a unit test would only prove your mock matches your belief, or when a feature SPANS processes and the seam between them is where the bug lives. Also carries the polling discipline (early exit on the failure signal, not just success) that keeps a verification run from burning its whole timeout, and the rule that a green harness over a stubbed seam is worse than honest incompleteness. Pair with `ntwine-stack` when the real resource is a running ntwine.
+description: Verify backend behavior a browser cannot reach — the broker socket, spawn/exec paths, resume and wake, SQLite migrations, the scheduler, a detached daemon's environment — by writing a small `.ts` script, run with `node`, that spins the REAL resource and asserts the REAL function, with a negative control that proves the harness can fail. Load this when the thing you changed has no UI, when a unit test would only prove your mock matches your belief, or when a feature SPANS processes and the seam between them is where the bug lives. Also carries the polling discipline (early exit on the failure signal, not just success) that keeps a verification run from burning its whole timeout, and the rule that a green harness over a stubbed seam is worse than honest incompleteness. Pair with `ntwine-stack` when the real resource is a running ntwine.
 version: 0.1.0
 metadata:
   internal: true
@@ -9,7 +9,7 @@ metadata:
 # real-subsystem-harness — spin the real thing, assert the real function
 
 Browser QA can't reach the broker socket, the resume/wake path, SQLite migrations, or the
-scheduler. For those, write a small `nub` harness that spins the **real** resource and asserts the
+scheduler. For those, write a small `.ts` harness, run with `node`, that spins the **real** resource and asserts the
 **real** function — a mock proves only that your mock matches your belief.
 
 Worked examples in this repo: `scripts/verify-relay-gate.mjs` (a relayed socket against the real

@@ -63,7 +63,7 @@ export async function ownedNtwine(port: number, roots: Pick<NtwinePaths, "data">
 /**
  * The origin of the board to show, or undefined when none of ours is up.
  *
- * The well-known ports come FIRST, because this is a dev-loop window: `nub run dev` writes no owner
+ * The well-known ports come FIRST, because this is a dev-loop window: `pnpm run dev` writes no owner
  * record, and when a published `ntwine` runs beside it the HMR board is the one being worked on. A
  * board found by port is joined only if it proves it is ours (`ownedNtwine`), since a port answers for
  * whoever holds it. The published launcher's owner record is the fallback.

@@ -18,7 +18,7 @@ const baseUrl = process.env.NTWINE_SNOOZE_CARD_E2E_URL
 //
 // Run it against a plain vite over packages/web:
 //   npx vite --port 5211 --strictPort --host 127.0.0.1
-//   NTWINE_SNOOZE_CARD_E2E_URL=http://127.0.0.1:5211 nub --test packages/web/src/components/snoozeCard.e2e.test.ts
+//   NTWINE_SNOOZE_CARD_E2E_URL=http://127.0.0.1:5211 node --test packages/web/src/components/snoozeCard.e2e.test.ts
 test("the snooze card counts down, names the wake, and Wake now clears the park", {
   skip: !baseUrl,
   timeout: 120_000,

@@ -1,5 +1,5 @@
 // Dev entry: a durable source watcher supervising a disposable API + Vite control-plane child.
-// `nub run dev` runs it through src/dev.ts, which attaches remote access (the transport lives in the
+// `pnpm run dev` runs it through src/dev.ts, which attaches remote access (the transport lives in the
 // launcher package, which this one cannot import); run directly, it is the same board without it.
 // Worker daemons remain independent.
 import { fileURLToPath } from "node:url"
@@ -126,5 +126,5 @@ export async function runDev(options: RunDevOptions = {}): Promise<void> {
   }
 }
 
-// Run directly — the control-plane child always is, and `nub packages/server/src/dev.ts` still works.
+// Run directly — the control-plane child always is, and `node packages/server/src/dev.ts` still works.
 if (import.meta.main) await runDev()

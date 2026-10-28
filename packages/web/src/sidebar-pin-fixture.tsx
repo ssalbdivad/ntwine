@@ -19,7 +19,7 @@ const ROW_SCOPE: RowScope = { open: () => {}, page: true }
 //   http://localhost:5907/sidebar-pin-fixture.html?font=sans   — ?font=mono for the other
 //
 // The strip only exists on CSS :hover, so photograph a row with
-//   nub scripts/shot.mjs <url> out.png --hover='[data-sidebar-item="pinned-long"]' --clip=… --dsf=6
+//   node scripts/shot.mjs <url> out.png --hover='[data-sidebar-item="pinned-long"]' --clip=… --dsf=6
 // and measure its rhythm with `scripts/ink-gaps.mjs` and the same flag, rather than forcing it open.
 document.documentElement.dataset.font = new URLSearchParams(location.search).get("font") === "sans" ? "sans" : "mono"
 

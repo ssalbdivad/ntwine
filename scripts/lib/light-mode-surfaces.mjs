@@ -434,7 +434,7 @@ export async function checkSurfaceStates({ page, url, font, palette, out, check,
     ['acp-model', '[aria-label="Model for OpenCode"] > span,[aria-label="Model for OpenCode"] > svg'],
     ['issue-watch', '[data-wait-row="issue:acme/app#1"] > span:first-child svg,[data-wait-row="issue:acme/app#1"] > a'],
   ]) {
-    const ink = await promisify(execFile)('nub', [fileURLToPath(new URL('../ink-gaps.mjs', import.meta.url)), page.url(), selectors,
+    const ink = await promisify(execFile)(process.execPath, [fileURLToPath(new URL('../ink-gaps.mjs', import.meta.url)), page.url(), selectors,
       `--browser=${page.browser().wsEndpoint()}`, '--dsf=8', '--w=390', '--h=1000', '--wait=300', '--pad=0'], { encoding: 'utf8' })
     result[`${name}-${label}-gaps`] = JSON.parse(ink.stdout)
   }

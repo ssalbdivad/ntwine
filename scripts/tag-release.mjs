@@ -2,8 +2,8 @@
 // Tag a published `ntwine` shell and create its GitHub release — the releaser's last step, run from
 // its own `gh` session once release.yml is green (AGENTS.md § Cutting a release).
 //
-//   nub scripts/tag-release.mjs            the version in the root package.json
-//   nub scripts/tag-release.mjs 0.13.13    a named version
+//   node scripts/tag-release.mjs            the version in the root package.json
+//   node scripts/tag-release.mjs 0.13.13    a named version
 //
 // WHY THIS IS NOT IN THE WORKFLOW (maintainer 2026-10-12). release.yml tagged the shell itself until
 // GitHub refused it: a workflow's own token may not create a ref whose commit carries a different

@@ -56,7 +56,7 @@ name: release
 # TAGS AND GITHUB RELEASES ARE NOT MADE HERE (2026-10-12). The shell is tagged at npm's recorded
 # gitHead, and GitHub refuses this job's token a ref whose commit carries a different
 # `.github/workflows/` than the run's own checkout — which a later run's routinely does (ntwine 0.13.13).
-# The releaser tags from its own `gh` session once the run is green: `nub scripts/tag-release.mjs`.
+# The releaser tags from its own `gh` session once the run is green: `node scripts/tag-release.mjs`.
 # That also leaves this job with read-only access to the repository.
 
 on:

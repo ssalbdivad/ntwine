@@ -11,7 +11,7 @@
 // Isolation: temp HOME + state dir + project dir, unique port, wakers/reaper off.
 // CODEX_HOME points at the real ~/.codex so the app-server can authenticate.
 //
-//   nub scripts/verify-artifact-restart-survival.mjs
+//   node scripts/verify-artifact-restart-survival.mjs
 import { execFileSync, spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"

@@ -9,7 +9,7 @@
 // The project defaults to the ntwine repo itself (a gh-authed repo, an empty board under the temp HOME).
 //
 // Usage:
-//   nub scripts/adhoc-stack.mjs [--port=4930] [--project=/abs/dir] [--claude-bin=/abs/bin] [--wakers] [--reaper] [--prime] [--keep] [--home=/abs] [--seed] [--log=/abs/server.log] [--dist]
+//   node scripts/adhoc-stack.mjs [--port=4930] [--project=/abs/dir] [--claude-bin=/abs/bin] [--wakers] [--reaper] [--prime] [--keep] [--home=/abs] [--seed] [--log=/abs/server.log] [--dist]
 //
 // It prints ONE json line to stdout: {"url","port","home","project","log",…} once /health is green,
 // then stays up until SIGINT/SIGTERM, deleting the temp HOME on exit (unless --keep). Run it with Bash

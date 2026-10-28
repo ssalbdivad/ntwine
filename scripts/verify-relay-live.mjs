@@ -1,4 +1,4 @@
-#!/usr/bin/env nub
+#!/usr/bin/env node
 /**
  * The relay that is ACTUALLY SERVING `*.ntwine.app`, checked from outside. Run it after every Workers
  * deploy, and any time a relayed board misbehaves while the board itself is healthy.
@@ -30,7 +30,7 @@
  * a compressible body and WEAKENS its ETag on the way out (`"v1"` arrives as `W/"v1"`), so the
  * validator a real browser sends back is not the one the board minted.
  *
- *   nub scripts/verify-relay-live.mjs
+ *   node scripts/verify-relay-live.mjs
  *
  * `NTWINE_REGISTRAR` points it at another registrar, as it does for the CLI; `RELAY_PROBE_STATE` names
  * a different file for the saved key and name.

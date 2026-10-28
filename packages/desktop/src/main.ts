@@ -23,12 +23,12 @@ import { errorPage, loadingPage, startFailedPage, startingPage, waitingPage } fr
 import { locateServer, readRecordedServer } from "./server.ts"
 
 /**
- * ntwine in an Electron window, for the dev loop: a Chromium window onto the board `nub run dev` serves,
+ * ntwine in an Electron window, for the dev loop: a Chromium window onto the board `pnpm run dev` serves,
  * and as little else as possible.
  *
  * It joins the server that is up (server.ts), and when none is it waits for one, so the window can be
  * opened before the board and survive the board restarting under it. It starts one too, once, when the
- * search first finds none (launch.ts): `nub run dev`, as a terminal thread on the board it serves, so a
+ * search first finds none (launch.ts): `pnpm run dev`, as a terminal thread on the board it serves, so a
  * window pinned to the taskbar is all it takes after a reboot; the board it starts outlives it. When a
  * board it showed goes away, the waiting page offers to start it again.
  * Because the page is the board's own, Vite HMR reaches it exactly as it reaches a browser tab, and the
@@ -41,7 +41,7 @@ import { locateServer, readRecordedServer } from "./server.ts"
  * `NTWINE_DESKTOP_URL=http://127.0.0.1:<port>` (or `--ntwine-url=`, which is how scripts/dev.ts hands it
  * to a Windows Electron started from WSL, where no Linux variable reaches) skips the search and shows
  * that origin — a second dev board, or a disposable stack. A pinned window never starts a server:
- * whoever pinned it (`nub run dd`) is starting that one.
+ * whoever pinned it (`pnpm run dd`) is starting that one.
  */
 
 // Renamed from dev.ntwine.desktop on 2026-10-15: Explorer had cached Electron's icon under that ID while a
@@ -235,7 +235,7 @@ function ownPages(): BrowserWindow[] {
 
 /**
  * The board's origin, once one answers. Polls every second for as long as it takes: the window is
- * opened beside `nub run dev`, often before the board is up, and a dev board that died comes back.
+ * opened beside `pnpm run dev`, often before the board is up, and a dev board that died comes back.
  */
 async function resolveServer(): Promise<string> {
   if (pinnedUrl) {
@@ -349,7 +349,7 @@ function guardNavigation(contents: WebContents): void {
     // -3 is ERR_ABORTED: another navigation replaced this one, which is not a failure.
     if (!isMainFrame || code === -3 || !origin || classifyNavigation(url, origin) !== "app") return
     const win = BrowserWindow.fromWebContents(contents)
-    // The board went away mid-navigation (a reload while `nub run dev` restarts): wait for it, and
+    // The board went away mid-navigation (a reload while `pnpm run dev` restarts): wait for it, and
     // come back to the page that failed.
     if (win) void connect(win, { path: appPath(url, origin) })
   })

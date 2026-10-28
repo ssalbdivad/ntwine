@@ -2,7 +2,7 @@
 // initialize, session/new with a stdio MCP server, a prompt that must call that server's tool, then a
 // cancelled turn. Run from the repo root:
 //
-//   nub packages/server/src/backend/_live_acp_opencode.mts [command] [args...]     default: opencode acp
+//   node packages/server/src/backend/_live_acp_opencode.mts [command] [args...]     default: opencode acp
 //
 // Prints every update kind and the two stop reasons. Exit 0 only when the MCP tool was called through
 // the agent and the cancel returned `cancelled` (or the -32603 "aborted" shape some agents use).

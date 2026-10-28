@@ -33,7 +33,7 @@ import { isDirectory } from "./path-probe.ts"
 // human sees the result in the terminal dialog and can edit it before anything starts.
 
 // WHERE A SHELL STARTS when its command opens with a `cd`. The launch record's `cwd` is where the SESSION
-// was; `cd <the ntwine checkout>/packages/web && nubx vite` runs the server somewhere else, and a worktree
+// was; `cd <the ntwine checkout>/packages/web && pnpm exec vite` runs the server somewhere else, and a worktree
 // shell is very often exactly `cd .ntwine/worktrees/x && …`. Deliberately NARROW: one leading `cd` to a
 // literal path, then `&&` or `;`. A bare token with no `$`, backtick, glob or subshell character, or the
 // same wrapped in plain quotes; `~` is the home folder and a relative path resolves against `base`.

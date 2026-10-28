@@ -66,8 +66,11 @@ export function fileLabel(path: string, relative: string): string {
  */
 export class Recency {
   readonly #order: string[] = []
+  readonly limit: number
 
-  constructor(readonly limit = 500) {}
+  constructor(limit = 500) {
+    this.limit = limit
+  }
 
   touch(path: string): void {
     const at = this.#order.indexOf(path)

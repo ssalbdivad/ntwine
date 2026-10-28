@@ -12,8 +12,8 @@
 // no amount of fitting can introduce a corner, and curvature can only vary as
 // fast as a cubic allows.
 //
-//   nub fit-bezier.mjs            fit with the default anchor count
-//   ANCHORS=9 nub fit-bezier.mjs  try a different one
+//   node fit-bezier.mjs            fit with the default anchor count
+//   ANCHORS=9 node fit-bezier.mjs  try a different one
 
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"

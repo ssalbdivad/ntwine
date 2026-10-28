@@ -41,7 +41,7 @@ env.BROWSER = "/usr/bin/true"
 
 try {
   const ready = new Promise((resolveReady, reject) => {
-    server = spawn("nub", [join(source, "scripts/adhoc-stack.mjs"), `--port=${port}`, `--project=${project}`, `--also-project=${tenant}`], { cwd: source, env, stdio: ["ignore", "pipe", "pipe"] })
+    server = spawn(process.execPath, [join(source, "scripts/adhoc-stack.mjs"), `--port=${port}`, `--project=${project}`, `--also-project=${tenant}`], { cwd: source, env, stdio: ["ignore", "pipe", "pipe"] })
     const timeout = setTimeout(() => reject(new Error(`Stack boot timed out\n${serverLog}`)), 90_000)
     server.on("exit", code => { clearTimeout(timeout); reject(new Error(`Stack exited ${code}\n${serverLog}`)) })
     for (const stream of [server.stdout, server.stderr]) stream.on("data", chunk => {
@@ -115,7 +115,7 @@ try {
         check(`${palette} ${font} Appearance ink alignment`, await measureAppearanceInk(page))
         result[`${palette}-${font}-settings-contrast`] = await measureTextContrast(page)
         const before = `(async () => { document.documentElement.dataset.font = ${JSON.stringify(font)}; (await import('/src/lib/theme.ts')).setThemePreference(${JSON.stringify(palette)}); (await import('/src/store.ts')).store.showSettings = true; await new Promise(r => setTimeout(r, 600)); })()`
-        const ink = await promisify(execFile)("nub", [join(source, "scripts/ink-gaps.mjs"), stack.url, 'button[aria-label="Appearance"] > span,button[aria-label="Appearance"] > svg', `--browser=${browser.wsEndpoint()}`, "--dsf=8", "--w=1440", "--h=1000", "--wait=300", `--before=${before}`], { cwd: source, encoding: "utf8" })
+        const ink = await promisify(execFile)(process.execPath, [join(source, "scripts/ink-gaps.mjs"), stack.url, 'button[aria-label="Appearance"] > span,button[aria-label="Appearance"] > svg', `--browser=${browser.wsEndpoint()}`, "--dsf=8", "--w=1440", "--h=1000", "--wait=300", `--before=${before}`], { cwd: source, encoding: "utf8" })
         writeFileSync(join(out, `${palette}-${font}-ink.txt`), ink.stdout)
         await page.bringToFront()
         await page.setViewport({ width: 1440, height: 1000, deviceScaleFactor: 8 })

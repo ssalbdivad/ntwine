@@ -1,7 +1,7 @@
 // The provisioner (runtimes.ts) against a LOCAL registry: a real HTTP server serving a real gzipped
 // tarball built here, so the download, the integrity check, the extraction, the marker and the sweep
 // are all exercised for real — without ever reaching npm. What is NOT covered here is the network
-// itself and the vendors' actual tarballs; `nub scripts/provision-runtimes.mjs` does that, on demand.
+// itself and the vendors' actual tarballs; `node scripts/provision-runtimes.mjs` does that, on demand.
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs"

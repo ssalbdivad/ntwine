@@ -4,10 +4,12 @@ import { Readout, clockTime, formatDuration, noticeOnlyReadout, renderSupervisor
 
 class Capture {
   chunks: string[] = [];
-  constructor(
-    readonly isTTY: boolean,
-    readonly columns = 100
-  ) {}
+  readonly isTTY: boolean;
+  readonly columns: number;
+  constructor(isTTY: boolean, columns = 100) {
+    this.isTTY = isTTY;
+    this.columns = columns;
+  }
   write(chunk: string): boolean {
     this.chunks.push(chunk);
     return true;

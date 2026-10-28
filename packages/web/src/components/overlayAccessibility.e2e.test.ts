@@ -9,11 +9,11 @@ import { MOBILE_MAX_PX } from "../lib/mobile.ts"
 // and the bare origin is the project grid, which has no board and no Settings button. Working
 // invocation (from the repo root, against a disposable stack):
 //
-//   nub scripts/adhoc-stack.mjs --port=47451            # first JSON line names `home` and `url`
-//   nub scripts/seed-nested-subagents.mjs --home=<home>  # the nested sub-agent thread (first test)
-//   nub scripts/seed-overlay-e2e.mjs --home=<home>       # the "Overlay E2E" thread (second test)
+//   node scripts/adhoc-stack.mjs --port=47451            # first JSON line names `home` and `url`
+//   node scripts/seed-nested-subagents.mjs --home=<home>  # the nested sub-agent thread (first test)
+//   node scripts/seed-overlay-e2e.mjs --home=<home>       # the "Overlay E2E" thread (second test)
 //   NTWINE_OVERLAY_E2E_URL=http://127.0.0.1:47451/project/ntwine NTWINE_OVERLAY_E2E_NESTED_SLUG=nested-subagents \
-//     nub run test packages/web/src/components/overlayAccessibility.e2e.test.ts
+//     pnpm run test packages/web/src/components/overlayAccessibility.e2e.test.ts
 //
 // While the Mac sits idle, new headless Chrome can stop drawing frames after a tab's second
 // navigation (see the headless-browser skill). The app keeps working, but puppeteer's

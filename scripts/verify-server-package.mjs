@@ -1,7 +1,7 @@
-#!/usr/bin/env nub
+#!/usr/bin/env node
 // Clean npm tarballs -> private registry -> npm exec -> stable launcher -> browser -> restart.
 // Run after creating tarballs with the root npm lifecycle:
-//   nub scripts/verify-server-package.mjs --shell=/abs/ntwine-0.13.0.tgz --server=/abs/ntwine-server-0.13.0.tgz --out=/abs/evidence
+//   node scripts/verify-server-package.mjs --shell=/abs/ntwine-0.13.0.tgz --server=/abs/ntwine-server-0.13.0.tgz --out=/abs/evidence
 // Add --update=/abs/ntwine-server-next.tgz for a browser update; --public=1 uses npmjs directly.
 // --worker=codex proves a real detached worker survives that update and answers a follow-up.
 import assert from "node:assert/strict"

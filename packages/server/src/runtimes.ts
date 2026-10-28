@@ -221,9 +221,11 @@ class TarExtractor extends Writable {
   private paxBuffer: Buffer[] | undefined
   private nameBuffer: Buffer[] | undefined
   readonly written: string[] = []
+  private readonly dest: string
 
-  constructor(private readonly dest: string) {
+  constructor(dest: string) {
     super()
+    this.dest = dest
   }
 
   override _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {

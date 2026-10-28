@@ -39,7 +39,7 @@ import test, { after, before } from "node:test"
 //        thread on without journaling an interaction — draw their card, the copy asks the CARD's project
 //        for the command, and the net stands down when an answerable interaction is journaled (B2).
 //
-// Skipped unless a Vite URL serving the fixtures is provided: `nub run test:e2e` sets it, or start
+// Skipped unless a Vite URL serving the fixtures is provided: `pnpm run test:e2e` sets it, or start
 // `vite` in packages/web and set NTWINE_QUEUE_CARD_STATES_E2E_URL to its origin.
 const baseUrl = process.env.NTWINE_QUEUE_CARD_STATES_E2E_URL
 

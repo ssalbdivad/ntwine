@@ -10,7 +10,7 @@ import test from "node:test"
 // not fetched at all until a fence is on screen.
 //
 // Skipped unless a Vite URL serving the fixtures is provided: start `vite` in packages/web and set
-// NTWINE_MERMAID_E2E_URL to its origin (or run `nub run test:e2e`, which does both).
+// NTWINE_MERMAID_E2E_URL to its origin (or run `pnpm run test:e2e`, which does both).
 const baseUrl = process.env.NTWINE_MERMAID_E2E_URL
 
 const DESKTOP = { width: 1000, height: 900, deviceScaleFactor: 1 }

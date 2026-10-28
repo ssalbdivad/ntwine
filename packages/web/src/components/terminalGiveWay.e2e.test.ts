@@ -25,8 +25,8 @@ const baseUrl = process.env.NTWINE_TERMINAL_GIVE_WAY_E2E_URL
 //   4. your terminal's drawer header, waiting for input in a worktree, keeps `…/probe · worktree` whole.
 //
 // Run it against a plain vite over packages/web:
-//   nubx vite --port 5391 --strictPort --host 127.0.0.1
-//   NTWINE_TERMINAL_GIVE_WAY_E2E_URL=http://127.0.0.1:5391 nub --test packages/web/src/components/terminalGiveWay.e2e.test.ts
+//   pnpm exec vite --port 5391 --strictPort --host 127.0.0.1
+//   NTWINE_TERMINAL_GIVE_WAY_E2E_URL=http://127.0.0.1:5391 node --test packages/web/src/components/terminalGiveWay.e2e.test.ts
 test("a terminal row's label outranks its folder hint's word, its glyph never leaves, and your drawer header keeps its folder, at every width", {
   skip: !baseUrl,
   timeout: 120_000,

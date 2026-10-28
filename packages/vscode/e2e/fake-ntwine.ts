@@ -130,8 +130,10 @@ export class FakeNtwine {
   readonly #results = new Map<string, (result: unknown) => void>()
   readonly #heartbeat: NodeJS.Timeout
   port = 0
+  readonly projects: EditorProject[]
 
-  constructor(readonly projects: EditorProject[]) {
+  constructor(projects: EditorProject[]) {
+    this.projects = projects
     this.#server = createServer((request, response) => void this.#http(request, response))
     this.#server.on("upgrade", (request, socket, head) => {
       if (request.url !== "/_ntwine/editor" || request.headers.origin !== this.origin) {

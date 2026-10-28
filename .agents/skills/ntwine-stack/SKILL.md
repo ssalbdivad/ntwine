@@ -31,7 +31,7 @@ real `~/.ntwine` SQLite:
 Boot it in the **background** (never foreground — it stays up until killed) and read back its json line:
 
 ```bash
-nub scripts/adhoc-stack.mjs --port=4930 > /tmp/stack.log 2>&1     # Bash run_in_background: true
+node scripts/adhoc-stack.mjs --port=4930 > /tmp/stack.log 2>&1     # Bash run_in_background: true
 # → {"url","gridUrl","slug","port","home","project","launcher":{id,slug,serverLock},"tenants":[…]}
 ```
 
@@ -79,7 +79,7 @@ launcher publishes, and POSTing an unprefixed RPC that means "the launching proj
 
 ```bash
 # a launcher + one tenant, with REAL credentials so a dispatched worker can actually start
-nub scripts/adhoc-stack.mjs --port=45571 --project=/abs/launcher --also-project=/abs/tenant --creds \
+node scripts/adhoc-stack.mjs --port=45571 --project=/abs/launcher --also-project=/abs/tenant --creds \
   > /tmp/stack.log 2>&1
 # → …"launcher":{"id","slug","serverLock"},"tenants":[{"id","slug","dir","stateDir"}]
 ```

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The project test suite — `nub run test`. Runs node's test runner exactly as before, then proves
+// The project test suite — `pnpm run test`. Runs node's test runner exactly as before, then proves
 // the run was COMPLETE before it lets the run be green.
 //
 // The problem it exists for: `--test-force-exit` makes each per-file child process.exit() the moment
@@ -14,8 +14,8 @@
 // reconciles what each child EMITTED against what the parent RECEIVED. Any shortfall is a hard
 // failure with the offending files named.
 //
-//   nub run test                       the whole suite
-//   nub run test packages/x/y.test.ts  just these files, same guard
+//   pnpm run test                       the whole suite
+//   pnpm run test packages/x/y.test.ts  just these files, same guard
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -62,10 +62,13 @@ const receivedPath = path.join(scratch, "received.json");
 fs.writeFileSync(ledgerPath, "");
 
 const runner = spawn(
-  "nub",
+  process.execPath,
   [
     "--import",
     pathToFileURL(path.join(here, "test-guard-preload.mjs")).href,
+    // The web package's tests import its `.tsx` components, which node cannot load alone.
+    "--import",
+    pathToFileURL(path.join(here, "tsx-hooks.ts")).href,
     "--test",
     "--test-force-exit",
     // Pinned explicitly because naming any reporter drops node's defaults. `spec` is what node

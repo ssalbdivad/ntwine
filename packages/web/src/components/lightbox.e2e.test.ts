@@ -10,7 +10,7 @@ import { crc32, deflateSync } from "node:zlib"
 // a drawer), that focus comes back to the picture that opened it, and that
 // a phone's Back closes the viewer rather than leaving the page. Skipped unless a Vite URL serving the
 // fixtures is provided: start `vite` in packages/web and set NTWINE_LIGHTBOX_E2E_URL to its origin (or run
-// `nub run test:e2e`, which does both).
+// `pnpm run test:e2e`, which does both).
 //
 // The pictures are drawn HERE. A plain Vite has no /_ntwine/local-image route, so the test intercepts it
 // and answers with a PNG of the size the fixture's path names; `missing` paths get the real route's 404.

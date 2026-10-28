@@ -252,14 +252,24 @@ export class ServerReleaseStore {
   readonly selection: string;
   /** One global data marker: every package override opens the same ntwine databases. */
   readonly compatibilityMarker: string;
+  readonly spec: ServerReleaseSpec;
+  private installer: ServerPackageInstaller;
+  private roots: ReturnType<typeof ntwinePaths>;
+  readonly compatibility: ServerCompatibility;
+  /** The oldest release this shell works with; see serverReleaseMinimum. */
+  readonly minimum?: string;
   constructor(
-    readonly spec: ServerReleaseSpec,
-    private installer: ServerPackageInstaller,
-    private roots = ntwinePaths(),
-    readonly compatibility: ServerCompatibility = CURRENT_COMPATIBILITY,
-    /** The oldest release this shell works with; see serverReleaseMinimum. */
-    readonly minimum?: string,
+    spec: ServerReleaseSpec,
+    installer: ServerPackageInstaller,
+    roots = ntwinePaths(),
+    compatibility: ServerCompatibility = CURRENT_COMPATIBILITY,
+    minimum?: string,
   ) {
+    this.spec = spec;
+    this.installer = installer;
+    this.roots = roots;
+    this.compatibility = compatibility;
+    this.minimum = minimum;
     assertSpec(spec, compatibility);
     const key = createHash("sha256").update(spec.package).digest("hex").slice(0, 16);
     this.generations = join(roots.cache, "server-releases", key);

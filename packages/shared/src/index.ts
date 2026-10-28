@@ -4579,7 +4579,7 @@ export const ThreadTerminal = z.object({
   parent: ThreadSlug.optional(),
   // Who started it: `human`, or the slug of the thread whose agent did. The strip's owner glyph reads it.
   startedBy: z.string().optional(),
-  // Its `@handle` (`$ nub run dev` → `nub-run-dev`), what `read-thread` and the agents address it by.
+  // Its `@handle` (`$ pnpm run dev` → `pnpm-run-dev`), what `read-thread` and the agents address it by.
   handle: z.string().optional(),
   // CONTROL (plans/terminal-threads.md § Control): who types into it, `human` or a thread's slug — its starter
   // until control moves. Only the controller types, stops or restarts it; the human can always take it.

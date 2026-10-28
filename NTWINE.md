@@ -170,7 +170,7 @@ touches GitHub as a PR.
   end-to-end testing, spinning up a disposable dev server, anything you'd rather keep off the shared
   tree. Create it on a local branch UNDER `.ntwine/worktrees/`, install into it, then do the work and
   the testing there and commit as you go:
-  `git worktree add .ntwine/worktrees/<slug> -b <slug> && (cd .ntwine/worktrees/<slug> && nub install)`.
+  `git worktree add .ntwine/worktrees/<slug> -b <slug> && (cd .ntwine/worktrees/<slug> && pnpm install)`.
   - **Never beside the checkout (`../ntwine-<slug>`).** On a machine that keeps its repos directly in
     `~`, every sibling is a new folder in the home directory — eight at once on 2026-09-28. `.ntwine/`
     is git-ignored in every ntwine project, so a worktree there never shows up in `git status`.

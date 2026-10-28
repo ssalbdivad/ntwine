@@ -22,7 +22,7 @@
 //     the pty is a server child. It must FAIL (every survival check goes red). Run it once when you
 //     change this file; a harness that has never gone red is not evidence.
 //
-//   nub scripts/verify-terminal-host-restart.ts [--repo=/abs/checkout] [--port=N]
+//   node scripts/verify-terminal-host-restart.ts [--repo=/abs/checkout] [--port=N]
 //
 // Everything it starts is ended by exact pid at the end; the sandbox HOME and project are deleted.
 import { execFileSync, spawn, type ChildProcess } from "node:child_process"
@@ -96,12 +96,12 @@ let stackLog = ""
 async function bootStack(n: number): Promise<void> {
   stackLog = join(root, `stack-${n}.log`)
   // The SAME sandbox HOME every time (--home implies --keep), so the database and terminal records carry over.
-  stack = spawn("nub", [join(REPO, "scripts/adhoc-stack.mjs"), `--port=${PORT}`, `--project=${project}`, `--home=${home}`], {
+  stack = spawn(process.execPath, [join(REPO, "scripts/adhoc-stack.mjs"), `--port=${PORT}`, `--project=${project}`, `--home=${home}`], {
     cwd: REPO,
     env: process.env,
     stdio: ["ignore", "pipe", "pipe"],
-    // Its own process group: `nub` runs the stack as a child node process, and a crash has to take
-    // BOTH down — exactly as a real launcher's group goes. Terminal daemons sit in groups of their own.
+    // Its own process group: a crash has to take the stack and everything it started down together —
+    // exactly as a real launcher's group goes. Terminal daemons sit in groups of their own.
     detached: true,
   })
   const out: string[] = []

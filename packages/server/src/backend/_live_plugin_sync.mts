@@ -1,6 +1,6 @@
 // LIVE END-TO-END: a running worker follows a plugin that MOVED, and nobody asks it to.
-//   nub packages/server/src/backend/_live_plugin_sync.mts             the proof
-//   nub packages/server/src/backend/_live_plugin_sync.mts --control   the negative control
+//   node packages/server/src/backend/_live_plugin_sync.mts             the proof
+//   node packages/server/src/backend/_live_plugin_sync.mts --control   the negative control
 //
 // This is the proof for automatic plugin sync (claude-plugin-sync.ts), and it replaces the probe that
 // proved the manual reload it retired. Everything is the shipping thing: a real `claude` broker

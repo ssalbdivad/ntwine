@@ -22,7 +22,7 @@ catches it.
 
 ### 1. Launch a real promoted-artifact instance, isolated
 
-`ntwine-dev` (= `nub … src/index.ts`) builds/promotes an artifact from CURRENT SOURCE and runs
+`ntwine-dev` (= `node … src/index.ts`) builds/promotes an artifact from CURRENT SOURCE and runs
 it. Two gotchas:
 
 - **You are probably running inside an ntwine worker**, so your env has `NTWINE_DEV_CHILD=1` and `NTWINE_LAUNCH_*`.
@@ -46,7 +46,7 @@ cd "$REPO" && exec env \
 So treat the registry as something you borrowed and must put back:
 
 ```bash
-nub -e 'const r=JSON.parse(require("fs").readFileSync(process.env.HOME+"/.ntwine/registry.json","utf8"));console.log(r.projects.length);for(const p of r.projects)console.log(p.slug,p.path)'
+node -e 'const r=JSON.parse(require("fs").readFileSync(process.env.HOME+"/.ntwine/registry.json","utf8"));console.log(r.projects.length);for(const p of r.projects)console.log(p.slug,p.path)'
 ```
 
 Run that BEFORE you launch and again after you clean up, and diff the two. Any project of yours that survives is one the maintainer now has to delete by hand. Remove the registry entry and its `~/.ntwine/projects/<id>` state dir, then re-run the check and confirm the list matches what you started with.

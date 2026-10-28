@@ -10,7 +10,7 @@
 //     `claude`, and its input frame goes to a socket nobody serves — the RPC returns, nothing is
 //     recorded. That is exactly the stranded send the ghost floor exists for.
 //
-// Usage: nub scripts/seed-ghost-floor.mjs --home=/abs/temp-home [--cwd=/abs/project]
+// Usage: node scripts/seed-ghost-floor.mjs --home=/abs/temp-home [--cwd=/abs/project]
 // Prints one JSON line: {slug, jsonl, standInPid}. Pass the first two to verify-ghost-floor.mjs, and
 // kill the stand-in by that exact pid when you are done (it is detached and outlives this script).
 import { execFileSync, spawn } from "node:child_process"
@@ -22,7 +22,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")))
 const { home, cwd = process.cwd() } = flags
 if (!home) {
-  console.error("usage: nub scripts/seed-ghost-floor.mjs --home=/abs/temp-home [--cwd=/abs/project]")
+  console.error("usage: node scripts/seed-ghost-floor.mjs --home=/abs/temp-home [--cwd=/abs/project]")
   process.exit(1)
 }
 

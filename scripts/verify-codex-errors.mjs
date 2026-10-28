@@ -192,7 +192,7 @@ try {
   for (const font of ["sans", "mono"]) {
     await api.mutate("settingsSet", { ...await api.query("settingsGet"), font })
     const before = `document.documentElement.dataset.font=${JSON.stringify(font)}`
-    const metrics = execFileSync("nub", [join(source, "scripts/ink-gaps.mjs"), url,
+    const metrics = execFileSync(process.execPath, [join(source, "scripts/ink-gaps.mjs"), url,
       '[data-codex-error] > div:first-child > span,[data-codex-error] > div:first-child > svg', "--w=1000", "--h=900", "--dsf=6", "--software", "--viewport-only", `--before=${before}`], { cwd: source, encoding: "utf8" })
     writeFileSync(join(shots, `ink-${font}.txt`), metrics)
     console.log(`PASS optical-spacing instrument ${font}: ${join(shots, `ink-${font}.txt`)}`)

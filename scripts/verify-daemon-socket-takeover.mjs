@@ -17,9 +17,9 @@
 // repo's fake-acp-agent fixture, which logs every frame it is handed (FAKE_ACP_LOG), so "one agent"
 // below means one agent process actually initialized, not one host call.
 //
-//   run: nub scripts/verify-daemon-socket-takeover.mjs   → PASS/FAIL lines; exit 1 on any fail. ~5s.
+//   run: node scripts/verify-daemon-socket-takeover.mjs   → PASS/FAIL lines; exit 1 on any fail. ~5s.
 //
-// DAEMON_DIR=<dist> forks the BUNDLED daemons there (`nub scripts/build-package.mjs --server` emits them
+// DAEMON_DIR=<dist> forks the BUNDLED daemons there (`node scripts/build-package.mjs --server` emits them
 // into packages/server-release/dist) instead of the source entries, for scenarios A–C — the artifact is
 // one esbuild bundle per daemon, and a helper that failed to bundle would only show up there.
 //

@@ -2056,8 +2056,9 @@ test("installer manages only an executable source-backed immutable ntwine-dev sh
     const shim = join(dir, shimName);
     const body = readFileSync(shim, "utf8");
     assert.match(body, /ntwine-dev-source-launcher:v5/);
-    // Only nub's disk-read `.env*` vars are dropped; a shell-exported key still reaches the worker.
-    assert.match(body, /nub --no-env-file/);
+    // Plain node, which reads no `.env*` file; a shell-exported key still reaches the worker.
+    assert.match(body, /\bnode '?"?[^\n]*src.index\.ts/);
+    assert.doesNotMatch(body, /\snub\s/);
     // `setlocal` is batch's `env VAR=…`: the variable dies with the shim instead of leaking into
     // the console that ran it.
     assert.match(
@@ -2065,7 +2066,6 @@ test("installer manages only an executable source-backed immutable ntwine-dev sh
       windowsShim ? /setlocal\r\nset "NTWINE_SOURCE_COMMAND=ntwine-dev"/ : /NTWINE_SOURCE_COMMAND='ntwine-dev'/
     );
     assert.match(body, shimEntry);
-    assert.match(body, /\bnub\b/);
     assert.match(runShim(shim, ["--help"]), /ntwine source launcher/);
     assert.match(
       execFileSync(process.execPath, [script, "--help"], { encoding: "utf8" }),

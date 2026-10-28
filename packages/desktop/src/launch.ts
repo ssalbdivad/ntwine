@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs"
  * after a reboot. scripts/dev.ts writes everything this needs into dist/server.json, since the app copy
  * a Windows Electron runs from (%LOCALAPPDATA%) has no other way to know it.
  *
- * What it starts is the DEV board, `nub run dev` in this checkout, as a terminal thread on the board it
+ * What it starts is the DEV board, `pnpm run dev` in this checkout, as a terminal thread on the board it
  * serves (packages/server/src/dev-terminal.ts): its R / L keys, its output and its ctrl-c are in that
  * thread's drawer, and the run outlives the window, the dev supervisor's recycles and a server crash, as
  * every terminal does. (Until 2026-10-21 it started the stable board, `ntwine-dev --no-app`, because a
@@ -16,10 +16,10 @@ import { readFileSync } from "node:fs"
  */
 export interface ServerLaunch {
   repo: string
-  /** nub, absolute. */
-  nub: string
+  /** node, absolute. */
+  node: string
   /**
-   * The PATH of the terminal that ran `nub run desktop`. A Windows launch reaches WSL through a
+   * The PATH of the terminal that ran `pnpm run desktop`. A Windows launch reaches WSL through a
    * non-interactive shell, which has no nvm on its PATH; and every agent the board starts inherits it.
    */
   path: string
@@ -37,7 +37,7 @@ export interface ServerLaunch {
 export function readServerLaunch(path: string): ServerLaunch | undefined {
   try {
     const launch = JSON.parse(readFileSync(path, "utf8")) as Partial<ServerLaunch>
-    if (typeof launch.repo !== "string" || typeof launch.nub !== "string" || typeof launch.path !== "string" || typeof launch.log !== "string") return undefined
+    if (typeof launch.repo !== "string" || typeof launch.node !== "string" || typeof launch.path !== "string" || typeof launch.log !== "string") return undefined
     if (launch.distro !== undefined && (typeof launch.roots?.data !== "string" || typeof launch.roots.state !== "string")) return undefined
     return launch as ServerLaunch
   } catch {
@@ -54,8 +54,7 @@ export function serverCommand(launch: ServerLaunch): [command: string, args: str
     "sh",
     launch.path,
     launch.log,
-    launch.nub,
-    "--no-env-file",
+    launch.node,
     "packages/server/src/dev-terminal.ts",
   ]
   if (!launch.distro) return [shell[0]!, shell.slice(1)]

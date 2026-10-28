@@ -634,7 +634,7 @@ function dividerTitle(text: string): string {
   return text.includes("\n") && !cut.endsWith("…") ? `${cut} …` : cut
 }
 
-/** `Command watch «nub run test» passed`: the command is the elastic part, the outcome is the news. */
+/** `Command watch «pnpm run test» passed`: the command is the elastic part, the outcome is the news. */
 function CommandWatchDivider({ kind, command, sourceId, at }: { kind: "passed" | "expired" | "cancelled"; command?: string; sourceId?: string; at?: string }) {
   const title = command ? dividerTitle(command) : undefined
   const label = title ? `Command watch «${title}» ${kind}` : `Command watch ${kind}`

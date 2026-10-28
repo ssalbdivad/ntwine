@@ -32,7 +32,7 @@ for (const name of ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"]) delete
 
 // Most claims below drive the custom-name path, so this file runs with the override on: should
 // CUSTOM_NAMES_OFFERED be set back to false, they keep testing the path behind the gate. It is set for
-// the FILE, not per test: `nub --test` runs a file's tests concurrently, so a per-test toggle would
+// the FILE, not per test: `node --test` runs a file's tests concurrently, so a per-test toggle would
 // leak into its neighbours.
 process.env.NTWINE_CUSTOM_NAMES = "1";
 

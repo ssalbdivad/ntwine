@@ -15,9 +15,9 @@
 // The row stays C2 about its own centre: the middle glyph maps to itself under a
 // half turn and the outer two swap.
 //
-//   nub build-fff.mjs               default spacing
-//   TRIM=0.06 nub build-fff.mjs     looser; 0 is tails at full length
-//   REPEATS=5 nub build-fff.mjs     a longer run
+//   node build-fff.mjs               default spacing
+//   TRIM=0.06 node build-fff.mjs     looser; 0 is tails at full length
+//   REPEATS=5 node build-fff.mjs     a longer run
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"

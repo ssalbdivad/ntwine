@@ -1,6 +1,6 @@
 // HOSTILE live workload for the Claude broker — the gate that would have caught the 2026-07-27
 // thread kill before an operator did.
-//   nub packages/server/src/backend/_live_broker_hostile.mts
+//   node packages/server/src/backend/_live_broker_hostile.mts
 //
 // WHY THIS EXISTS. Every end-to-end check written during the t3code spike used a TOY prompt: "reply
 // with exactly HELLO-OK", "write a marker file", "count to 5". All of them passed. Then a real

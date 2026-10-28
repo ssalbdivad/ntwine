@@ -227,8 +227,10 @@ type UsageExec = (claudeBin: string) => Promise<string>
 
 /** The endpoint refused with 429/529. `retryAt` (ms) is when it said another request may succeed. */
 class UsageRateLimited extends Error {
-  constructor(status: number, readonly retryAt: number) {
+  readonly retryAt: number
+  constructor(status: number, retryAt: number) {
     super(`Usage endpoint ${status}`)
+    this.retryAt = retryAt
   }
 }
 
@@ -251,8 +253,10 @@ const CLI_NEVER: CliRuns = { runs: 0, retryAt: Infinity }
 /** Claude Code was started to refresh a rejected credential and reported no quota. `cli` is the
  *  record of that start, which the caller must persist whatever else it does with the failure. */
 class ClaudeCodeRefreshFailed extends Error {
-  constructor(readonly cli: CliRuns, cause: unknown) {
+  readonly cli: CliRuns
+  constructor(cli: CliRuns, cause: unknown) {
     super("Claude Code could not refresh the rejected credential", { cause })
+    this.cli = cli
   }
 }
 
@@ -365,8 +369,10 @@ interface RouteRuns {
 
 /** The configured route failed; `configured` is the backoff the caller must persist. */
 class ConfiguredRouteFailed extends Error {
-  constructor(readonly configured: RouteRuns, message: string) {
+  readonly configured: RouteRuns
+  constructor(configured: RouteRuns, message: string) {
     super(message)
+    this.configured = configured
   }
 }
 

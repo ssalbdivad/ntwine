@@ -4,7 +4,7 @@ import test from "node:test"
 // Browser coverage for SPINOFFS' own UI (Spinoff.tsx), driven through the real drawer — ThreadView with
 // the virtualized transcript — on spinoff-fixture.html. Skipped unless a Vite URL serving the fixtures is
 // provided: start `vite` in packages/web and set NTWINE_SPINOFF_E2E_URL to its origin (or run it through
-// `nub run test:e2e`, which does both).
+// `pnpm run test:e2e`, which does both).
 //
 // What only a browser settles: that the whole pipeline (not the card alone) draws each request as its card
 // — whether the server drew it from the spinoff's row or an older build's `<spinoff-request>` turn — and

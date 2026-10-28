@@ -3,7 +3,7 @@ import test from "node:test"
 
 // Opt-in like the other *.e2e.test.ts here: start `vite` in packages/web and set
 // NTWINE_CODE_COPY_E2E_URL to its origin, e.g.
-//   NTWINE_CODE_COPY_E2E_URL=http://localhost:5731 nub --test --test-force-exit src/lib/copyCodeBlock.e2e.test.ts
+//   NTWINE_CODE_COPY_E2E_URL=http://localhost:5731 node --test --test-force-exit src/lib/copyCodeBlock.e2e.test.ts
 const baseUrl = process.env.NTWINE_CODE_COPY_E2E_URL
 
 // The pieces of this are unit-testable in isolation and that proves nothing: the markup comes out of

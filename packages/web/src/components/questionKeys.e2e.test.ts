@@ -8,7 +8,7 @@ import test from "node:test"
 // settings store + the land-it tree, then the commit gates) with the real Settings drawer and ⌘K palette
 // mounted off the store. Skipped unless a Vite URL serving the fixtures is provided (same pattern as the
 // other *.e2e.test.ts here): start `vite` in packages/web and set NTWINE_QUESTION_KEYS_E2E_URL to its
-// origin, or run `nub run test:e2e`, which sets it.
+// origin, or run `pnpm run test:e2e`, which sets it.
 const baseUrl = process.env.NTWINE_QUESTION_KEYS_E2E_URL
 
 type Page = import("puppeteer").Page

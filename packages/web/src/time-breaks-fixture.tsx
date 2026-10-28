@@ -12,7 +12,7 @@ import "./styles.css"
 // stretch from YESTERDAY, so a day break, a same-day time break and a burst with no break all show.
 // Instants are relative to the real clock so "Today" and "Yesterday" read true whenever this is opened.
 //
-//   nubx vite --port 5478 --strictPort      (from packages/web)
+//   pnpm exec vite --port 5478 --strictPort      (from packages/web)
 //   http://localhost:5478/time-breaks-fixture.html
 
 const SLUG = "time-breaks"

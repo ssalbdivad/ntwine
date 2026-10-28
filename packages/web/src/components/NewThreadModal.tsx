@@ -47,7 +47,7 @@ export interface DispatchDirs {
 // THE prompt box: it starts an agent thread. Shared by every surface that can start one: the rail, the
 // empty board's centered box and the anywhere-modal.
 //
-// A `$ cmd` LINE STARTS A TERMINAL THREAD instead (plans/terminal-threads.md, 2026-10-15): `$ nub run dev`
+// A `$ cmd` LINE STARTS A TERMINAL THREAD instead (plans/terminal-threads.md, 2026-10-15): `$ pnpm run dev`
 // runs that command, a bare `$` opens a shell, in the folder the box's picker names — the project root or one
 // of its `.ntwine/worktrees/*` checkouts, which takes the model picker's place while the line is a command.
 // (A Terminal tab did this from 2026-09-23 to 2026-09-29, when a terminal moved onto a thread; it is a thread

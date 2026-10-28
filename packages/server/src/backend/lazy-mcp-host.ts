@@ -147,14 +147,24 @@ class LazyServer {
   private readonly outbox: JsonRpcMessage[] = []
   private stderrTail = ""
   private cache: CacheRecord
+  readonly name: string
+  private readonly server: StdioMcpServer
+  private readonly context: LazyMcpMountContext
+  private readonly cachePath: string
+  private readonly log: (message: string) => void
 
   constructor(
-    readonly name: string,
-    private readonly server: StdioMcpServer,
-    private readonly context: LazyMcpMountContext,
-    private readonly cachePath: string,
-    private readonly log: (message: string) => void,
+    name: string,
+    server: StdioMcpServer,
+    context: LazyMcpMountContext,
+    cachePath: string,
+    log: (message: string) => void,
   ) {
+    this.name = name
+    this.server = server
+    this.context = context
+    this.cachePath = cachePath
+    this.log = log
     this.cache = this.readCache()
   }
 

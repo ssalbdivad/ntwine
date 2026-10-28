@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import type { Page } from "puppeteer"
 
-// NTWINE_NARROW_DRAWER_KEYS_E2E_URL=<vite origin> — `nub run test:e2e` sets it.
+// NTWINE_NARROW_DRAWER_KEYS_E2E_URL=<vite origin> — `pnpm run test:e2e` sets it.
 const baseUrl = process.env.NTWINE_NARROW_DRAWER_KEYS_E2E_URL
 
 // At 800px and below a thread drawer is a MODAL Radix dialog: it wears `aria-modal` and pins the body's

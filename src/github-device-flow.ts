@@ -60,11 +60,10 @@ export interface GithubAuthorizer {
 }
 
 export class GithubSignInError extends Error {
-  constructor(
-    message: string,
-    readonly code: "not-configured" | "unreachable" | "expired" | "denied" | "scoped" | "cancelled" | "failed",
-  ) {
+  readonly code: "not-configured" | "unreachable" | "expired" | "denied" | "scoped" | "cancelled" | "failed";
+  constructor(message: string, code: GithubSignInError["code"]) {
     super(message);
+    this.code = code;
     this.name = "GithubSignInError";
   }
 }

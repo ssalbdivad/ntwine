@@ -484,7 +484,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   )
 
   // ── a new build installed under this window (build-info.ts) ──────────────────────────────────────
-  // A window keeps running the code it loaded. `nub run vscode:install` (or any install of the .vsix)
+  // A window keeps running the code it loaded. `pnpm run vscode:install` (or any install of the .vsix)
   // puts a new build on disk, and until the window reloads it runs the old one — which is how a fix got
   // "verified" in a window that never had it. So the window looks, every few seconds, at what is
   // installed where it loaded from, and offers to reload once per new build.

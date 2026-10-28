@@ -99,7 +99,13 @@ test("a notification for another project is tagged by THAT project's address", (
   class FakeNotification {
     static permission = "granted"
     onclick: (() => void) | null = null
-    constructor(readonly title: string, readonly opts: { body?: string; tag?: string }) { raised.push(this) }
+    readonly title: string
+    readonly opts: { body?: string; tag?: string }
+    constructor(title: string, opts: { body?: string; tag?: string }) {
+      this.title = title
+      this.opts = opts
+      raised.push(this)
+    }
     close(): void {}
   }
   install("Notification", FakeNotification)

@@ -7,8 +7,8 @@
 // number: it says how close the shape is, it says whether a change helped, and
 // it does not get tired or talk itself into a match.
 //
-//   nub fit-eight.mjs            fit and report
-//   nub fit-eight.mjs --quick    fewer rounds, for iterating on the model
+//   node fit-eight.mjs            fit and report
+//   node fit-eight.mjs --quick    fewer rounds, for iterating on the model
 
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"

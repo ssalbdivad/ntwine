@@ -1,4 +1,4 @@
-#!/usr/bin/env nub
+#!/usr/bin/env node
 /**
  * The relay, end to end, on REAL workerd.
  *
@@ -100,8 +100,8 @@ try {
   // run touches no real Cloudflare state. BEFORE `wrangler dev` starts: the dev process holds that
   // store open, and a write from a second process afterwards is not seen by the running Worker.
   const seed = spawn(
-    "nubx",
-    ["-y", "wrangler", "kv", "key", "put", "claim:ada",
+    "pnpm",
+    ["exec", "wrangler", "kv", "key", "put", "claim:ada",
      JSON.stringify({ pubkey, tunnelId: "", port: BOARD_PORT, claimedAt: Date.now(), renewedAt: Date.now() }),
      "--binding", "CLAIMS", "--local", "--persist-to", state, "-c", devConfig],
     { cwd: join(repo, "packages/relay"), stdio: ["ignore", "ignore", "pipe"] },
@@ -110,8 +110,8 @@ try {
   if (seedCode !== 0) throw new Error(`seeding the claim failed with exit ${seedCode}`);
 
   dev = spawn(
-    "nubx",
-    ["-y", "wrangler", "dev", "-c", devConfig, "--port", String(DEV_PORT), "--ip", "127.0.0.1", "--persist-to", state],
+    "pnpm",
+    ["exec", "wrangler", "dev", "-c", devConfig, "--port", String(DEV_PORT), "--ip", "127.0.0.1", "--persist-to", state],
     { cwd: join(repo, "packages/relay"), stdio: ["ignore", "pipe", "pipe"] },
   );
   let devOut = "";

@@ -15,7 +15,7 @@
 // a real `claude` from this sandbox; with one it adopts the stand-in, the RPC returns 200, and the steer
 // lands in the thread through the delivery ledger without any provider process being touched.
 //
-// Usage: nub scripts/seed-open-ask.mjs --home=/abs/temp-home [--cwd=/abs/project] [--slug=open-ask]
+// Usage: node scripts/seed-open-ask.mjs --home=/abs/temp-home [--cwd=/abs/project] [--slug=open-ask]
 // Prints one JSON line: {slug, standInPid}. The run CONSUMES the seed (its steer is a newer human turn,
 // after which the questions are no longer owed), so re-seed before each run; kill the stand-in by that
 // exact pid when you are done.
@@ -28,7 +28,7 @@ import { resolveSandboxDb, sessionProjectColumns } from "./lib/sandbox-db.mjs"
 const flags = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.replace(/^--/, "").split("=")))
 const { home, cwd = process.cwd(), slug = "open-ask" } = flags
 if (!home) {
-  console.error("usage: nub scripts/seed-open-ask.mjs --home=/abs/temp-home [--cwd=/abs/project] [--slug=open-ask]")
+  console.error("usage: node scripts/seed-open-ask.mjs --home=/abs/temp-home [--cwd=/abs/project] [--slug=open-ask]")
   process.exit(1)
 }
 

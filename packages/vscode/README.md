@@ -134,9 +134,9 @@ command palette.
 
 ntwine must be running on this machine (`npx ntwine`). The extension finds it on its own.
 
-From an ntwine checkout: `nub run vscode:install` builds the `.vsix` and installs it — into the VS Code
+From an ntwine checkout: `pnpm run vscode:install` builds the `.vsix` and installs it — into the VS Code
 Server when you are in WSL, since the extension runs where your files are. Or build it with
-`nub run vscode:package` and install `packages/vscode/dist/ntwine-vscode-<version>.vsix` with
+`pnpm run vscode:package` and install `packages/vscode/dist/ntwine-vscode-<version>.vsix` with
 **Extensions: Install from VSIX…**.
 
 ## Settings

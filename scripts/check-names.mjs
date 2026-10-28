@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Availability sweep for a product name across npm and DNS, in one pass.
 //
-//   nub scripts/check-names.mjs ntwine.dev ntwineground.com npm:ntwineground
-//   nub scripts/check-names.mjs --domains com,dev,sh --names ntwineground,ntwinehq
+//   node scripts/check-names.mjs ntwine.dev ntwineground.com npm:ntwineground
+//   node scripts/check-names.mjs --domains com,dev,sh --names ntwineground,ntwinehq
 //
 // Domains: RDAP first (rdap.org bootstrap). A 404 with a JSON body means the registry
 // answered "no such domain" => available. A 404 with an EMPTY body means rdap.org has no

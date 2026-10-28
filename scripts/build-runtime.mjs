@@ -1,6 +1,5 @@
-// Invoked through Nub by artifacts.ts. Keeping the esbuild API in a tiny Node entry avoids asking
-// Nub to execute esbuild's platform binary as though it were JavaScript, while retaining Nub's
-// source-loader/runtime contract for the build itself.
+// Run with node by artifacts.ts. Keeping the esbuild API in a tiny Node entry means the build drives
+// esbuild's platform binary through its JS API rather than executing it directly.
 import { basename, dirname, join } from "node:path";
 import { build } from "esbuild";
 

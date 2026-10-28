@@ -34,7 +34,7 @@ import test, { after, before } from "node:test"
 //      past cards that build at their real height on the way (headless jumps at once, which test 12 cannot
 //      tell apart, so this pins the handler itself).
 //
-// Skipped unless a Vite URL serving the fixtures is provided: `nub run test:e2e` sets it, or start
+// Skipped unless a Vite URL serving the fixtures is provided: `pnpm run test:e2e` sets it, or start
 // `vite` in packages/web and set NTWINE_QUEUE_CARD_VISIBILITY_E2E_URL to its origin.
 const baseUrl = process.env.NTWINE_QUEUE_CARD_VISIBILITY_E2E_URL
 

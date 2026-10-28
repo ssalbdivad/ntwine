@@ -1,4 +1,4 @@
-// `nub run dev`: the source dev board (packages/server/src/dev.ts — Vite HMR, a supervisor that
+// `pnpm run dev`: the source dev board (packages/server/src/dev.ts — Vite HMR, a supervisor that
 // recycles the control plane on server edits) with remote access attached, so a phone can reach it
 // exactly as it reaches `ntwine-dev` or a published `ntwine`: the saved setup is served at boot,
 // Settings → Remote access works from this machine, and R / L work in this terminal.
@@ -8,7 +8,7 @@
 import { runDev } from "@ntwine/server/dev";
 import { wireRemote } from "./remote-wiring.ts";
 
-// `nub run dev -- --port 9400` runs a second board beside the usual one.
+// `pnpm run dev -- --port 9400` runs a second board beside the usual one.
 const portFlag = process.argv.indexOf("--port");
 const port = portFlag > 0 ? Number(process.argv[portFlag + 1]) : undefined;
 if (port !== undefined && !(Number.isInteger(port) && port > 0 && port < 65_536)) throw new Error("--port needs a port number");

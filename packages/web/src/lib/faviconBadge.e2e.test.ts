@@ -3,7 +3,7 @@ import test from "node:test"
 
 // Opt-in like the other *.e2e.test.ts here: start `vite` in packages/web and set
 // NTWINE_FAVICON_BADGE_E2E_URL to its origin, e.g.
-//   NTWINE_FAVICON_BADGE_E2E_URL=http://localhost:5731 nub --test --test-force-exit src/lib/faviconBadge.e2e.test.ts
+//   NTWINE_FAVICON_BADGE_E2E_URL=http://localhost:5731 node --test --test-force-exit src/lib/faviconBadge.e2e.test.ts
 const baseUrl = process.env.NTWINE_FAVICON_BADGE_E2E_URL
 
 // Everything this module does is a browser seam — an <img> decode of the SVG, a canvas composite, a

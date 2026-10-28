@@ -13,8 +13,8 @@
 // incoming and outgoing handles. The centre anchor is shared by both halves, so
 // the join there is a single anchor with a single tangent and cannot kink.
 //
-//   nub finalize.mjs                 write assets/logo-concepts/final/
-//   nub finalize.mjs --install       also replace packages/web/public/favicon.svg
+//   node finalize.mjs                 write assets/logo-concepts/final/
+//   node finalize.mjs --install       also replace packages/web/public/favicon.svg
 
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"

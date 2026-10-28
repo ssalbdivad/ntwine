@@ -19,7 +19,7 @@
 //
 // Isolation: temp HOME + state dir + project dir, unique port, wakers and reaper off.
 //
-//   nub scripts/verify-artifact-plugin-sync.mjs
+//   node scripts/verify-artifact-plugin-sync.mjs
 import { execFileSync, spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"

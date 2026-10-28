@@ -1,7 +1,7 @@
 // The ntwine mark: a lowercase n of three threads, plaited three times down its right leg.
 //
-//   nub assets/logo-ntwine/final.ts             write assets/logo-ntwine/final/
-//   nub assets/logo-ntwine/final.ts --install   also write every installed copy (see INSTALL below)
+//   node assets/logo-ntwine/final.ts             write assets/logo-ntwine/final/
+//   node assets/logo-ntwine/final.ts --install   also write every installed copy (see INSTALL below)
 //
 // Every PNG is rasterized by puppeteer's headless shell (render.ts). scripts/generate-icons.mjs makes
 // the same six web PNGs with rsvg-convert where that exists; the art is identical, the bytes are not, so

@@ -21,10 +21,10 @@
 //   · at a phone's width nothing overflows sideways, in either view.
 //
 // Usage:
-//   nub scripts/adhoc-stack.mjs --port=47711 --project=/tmp/x/acme-api --also-project=/tmp/x/marketing-site \
+//   node scripts/adhoc-stack.mjs --port=47711 --project=/tmp/x/acme-api --also-project=/tmp/x/marketing-site \
 //     --also-project=/tmp/x/billing-worker --also-project=/tmp/x/docs-portal > /tmp/stack.log 2>&1   # background
-//   nub scripts/seed-all-queues.mjs --stack=/tmp/stack.log && nub scripts/seed-focus-mode.mjs --stack=/tmp/stack.log
-//   nub scripts/verify-focus-mode.mjs --stack=/tmp/stack.log [--shots=/abs/dir] [--only=<words in a step name>]
+//   node scripts/seed-all-queues.mjs --stack=/tmp/stack.log && node scripts/seed-focus-mode.mjs --stack=/tmp/stack.log
+//   node scripts/verify-focus-mode.mjs --stack=/tmp/stack.log [--shots=/abs/dir] [--only=<words in a step name>]
 import { mkdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { launchHeadless } from "./lib/headless-browser.mjs"
@@ -33,7 +33,7 @@ const flags = Object.fromEntries(
   process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => { const s = a.slice(2); const i = s.indexOf("="); return i < 0 ? [s, true] : [s.slice(0, i), s.slice(i + 1)] }),
 )
 if (!flags.stack) {
-  console.error("usage: nub scripts/verify-focus-mode.mjs --stack=/abs/stack.log [--shots=/abs/dir]")
+  console.error("usage: node scripts/verify-focus-mode.mjs --stack=/abs/stack.log [--shots=/abs/dir]")
   process.exit(1)
 }
 const line = readFileSync(flags.stack, "utf8").split("\n").find((l) => l.startsWith("{\"url\""))

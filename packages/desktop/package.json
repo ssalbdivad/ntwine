@@ -3,13 +3,13 @@
   "productName": "ntwine",
   "version": "0.0.0",
   "private": true,
-  "description": "ntwine in an Electron window, for the dev loop: a window onto the board `nub run dev` serves",
+  "description": "ntwine in an Electron window, for the dev loop: a window onto the board `pnpm run dev` serves",
   "license": "MIT",
   "author": "David Blass",
   "type": "module",
   "main": "dist/main.mjs",
   "scripts": {
-    "dev": "nub scripts/dev.ts"
+    "dev": "node scripts/dev.ts"
   },
   "devDependencies": {
     "@ntwine/server": "workspace:*",

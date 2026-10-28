@@ -9,7 +9,7 @@
 // dirty tree share a label.
 //
 // The same record is written to `dist/build.json`, which ships in the .vsix. A window keeps running the
-// code it loaded, so when `nub run vscode:install` puts a new build on disk the window offers to reload
+// code it loaded, so when `pnpm run vscode:install` puts a new build on disk the window offers to reload
 // (`installedBuild`): it compares the id on disk with its own.
 //
 // Pure node, no `vscode`: build-info.test.ts runs it over folders laid out the way VS Code lays out an
@@ -35,7 +35,7 @@ export interface BuildInfo {
 export const BUILD_FILE = join("dist", "build.json")
 
 // esbuild's `define` replaces this identifier with the build's record. Run from source (the unit tests,
-// `nub` on a module) it is not defined, and the build reads as the source tree's.
+// `node` on a module) it is not defined, and the build reads as the source tree's.
 declare const __NTWINE_BUILD__: BuildInfo | undefined
 
 /** This bundle's build, or — run from source, never built — a stand-in that names no commit. */

@@ -23,10 +23,16 @@ export function probeHostMacOSServices(): Promise<boolean> {
 export class CodexExecutionHealth {
   private readonly checking = new WeakMap<ExecutionHealthConnection, Promise<void>>()
 
+  private readonly platform: NodeJS.Platform
+  private readonly hostProbe: () => Promise<boolean>
+
   constructor(
-    private readonly platform: NodeJS.Platform = process.platform,
-    private readonly hostProbe: () => Promise<boolean> = probeHostMacOSServices,
-  ) {}
+    platform: NodeJS.Platform = process.platform,
+    hostProbe: () => Promise<boolean> = probeHostMacOSServices,
+  ) {
+    this.platform = platform
+    this.hostProbe = hostProbe
+  }
 
   check(connection: ExecutionHealthConnection, scope: string): Promise<void> {
     if (this.platform !== "darwin") return Promise.resolve()

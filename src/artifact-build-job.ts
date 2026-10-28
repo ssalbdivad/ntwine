@@ -17,7 +17,7 @@ import { promoteCurrentSourceArtifact } from "./artifacts.ts";
  * So the supervisor re-runs its own entry with ARTIFACT_BUILD_JOB_ENV set, and that entry hands off
  * to runArtifactBuildJob before it parses an argument or touches a project. Re-running the entry
  * rather than adding one keeps a single file valid in both shapes the launcher runs in: source under
- * nub (whose loader rides NODE_OPTIONS, which the child inherits) and the bundled artifact, where
+ * node (which strips the types itself, so the child needs no loader) and the bundled artifact, where
  * there is no separate module to point at — see DETACHED_DAEMON_ENTRIES for why that list stays short.
  */
 export const ARTIFACT_BUILD_JOB_ENV = "NTWINE_ARTIFACT_BUILD_JOB";
@@ -42,7 +42,7 @@ type ArtifactBuildResult =
 export function runArtifactBuildJob(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = env[ARTIFACT_BUILD_JOB_ENV];
   if (!raw) return false;
-  // The build's own subprocesses (nub typecheck, vite, esbuild) inherit the environment; none of them
+  // The build's own subprocesses (pnpm typecheck, vite, esbuild) inherit the environment; none of them
   // is this entry, but nothing downstream should ever see the marker either.
   delete env[ARTIFACT_BUILD_JOB_ENV];
   let result: ArtifactBuildResult;
@@ -86,7 +86,7 @@ export function spawnArtifactBuild(options: SpawnArtifactBuildOptions): Artifact
     {
       env: { ...(options.env ?? process.env), [ARTIFACT_BUILD_JOB_ENV]: JSON.stringify(job) },
       stdio: ["ignore", "pipe", "pipe"],
-      // Its own process group, so cancel() reaches the nub/vite/esbuild grandchildren too, not only
+      // Its own process group, so cancel() reaches the pnpm/tsc/vite/esbuild grandchildren too, not only
       // the job process. Windows has no groups; there the job's own exit has to do.
       detached: process.platform !== "win32",
     }
@@ -101,17 +101,17 @@ export function spawnArtifactBuild(options: SpawnArtifactBuildOptions): Artifact
       // Already gone.
     }
   };
-  // SIGTERM first, never a bare SIGKILL: `nub run` puts each script in a process group of its own,
-  // so `tsc` and vite are NOT in the job's group, and the only way to reach them is nub forwarding
-  // the signal — which SIGKILL never gives it a chance to do. Measured on a real sandbox: a group
+  // SIGTERM first, never a bare SIGKILL: a script runner that puts each script in a process group of
+  // its own (nub did, until 2026-10-28) leaves `tsc` and vite OUTSIDE the job's group, and the only way
+  // to reach them is the runner forwarding the signal — which SIGKILL never gives it a chance to do. Measured on a real sandbox: a group
   // SIGKILL left `tsc -b` running after the launcher had exited.
   const cancel = () => {
     signalGroup("SIGTERM");
     setTimeout(() => signalGroup("SIGKILL"), 5_000).unref();
   };
   // A launcher that exits mid-build (a stop signal, the drain finishing) must not leave a detached
-  // build behind writing into the artifact cache. Only the SIGTERM can be sent from `exit`; nub
-  // forwards it and the job's own default action is to die.
+  // build behind writing into the artifact cache. Only the SIGTERM can be sent from `exit`; a
+  // runner forwards it and the job's own default action is to die.
   const onExit = () => signalGroup("SIGTERM");
   process.once("exit", onExit);
   const result = new Promise<{ candidate: string; previous?: string }>((resolve, reject) => {

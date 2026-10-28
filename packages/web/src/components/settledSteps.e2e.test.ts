@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 // Opt-in, like every other e2e here: start `vite` in packages/web and point this at its origin (or run
-// `nub run test:e2e`, which does both).
-//   cd packages/web && nubx vite --port 5234 --strictPort --host 127.0.0.1 &
-//   NTWINE_SETTLED_STEPS_E2E_URL=http://127.0.0.1:5234 nub --test src/components/settledSteps.e2e.test.ts
+// `pnpm run test:e2e`, which does both).
+//   cd packages/web && pnpm exec vite --port 5234 --strictPort --host 127.0.0.1 &
+//   NTWINE_SETTLED_STEPS_E2E_URL=http://127.0.0.1:5234 node --test src/components/settledSteps.e2e.test.ts
 const baseUrl = process.env.NTWINE_SETTLED_STEPS_E2E_URL
 
 // A STEPS CARD OUTLIVES ITS REST (2026-10-08, maintainer: "We need to continue showing the to do

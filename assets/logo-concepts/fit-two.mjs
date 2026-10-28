@@ -16,7 +16,7 @@
 // result as G1-continuous cubic segments, where tangent continuity is structural
 // and curvature can only vary as fast as a cubic allows.
 //
-//   nub fit-two.mjs
+//   node fit-two.mjs
 
 import { execFileSync } from "node:child_process"
 import { mkdirSync, realpathSync, writeFileSync } from "node:fs"

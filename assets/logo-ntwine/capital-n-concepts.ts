@@ -3,8 +3,8 @@
 // hairpins so the threads can turn without folding over themselves. The last two draw the N's three
 // strokes as three separate threads woven through each other.
 //
-//   nub assets/logo-ntwine/capital-n-concepts.ts           -> ntwine-capital-n.html (+ out/capital-n/)
-//   nub assets/logo-ntwine/capital-n-concepts.ts --shoot   also screenshot the page to out/capital-n/sheet.png
+//   node assets/logo-ntwine/capital-n-concepts.ts           -> ntwine-capital-n.html (+ out/capital-n/)
+//   node assets/logo-ntwine/capital-n-concepts.ts --shoot   also screenshot the page to out/capital-n/sheet.png
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { GOLD, smoothPath, TRI, wovenTile, type Paint, type Vec, type Woven } from "./lib.ts"
@@ -19,8 +19,10 @@ const DEG = Math.PI / 180
 
 class Turtle {
   pts: Path
-  constructor(start: Vec, public a: number) {
+  a: number
+  constructor(start: Vec, a: number) {
     this.pts = [start]
+    this.a = a
   }
   get p(): Vec {
     return this.pts[this.pts.length - 1]
@@ -244,7 +246,7 @@ await writeSheet(
     title: "ntwine mark: the plait as a capital N",
     heading: "Ten N's",
     intro:
-      "N1 to N8 lay the plait's threads along one N stroke, its corners rounded into hairpins so the threads turn without folding; N9 and N10 draw the three strokes as three separate threads woven through each other. Rebuild with <code>nub assets/logo-ntwine/capital-n-concepts.ts</code>.",
+      "N1 to N8 lay the plait's threads along one N stroke, its corners rounded into hairpins so the threads turn without folding; N9 and N10 draw the three strokes as three separate threads woven through each other. Rebuild with <code>node assets/logo-ntwine/capital-n-concepts.ts</code>.",
     reference: [entryOf(lowercase.find((c) => c.id === "n9")!, "ntwine n concept. Rebuild with assets/logo-ntwine/n-concepts.ts;")],
   },
   [...strokes.map((c) => entryOf(c, "ntwine capital N concept. Rebuild with assets/logo-ntwine/capital-n-concepts.ts;")), ...loose.map(looseEntry)],

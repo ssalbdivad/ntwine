@@ -24,7 +24,7 @@
 // it is centred by construction, so if IT does not measure centred, the instrument is off and the run
 // fails rather than quietly subtracting a bogus offset.
 //
-// Usage: nub scripts/verify-md-task-glyph-centering.mjs --url=http://localhost:5412/markdown-task-fixture.html
+// Usage: node scripts/verify-md-task-glyph-centering.mjs --url=http://localhost:5412/markdown-task-fixture.html
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 

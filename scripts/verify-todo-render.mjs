@@ -12,7 +12,7 @@
 // wraps instead of clipping; and the checkbox glyph's INK sits on the optical centre of the text beside
 // it (the alignment gate).
 //
-// Usage: nub scripts/verify-todo-render.mjs --port=4931 --home=/abs/temp-home [--shots=/abs/dir]
+// Usage: node scripts/verify-todo-render.mjs --port=4931 --home=/abs/temp-home [--shots=/abs/dir]
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"

@@ -724,18 +724,19 @@ function commandFailureOutput(error: unknown): string {
 }
 
 function runArtifactCommand(args: string[], source: string): void {
+  // `["run", …]` is a package script, through pnpm; anything else is a script file, run by this same
+  // node, so every build step sees the runtime the launcher itself runs on. Successful tool chatter
+  // stays hidden behind the launcher progress UI, while failures retain their useful trailing output.
+  const [command, commandArgs] = args[0] === "run" ? ["pnpm", args] : [process.execPath, args];
   try {
-    // Nub owns the build execution so both Vite/Rolldown and esbuild run through the same Node 26
-    // loader contract as the source launcher. Successful tool chatter stays hidden behind the
-    // launcher progress UI, while failures retain their useful trailing output.
-    execFileSync("nub", ["--cwd", source, ...args], {
+    execFileSync(command, commandArgs, {
       cwd: source,
       stdio: ["ignore", "pipe", "pipe"],
     });
   } catch (error) {
     const detail = commandFailureOutput(error);
     throw new Error(
-      `Command failed: nub ${args.join(" ")} from ${source}${
+      `Command failed: ${args[0] === "run" ? "pnpm" : "node"} ${args.join(" ")} from ${source}${
         detail ? `\n${detail}` : ""
       }`
     );

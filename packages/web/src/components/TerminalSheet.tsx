@@ -97,7 +97,7 @@ export function TerminalSubtitle({ cwd, checkout, homeDir }: { cwd: string; chec
   )
 }
 
-/** A named terminal's drawer subtitle: `$ nub run dev` in mono, then its folder (TerminalSubtitle). The command
+/** A named terminal's drawer subtitle: `$ pnpm run dev` in mono, then its folder (TerminalSubtitle). The command
  *  gives way first — the name above already says which program it is — and the folder keeps its last part.
  *  The command is sized from zero (`w-0 grow`, as TerminalSubtitle's head is) so the line's min-content stays
  *  the folder's kept part: as a plain shrinking run its whole width was the line's min-content, and under 28rem

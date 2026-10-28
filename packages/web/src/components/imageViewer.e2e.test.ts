@@ -9,7 +9,7 @@ import type { Page } from "puppeteer"
 // first and served back through request interception — an <img> load is not a fetch the fixture could
 // stub — so the fit/actual-size geometry is measured on the shape of picture a worker actually sends.
 //
-//   NTWINE_IMAGE_VIEWER_E2E_URL=http://127.0.0.1:<vite port> nub --test <this file>
+//   NTWINE_IMAGE_VIEWER_E2E_URL=http://127.0.0.1:<vite port> node --test <this file>
 //   NTWINE_IMAGE_VIEWER_SHOTS=<dir> also writes the review screenshots there.
 const baseUrl = process.env.NTWINE_IMAGE_VIEWER_E2E_URL
 const shots = process.env.NTWINE_IMAGE_VIEWER_SHOTS

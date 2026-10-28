@@ -5,7 +5,7 @@
 // and asserts each policy outcome emits the right decision AND records it on the marker, and (2) meets
 // the tailer's side of the contract: only a DEFERRED marker counts as a human block.
 //
-// Usage: nub scripts/verify-perm-marker.mjs   (exit 0 = all green)
+// Usage: node scripts/verify-perm-marker.mjs   (exit 0 = all green)
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"

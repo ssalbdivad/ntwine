@@ -2,8 +2,8 @@
 // candidates with what the round taught. Vector views are inlined as SVG data URIs (each <img> keeps its
 // own mask ids); the 16 and 32px views are real rasterizations, inlined as PNG.
 //
-//   nub assets/logo-ntwine/concepts.ts           -> ntwine-concepts.html (+ out/ with every svg and png)
-//   nub assets/logo-ntwine/concepts.ts --shoot   also screenshot the page to out/sheet.png
+//   node assets/logo-ntwine/concepts.ts           -> ntwine-concepts.html (+ out/ with every svg and png)
+//   node assets/logo-ntwine/concepts.ts --shoot   also screenshot the page to out/sheet.png
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -98,7 +98,7 @@ ${await row(render, "final", "App icon", "packages/web/public/favicon.svg", favi
   .vsc { background: #181818; padding: 12px; border-radius: 8px; display: flex; gap: 12px; align-items: center; }
 </style></head><body>
 <h1>ntwine mark</h1>
-<p>Every candidate is three strands laid along one centreline, with exact crossings and a real over/under. Each row: the 512 art at 256 and 180, then 32 and 16 rasterized and upscaled with nearest-neighbour, then the 16 and 32 at true size on light and dark tab strips. Rebuild with <code>nub assets/logo-ntwine/concepts.ts</code>.</p>
+<p>Every candidate is three strands laid along one centreline, with exact crossings and a real over/under. Each row: the 512 art at 256 and 180, then 32 and 16 rasterized and upscaled with nearest-neighbour, then the 16 and 32 at true size on light and dark tab strips. Rebuild with <code>node assets/logo-ntwine/concepts.ts</code>.</p>
 ${sections.join("\n")}
 </body></html>
 `,

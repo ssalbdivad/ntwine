@@ -1,21 +1,21 @@
-// THE DESKTOP WINDOW'S DEV BOARD: `nub run dev` started as a terminal thread before any server exists.
+// THE DESKTOP WINDOW'S DEV BOARD: `pnpm run dev` started as a terminal thread before any server exists.
 //
 // The window (packages/desktop/src/launch.ts) runs this when its search finds no board. It forks a terminal
-// daemon (backend/terminal-host.ts) running `nub run dev` in this checkout, exactly as the board forks one
-// for a `$ nub run dev` typed in the prompt box, and leaves a CLAIM beside it: the row it wants. The dev
+// daemon (backend/terminal-host.ts) running `pnpm run dev` in this checkout, exactly as the board forks one
+// for a `$ pnpm run dev` typed in the prompt box, and leaves a CLAIM beside it: the row it wants. The dev
 // server it starts is the first server to boot, and its terminal runner turns the claim into a top-level
 // terminal thread (thread-terminals.ts) — drawer, live output, the R / L keys src/dev.ts reads — then adopts
 // the daemon like any other. So the dev board, its keys and its ctrl-c live on the board it serves, and
 // the daemon outlives every control-plane recycle, as every terminal does.
 //
 // ONE TERMINAL, REUSED. `<stateDir>/dev-terminal.json` names the terminal the last start used, so the next
-// one (after a reboot, or after the human stopped it) is a fresh run of the SAME thread — `@nub-run-dev`,
-// not an interrupted `@nub-run-dev` in Ready every morning beside a new `@nub-run-dev-2`. Its run number
+// one (after a reboot, or after the human stopped it) is a fresh run of the SAME thread — `@pnpm-run-dev`,
+// not an interrupted `@pnpm-run-dev` in Ready every morning beside a new `@pnpm-run-dev-2`. Its run number
 // is past every run its files have seen; the claim puts the row on it (claimRowAction).
 //
 // A run that ended with no server to file it — the dev supervisor itself died, or the last start failed
 // before a board came up — left its last screen in its exit record, and the next run opens on that
-// screen under its own `$ nub run dev` line, as a follow-up line in a terminal does: the crash is still
+// screen under its own `$ pnpm run dev` line, as a follow-up line in a terminal does: the crash is still
 // there to read once a board is back. (A control plane that crashes is a different case, and needs
 // nothing: the supervisor and the daemon carry on, the daemon keeps the error in its replay, and the
 // next control plane adopts it with that screen.)
@@ -28,7 +28,7 @@
 // which the window appends to its log. The claim and the exit record stay, so the next server to boot
 // files that failure on the thread, where the human reads it.
 //
-//   nub packages/server/src/dev-terminal.ts [--command="nub run dev -- --port 9400"]
+//   node packages/server/src/dev-terminal.ts [--command="pnpm run dev -- --port 9400"]
 import { randomBytes } from "node:crypto"
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, writeSync } from "node:fs"
 import { userInfo } from "node:os"
@@ -50,7 +50,7 @@ import { servedByAnotherProcess } from "./project-launch.ts"
 import { resolveProject } from "./project.ts"
 import { commandEnvironment, commandShell, followUpScreen, plainScreen, startFailureScreen } from "./thread-terminals.ts"
 
-export const DEV_TERMINAL_COMMAND = "nub run dev"
+export const DEV_TERMINAL_COMMAND = "pnpm run dev"
 
 /** The terminal the last start used. */
 export interface DevTerminalMemo {

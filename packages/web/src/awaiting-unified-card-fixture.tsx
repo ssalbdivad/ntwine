@@ -10,7 +10,7 @@
 // one object and varies only two treatments: whether the card keeps a TITLE ROW above the prose, and
 // whether the divider/footer are INSET hairlines or FULL-BLEED bands.
 //
-//   nubx vite --port 5479 --strictPort      (from packages/web)
+//   pnpm exec vite --port 5479 --strictPort      (from packages/web)
 //   http://localhost:5479/awaiting-unified-card-fixture.html?font=sans   — ?font=mono for the other
 //                                                           ?only=B4    — one variant, on its own
 //

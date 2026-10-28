@@ -45,7 +45,7 @@ gh workflow run workers-deploy.yml --ref main -f target=both
 **Then check the relay that is now serving.** A green run means the upload happened, and the drift check means CI made it; neither says a board loads through it.
 
 ```sh
-nub scripts/verify-relay-live.mjs
+node scripts/verify-relay-live.mjs
 ```
 
 [`verify-relay-live.mjs`](../../scripts/verify-relay-live.mjs) puts a toy board behind the real `*.ntwine.app` under a private name of its own and asks for everything the protocol carries, each request on a deadline. Nothing else looks at what the deployed Worker does: on 2026-10-05 the live relay lacked two fixes `main` had carried for five days, every revalidation came back as a 504, and a phone that had the board cached loaded a blank page while a fresh browser loaded fine (upstream issue #49).
@@ -61,10 +61,10 @@ Two things that will waste your time otherwise:
 ## Verifying
 
 ```sh
-nub --test packages/relay/src/board-socket.test.ts packages/relay/src/worker.test.ts
-nub scripts/verify-relay-e2e.mjs        # the frames, on real workerd
-nub scripts/verify-relay-gate.mjs       # a relayed terminal against the REAL access gate
-nub scripts/verify-relay-live.mjs       # the DEPLOYED relay, from outside — after every deploy
+node --test packages/relay/src/board-socket.test.ts packages/relay/src/worker.test.ts
+node scripts/verify-relay-e2e.mjs        # the frames, on real workerd
+node scripts/verify-relay-gate.mjs       # a relayed terminal against the REAL access gate
+node scripts/verify-relay-live.mjs       # the DEPLOYED relay, from outside — after every deploy
 ```
 
 The unit tests drive the Durable Object's state machine against fakes, which proves each half and

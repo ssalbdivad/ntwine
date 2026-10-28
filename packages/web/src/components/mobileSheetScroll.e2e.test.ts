@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-// NTWINE_MOBILE_SHEET_SCROLL_E2E_URL=<vite origin> — `nub run test:e2e` sets it.
+// NTWINE_MOBILE_SHEET_SCROLL_E2E_URL=<vite origin> — `pnpm run test:e2e` sets it.
 const baseUrl = process.env.NTWINE_MOBILE_SHEET_SCROLL_E2E_URL
 
 // A `.md` reader opened from a thread on a phone rendered and would not scroll: the thread sheet is a

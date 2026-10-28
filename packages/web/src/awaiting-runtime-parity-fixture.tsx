@@ -17,7 +17,7 @@
 // shit"). So the page also DIFFS the two subtrees itself, with the footer band stripped, and prints
 // `identical` or the first divergence — a picture proves the shapes match, the diff proves the markup does.
 //
-//   nubx vite --port 5479 --strictPort      (from packages/web)
+//   pnpm exec vite --port 5479 --strictPort      (from packages/web)
 //   http://localhost:5479/awaiting-runtime-parity-fixture.html?font=sans   — ?font=mono for the other
 //
 // Nothing real is hit: rpc is stubbed exactly as the fence gallery does it.

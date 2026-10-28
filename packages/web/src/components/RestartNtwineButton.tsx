@@ -102,7 +102,7 @@ const ANCHORED_PANEL =
 //   same 14.51px off that corner as the left one, so its apex can come no nearer than 35px from the edge.
 //
 // RE-DERIVE, don't re-guess, if the corner radius, the arrow size, the panel border or that ink trim
-// moves. `nub scripts/shot.mjs http://localhost:<vite>/restart-ntwine-button-fixture.html?failure
+// moves. `node scripts/shot.mjs http://localhost:<vite>/restart-ntwine-button-fixture.html?failure
 // out.png --clip=.rotate-45 --pad=18 --dsf=8` is the crop that shows the join.
 const PANEL_ARROW = "absolute -top-[7px] left-4 hidden h-3 w-3 rotate-45 border-l border-t bg-elevated sm:block"
 
@@ -205,7 +205,7 @@ const PREVIOUS_KEPT: RestartFailureOutcome = { kind: "previous-kept" }
  * and for a durable ntwine-dev rollback, but NOT for a successor that came up and then failed to
  * start its board: by then the previous version is gone, and saying it kept running was a lie.
  *
- * The supervisor's `message` is raw build output: a `nub run typecheck` failure arrives as several
+ * The supervisor's `message` is raw build output: a `pnpm run typecheck` failure arrives as several
  * hundred characters of absolute snapshot paths wrapped around the one `error TS…` line that actually
  * says what broke. Dumped into a paragraph it filled a 23rem column with ~15 lines of prose-set path
  * fragments. It reads as what it is — a terminal excerpt — inside a scrolling mono block, and the card

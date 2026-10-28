@@ -1,4 +1,4 @@
-#!/usr/bin/env nub
+#!/usr/bin/env node
 /**
  * The whole product, against the LIVE registrar and the LIVE relay.
  *

@@ -12,7 +12,7 @@
 // No broker record and no stand-in daemon: nothing here needs the runtime to read as live, so this
 // script spawns no process and leaves nothing to kill.
 //
-// Usage: nub scripts/seed-overlay-e2e.mjs --home=/abs/temp-home [--cwd=/abs/project]
+// Usage: node scripts/seed-overlay-e2e.mjs --home=/abs/temp-home [--cwd=/abs/project]
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -23,7 +23,7 @@ const flags = Object.fromEntries(
 )
 const { home, cwd = process.cwd() } = flags
 if (!home) {
-  console.error("usage: nub scripts/seed-overlay-e2e.mjs --home=/abs/temp-home [--cwd=/abs/project]")
+  console.error("usage: node scripts/seed-overlay-e2e.mjs --home=/abs/temp-home [--cwd=/abs/project]")
   process.exit(1)
 }
 

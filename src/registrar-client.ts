@@ -50,11 +50,10 @@ const ADVICE: Record<string, string> = {
 };
 
 export class ClaimError extends Error {
-  constructor(
-    message: string,
-    readonly code: string,
-  ) {
+  readonly code: string;
+  constructor(message: string, code: string) {
     super(message);
+    this.code = code;
     this.name = "ClaimError";
   }
 }

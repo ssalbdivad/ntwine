@@ -15,10 +15,10 @@ import type { Browser } from "puppeteer"
 // Opt-in, and unlike every other *.e2e.test.ts here it needs NOTHING running: it boots its own disposable
 // ntwine stacks (`scripts/adhoc-stack.mjs`, sandbox HOME, throwaway port), seeds each, renders it in its own
 // headless Chrome and tears all of it down, pass or fail. One command runs it end to end:
-//   NTWINE_SIDEBAR_FIT_E2E=1 nub run test packages/web/src/sidebarFit.e2e.test.ts
+//   NTWINE_SIDEBAR_FIT_E2E=1 pnpm run test packages/web/src/sidebarFit.e2e.test.ts
 // Set NTWINE_SIDEBAR_FIT_E2E_SHOTS=/abs/dir to also keep a screenshot of every measurement. It is listed in
 // scripts/e2e-web.mjs's NEEDS_REAL_STACK (it drives the real app, not a fixture page), so neither
-// `nub run test` nor `nub run test:e2e` boots its stacks.
+// `pnpm run test` nor `pnpm run test:e2e` boots its stacks.
 //
 // THE BAR. All projects lists every project's threads by what they need (components/TierList.tsx) and
 // budgets its own height (lib/sidebarBudget.ts): at the heavy load (17 projects, 70 open threads) its

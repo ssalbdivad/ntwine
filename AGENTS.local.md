@@ -13,7 +13,7 @@ dispatches. If you find yourself about to open a PR, STOP — in this repo that 
 
 Land finished work on this machine's local `main` instead: work directly on `main`, or do
 isolated/messy work in a git worktree on a local branch under `.ntwine/worktrees/`
-(`git worktree add .ntwine/worktrees/<slug> -b <slug>`, then `nub install` inside it before you run
+(`git worktree add .ntwine/worktrees/<slug> -b <slug>`, then `pnpm install` inside it before you run
 anything — a nested worktree with no `node_modules` of its own silently imports the main checkout's
 `@ntwine/*` packages instead of failing) and, when it's done and you're confident, merge it back
 yourself (`git switch main && git merge <slug>`) and remove the worktree
@@ -29,7 +29,7 @@ through the link in `AGENTS.md` rather than loading it automatically.)
 **Every worktree lives in `.ntwine/worktrees/<slug>/`, inside this checkout, and nowhere else** — never
 `/tmp`, never a sibling folder, never `.claude/worktrees/`. `.ntwine/` is ignored already, and the test
 runner's globs, `tsc -b`, the dev server's watcher and ripgrep all stay out of it (checked 2026-10-11).
-Run `nub install` in a new worktree before anything else: until you do, an `@ntwine/*` import there
+Run `pnpm install` in a new worktree before anything else: until you do, an `@ntwine/*` import there
 resolves through the parent `node_modules` to the SHARED tree's packages, and the worktree quietly
 tests `main`'s code instead of its own. A worktree you find anywhere else predates this rule
 (2026-10-11) and belongs to someone: leave it. Its owner moves it, once nothing is running in it, with

@@ -9,7 +9,7 @@
 // production ones — not a hand-built props fixture. The fence is written AFTER arming, because the
 // timer ids are server-minted and the fence must name them.
 //
-// Usage: nub scripts/seed-timer-park.mjs --home=/abs/temp-home --port=NNNN
+// Usage: node scripts/seed-timer-park.mjs --home=/abs/temp-home --port=NNNN
 import { execFileSync, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, writeFileSync, globSync } from "node:fs"
@@ -22,7 +22,7 @@ const flags = Object.fromEntries(
 )
 const { home, port, cwd = "/Users/me/Documents/projects/ntwine" } = flags
 if (!home || !port) {
-  console.error("usage: nub scripts/seed-timer-park.mjs --home=/abs/temp-home --port=NNNN")
+  console.error("usage: node scripts/seed-timer-park.mjs --home=/abs/temp-home --port=NNNN")
   process.exit(1)
 }
 

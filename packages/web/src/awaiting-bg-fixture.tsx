@@ -20,7 +20,7 @@ import "./styles.css"
 // wording below is reachable only in the drawer. `?agents=1` renders it anyway — it is
 // the same component and the same card, and the two voices are worth eyeballing side by side.
 //
-// On a real stack `nub scripts/seed-resting-thread.mjs --home=… --socket=…` against an adhoc stack seeds
+// On a real stack `node scripts/seed-resting-thread.mjs --home=… --socket=…` against an adhoc stack seeds
 // a thread at rest with live children; its drawer, /thread/<slug>, then shows the same card.
 
 const SLUG = "awaiting-bg-demo"

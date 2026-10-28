@@ -1,4 +1,4 @@
-#!/usr/bin/env nub
+#!/usr/bin/env node
 /**
  * The whole claim loop, over a real socket: CLI client → HTTP → the real Worker handler → Cloudflare.
  *

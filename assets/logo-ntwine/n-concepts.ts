@@ -1,8 +1,8 @@
 // Ten directions for an ntwine mark that spells a lowercase n: the shipped plait's threads, laid along an
 // n's skeleton instead of a straight column. Same renderer (lib.ts), same tile, same teal.
 //
-//   nub assets/logo-ntwine/n-concepts.ts           -> ntwine-n.html (+ out/n/ with every svg and png)
-//   nub assets/logo-ntwine/n-concepts.ts --shoot   also screenshot the page to out/n/sheet.png
+//   node assets/logo-ntwine/n-concepts.ts           -> ntwine-n.html (+ out/n/ with every svg and png)
+//   node assets/logo-ntwine/n-concepts.ts --shoot   also screenshot the page to out/n/sheet.png
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -310,7 +310,7 @@ async function main() {
       out,
       title: "ntwine mark: the plait as an n",
       heading: "Ten n's",
-      intro: "The shipped mark's threads, laid along a lowercase n instead of a straight column. Rebuild with <code>nub assets/logo-ntwine/n-concepts.ts</code>.",
+      intro: "The shipped mark's threads, laid along a lowercase n instead of a straight column. Rebuild with <code>node assets/logo-ntwine/n-concepts.ts</code>.",
     },
     candidates.map((c) => entryOf(c, "ntwine n concept. Rebuild with assets/logo-ntwine/n-concepts.ts;")),
   )

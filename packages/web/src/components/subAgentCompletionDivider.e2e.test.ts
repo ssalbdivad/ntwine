@@ -15,7 +15,7 @@ const baseUrl = process.env.NTWINE_SUBAGENT_COMPLETION_E2E_URL
 //
 // Run it against a plain vite over packages/web:
 //   npx vite --port 5211 --strictPort --host 127.0.0.1
-//   NTWINE_SUBAGENT_COMPLETION_E2E_URL=http://127.0.0.1:5211 nub --test …
+//   NTWINE_SUBAGENT_COMPLETION_E2E_URL=http://127.0.0.1:5211 node --test …
 test("a finished sub-agent draws the shell's wake divider, and every sub-agent title opens the drawer", {
   skip: !baseUrl,
   timeout: 120_000,

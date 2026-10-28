@@ -66,23 +66,45 @@ export interface AcpConnectionOptions {
 }
 
 export class AcpRequestError extends Error {
-  constructor(readonly code: number, message: string, readonly data?: unknown) { super(message) }
+  readonly code: number
+  readonly data?: unknown
+  constructor(code: number, message: string, data?: unknown) {
+    super(message)
+    this.code = code
+    this.data = data
+  }
 }
 
 /** The agent answered a request with a JSON-RPC error. `code` is the agent's. */
 export class AcpRemoteError extends Error {
-  constructor(readonly method: string, readonly error: JsonRpcError) {
+  readonly method: string
+  readonly error: JsonRpcError
+  constructor(method: string, error: JsonRpcError) {
     super(`${method}: ${error.message} (${error.code})`)
+    this.method = method
+    this.error = error
   }
 }
 
 /** The process ended (or never started) while a request was pending. */
 export class AcpConnectionClosed extends Error {
-  constructor(readonly method: string, readonly reason: string) { super(`${method}: agent connection closed (${reason})`) }
+  readonly method: string
+  readonly reason: string
+  constructor(method: string, reason: string) {
+    super(`${method}: agent connection closed (${reason})`)
+    this.method = method
+    this.reason = reason
+  }
 }
 
 export class AcpRequestTimeout extends Error {
-  constructor(readonly method: string, readonly timeoutMs: number) { super(`${method}: no response from the agent within ${Math.round(timeoutMs / 1000)}s`) }
+  readonly method: string
+  readonly timeoutMs: number
+  constructor(method: string, timeoutMs: number) {
+    super(`${method}: no response from the agent within ${Math.round(timeoutMs / 1000)}s`)
+    this.method = method
+    this.timeoutMs = timeoutMs
+  }
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000
@@ -104,8 +126,12 @@ export class AcpConnection {
   private closedReason: string | undefined
   private readonly exitPromise: Promise<{ code: number | null; signal: NodeJS.Signals | null }>
   private readonly stderrTail: string[] = []
+  readonly process: AcpProcess
+  private readonly options: AcpConnectionOptions
 
-  constructor(readonly process: AcpProcess, private readonly options: AcpConnectionOptions) {
+  constructor(process: AcpProcess, options: AcpConnectionOptions) {
+    this.process = process
+    this.options = options
     const maxLine = options.maxLineBytes ?? DEFAULT_MAX_LINE_BYTES
     this.exitPromise = new Promise((resolve) => {
       process.on("exit", (code, signal) => {

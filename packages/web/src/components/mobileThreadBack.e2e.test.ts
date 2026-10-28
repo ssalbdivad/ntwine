@@ -6,9 +6,9 @@ import test from "node:test"
 // real board, real history — each section below is a route that once left a dead or looping Back.
 //
 // An isolated adhoc-stack seeded by scripts/seed-done-thread.mjs. Never point at a live board:
-//   nub scripts/adhoc-stack.mjs --port=<port>        (prints the board url and the sandbox HOME)
-//   nub scripts/seed-done-thread.mjs --home=<HOME> --port=<port>
-//   NTWINE_MOBILE_THREAD_BACK_E2E_URL=http://127.0.0.1:<port>/project/<slug> nub --test <this file>
+//   node scripts/adhoc-stack.mjs --port=<port>        (prints the board url and the sandbox HOME)
+//   node scripts/seed-done-thread.mjs --home=<HOME> --port=<port>
+//   NTWINE_MOBILE_THREAD_BACK_E2E_URL=http://127.0.0.1:<port>/project/<slug> node --test <this file>
 const url = process.env.NTWINE_MOBILE_THREAD_BACK_E2E_URL
 const recordingDir = process.env.NTWINE_MOBILE_THREAD_BACK_RECORD_DIR
 

@@ -2,12 +2,12 @@
 // server goes away. Electron itself is not driven (it cannot run headless here, and the window's part is
 // one spawn): the harness runs the window's OWN command, `serverCommand()` from packages/desktop/src/
 // launch.ts, exactly as `startServer()` spawns it, against a sandbox HOME. The one change is the dev
-// command (`--command=`), which adds a port so the real `nub run dev` on 9393 is never touched.
+// command (`--command=`), which adds a port so the real `pnpm run dev` on 9393 is never touched.
 //
 // What it asserts, through the real RPC board, the real /term websocket and the process table:
 //   1. the starter exits 0, a dev board answers and passes the window's ownership check (server.ts
 //      ownedNtwine, what its search requires before it loads a port), and the board lists ONE top-level terminal thread
-//      `@nub-run-dev` running the dev server, whose drawer shows its output and the R / L line (which
+//      `@pnpm-run-dev` running the dev server, whose drawer shows its output and the R / L line (which
 //      only a TTY prints);
 //   2. a control-plane recycle (a source edit) with the daemon past the audit's 60s age guard: the
 //      same thread, the same daemon pid, no second row. NEGATIVE CONTROL: an unclaimed daemon forked
@@ -18,7 +18,7 @@
 //      makes run 2 of the SAME thread, opening on run 1's last screen;
 //   5. Ctrl-C typed into the drawer reaches the dev server, which stops: the port refuses.
 //
-//   nub scripts/verify-dev-terminal.ts [--port=N] [--keep]
+//   node scripts/verify-dev-terminal.ts [--port=N] [--keep]
 //
 // Everything it starts is ended by exact pid; the sandbox is deleted unless --keep.
 import { execFileSync, spawn } from "node:child_process"
@@ -63,21 +63,20 @@ const home = join(root, "home")
 const bin = join(root, "bin")
 mkdirSync(home, { recursive: true })
 mkdirSync(bin, { recursive: true })
-const realNub = execFileSync("sh", ["-c", "command -v nub"], { encoding: "utf8" }).trim()
-// `nub` on the sandbox PATH: the real one, with what scripts/adhoc-stack.mjs sets to keep a disposable
+// `node` on the sandbox PATH: the real one (the one running this script), with what scripts/adhoc-stack.mjs sets to keep a disposable
 // ntwine off the machine's real processes. The terminal strips NTWINE_* from its environment (a
 // terminal must not inherit the server's identity), so the dev server gets them here, from its PATH.
-writeFileSync(join(bin, "nub"), `#!/bin/sh
+writeFileSync(join(bin, "node"), `#!/bin/sh
 export NTWINE_ORPHAN_REAPER_OFF=1 NTWINE_WAKERS_OFF=1 NTWINE_TENANT_PRIME_OFF=1
 export NTWINE_RUNTIMES_DIR='${join(ntwinePaths().cache, "runtimes")}' NTWINE_VITE_CACHE_DIR=node_modules/.vite-scratch
-exec '${realNub}' "$@"
+exec '${process.execPath}' "$@"
 `)
-chmodSync(join(bin, "nub"), 0o755)
-// As scripts/dev.ts records it: this terminal's PATH less what `nub run` put on it.
+chmodSync(join(bin, "node"), 0o755)
+// As scripts/dev.ts records it: this terminal's PATH less what `pnpm run` put on it.
 const path = [bin, ...(process.env.PATH ?? "").split(delimiter).filter((dir) => dir && !dir.includes("node_modules") && !dir.startsWith(tmpdir()))].join(delimiter)
 const env: NodeJS.ProcessEnv = { HOME: home, PATH: path, SHELL: "/bin/bash", USER: process.env.USER, LANG: process.env.LANG ?? "C.UTF-8", TERM: "xterm-256color" }
-const launch: ServerLaunch = { repo: REPO, nub: join(bin, "nub"), path, log: join(root, "desktop-server.log") }
-const COMMAND = `nub run dev -- --port ${PORT}`
+const launch: ServerLaunch = { repo: REPO, node: join(bin, "node"), path, log: join(root, "desktop-server.log") }
+const COMMAND = `pnpm run dev -- --port ${PORT}`
 const paths = ntwinePaths({ home, env })
 
 /** The window's start: its own command, spawned as startServer() spawns it. Resolves with the exit code. */
@@ -161,8 +160,8 @@ try {
   const rows = await terminalThreads()
   check(rows.length === 1 && rows[0]!.id === id, "the board lists exactly one terminal thread, the one the starter made", JSON.stringify(rows.map((r) => r.id)))
   const t = rows[0]?.terminal
-  check(t?.command === COMMAND && t.state === "running" && t.parent === undefined && t.handle === "nub-run-dev" && t.startedBy === "human",
-    "it is a top-level, running `@nub-run-dev` the human started", JSON.stringify(t))
+  check(t?.command === COMMAND && t.state === "running" && t.parent === undefined && t.handle === "pnpm-run-dev" && t.startedBy === "human",
+    "it is a top-level, running `@pnpm-run-dev` the human started", JSON.stringify(t))
   const screen1 = plain(await attachTerm(id, { forMs: 15_000, untilText: /press R|reachable at/ }))
   check(/\[ntwine\] ready at http:\/\/127\.0\.0\.1:\d+/.test(screen1), "its drawer shows the dev server's own output", screen1.match(/\[ntwine\] ready at \S+/)?.[0] ?? screen1.slice(-300))
   check(/press R|reachable at/.test(screen1), "the dev server got a TTY: its R / L keys are wired", screen1.match(/\[ntwine\] (press R[^\r\n]*|reachable at[^\r\n]*)/)?.[0] ?? "")
@@ -203,7 +202,7 @@ try {
   check(alive(daemonPid), "the same daemon throughout", `pid ${daemonPid}`)
 
   // ── 4. the dev supervisor itself dies; the window starts it again ────────────────────────────────
-  // The node process itself, not the `nub` wrappers above it (whose path also says "node").
+  // The node process itself, not the `pnpm` above it (whose command line also says "node").
   const supervisor = sandboxProcesses().find((p) => !p.child && /^(\S*\/)?node\s.*src\/dev\.ts/.test(p.cmd))
   check(supervisor !== undefined, "found the dev supervisor", supervisor ? `pid ${supervisor.pid}` : "")
   for (const p of sandboxProcesses()) if (p.child) owned.add(p.pid)
@@ -219,8 +218,8 @@ try {
   const afterRestart = await terminalThreads()
   check(afterRestart.length === 1 && afterRestart[0]!.id === id && afterRestart[0]!.terminal?.runId === 2 && afterRestart[0]!.terminal?.state === "running",
     "run 2 of the SAME thread, not a second one", JSON.stringify(afterRestart.map((r) => [r.id, r.terminal?.state, r.terminal?.runId, r.terminal?.handle])))
-  const screen4 = plain(await attachTerm(id, { forMs: 15_000, untilText: /\$ nub run dev[\s\S]*ready at/ }))
-  check(/ready at[\s\S]*\$ nub run dev -- --port \d+[\s\S]*ready at/.test(screen4), "it opens on run 1's last screen, then its own `$ nub run dev` line and output",
+  const screen4 = plain(await attachTerm(id, { forMs: 15_000, untilText: /\$ pnpm run dev[\s\S]*ready at/ }))
+  check(/ready at[\s\S]*\$ pnpm run dev -- --port \d+[\s\S]*ready at/.test(screen4), "it opens on run 1's last screen, then its own `$ pnpm run dev` line and output",
     `${(screen4.match(/ready at/g) ?? []).length} ready lines`)
   const daemon2 = readTerminalHostRecord(stateDir, id)?.daemonPid ?? 0
   owned.add(daemon2)

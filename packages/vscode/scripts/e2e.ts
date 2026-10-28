@@ -2,12 +2,12 @@
 // a version) into ~/.cache/ntwine-vscode-e2e with @vscode/test-electron, runs it with the extension under
 // development and e2e/suite.ts as its test runner, and drives both directions of the editor bridge.
 //
-//   nub packages/vscode/scripts/e2e.ts
+//   node packages/vscode/scripts/e2e.ts
 //       FAKE mode: an in-process fake ntwine (e2e/fake-ntwine.ts) the suite asserts against frame by frame.
 //       NTWINE_E2E_VSCODE=oldest runs it on the oldest VS Code the manifest's `engines.vscode` admits,
 //       which is how an API newer than that floor gets caught (focusWindow, 1.128, was one).
 //
-//   nub packages/vscode/scripts/e2e.ts --stack
+//   node packages/vscode/scripts/e2e.ts --stack
 //       STACK mode: boots a disposable two-project ntwine itself (scripts/adhoc-stack.mjs: a sandbox HOME,
 //       a free port, two throwaway git repos), runs REAL mode against the TENANT project — the one the
 //       server did not launch from — with a headless page open on it (e2e/page-claim.ts) that must
@@ -19,14 +19,14 @@
 //       NTWINE_E2E_DISPATCH=1 adds `--creds` and runs the steps that start a real agent.
 //
 //   NTWINE_E2E_ORIGIN=http://127.0.0.1:<port> NTWINE_E2E_PROJECT_DIR=<a registered project's folder> \
-//     nub packages/vscode/scripts/e2e.ts
+//     node packages/vscode/scripts/e2e.ts
 //       REAL mode against an ntwine you started — a disposable one, since it writes a sample file into the
 //       project folder and, with NTWINE_E2E_SET_OPENER=1, sets Local file links to VS Code for the run.
 //       NTWINE_E2E_DISPATCH=1 (+ NTWINE_E2E_THREAD=<slug>) also runs the steps that start or message a
 //       real agent. NTWINE_E2E_PAGE_CLAIMS=1 leaves the prompt-box insert for a real page open on that
 //       ntwine to claim, instead of taking it itself.
 //
-//   nub packages/vscode/scripts/e2e.ts --sidebar [--out=<dir>] [--dev] [--only=c1,c4]
+//   node packages/vscode/scripts/e2e.ts --sidebar [--out=<dir>] [--dev] [--only=c1,c4]
 //       SIDEBAR mode: hands the run to scripts/e2e-sidebar.ts — the extension as its .vsix ships, the REAL
 //       ntwine page framed in the sidebar of a real VS Code, over a disposable two-project ntwine with a
 //       simulated worker, every seam crossed with trusted mouse and keyboard input, and screenshots of
@@ -58,7 +58,7 @@ const repo = resolve(pkg, "..", "..")
 
 if (process.argv.includes("--sidebar")) {
   const args = process.argv.slice(2).filter((arg) => arg !== "--sidebar")
-  const child = spawnSync("nub", [join(dirname(fileURLToPath(import.meta.url)), "e2e-sidebar.ts"), ...args], { stdio: "inherit" })
+  const child = spawnSync(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), "e2e-sidebar.ts"), ...args], { stdio: "inherit" })
   process.exit(child.status ?? 1)
 }
 
@@ -66,7 +66,7 @@ if (process.platform === "linux" && process.env.NTWINE_E2E_UNDER_XVFB !== "1") {
   const env: NodeJS.ProcessEnv = { ...process.env, NTWINE_E2E_UNDER_XVFB: "1" }
   delete env.DISPLAY
   delete env.WAYLAND_DISPLAY
-  const child = spawnSync("xvfb-run", ["-a", "-s", "-screen 0 1600x1000x24", "nub", fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: "inherit", env })
+  const child = spawnSync("xvfb-run", ["-a", "-s", "-screen 0 1600x1000x24", process.execPath, fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: "inherit", env })
   if (child.error) {
     console.error(`xvfb-run could not start (${child.error.message}). Install it (apt install xvfb); this harness never uses the real display.`)
     process.exit(1)
@@ -93,7 +93,7 @@ function vscodeVersion(): string {
   return engines.replace(/^[\^~>=]+/u, "")
 }
 
-const build = spawnSync("nub", ["scripts/build.ts", "--e2e"], { cwd: pkg, stdio: "inherit" })
+const build = spawnSync(process.execPath, ["scripts/build.ts", "--e2e"], { cwd: pkg, stdio: "inherit" })
 if (build.status !== 0) process.exit(build.status ?? 1)
 
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-vscode-e2e-")))

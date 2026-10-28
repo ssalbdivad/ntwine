@@ -13,7 +13,7 @@
 // So the list must come from the tree it describes. Nub runs this out of the captured snapshot, which
 // makes `../src/worker-plugin-closure.ts` the new source's own opinion rather than the running server's.
 //
-// Usage: nub scripts/assert-worker-plugin-closure.mjs <staged runtime/ tree, or the repo root it mirrors>
+// Usage: node scripts/assert-worker-plugin-closure.mjs <staged runtime/ tree, or the repo root it mirrors>
 import { assertWorkerPluginClosure } from "../src/worker-plugin-closure.ts"
 
 const [root] = process.argv.slice(2)

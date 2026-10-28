@@ -67,7 +67,9 @@ export function parseAcpLine(line: string): NormalizedEvent[] {
 
 /** Appends records; creates the directory and file on first write so the tailer can find it at once. */
 export class AcpTranscriptWriter {
-  constructor(readonly path: string) {
+  readonly path: string
+  constructor(path: string) {
+    this.path = path
     mkdirSync(dirname(path), { recursive: true })
     if (!existsSync(path)) appendFileSync(path, "")
   }

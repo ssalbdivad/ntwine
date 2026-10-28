@@ -17,11 +17,11 @@ Three sheets of directions for the mark after the rename from `fray`, each drawn
 
 ## The shipped mark
 
-`final/favicon.svg` is the icon, installed at `packages/web/public/favicon.svg`. Rebuild it with `nub finalize.mjs [--install]`.
+`final/favicon.svg` is the icon, installed at `packages/web/public/favicon.svg`. Rebuild it with `node finalize.mjs [--install]`.
 
 Only HALF the path is fitted; the other half is that half's anchors rotated 180° and reversed with the handles swapped, so the symmetry lives in the path data and cannot drift. **Editing one side without mirroring the other breaks it.** The centre anchor's `in` and `out` must stay equal — letting them differ cost 2.28 units of asymmetry.
 
-`nub build-fff.mjs` chains the glyph into cursive `fff` ([`final/fff.svg`](final/fff.svg)) — one stroke, one free end each side, 6 self-crossings, the row C2 about its own centre. The connecting tails are trimmed so the glyphs sit close; the full tail is restored only at the far left and right. Trimming equal arc length from both ends keeps the glyph C2, so its ends still leave in the same direction and the copies chain by translation alone.
+`node build-fff.mjs` chains the glyph into cursive `fff` ([`final/fff.svg`](final/fff.svg)) — one stroke, one free end each side, 6 self-crossings, the row C2 about its own centre. The connecting tails are trimmed so the glyphs sit close; the full tail is restored only at the far left and right. Trimming equal arc length from both ends keeps the glyph C2, so its ends still leave in the same direction and the copies chain by translation alone.
 
 The locked settings are **f041**: `TRIM=0.11`, `TAIL=0.25` — tight spacing, short outer stubs, aspect 1.02 so it sits in a square tile without letterboxing.
 
@@ -34,10 +34,10 @@ The locked settings are **f041**: `TRIM=0.11`, `TAIL=0.25` — tight spacing, sh
 Both fitters render a candidate, compare its ink mask with the reference's, and hill-climb on **intersection-over-union**. Judging shape by eye is what produced six rounds of near-misses on this brief; a number says whether a change helped.
 
 ```sh
-nub fit-curve.mjs    # FINAL: 12 cubic segments, TWO crossings -> fit/curve-replica.svg
-nub fit-bezier.mjs   # one-crossing replica of the reference -> fit/bezier-replica.svg
-nub fit-spline.mjs   # 28-waypoint Catmull-Rom (its seed)   -> fit/spline-best.json
-nub fit-eight.mjs    # closed 8 + separate bar (superseded) -> fit/best.json
+node fit-curve.mjs    # FINAL: 12 cubic segments, TWO crossings -> fit/curve-replica.svg
+node fit-bezier.mjs   # one-crossing replica of the reference -> fit/bezier-replica.svg
+node fit-spline.mjs   # 28-waypoint Catmull-Rom (its seed)   -> fit/spline-best.json
+node fit-eight.mjs    # closed 8 + separate bar (superseded) -> fit/best.json
 ```
 
 **The two fits settled the mark's topology, which inspection had got wrong.** Fitting the reference as a closed figure-eight with a separate crossbar tops out at **IoU 0.75**. Fitting it as a *single open spline* — one path, two free ends, no bar — reaches **IoU 0.955**, with geometric agreement of **mean 0.03 px** and a worst case of 1.4 px.
@@ -56,25 +56,25 @@ The giveaway is the waist: three strands meet there in a triangle of crossings, 
 ## Regenerating
 
 ```sh
-nub build-eight.mjs       # the figure-eight sweep      -> out-eight/
-nub build-fff-grid.mjs    # fff rows: spacing x tail x weight -> out-fff/
-nub build-two.mjs --refine  # refined sweep around the picks -> out-two-refined/
-nub build-two.mjs         # the symmetric two-crossing sweep -> out-two/
-nub build-cursive.mjs     # the cursive sweep           -> out-cursive/
-nub build-slash.mjs       # the slash-spine sweep       -> out-slash/
-nub build-grid.mjs        # the earlier parametric sweep -> out-grid/
-nub artifact-grid.mjs eight   # out-eight/   -> ntwine-eight.html
-nub artifact-grid.mjs fff     # out-fff/     -> ntwine-fff.html
-nub artifact-grid.mjs refined # out-two-refined/ -> ntwine-two-refined.html
-nub artifact-grid.mjs two     # out-two/     -> ntwine-two.html
-nub artifact-grid.mjs cursive # out-cursive/ -> ntwine-cursive-grid.html
-nub artifact-grid.mjs slash   # out-slash/ -> ntwine-slash.html
-nub artifact-grid.mjs grid    # out-grid/  -> ntwine-grid.html
-nub build.mjs             # the fifteen icon concepts  -> out/
-nub build-cursive-f.mjs   # the hooked f family        -> out-f/
-nub build-signature-f.mjs # the written signature f    -> out-sig/
-nub artifact.mjs          # every out*/ -> its HTML sheet
-nub artifact.mjs signature-f   # or just one
+node build-eight.mjs       # the figure-eight sweep      -> out-eight/
+node build-fff-grid.mjs    # fff rows: spacing x tail x weight -> out-fff/
+node build-two.mjs --refine  # refined sweep around the picks -> out-two-refined/
+node build-two.mjs         # the symmetric two-crossing sweep -> out-two/
+node build-cursive.mjs     # the cursive sweep           -> out-cursive/
+node build-slash.mjs       # the slash-spine sweep       -> out-slash/
+node build-grid.mjs        # the earlier parametric sweep -> out-grid/
+node artifact-grid.mjs eight   # out-eight/   -> ntwine-eight.html
+node artifact-grid.mjs fff     # out-fff/     -> ntwine-fff.html
+node artifact-grid.mjs refined # out-two-refined/ -> ntwine-two-refined.html
+node artifact-grid.mjs two     # out-two/     -> ntwine-two.html
+node artifact-grid.mjs cursive # out-cursive/ -> ntwine-cursive-grid.html
+node artifact-grid.mjs slash   # out-slash/ -> ntwine-slash.html
+node artifact-grid.mjs grid    # out-grid/  -> ntwine-grid.html
+node build.mjs             # the fifteen icon concepts  -> out/
+node build-cursive-f.mjs   # the hooked f family        -> out-f/
+node build-signature-f.mjs # the written signature f    -> out-sig/
+node artifact.mjs          # every out*/ -> its HTML sheet
+node artifact.mjs signature-f   # or just one
 ```
 
 `build*.mjs` needs `rsvg-convert` (`brew install librsvg`). Shared geometry and rendering live in `lib.mjs`. The `out*/` directories are regenerated from scratch on every run and are not tracked.

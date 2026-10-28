@@ -12,10 +12,10 @@ import { createRpcClient } from "../../../../scripts/lib/rpc-client.mjs"
 //
 // A real adhoc-stack, no provider required: the session row is the simulated worker, and nothing is
 // ever sent. Start the stack in a separate terminal:
-//   nub scripts/adhoc-stack.mjs --port=45911
+//   node scripts/adhoc-stack.mjs --port=45911
 // Its first JSON line contains the sandbox "home" field. With the stack still running:
 //   NTWINE_PROMPT_DRAFT_TABS_E2E_URL=http://127.0.0.1:45911 \
-//   NTWINE_PROMPT_DRAFT_TABS_E2E_HOME=<the "home" field> nub --test \
+//   NTWINE_PROMPT_DRAFT_TABS_E2E_HOME=<the "home" field> node --test \
 //     packages/web/src/components/promptDraftTabs.e2e.test.ts
 // Stop the disposable stack with Ctrl-C when finished.
 const baseUrl = process.env.NTWINE_PROMPT_DRAFT_TABS_E2E_URL

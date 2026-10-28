@@ -11,7 +11,7 @@
 // rendering and runs a few thousand evaluations in seconds. The crossing count
 // is still a hard constraint, checked at the same density as the final report.
 //
-//   nub fit-curve.mjs
+//   node fit-curve.mjs
 
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"

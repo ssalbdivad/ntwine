@@ -1,4 +1,4 @@
-// Install the packaged extension (dist/ntwine-vscode-<version>.vsix — `nub run vscode:package` builds it)
+// Install the packaged extension (dist/ntwine-vscode-<version>.vsix — `pnpm run vscode:package` builds it)
 // into the VS Code whose windows will run it.
 //
 // The extension is `extensionKind: ["workspace"]`: it runs where the files and ntwine are. Under WSL that
@@ -7,8 +7,8 @@
 // CLI (the newest of `~/.vscode-server/bin/<commit>` and `~/.vscode-server/cli/servers/Stable-<commit>/server`).
 // Anywhere else, `code --install-extension`.
 //
-//   nub packages/vscode/scripts/install.ts            install
-//   nub packages/vscode/scripts/install.ts --dry-run  say what would run, run nothing
+//   node packages/vscode/scripts/install.ts            install
+//   node packages/vscode/scripts/install.ts --dry-run  say what would run, run nothing
 
 import { execFileSync } from "node:child_process"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
@@ -55,7 +55,7 @@ function main(): void {
   const dryRun = process.argv.includes("--dry-run")
 
   if (!existsSync(vsix)) {
-    console.error(`No ${vsix}. Build it first: nub run vscode:package`)
+    console.error(`No ${vsix}. Build it first: pnpm run vscode:package`)
     process.exit(1)
   }
 

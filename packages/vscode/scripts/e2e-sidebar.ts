@@ -4,8 +4,8 @@
 // routes them through the webview into the page's frame), and what is asserted is read where it shows —
 // the page's own DOM, VS Code's own title row and editor, the simulated worker's socket.
 //
-//   nub packages/vscode/scripts/e2e-sidebar.ts [--out=<dir>] [--dev] [--only=c1,c4] [--icon-before=<png>] [--worktree]
-//   (or: nub packages/vscode/scripts/e2e.ts --sidebar [same flags])
+//   node packages/vscode/scripts/e2e-sidebar.ts [--out=<dir>] [--dev] [--only=c1,c4] [--icon-before=<png>] [--worktree]
+//   (or: node packages/vscode/scripts/e2e.ts --sidebar [same flags])
 //
 //   --out    where the screenshots and results.json go (default: a `shots` dir in the run's scratch folder,
 //            kept). Names are `<vscode version>-<what>.png`; `-window` is the whole window at 1x, the
@@ -129,7 +129,7 @@ if (process.platform === "linux" && process.env.NTWINE_E2E_UNDER_XVFB !== "1") {
   const env: NodeJS.ProcessEnv = { ...process.env, NTWINE_E2E_UNDER_XVFB: "1" }
   delete env.DISPLAY
   delete env.WAYLAND_DISPLAY
-  const child = spawnSync("xvfb-run", ["-a", "-s", "-screen 0 1920x1200x24", "nub", fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: "inherit", env })
+  const child = spawnSync("xvfb-run", ["-a", "-s", "-screen 0 1920x1200x24", process.execPath, fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: "inherit", env })
   if (child.error) {
     console.error(`xvfb-run could not start (${child.error.message}). Install it (apt install xvfb); this harness never uses the real display.`)
     process.exit(1)
@@ -843,7 +843,7 @@ function packClaudeCodeStandIn(): void {
     description: "Claude Code's id and its Alt+K, for ntwine's end-to-end run.", engines: { vscode: "^1.90.0" },
     contributes: { keybindings: [{ command: "editor.action.selectAll", key: "alt+k", mac: "alt+k", when: "editorTextFocus" }] },
   }, null, 2))
-  const packed = spawnSync("nubx", ["-y", "-p", "@vscode/vsce@3.9.2", "vsce", "package", "--no-dependencies", "--allow-missing-repository", "--skip-license", "--out", claudeCodeStandIn], { cwd: dir, stdio: "inherit" })
+  const packed = spawnSync("pnpm", ["dlx", "@vscode/vsce@3.9.2", "package", "--no-dependencies", "--allow-missing-repository", "--skip-license", "--out", claudeCodeStandIn], { cwd: dir, stdio: "inherit" })
   if (packed.status !== 0) throw new Error("packaging the Claude Code stand-in failed")
 }
 
@@ -858,7 +858,7 @@ try {
   // because scripts/build.ts empties dist/ first.
   let extensionPath = pkg
   if (!devMode) {
-    const packaged = spawnSync("nub", ["run", "package"], { cwd: pkg, stdio: "inherit" })
+    const packaged = spawnSync("pnpm", ["run", "package"], { cwd: pkg, stdio: "inherit" })
     if (packaged.status !== 0) throw new Error("packaging the .vsix failed")
     const manifest = JSON.parse(readFileSync(join(pkg, "package.json"), "utf8")) as { name: string; version: string }
     const vsix = join(pkg, "dist", `${manifest.name}-${manifest.version}.vsix`)
@@ -866,7 +866,7 @@ try {
     extensionPath = join(scratch, "vsix", "extension")
     notes.vsix = { file: vsix, contents: execFileSync("unzip", ["-Z1", vsix], { encoding: "utf8" }).trim().split("\n") }
   }
-  const built = spawnSync("nub", ["scripts/build.ts", "--e2e"], { cwd: pkg, stdio: "inherit" })
+  const built = spawnSync(process.execPath, ["scripts/build.ts", "--e2e"], { cwd: pkg, stdio: "inherit" })
   if (built.status !== 0) throw new Error("building the e2e bundle failed")
   // c11's stand-in for Claude Code, packed NOW: a synchronous pack once the editor is up blocks this
   // process's event loop, the agent inside VS Code cannot reach the harness for that long, and it quits.

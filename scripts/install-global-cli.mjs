@@ -41,9 +41,9 @@ const shimName = windows ? `${command}.cmd` : command;
 
 if (args.has("--help")) {
   console.log(
-    "Usage: nub run ntwine-dev:install [-- --bin-dir=/path] [--force]\n" +
-      "       nub run ntwine-dev:check [-- --bin-dir=/path]\n" +
-      "       nub run ntwine-dev:uninstall [-- --bin-dir=/path]\n\n" +
+    "Usage: pnpm run ntwine-dev:install [-- --bin-dir=/path] [--force]\n" +
+      "       pnpm run ntwine-dev:check [-- --bin-dir=/path]\n" +
+      "       pnpm run ntwine-dev:uninstall [-- --bin-dir=/path]\n\n" +
       "Installs ntwine-dev, the source-checkout launcher."
   );
   process.exit(0);
@@ -61,14 +61,14 @@ const quote = (value) => `'${value.replaceAll("'", `"'"'`)}'`;
 // A batch file expands `%NAME%` in an argument even inside double quotes, and `%%` is its only
 // escape for a literal one. Windows paths may legally contain `%`; they may not contain `"`.
 const cmdQuote = (value) => `"${value.replaceAll("%", "%%")}"`;
-// `--no-env-file` disables nub's automatic `.env*` discovery for the launcher process only. nub
-// resolves those files from the CWD's project root, so launching a board from any repo carrying an
-// ANTHROPIC_API_KEY in its .env put that key in the ntwine server env — and from there into every
-// detached worker daemon it forks, each of which outlives the shell, where Claude Code blocks on
-// "Detected a custom API key". v4 fixed this with `env -u` and was
+// Plain `node`, which reads no `.env*` file unless told to. That matters: nub, which ran the launcher
+// until 2026-10-28 (as `nub --no-env-file`), discovered those files from the CWD's project root, so
+// launching a board from any repo carrying an ANTHROPIC_API_KEY in its .env put that key in the ntwine
+// server env — and from there into every detached worker daemon it forks, each of which outlives the
+// shell, where Claude Code blocks on "Detected a custom API key". v4 fixed this with `env -u` and was
 // reverted (3f311e9) for being too invasive: it also stripped a key the developer had deliberately
-// exported. This is the narrower cut — it drops only what nub read off DISK. A key exported in the
-// shell still reaches the worker, so letting an API key supersede the subscription stays available.
+// exported. Nothing read off DISK reaches the launcher; a key exported in the shell still reaches the
+// worker, so letting an API key supersede the subscription stays available.
 //
 // The batch translation of that one line, clause by clause, because none of it is guessable:
 //   · `rem #` keeps the ownership MARKER byte-identical across platforms — `#` is not a comment in
@@ -81,8 +81,8 @@ const cmdQuote = (value) => `"${value.replaceAll("%", "%%")}"`;
 //   · CRLF, deliberately: cmd.exe's parser is documented against CRLF and mis-handles LF-only files
 //     in ways that depend on the command (a split `goto`, a swallowed final line).
 const body = windows
-  ? `@echo off\r\nrem ${MARKER}\r\nsetlocal\r\nset "NTWINE_SOURCE_COMMAND=${command}"\r\nnub --no-env-file ${cmdQuote(launcher)} %*\r\nexit /b %ERRORLEVEL%\r\n`
-  : `#!/bin/sh\n${MARKER}\nexec env NTWINE_SOURCE_COMMAND=${quote(command)} nub --no-env-file ${quote(launcher)} "$@"\n`;
+  ? `@echo off\r\nrem ${MARKER}\r\nsetlocal\r\nset "NTWINE_SOURCE_COMMAND=${command}"\r\nnode ${cmdQuote(launcher)} %*\r\nexit /b %ERRORLEVEL%\r\n`
+  : `#!/bin/sh\n${MARKER}\nexec env NTWINE_SOURCE_COMMAND=${quote(command)} node ${quote(launcher)} "$@"\n`;
 
 /** Exactly the launcher this run would write — i.e. already current, nothing to do. */
 function isOwned(path) {

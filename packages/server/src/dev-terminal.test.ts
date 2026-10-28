@@ -10,7 +10,7 @@ import { endedReport, planDevTerminal, readDevTerminalMemo, startDevTerminal } f
 
 // The desktop window's dev board (dev-terminal.ts): a terminal daemon forked BEFORE any server, which the
 // first server to boot turns into a terminal thread. Real daemons and a real SQLite file throughout; the
-// command stands in for `nub run dev` (a line, then a long sleep, as a dev server prints and stays).
+// command stands in for `pnpm run dev` (a line, then a long sleep, as a dev server prints and stays).
 
 const posix = process.platform !== "win32"
 const runners: TerminalRunner[] = []

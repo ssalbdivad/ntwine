@@ -16,8 +16,8 @@
 // Waypoints are seeded from a row-profile measurement of the reference, then
 // hill-climbed on pixel overlap. Judging this by eye is what cost six rounds.
 //
-//   nub fit-spline.mjs           fit and report
-//   nub fit-spline.mjs --quick   fewer passes
+//   node fit-spline.mjs           fit and report
+//   node fit-spline.mjs --quick   fewer passes
 
 import { execFileSync } from "node:child_process"
 import { mkdirSync, realpathSync, writeFileSync } from "node:fs"

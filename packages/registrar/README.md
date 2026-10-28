@@ -47,9 +47,9 @@ Both `wrangler.toml` files ship with two placeholders, `FILL_ME_CLOUDFLARE_ACCOU
 
 ```sh
 cd packages/registrar
-nubx wrangler login
-nubx wrangler whoami                      # the Account ID → account_id in BOTH wrangler.toml files
-nubx wrangler kv namespace create CLAIMS  # the id → [[kv_namespaces]] id in BOTH wrangler.toml files
+pnpm exec wrangler login
+pnpm exec wrangler whoami                      # the Account ID → account_id in BOTH wrangler.toml files
+pnpm exec wrangler kv namespace create CLAIMS  # the id → [[kv_namespaces]] id in BOTH wrangler.toml files
 ```
 
 Then, in the `ntwine.app` zone's DNS, a **proxied `AAAA` record named `*` with content `100::`**. It is a placeholder origin nothing listens on; it exists only so Cloudflare answers for every name and the relay's `*.ntwine.app/*` route can take the request. The registrar's custom domain creates its own record on first deploy. Commit the filled ids, then deploy through the workflow as above.
@@ -92,8 +92,8 @@ points at.
 The decision logic takes its side effects by injection, so it runs against fakes:
 
 ```sh
-nub --test packages/registrar/src/          # the handler, the Worker, the Cloudflare client
-nub scripts/verify-claim-e2e.mjs            # CLI client → real socket → real handler
+node --test packages/registrar/src/          # the handler, the Worker, the Cloudflare client
+node scripts/verify-claim-e2e.mjs            # CLI client → real socket → real handler
 ```
 
 `cloudflare.ts` was exercised against the live API on 2026-08-24, before the relay made it optional.

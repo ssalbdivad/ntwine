@@ -112,7 +112,7 @@ export function subAgentTitle(
 // Where the shown title comes from, and whether it is a real NAME (which displays as its handle) or a
 // stand-in for one (a placeholder, an id, an external row's resolved title), which displays verbatim.
 function titleSource(t: TitleFields): { text: string; name: boolean } {
-  // A TERMINAL THREAD is named by its `@handle` (`$ nub run dev` → `nub-run-dev`, server thread-terminals.ts),
+  // A TERMINAL THREAD is named by its `@handle` (`$ pnpm run dev` → `pnpm-run-dev`, server thread-terminals.ts),
   // like any other thread (maintainer 2026-10-15: "Terminal threads still have to have names that are
   // addressable like any other thread"), so it is offered to the `@` typeahead and links in prose. Only a row
   // from before handles existed falls back to the line it runs, which is not a name.

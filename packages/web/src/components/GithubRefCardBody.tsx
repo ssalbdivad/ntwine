@@ -181,7 +181,7 @@ function LabelChip({ name, color }: { name: string; color: string }) {
   )
 }
 
-// An issue or PR body is MARKDOWN and github.com renders its inline code as code — `nub install`
+// An issue or PR body is MARKDOWN and github.com renders its inline code as code — `pnpm install`
 // arrives as a mono chip, not as a pair of visible backticks. A COMMIT message is not markdown, and
 // github.com leaves its backticks literal for exactly that reason. Mirroring both is why `code` is a
 // parameter here rather than always-on.

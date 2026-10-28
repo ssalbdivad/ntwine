@@ -9,17 +9,17 @@ import { quoteWindowsArg, serverCommand, type ServerLaunch } from "./launch.ts"
 test("the launch runs the dev terminal's starter in the repo on the recorded PATH, appending to a log it creates", () => {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-desktop-launch-"))
   try {
-    // A stand-in nub that reports what it was run with. Paths with spaces and quotes, since a PATH or
+    // A stand-in node that reports what it was run with. Paths with spaces and quotes, since a PATH or
     // a home directory can carry either and the command passes them through `sh -c`.
     const bin = join(dir, "bin 'x'")
-    const nub = join(bin, "nub")
+    const node = join(bin, "node")
     spawnSync("mkdir", ["-p", bin])
-    writeFileSync(nub, '#!/bin/sh\necho "pwd=$(pwd) path=$PATH args=$*"\necho oops >&2\n')
-    chmodSync(nub, 0o755)
-    const launch: ServerLaunch = { repo: dir, nub, path: `${bin}:/usr/bin:/bin`, log: join(dir, "state dir", "desktop-server.log") }
+    writeFileSync(node, '#!/bin/sh\necho "pwd=$(pwd) path=$PATH args=$*"\necho oops >&2\n')
+    chmodSync(node, 0o755)
+    const launch: ServerLaunch = { repo: dir, node, path: `${bin}:/usr/bin:/bin`, log: join(dir, "state dir", "desktop-server.log") }
     const [command, args] = serverCommand(launch)
     for (let run = 0; run < 2; run++) assert.equal(spawnSync(command, args, { cwd: dir, env: {} }).status, 0)
-    const line = `pwd=${dir} path=${bin}:/usr/bin:/bin args=--no-env-file packages/server/src/dev-terminal.ts\noops\n`
+    const line = `pwd=${dir} path=${bin}:/usr/bin:/bin args=packages/server/src/dev-terminal.ts\noops\n`
     assert.equal(readFileSync(launch.log, "utf8"), line + line)
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -27,7 +27,7 @@ test("the launch runs the dev terminal's starter in the repo on the recorded PAT
 })
 
 test("from Windows, the same command runs inside the distro, in the repo, in a session of its own", () => {
-  const launch: ServerLaunch = { repo: "/home/me/ntwine", nub: "/n/nub", path: "/n", log: "/l", distro: "Ubuntu", roots: { data: "\\\\wsl.localhost\\Ubuntu\\d", state: "\\\\wsl.localhost\\Ubuntu\\s" } }
+  const launch: ServerLaunch = { repo: "/home/me/ntwine", node: "/n/node", path: "/n", log: "/l", distro: "Ubuntu", roots: { data: "\\\\wsl.localhost\\Ubuntu\\d", state: "\\\\wsl.localhost\\Ubuntu\\s" } }
   const [command, args] = serverCommand(launch)
   const [linuxCommand, linuxArgs] = serverCommand({ ...launch, distro: undefined })
   assert.equal(command, "wsl.exe")

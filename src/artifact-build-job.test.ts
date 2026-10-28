@@ -68,8 +68,8 @@ test("a synchronous build in the job leaves the parent's event loop free, and re
 
 test("cancel kills the job and the build tools it started", { skip: process.platform === "win32" }, async () => {
   const pidFile = join(tmpdir(), `ntwine-build-job-grandchild-${process.pid}`);
-  // The grandchild stands in for `tsc` under `nub run typecheck`: nub starts the script in a process
-  // group of its OWN and forwards signals to it, so a signal to the job's group reaches the tool only
+  // The grandchild stands in for `tsc` under a script runner that starts the script in a process
+  // group of its OWN and forwards signals to it (nub did), so a signal to the job's group reaches the tool only
   // through that forwarding. Mirror both halves.
   const { entry, dir } = fixture(
     `import { spawn } from "node:child_process";\nimport { writeFileSync } from "node:fs";\n` +

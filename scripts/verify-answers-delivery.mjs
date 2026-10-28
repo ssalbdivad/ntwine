@@ -23,7 +23,7 @@
 //   3. after a restart with a working runtime, the answer is offered again, reaches the child exactly
 //      once, and only then reads delivered.
 //
-// Usage: nub scripts/verify-answers-delivery.mjs     (exit 0 = fixed, exit 1 = a check failed)
+// Usage: node scripts/verify-answers-delivery.mjs     (exit 0 = fixed, exit 1 = a check failed)
 // Pass --expect-bug to invert the two bug checks: exit 0 when the pre-fix behaviour reproduces.
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"

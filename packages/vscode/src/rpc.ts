@@ -22,24 +22,33 @@ export type ProcedureOutput<P extends Procedure> = Awaited<ReturnType<Api[P]>>
 export type RpcErrorKind = "unreachable" | "unanswered" | "refused" | "failed"
 
 export class RpcError extends Error {
+  /**
+   * `unreachable`: the request never got there (nothing listening). `unanswered`: it went out and no
+   * answer came back — it timed out, or the connection dropped mid-request — so it may have taken
+   * effect. `refused`: the server said no (4xx). `failed`: it tried and failed (5xx).
+   */
+  readonly kind: RpcErrorKind
+  readonly retryable: boolean
+  readonly status?: number
   constructor(
     message: string,
-    /**
-     * `unreachable`: the request never got there (nothing listening). `unanswered`: it went out and no
-     * answer came back — it timed out, or the connection dropped mid-request — so it may have taken
-     * effect. `refused`: the server said no (4xx). `failed`: it tried and failed (5xx).
-     */
-    readonly kind: RpcErrorKind,
-    readonly retryable = false,
-    readonly status?: number,
+    kind: RpcErrorKind,
+    retryable = false,
+    status?: number,
   ) {
     super(message)
+    this.kind = kind
+    this.retryable = retryable
+    this.status = status
     this.name = "RpcError"
   }
 }
 
 export class NtwineRpc {
-  constructor(readonly origin: string) {}
+  readonly origin: string
+  constructor(origin: string) {
+    this.origin = origin
+  }
 
   path(projectId: string, procedure: Procedure): string {
     return `/_ntwine/${encodeURIComponent(projectId)}/rpc/${procedure}`

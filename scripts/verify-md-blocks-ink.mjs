@@ -21,8 +21,8 @@
 // must leave the same residual.
 //
 // Usage:
-//   cd packages/web && nubx vite --port 5831 --strictPort
-//   nub scripts/verify-md-blocks-ink.mjs --url=http://localhost:5831 [--theme=light] [--dsf=8]
+//   cd packages/web && pnpm exec vite --port 5831 --strictPort
+//   node scripts/verify-md-blocks-ink.mjs --url=http://localhost:5831 [--theme=light] [--dsf=8]
 //     [--only=<substring of a row name>] [--css=<extra rules, to try a change before writing it>]
 import { launchHeadless } from "./lib/headless-browser.mjs"
 

@@ -17,7 +17,7 @@ import { SCHEDULE_SPACING_COPY } from "@ntwine/shared"
 // a gate that holds every answer until released, failures and calls that never answer.
 //
 // Skipped unless a Vite URL serving the fixtures is provided: start `vite` in packages/web and set
-// NTWINE_SCHEDULE_E2E_URL to its origin (scripts/e2e-web.mjs does both: `nub run test:e2e -- composerScheduleLive`).
+// NTWINE_SCHEDULE_E2E_URL to its origin (scripts/e2e-web.mjs does both: `pnpm run test:e2e -- composerScheduleLive`).
 // NTWINE_SCHEDULE_SHOTS=<dir> also saves the evidence screenshots (intent-*.png) at the moments named below.
 const baseUrl = process.env.NTWINE_SCHEDULE_E2E_URL
 const shotsDir = process.env.NTWINE_SCHEDULE_SHOTS

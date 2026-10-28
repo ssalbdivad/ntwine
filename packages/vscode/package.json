@@ -372,9 +372,9 @@
     }
   },
   "scripts": {
-    "build": "nub scripts/build.ts",
-    "package": "nub scripts/build.ts && nubx -y -p @vscode/vsce@3.9.2 vsce package --no-dependencies --out dist/",
-    "e2e": "nub scripts/e2e.ts"
+    "build": "node scripts/build.ts",
+    "package": "node scripts/build.ts && pnpm dlx @vscode/vsce@3.9.2 package --no-dependencies --out dist/",
+    "e2e": "node scripts/e2e.ts"
   },
   "dependencies": {
     "ws": "^8.18"

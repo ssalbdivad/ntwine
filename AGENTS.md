@@ -41,7 +41,7 @@ points.
   result.
 - Be terse with the human: lead with what changed or what is true. The why goes in commit messages and code comments.
 - Size work by scope, never in days. "Shipped" means merged.
-- Use `nub` for the toolchain, and write every new script as `.ts`.
+- Run scripts with `node <file>.ts` and package scripts with `pnpm run`; write every new script as `.ts`.
 - Never interrupt a running agent (§ Agent completion invariant).
 - Only the human snoozes a thread, and only to a time (2026-10-14). A worker parks on a wait only while its own task
   still waits on something (a merge the human asked for, CI that could fail it, a release, a reply), and that park
@@ -68,11 +68,11 @@ When the maintainer says "cut a patch" or "cut a release", this is the whole job
 
 1. **Bump the package that changed on `main`.** Server, frontend and provider-runtime changes bump `version` in [`packages/server-release/package.json`](packages/server-release/package.json); ordinary server updates leave the stable root `ntwine` version alone. Launcher changes also bump root [`package.json`](package.json). A new shell's `ntwineServer.version` names its exact compatible bootstrap server. **That pin only reaches a machine with no server yet**: everyone else keeps the server they have until they click Update, so a new shell on a server several releases old is the ordinary pairing. A shell that depends on something a server release learned raises `ntwineServer.minimum` to that release in the same commit, and a machine below it is then started on the pinned server instead ([`plans/server-side-launch-routing.md`](plans/server-side-launch-routing.md) § 7). Protocol/data-epoch changes require an explicitly compatible shell and server together; see [`plans/stable-server-publishing.md`](plans/stable-server-publishing.md). Commit version changes as `chore(release): <package> X.Y.Z`; patch bumps remain the default.
 2. **Look at what ships with you.** `git log release..HEAD` is the exact set. Anything there you have not verified either gets verified now or gets left behind by pointing `release` at an earlier commit — that choice is the whole reason the branch exists.
-3. **Verify the commit you are about to publish, not "the tree".** `nub run typecheck` and `nub run test` against that sha. Typecheck is the workflow's own gate, deliberately not the full suite: the suite drives real provider CLIs and a real browser and has never run on a CI box, so it runs HERE, before the push, or the release goes out untested.
+3. **Verify the commit you are about to publish, not "the tree".** `pnpm run typecheck` and `pnpm run test` against that sha. Typecheck is the workflow's own gate, deliberately not the full suite: the suite drives real provider CLIs and a real browser and has never run on a CI box, so it runs HERE, before the push, or the release goes out untested.
 4. **Push `main`, then fast-forward and push `release`.** `git push origin main`, then `git branch -f release <sha> && git push origin release`. This chooses the commit that will ship; it starts nothing. It is the one push the no-PR rule in [`AGENTS.local.md`](AGENTS.local.md) does not reach — that rule forbids pushing a branch to STAGE A REVIEW, and a release push stages no review.
 5. **Dispatch the workflow.** `gh workflow run release.yml --ref release`. This is the only thing that starts a release, and the workflow refuses any ref but `release`. **It also refuses to publish a version that does not directly follow the highest one npm serves** ([`npm-refuse-overtake.sh`](.github/scripts/npm-refuse-overtake.sh)): npm serves two versions held in its review in whichever order it likes, and on 2026-10-11 it served `ntwine` 0.13.11 eighteen minutes before 0.13.10, which had been accepted nearly six hours earlier. So never dispatch a release while an earlier version of the same package is still in review — wait for npm to serve it and re-run. Only when the number in between was never published at all (its run was cancelled before the publish step) does the dispatch take `-f allow_version_gap=true`.
 6. **Watch the run to the end, and do not call it cut until npm serves both versions.** `gh run list --workflow=release.yml --limit 1` names the run; `gh run watch <id> --exit-status` follows it. The workflow typechecks, publishes `ntwine-server` through npm Trusted Publishing, waits until the registry serves it, and only then publishes `ntwine`: the shell fetches its pinned server from the registry on first boot, so a live shell with no server behind it is broken for whoever installs it in that window. A direct publish is not served at once — npm holds each new version in automated review (6m 40s for 0.13.5 on 2026-09-14; pullfrog has measured up to 236 minutes) — so the job polls the registry through that hold. A green run therefore means npm serves both versions. Both waits share one deadline under the job's six-hour cap; if it expires, re-run the job once npm serves the version, since each package keeps its own registry existence check and a publish npm is still reviewing is tolerated. A publish that fails with `E403 OIDC permission denied for this action` means the package's trusted publisher on npmjs.com does not allow `npm publish`; a maintainer must allow it there. (Staged publishing, where every version waited for a maintainer's 2FA approval, ran from 2026-09-22 and was dropped on 2026-09-30 as too onerous. The dispatch-only trigger stays.) If the run dies after npm accepts a package, `gh workflow run release.yml --ref release` finishes it without republishing.
-7. **Tag the shell and create its GitHub release yourself: `nub scripts/tag-release.mjs`.** Run it once the run is green, from your own `gh` session; it is idempotent, so run it after every release, server-only ones included. Tags `vX.Y.Z` and GitHub releases belong to the shell only and target its registry-recorded `gitHead`, never a checkout, and an existing tag is never moved. The workflow did this until 2026-10-12 and no longer can: GitHub refuses a workflow's own token a ref whose commit carries a different `.github/workflows/` than the run's checkout, which is the usual case once a later run reconciles an earlier shell (ntwine 0.13.13). Your `gh` session has the workflow scope; the job now has read-only access to the repository (maintainer 2026-10-12: the releaser tags after the run).
+7. **Tag the shell and create its GitHub release yourself: `node scripts/tag-release.mjs`.** Run it once the run is green, from your own `gh` session; it is idempotent, so run it after every release, server-only ones included. Tags `vX.Y.Z` and GitHub releases belong to the shell only and target its registry-recorded `gitHead`, never a checkout, and an existing tag is never moved. The workflow did this until 2026-10-12 and no longer can: GitHub refuses a workflow's own token a ref whose commit carries a different `.github/workflows/` than the run's checkout, which is the usual case once a later run reconciles an earlier shell (ntwine 0.13.13). Your `gh` session has the workflow scope; the job now has read-only access to the repository (maintainer 2026-10-12: the releaser tags after the run).
 
 **A version bump on `main` is INERT until step 5 dispatches the workflow.** Pushing `main` publishes nothing, and neither does moving `release`; that silence is by design, and it is why step 4 has two pushes and step 5 exists at all. Release checks must compare both public manifests against their respective npm packages; a provider pin now ships in `ntwine-server`, not necessarily a new shell. The trap that has actually broken releases at the install step — `pnpm install --frozen-lockfile` disagreeing with a lockfile `nub` wrote — and the full reasoning live in [`plans/runtime-pin-bumps.md`](plans/runtime-pin-bumps.md) § Then the releaser ships it.
 
@@ -283,18 +283,22 @@ still `ls`es fine). A global skill must BUNDLE any script it needs beside its `S
 reach into a repo's `scripts/`. And a skill belongs in exactly one scope — never a project copy AND a
 global copy of the same name, or they drift and the agent lists it twice.
 
-# Use Nub for the Node toolchain
+# The Node toolchain: plain `node` and `pnpm`
 
-Prefer Nub over direct `node`, `npm`, `npx`, `pnpm`, `yarn`, `tsx`, or `ts-node` commands. Run
-JavaScript and TypeScript files with `nub <file>`, package scripts with `nub run <script>`, installed
-CLIs with `nubx <tool>`, tests with `nub --test`, and installs with `nub install`. Nub transpiles
-TypeScript but does not typecheck it, so keep `tsc --noEmit` and project typecheck gates separate.
+Run scripts with `node <file>.ts` and package scripts with `pnpm run <script>` (one package:
+`pnpm --filter <pkg> run <script>`). Installed CLIs are `pnpm exec <tool>`, one-off ones `pnpm dlx
+<tool>`, and installs `pnpm install`. Tests go through `pnpm run test [<file>…]`, which also loads
+`scripts/tsx-hooks.ts` so the web package's `.tsx` imports resolve; a bare `node --test` works for any
+file that imports no `.tsx`. Node strips types but does not typecheck, so `pnpm run typecheck` stays a
+separate gate, and it enforces `erasableSyntaxOnly`: no enums, namespaces or constructor parameter
+properties, which node cannot strip. (Nub ran all of this until 2026-10-28, when its compile cache
+filled the disk.) Do not use `tsx`, `ts-node` or `npx`.
 
 # Always `.ts`, never `.mjs`
 
 Every new script, seed, verifier, harness or tool in this repo is a `.ts` file — never `.mjs`, `.js` or
 `.cjs`, even though most of `scripts/` is still `.mjs` and even when you copy one of those as a template
-(David 2026-10-01: "always use .ts never .mjs"). `nub` runs `.ts` directly, so there is no build step
+(David 2026-10-01: "always use .ts never .mjs"). `node` runs `.ts` directly, so there is no build step
 to save. The existing `.mjs` files are legacy: run them as they are, but do not add to them by example.
 
 # Agent completion invariant

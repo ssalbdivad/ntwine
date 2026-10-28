@@ -115,7 +115,7 @@ try {
     await page.screenshot({ path: join(out, `light-${font}-${width}-recovery.png`) })
     check(`Promoted recovery ${font} ${width}px contrast and overflow`, { text, controls })
     if (width === 1000) {
-      const ink = await promisify(execFile)('nub', [join(source, 'scripts/ink-gaps.mjs'), origin, '.actions > .btn:nth-child(1),.actions > .btn:nth-child(2)', `--browser=${browser.wsEndpoint()}`, '--dsf=8', '--w=1000', '--h=800', '--wait=100', `--before=document.documentElement.dataset.theme='light';document.documentElement.dataset.font='${font}'`], { encoding: 'utf8', cwd: source })
+      const ink = await promisify(execFile)(process.execPath, [join(source, 'scripts/ink-gaps.mjs'), origin, '.actions > .btn:nth-child(1),.actions > .btn:nth-child(2)', `--browser=${browser.wsEndpoint()}`, '--dsf=8', '--w=1000', '--h=800', '--wait=100', `--before=document.documentElement.dataset.theme='light';document.documentElement.dataset.font='${font}'`], { encoding: 'utf8', cwd: source })
       writeFileSync(join(out, `light-${font}-recovery-ink.txt`), ink.stdout)
       await page.bringToFront()
       await page.setViewport({ width, height: 800, deviceScaleFactor: 8 })

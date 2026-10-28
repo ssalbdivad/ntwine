@@ -1,7 +1,7 @@
 // LIVE proof (not a unit test; excluded from the *.test.ts glob). After an ntwine update, what does a
 // Codex thread that was already running end up on — and is anything it was doing lost on the way?
 //
-//   env -u NODE_COMPAT nub packages/server/src/backend/_live_codex_config_sync.mts
+//   env -u NODE_COMPAT node packages/server/src/backend/_live_codex_config_sync.mts
 //   … --control      the same run with NTWINE_PLUGIN_SYNC_OFF=1: the thread that was mid-turn must
 //                    STAY on the old generation, or the run above proves nothing about the rebuild
 //   CODEX_BIN=/path/to/codex overrides the binary (default: ntwine's own provisioned pin, then PATH)

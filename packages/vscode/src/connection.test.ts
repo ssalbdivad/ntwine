@@ -28,8 +28,10 @@ class FakeNtwine {
   readonly #server: Server
   readonly #wss = new WebSocketServer({ noServer: true, maxPayload: EDITOR_MAX_PAYLOAD_BYTES })
   port = 0
+  readonly options: { editorPath?: boolean }
 
-  constructor(readonly options: { editorPath?: boolean } = {}) {
+  constructor(options: { editorPath?: boolean } = {}) {
+    this.options = options
     this.#server = createServer((_request, response) => {
       response.statusCode = 404
       response.end("Not Found")

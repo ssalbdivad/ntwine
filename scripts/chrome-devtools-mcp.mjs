@@ -16,7 +16,7 @@
 // milliseconds on every start — measured 2026-10-11 at 187 Dock flickers in 40 minutes.
 //
 // FAILS CLOSED: with no headless shell to hand over, this exits rather than let the server fall back
-// to the installed Chrome. `nub install` restores it (puppeteer's postinstall downloads it).
+// to the installed Chrome. `pnpm install` restores it (puppeteer's postinstall downloads it).
 //
 // Extra arguments are passed through, so `node scripts/chrome-devtools-mcp.mjs --logFile=/tmp/x.log`
 // works. The version pin lives here, in one place, for both agent configs.
@@ -50,7 +50,7 @@ async function headlessShellPath() {
 
 const executablePath = await headlessShellPath()
 if (!executablePath) {
-  console.error("chrome-devtools-mcp: no chrome-headless-shell in the puppeteer cache — run `nub install`. Refusing to fall back to the installed Chrome.")
+  console.error("chrome-devtools-mcp: no chrome-headless-shell in the puppeteer cache — run `pnpm install`. Refusing to fall back to the installed Chrome.")
   process.exit(1)
 }
 

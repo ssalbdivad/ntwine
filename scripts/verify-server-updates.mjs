@@ -1,7 +1,7 @@
 // Real npm artifacts -> stable launcher -> real server -> browser. No public package publication.
-// Build first: nub scripts/prepare-package.mjs --server && nub scripts/build-package.mjs --server
-//   && nub scripts/build-package.mjs --shell
-// Run: nub scripts/verify-server-updates.mjs --out=/absolute/evidence
+// Build first: node scripts/prepare-package.mjs --server && node scripts/build-package.mjs --server
+//   && node scripts/build-package.mjs --shell
+// Run: node scripts/verify-server-updates.mjs --out=/absolute/evidence
 import assert from "node:assert/strict"
 import { spawn, execFileSync } from "node:child_process"
 import { createHash, randomBytes } from "node:crypto"
