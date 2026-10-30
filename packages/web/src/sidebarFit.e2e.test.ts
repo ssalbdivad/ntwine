@@ -139,8 +139,8 @@ if (enabled) {
 }
 
 function descendants(pid: number): number[] {
-  // `ps` rather than /proc so the same code reads on macOS. `nub` re-execs node in a NEW process group
-  // (measured 2026-10-06), so the group of the pid we hold is not the whole stack.
+  // `ps` rather than /proc so the same code reads on macOS. The stack ran under `nub` until 2026-10-29,
+  // which re-exec'd node in a NEW process group (measured 2026-10-06); walking the tree covers either.
   const table = execFileSync("ps", ["-A", "-o", "pid=,ppid="], { encoding: "utf8" })
     .split("\n").map((l) => l.trim().split(/\s+/).map(Number)).filter((p) => p.length === 2 && !Number.isNaN(p[0]))
   const out: number[] = []
@@ -185,7 +185,7 @@ async function bootStack(seed: Load): Promise<Stack> {
   const fd = openSync(log, "w")
   // stdout to a FILE, never a pipe we might stop reading: the stack logs every Vite update, and a write
   // to a closed pipe kills it with SIGPIPE mid-run (ntwine-stack skill).
-  const child = spawn("nub", ["scripts/adhoc-stack.mjs", `--port=${port}`, `--project=${dirs[0]}`, ...dirs.slice(1).map((d) => `--also-project=${d}`)], {
+  const child = spawn(process.execPath, ["scripts/adhoc-stack.mjs", `--port=${port}`, `--project=${dirs[0]}`, ...dirs.slice(1).map((d) => `--also-project=${d}`)], {
     cwd: repoRoot, stdio: ["ignore", fd, fd], detached: true,
   })
   closeSync(fd)

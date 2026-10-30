@@ -162,7 +162,7 @@ test("a batch of held wakes draws one hairline per wake, and the fallback card r
       }
       if (shots) {
         // Reuse the project's pixel instrument against the untouched shared card header.
-        console.log(execFileSync("nub", ["scripts/ink-gaps.mjs", `${baseUrl}/ntwine-wake-fixture.html?font=${font}`,
+        console.log(execFileSync(process.execPath, ["scripts/ink-gaps.mjs", `${baseUrl}/ntwine-wake-fixture.html?font=${font}`,
           '[data-ntwine-msg="md"] .tracking-tight,[data-ntwine-msg="md"] .lucide-bell', "--dsf=6", "--w=1000"], { encoding: "utf8" }))
       }
     }
