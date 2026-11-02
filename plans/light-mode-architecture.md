@@ -174,7 +174,7 @@ Set acceptance targets of at least 4.5:1 for normal readable text and 3:1 for la
 
 The UI gate uses the project's headless-browser, visual-review, and optical-spacing skills. Inspect cropped screenshots and measure both ink axes in both fonts. Record console errors and owned-browser cleanup. The inline recovery path also requires the promoted-artifact verification skill because development CSS is not evidence that the shipped launcher page works.
 
-Run `nub run typecheck`, the web build via `nub run build` in `packages/web`, focused theme and adapter tests, and the relevant real-browser checks. Run the exact checks recorded in [ci.yml](../.github/workflows/ci.yml): board tests, portable-monitor synchronization, and monitor tests, through Nub. [release.yml](../.github/workflows/release.yml) separately gates on typechecking. Broad test-suite failures must be reported rather than relabeled as light-mode verification.
+Run `pnpm run typecheck`, the web build via `pnpm run build` in `packages/web`, focused theme and adapter tests, and the relevant real-browser checks. Run the exact checks recorded in [ci.yml](../.github/workflows/ci.yml): board tests, portable-monitor synchronization, and monitor tests, through Nub. [release.yml](../.github/workflows/release.yml) separately gates on typechecking. Broad test-suite failures must be reported rather than relabeled as light-mode verification.
 
 ## Design review
 
