@@ -48,10 +48,12 @@ export function startingPage(): string {
 }
 
 /** The server this app started stopped before a board answered. The app keeps looking regardless. */
-export function startFailedPage(log: string): string {
+/** `reason` is the launch's own line from the log when it wrote one (launch.ts STALE_LAUNCH). */
+export function startFailedPage(log: string, reason?: string): string {
   return page(
     "ntwine",
-    `<h1>ntwine couldn't start</h1><p>Its output is in <code>${escapeHtml(log)}</code>.</p>` +
+    `<h1>ntwine couldn't start</h1>` +
+      (reason ? `<p>${escapeHtml(reason)}</p>` : `<p>Its output is in <code>${escapeHtml(log)}</code>.</p>`) +
       `<div class="actions"><button class="primary" onclick="ntwineDesktop.retry()">Try again</button></div>`,
   )
 }

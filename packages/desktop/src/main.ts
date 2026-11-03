@@ -18,7 +18,7 @@ import { basename, dirname, join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { fileURLToPath } from "node:url"
 import { appPath, classifyNavigation, startAddress } from "./navigation.ts"
-import { readServerLaunch, startServer, type ServerLaunch } from "./launch.ts"
+import { readServerLaunch, STALE_LAUNCH, startServer, type ServerLaunch } from "./launch.ts"
 import { errorPage, loadingPage, startFailedPage, startingPage, waitingPage } from "./pages.ts"
 import { locateServer, readRecordedServer } from "./server.ts"
 
@@ -275,10 +275,25 @@ function startNtwine(launch: ServerLaunch): NonNullable<typeof started> {
   return status
 }
 
+/**
+ * The launch's own line when the log's last one is it, read through `roots.state` from Windows (the log
+ * lives in the Linux home, in that root: scripts/dev.ts). Anything else is the run's own output, which
+ * the page points at rather than quotes.
+ */
+function staleLaunchReason(launch: ServerLaunch): string | undefined {
+  const log = process.platform === "win32" && launch.roots ? join(launch.roots.state, basename(launch.log)) : launch.log
+  try {
+    const last = readFileSync(log, "utf8").trimEnd().split("\n").at(-1)
+    return last?.startsWith(STALE_LAUNCH) ? last : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** Every window on one of this app's own pages shows the waiting one — each poll, so a window that
  * started connecting since (a second failed load, a new window) gets it too. */
 function showWaiting(): void {
-  const waiting = started?.state === "running" ? startingPage() : started?.state === "failed" ? startFailedPage(launch!.log) : waitingPage(pinnedUrl, !pinnedUrl && launch !== undefined)
+  const waiting = started?.state === "running" ? startingPage() : started?.state === "failed" ? startFailedPage(launch!.log, staleLaunchReason(launch!)) : waitingPage(pinnedUrl, !pinnedUrl && launch !== undefined)
   for (const win of ownPages()) {
     if (win.webContents.getURL() !== waiting) void win.loadURL(waiting).catch(() => {})
   }

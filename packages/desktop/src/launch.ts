@@ -34,6 +34,9 @@ export interface ServerLaunch {
   roots?: { data: string; state: string }
 }
 
+/** How the launch's own line in the log begins when the recorded node is gone (serverCommand). */
+export const STALE_LAUNCH = "ntwine desktop: the node this window was set up with"
+
 export function readServerLaunch(path: string): ServerLaunch | undefined {
   try {
     const launch = JSON.parse(readFileSync(path, "utf8")) as Partial<ServerLaunch>
@@ -45,24 +48,35 @@ export function readServerLaunch(path: string): ServerLaunch | undefined {
   }
 }
 
-/** The command: the dev terminal's starter in the repo, on the recorded PATH, its output appended to the log. */
+/**
+ * The command: the dev terminal's starter in the repo, on the recorded PATH, its output appended to the log.
+ *
+ * server.json is a snapshot of the terminal `pnpm run desktop` last ran in, and the Windows app copy
+ * keeps its own until that runs again. A node it names can go away under it — an nvm upgrade, a
+ * rebuilt distro (2026-11-02: a copy from Oct 22 still named v25's `nub`, and the log said only
+ * "setsid: failed to execute"). So a missing node is checked for here, inside the distro where the
+ * path means something, and the log's last line says what to run.
+ */
 export function serverCommand(launch: ServerLaunch): [command: string, args: string[]] {
+  // Node is its own positional ($3) and the starter is named in the script, so whatever follows is a
+  // prefix to run it under: nothing on Linux, `setsid -w` from Windows.
   const shell = [
     "sh",
     "-c",
-    'export PATH="$1" && mkdir -p "$(dirname "$2")" && log="$2" && shift 2 && exec "$@" >> "$log" 2>&1 </dev/null',
+    'export PATH="$1" && mkdir -p "$(dirname "$2")" && log="$2" && node="$3" && shift 3 && ' +
+      `{ [ -x "$node" ] || { echo "${STALE_LAUNCH}: $node is gone. Run \\\`pnpm run desktop\\\` in $(pwd) to refresh it." >> "$log"; exit 127; }; } && ` +
+      'exec "$@" "$node" packages/server/src/dev-terminal.ts >> "$log" 2>&1 </dev/null',
     "sh",
     launch.path,
     launch.log,
     launch.node,
-    "packages/server/src/dev-terminal.ts",
   ]
   if (!launch.distro) return [shell[0]!, shell.slice(1)]
   // In a session of its own (spawn's `detached` is that on Linux, and reaches no further than wsl.exe
   // on Windows): when WSL ends the session of a wsl.exe that is killed, it signals everything in it. The
   // terminal's daemon has a session of its own anyway; this keeps the starter's wait from being cut
   // short. `-w` still waits, so a launch that fails is seen to.
-  return ["wsl.exe", ["-d", launch.distro, "--cd", launch.repo, "--exec", ...shell.slice(0, 6), "setsid", "-w", ...shell.slice(6)]]
+  return ["wsl.exe", ["-d", launch.distro, "--cd", launch.repo, "--exec", ...shell, "setsid", "-w"]]
 }
 
 /** One argument as Windows' command-line parsing (CommandLineToArgvW) reads it back. */

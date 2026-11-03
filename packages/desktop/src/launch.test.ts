@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process"
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { quoteWindowsArg, serverCommand, type ServerLaunch } from "./launch.ts"
+import { quoteWindowsArg, serverCommand, STALE_LAUNCH, type ServerLaunch } from "./launch.ts"
 
 test("the launch runs the dev terminal's starter in the repo on the recorded PATH, appending to a log it creates", () => {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-desktop-launch-"))
@@ -31,7 +31,23 @@ test("from Windows, the same command runs inside the distro, in the repo, in a s
   const [command, args] = serverCommand(launch)
   const [linuxCommand, linuxArgs] = serverCommand({ ...launch, distro: undefined })
   assert.equal(command, "wsl.exe")
-  assert.deepEqual(args, ["-d", "Ubuntu", "--cd", "/home/me/ntwine", "--exec", linuxCommand, ...linuxArgs.slice(0, 5), "setsid", "-w", ...linuxArgs.slice(5)])
+  assert.deepEqual(args, ["-d", "Ubuntu", "--cd", "/home/me/ntwine", "--exec", linuxCommand, ...linuxArgs, "setsid", "-w"])
+})
+
+test("a recorded node that is gone ends the launch with a line saying what to run, under setsid as from Windows", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-desktop-launch-"))
+  try {
+    const node = join(dir, "v25", "node")
+    const launch: ServerLaunch = { repo: dir, node, path: "/usr/bin:/bin", log: join(dir, "desktop-server.log"), distro: "Ubuntu", roots: { data: "d", state: "s" } }
+    // The distro form, run here without wsl.exe: everything after `--exec`. 2026-11-02: the check read
+    // `$1`, which from Windows is `setsid`, and blamed it.
+    const [, args] = serverCommand(launch)
+    const linux = args.slice(args.indexOf("--exec") + 1)
+    assert.equal(spawnSync(linux[0]!, linux.slice(1), { cwd: dir, env: {} }).status, 127)
+    assert.equal(readFileSync(launch.log, "utf8"), `${STALE_LAUNCH}: ${node} is gone. Run \`pnpm run desktop\` in ${dir} to refresh it.\n`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test("a Windows argument is quoted so CommandLineToArgvW reads it back unchanged", () => {
