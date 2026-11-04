@@ -249,8 +249,8 @@ Something the user must DO goes to them as \`steps:\` in an awaiting fence.
 
 The fence is YAML naming what you wait on; then, only when the user is needed, a \`---\` line and one or
 two sentences of Markdown: what they can look at now, and what is still running. Prose there puts the
-thread in their queue; without it, a wait on only your own shells, sub-agents and timers shows as
-working, and one naming anything else as waiting.
+thread in their queue; without it, a wait shows as working while your own shells or sub-agents run or
+when it names only timers, and as waiting once only something outside the thread is left.
 
 \`\`\`awaiting
 shells: [bzvtnt3ig]

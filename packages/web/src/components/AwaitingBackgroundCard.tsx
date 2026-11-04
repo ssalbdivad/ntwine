@@ -149,11 +149,15 @@ function hasUnrowedWork(thread: Pick<ThreadView, "subAgents" | "bgShells">): boo
 // THE HINTS ARE A PARAMETER, not `thread.lastFence`, and that is what lets ONE card state a fence the
 // BOARD no longer holds: the tailer clears `lastFence` on the user record that bumps the thread, and
 // this card is still the one drawn at that rest (see the `fence` prop below).
+//
+// THE KIND-NAMING HEADING IS ONLY TRUE ONCE THAT KIND IS ALL THAT IS LEFT (2026-11-03): six sub-agents
+// sat under "Watching acme/app#391", the same claim the Waiting band was making.
 export function awaitingBackgroundLabel(
   thread: Pick<ThreadView, "subAgents" | "bgShells" | "watches">,
   hints: readonly AwaitingHint[],
 ): string {
-  return awaitingFenceTitle(hints) ?? (shellsAlone(thread) ? SHELLS_ALONE_TITLE : awaitingKindTitle(hints) ?? AWAITING_FALLBACK_TITLE)
+  const ownWorkRunning = awaitsResults(thread) || (liveShellCount(thread) > 0 && hints.some((h) => h.kind === "shell"))
+  return awaitingFenceTitle(hints) ?? (shellsAlone(thread) ? SHELLS_ALONE_TITLE : (!ownWorkRunning && awaitingKindTitle(hints)) || AWAITING_FALLBACK_TITLE)
 }
 
 /** The shell-only rest's title. The maintainer named this shape "Background shells running" (2026-08-04);

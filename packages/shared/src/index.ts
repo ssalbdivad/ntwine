@@ -1202,9 +1202,10 @@ export function awaitingFenceTitle(hints: readonly AwaitingHint[] | undefined): 
 //                                              as Working and anything beside them as Waiting)
 //   names nothing                            → null: not a park, and the scheduler says so
 //
-// What ntwine CAN see still bounds it, in the safe direction only: `working` with nothing named in motion
-// draws no spinner (board.deriveWaitStatus), and every park still holds only while each named item is
-// live and its `for:` has not run out (awaiting.needsInputParkHolds).
+// What ntwine CAN see still bounds it: `working` with nothing named in motion draws no spinner, a derived
+// `watching` is Working while the thread's own sub-agents or named shells still run (board.deriveWaitStatus,
+// 2026-11-03), and every park still holds only while each named item is live and its `for:` has not run
+// out (awaiting.needsInputParkHolds).
 export const AWAITING_STATUSES = ["needs_input", "working", "watching"] as const
 export type AwaitingStatus = (typeof AWAITING_STATUSES)[number]
 
@@ -2482,8 +2483,8 @@ function signoffNudgeAwaitingLines(needsInput: boolean): string[] {
     "",
     "  Prose under the `---` puts the thread in the user's queue: write it only when they can read, try or",
     "  act on something NOW. Without it the fence alone is the whole message, and the thread shows as",
-    "  working on your own shells, sub-agents and timers, or as waiting on anything else. `status:` and",
-    "  `for:` are optional overrides. A rest on running work with NO fence is a bare rest, and it lands",
+    "  working while your own shells or sub-agents run, or as waiting once only something outside is left.",
+    "  `status:` and `for:` are optional overrides. A rest on running work with NO fence is a bare rest, and it lands",
     "  in the user's queue.",
   ]
 }
@@ -5450,12 +5451,12 @@ export function agentParked(t: ThreadView, nowMs = Date.now()): boolean {
   return parkOf(t, nowMs) === "agent"
 }
 
-/** THE WAITING BAND (2026-10-14): an agent's park on something OUTSIDE the thread — a review, CI, a
- *  release, a reply (a park on its own timers alone is Working, 2026-10-22) — which the server reads as `waitStatus: "watching"` (board.deriveWaitStatus;
+/** THE WAITING BAND (2026-10-14): an agent's park with only something OUTSIDE the thread left — a review,
+ *  CI, a release, a reply (a park on its own timers alone is Working, 2026-10-22) — which the server reads as `waitStatus: "watching"` (board.deriveWaitStatus;
  *  a done the human chose to watch from its card reads the same). Always in view, under Working, and never
  *  folded (maintainer: "a separate category that is always visible under working … when agents are
  *  waiting for something external"). A park on the thread's own sub-agents or shells stays in Working: it
- *  finishes by itself, soon. */
+ *  finishes by itself, soon. So does one naming a PR beside them until the last of them returns (2026-11-03). */
 export function inWaitingBand(t: ThreadView, nowMs = Date.now()): boolean {
   return agentParked(t, nowMs) && watchingRest(t)
 }

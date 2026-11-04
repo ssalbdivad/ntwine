@@ -747,8 +747,10 @@ export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // background dot because a watched PR is not this machine's work: a dev server the thread also left
   // running is not what it is waiting FOR, and the dot said "something here is alive" about a wait whose
   // subject is a review queue somewhere else. BELOW the done fence and the limit kill, which are both
-  // later facts than the park — a killed or dismissed thread is not awaiting anything.
-  if (awaitingPrWatch(t)) return "pr"
+  // later facts than the park — a killed or dismissed thread is not awaiting anything. NOT FOR A `working`
+  // REST ON A SHELL BESIDE SETTLED CI: the shell is the motion the row spins for (2026-11-03), and a
+  // spinning octocat would claim checks that are not running.
+  if (awaitingPrWatch(t) && !(restIsWorking(t) && !prChecksRunning(t) && (t.bgShells ?? []).some((s) => s.state === "running"))) return "pr"
   // AWAITING A TIMER — the hourglass, in whichever band the row sits (awaitingTimerWatch). Below the
   // PR mark: a timer beside a PR watch is the watch's backstop, not the subject. Above the dot: a timer
   // park in the QUEUE wore the shell's blue dot until 2026-09-07, which claimed live work behind a

@@ -218,6 +218,22 @@ test("`watching` beside a live sub-agent is honoured — the child is watching t
   assert.deepEqual(place(row(), t), { needsYou: false, waitStatus: "watching" })
 })
 
+// THE REPORTED THREAD (maintainer 2026-11-03): six sub-agents, a gate and one PR on a fence with no `status:`.
+test("a derived `watching` waits only once the thread's own work has stopped", () => {
+  const pr: AwaitingHint = { kind: "pr", value: PR }
+  const agent: AwaitingHint = { kind: "agent", value: "a01b2d20" }
+  const shell: AwaitingHint = { kind: "shell", value: "bzvtnt3ig" }
+  assert.equal(place(row(), tele({ subAgents: [LIVE_AGENT], bgShells: [LIVE_SHELL], ...fence(shell, agent, pr) }), { prs: [PR] }).waitStatus, "working")
+  assert.equal(place(row(), tele({ subAgents: [LIVE_AGENT], ...fence(pr) }), { prs: [PR] }).waitStatus, "working", "a live child moves, named or not")
+  assert.equal(place(row(), tele({ bgShells: [LIVE_SHELL], ...fence(shell, pr) }), { prs: [PR] }).waitStatus, "working")
+  // The last of it returned: only the PR is left, whatever its checks are doing.
+  assert.equal(place(row(), tele(fence(pr)), { prs: [PR], github: { [PR]: ci() } }).waitStatus, "watching", "moving CI is the world's")
+  // A shell nobody named may be a dev server, so it holds nothing out of Waiting.
+  assert.equal(place(row(), tele({ bgShells: [DEV_SERVER], ...fence(pr) }), { prs: [PR] }).waitStatus, "watching")
+  // The worker's own word still wins.
+  assert.equal(place(row(), tele({ subAgents: [LIVE_AGENT], ...fence(agent, pr, status("watching")) }), { prs: [PR] }).waitStatus, "watching")
+})
+
 test("`needs_input` queues, and a queued rest never carries a band", () => {
   const t = tele({ bgShells: [LIVE_SHELL], ...fence({ kind: "shell", value: "bzvtnt3ig" }, FOR_2H, status("needs_input")) })
   assert.deepEqual(place(row(), t), { needsYou: true, waitStatus: undefined })
@@ -260,13 +276,15 @@ test("the board carries the verdict, and the bands and the running count follow 
     "poller": { subAgents: [LIVE_AGENT], ...fence({ kind: "agent", value: "a01b2d20" }, FOR_2H, status("watching")) },
     "ready": { bgShells: [LIVE_SHELL], ...fence({ kind: "shell", value: "bzvtnt3ig" }, FOR_2H, status("needs_input")) },
     "ci": fence({ kind: "pr", value: PR }, FOR_2H, status("working")),
+    "fleet": { subAgents: [LIVE_AGENT], ...fence({ kind: "agent", value: "a01b2d20" }, { kind: "pr", value: PR }) },
+    "shell-and-pr": { bgShells: [LIVE_SHELL], ...fence({ kind: "shell", value: "bzvtnt3ig" }, { kind: "pr", value: PR }) },
   }
   for (const slug of Object.keys(fences)) {
     storage.upsertSession(row({ slug, session_id: `sess-${slug}`, thread_name: `ntwine-${slug}`, spawned_at: slug === "legacy-watcher" ? LEGACY_SPAWN : NEW_SPAWN }))
     storage.setBackend(slug, "claude")
     storage.setClaudeRuntime(slug, "broker")
   }
-  storage.armPrWatch({ id: "prw_1", slug: "ci", owner: "acme", repo: "app", number: 391, createdAtMs: Date.parse(AT), expiresAtMs: Date.parse(AT) + 86_400_000 })
+  for (const slug of ["ci", "fleet", "shell-and-pr"]) storage.armPrWatch({ id: `prw_${slug}`, slug, owner: "acme", repo: "app", number: 391, createdAtMs: Date.parse(AT), expiresAtMs: Date.parse(AT) + 86_400_000 })
   storage.setSetting(GITHUB_STATUS_SETTING, { [PR]: ci() })
   const tailer = {
     // The shells and children report their own instants; the rest is the fence the worker left.
@@ -293,6 +311,12 @@ test("the board carries the verdict, and the bands and the running count follow 
     assert.equal(agentParked(view("poller")), true)
     assert.equal(hasLiveOps(view("poller")), false, "a watching parent is not motion; its child spins on its own row")
     assert.deepEqual(bandOf("ci"), { waitStatus: "working", section: "active", running: true })
+    // A PR beside the thread's own running work is Working, spinning, and no park at all.
+    for (const slug of ["fleet", "shell-and-pr"]) {
+      assert.deepEqual(bandOf(slug), { waitStatus: "working", section: "active", running: true }, slug)
+      assert.equal(agentParked(view(slug)), false, slug)
+      assert.equal(hasLiveOps(view(slug)), true, slug)
+    }
     // The queued rest: in the cue, never counted as running, never banded.
     assert.equal(view("ready").needsYou, true)
     assert.deepEqual(bandOf("ready"), { waitStatus: undefined, section: "active", running: false })

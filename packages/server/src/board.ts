@@ -1813,8 +1813,9 @@ export function deriveAwaitingBackground(
 //    shell the fence names or a watch registers, CI that is running and not held at the approval gate —
 //    so a `working` park on a timer or a settled PR reads as the watch it is.
 //  - `watching` — the wait is on the WORLD: a review, a release, a reporter, a poll for a change. Waiting
-//    (Snoozed until 2026-10-14), and still. Honoured even beside a live sub-agent, because the contract
-//    hands a long wait to a sub-agent; the child keeps its own spinner on its own row.
+//    (Snoozed until 2026-10-14), and still. Written, it is honoured even beside a live sub-agent, because
+//    that child may be the one holding the wait, and it keeps its own spinner on its own row. Derived, it
+//    holds only once none of the thread's own work is moving (2026-11-03, below).
 //
 // A fence that answers with the older `needs_input: false`, and a legacy fence that writes no answer, get
 // ntwine's reading instead: `working` while a live sub-agent or moving CI is out, `watching` otherwise —
@@ -1851,15 +1852,22 @@ export function deriveWaitStatus(
   // the fence's `status:` says, since the band means "nothing moves until someone else acts".
   const parkItems = readAwaitingPark(fence?.hints ?? []).items
   if (parkItems.length > 0 && parkItems.every((i) => i.kind === "timer")) return "working"
-  if (declared === "watching") return "watching"
-  if (liveChild || [...registeredPrWatches].some((key) => ciInMotion(github[key]))) return "working"
-  if (declared !== "working") return "watching"
   // A SHELL MOVES ONLY WHEN THE WORKER SAYS SO: named in the fence, or registered with a watch. An
   // unnamed one is as likely a dev server nobody tore down as the job being waited on.
-  const namedShell = readAwaitingPark(fence?.hints ?? []).items.some((i) => i.kind === "shell" && resolveLiveWatchTarget(tele, i.value)?.kind === "shell")
+  const namedShell = parkItems.some((i) => i.kind === "shell" && resolveLiveWatchTarget(tele, i.value)?.kind === "shell")
   const registeredShell = armedWatches.some((w) => w.kind === "shell" && Date.parse(w.expiresAt) > nowMs && resolveLiveWatchTarget(tele, w.target)?.kind === "shell")
+  // WAITING MEANS ONLY THE WORLD IS LEFT (maintainer 2026-11-03: a thread "running many subagents and
+  // waiting on one random ci process I dont care about" read as Waiting). A fence is a list, and the PR on
+  // it says nothing about what the thread is doing now, so a `watching` the fence only DERIVED yields to
+  // the thread's own work while any of it runs, and the row drops to Waiting by itself when the last of it
+  // returns. Moving CI does not count: it is the world's. A WRITTEN `status: watching` still wins, since
+  // that is the worker saying its child or shell is itself only watching the world.
+  if (declared === "watching" && (awaitingStatusWritten(fence?.hints) || !(liveChild || namedShell || registeredShell))) return "watching"
+  if (declared === "watching") return "working"
+  if (liveChild || [...registeredPrWatches].some((key) => ciInMotion(github[key]))) return "working"
+  if (declared !== "working") return "watching"
   // A TERMINAL the worker named is moving until it reaches a prompt or ends, exactly like a named shell.
-  const namedTerminal = readAwaitingPark(fence?.hints ?? []).items.some((i) => (i.kind === "terminal" || i.kind === "thread") && liveTerminalNamed(tele, i.value))
+  const namedTerminal = parkItems.some((i) => (i.kind === "terminal" || i.kind === "thread") && liveTerminalNamed(tele, i.value))
   return namedShell || registeredShell || namedTerminal ? "working" : "watching"
 }
 

@@ -480,3 +480,13 @@ test("showsRestingCard stands down for a fence that names questions, and only fo
   assert.equal(showsRestingCard(rest([pr, { kind: "question", value: "qst_466f9d6ee188" }])), false)
   assert.equal(showsRestingCard(rest([pr, { kind: "question", value: "qst_466f9d6ee188" }, { kind: "step", value: "Run `npm login`" }])), true, "steps keep the card and its Done")
 })
+
+test("the heading names a PR only once the thread's own work has stopped", () => {
+  const pr = { kind: "pr", value: "acme/app#391" }
+  const running = { label: "x", startedAt: "2026-11-03T00:00:00.000Z", state: "running" as const }
+  assert.equal(awaitingBackgroundLabel({}, [pr]), "Watching acme/app#391")
+  assert.equal(awaitingBackgroundLabel({ subAgents: [{ id: "a1", ...running }] }, [pr]), "Awaiting")
+  assert.equal(awaitingBackgroundLabel({ bgShells: [running], watches: [{ id: "w", kind: "github", target: "acme/app#391", state: "armed", createdAt: running.startedAt }] }, [{ kind: "shell", value: "b1" }, pr]), "Awaiting")
+  // A shell the fence never named may be a dev server, and does not change what the wait is.
+  assert.equal(awaitingBackgroundLabel({ bgShells: [running], watches: [{ id: "w", kind: "github", target: "acme/app#391", state: "armed", createdAt: running.startedAt }] }, [pr]), "Watching acme/app#391")
+})

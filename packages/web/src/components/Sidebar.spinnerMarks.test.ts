@@ -56,6 +56,12 @@ test("own turn running: the empty spinner, nothing inside", () => {
   assert.ok(!html.includes("ntwine-rail-dot"), "and no dot")
 })
 
+test("a `working` rest on a shell beside a PR with settled checks: the dot spins, not the octocat", () => {
+  const html = markup({ awaitingBackground: true, waitStatus: "working", bgShells: liveShell, watches: prWatch({ checks: "passing", running: 0 }) as never })
+  assert.ok(spins(html))
+  assert.ok(html.includes("ntwine-rail-dot"), "the shell is what is moving")
+})
+
 test("a parent at rest with a sub-agent out: the ellipsis inside the spinner", () => {
   const html = markup({ subAgents: liveChild })
   assert.ok(spins(html), "the child's return will re-invoke it, so the box traces")
