@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { type } from "./ark.ts"
 import { ThreadSlug } from "./thread-slug.ts"
 
 // A THREAD'S DEADLINE — the time limit a prompt carries (ARCHITECTURE.md § Time limits).
@@ -194,60 +194,67 @@ export function childDeadlineMs(input: { nowMs: number; parentDeadlineMs?: numbe
 
 // ---- THE RPC SHAPES -----------------------------------------------------------------------------------
 
-const IsoInstant = z.string().refine((v) => Number.isFinite(Date.parse(v)), "must be an ISO-8601 instant")
+/** Anything `Date.parse` reads as an instant. */
+export const IsoInstant = type("string").narrow((v, ctx) => Number.isFinite(Date.parse(v)) || ctx.mustBe("an ISO-8601 instant"))
 
 /** The HUMAN's control — the drawer's set / extend / clear. `deadline: null` clears. Refused to a
  *  worker's shim (router.ts): a worker goes through `ownDeadline`, which keeps the human's rule. */
-export const SetThreadDeadlineInput = z.object({
+export const SetThreadDeadlineInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  deadline: IsoInstant.nullable(),
-}).strict()
-export type SetThreadDeadlineInput = z.infer<typeof SetThreadDeadlineInput>
+  deadline: IsoInstant.or("null"),
+})
+export type SetThreadDeadlineInput = typeof SetThreadDeadlineInput.infer
 
 /** The human's machine-wide wrap-up (the palette's "Time limit for running threads"): one deadline on
  *  every Running thread in every open project, with an optional note each worker reads beside it —
  *  "restarting the machine in 15m, leave the work easy to resume". A thread already due sooner keeps
  *  its own deadline. Refused to a worker's shim, like `setThreadDeadline`. */
-export const SetRunningDeadlinesInput = z.object({
+export const SetRunningDeadlinesInput = type({
+  "+": "reject",
   /** `null` removes the limit from every Running thread instead; the note is then unused. */
-  deadline: IsoInstant.nullable(),
-  note: z.string().trim().max(2_000).optional(),
-}).strict()
-export type SetRunningDeadlinesInput = z.infer<typeof SetRunningDeadlinesInput>
-export const SetRunningDeadlinesResult = z.object({
-  /** Running threads that now carry the deadline (or kept a sooner one), or had theirs removed, and were told. */
-  threads: z.number().int(),
-  /** How many distinct projects those threads are in. */
-  projects: z.number().int(),
-  /** Running sub-agents and Workflow agents of those threads that were reached through their mailboxes. */
-  children: z.number().int(),
+  deadline: IsoInstant.or("null"),
+  "note?": "string.trim |> string <= 2000",
 })
-export type SetRunningDeadlinesResult = z.infer<typeof SetRunningDeadlinesResult>
+export type SetRunningDeadlinesInput = typeof SetRunningDeadlinesInput.infer
+export const SetRunningDeadlinesResult = type({
+  "+": "delete",
+  /** Running threads that now carry the deadline (or kept a sooner one), or had theirs removed, and were told. */
+  threads: "number.integer",
+  /** How many distinct projects those threads are in. */
+  projects: "number.integer",
+  /** Running sub-agents and Workflow agents of those threads that were reached through their mailboxes. */
+  children: "number.integer",
+})
+export type SetRunningDeadlinesResult = typeof SetRunningDeadlinesResult.infer
 
 /** `mcp__ntwine__deadline`: the worker's own read / set / extend / clear. */
-export const OwnDeadlineInput = z.object({
+export const OwnDeadlineInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  action: z.enum(["read", "set", "extend", "clear"]),
+  action: "'read' | 'set' | 'extend' | 'clear'",
   /** For `set` / `extend`: a DURATION from now (`30m`, `2h`, `1h 30m`). */
-  for: z.string().trim().min(1).max(32).optional(),
+  "for?": "string.trim |> 1 <= string <= 32",
   /** For `set` / `extend`: an exact instant instead. */
-  at: IsoInstant.optional(),
-}).strict()
-export type OwnDeadlineInput = z.infer<typeof OwnDeadlineInput>
+  "at?": IsoInstant,
+})
+export type OwnDeadlineInput = typeof OwnDeadlineInput.infer
 
-export const ThreadDeadlineView = z.object({
+export const ThreadDeadlineView = type({
+  "+": "reject",
   /** The deadline, ISO8601. */
-  at: z.string(),
+  at: "string",
   /** When this deadline was set — the budget runs from here. */
-  setAt: z.string(),
-  setBy: z.enum(["human", "worker"]),
-}).strict()
-export type ThreadDeadlineView = z.infer<typeof ThreadDeadlineView>
+  setAt: "string",
+  setBy: "'human' | 'worker'",
+})
+export type ThreadDeadlineView = typeof ThreadDeadlineView.infer
 
-export const OwnDeadlineResult = z.object({
-  deadline: ThreadDeadlineView.nullable(),
-}).strict()
-export type OwnDeadlineResult = z.infer<typeof OwnDeadlineResult>
+export const OwnDeadlineResult = type({
+  "+": "reject",
+  deadline: ThreadDeadlineView.or("null"),
+})
+export type OwnDeadlineResult = typeof OwnDeadlineResult.infer
 
 // ---- THE DEADLINE WAKES, READ BACK -----------------------------------------------------------------
 // The worker-facing text is composed in the server (deadline.ts there: deadlineCheckInMessage and

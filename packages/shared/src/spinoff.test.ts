@@ -3,6 +3,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { DispatchInput, isInjectedNoise, SpinoffInput, parseSpinoffChildPrompt, parseSpinoffRequest, spinoffChildPrompt, spinoffContext, spinoffForkPrompt } from "./index.ts"
+import { type } from "./ark.ts"
 
 const id = "spn_0123456789abcdef"
 
@@ -127,12 +128,12 @@ test("the context ntwine assembles quotes the parent's request and handoff, then
 test("ids and inputs are validated at the schema", () => {
   // A worker whose MCP server predates 2026-10-07 may still send a `spinoff` id; it is stripped, and the
   // spawn goes through as a plain one.
-  const stale = DispatchInput.safeParse({ prompt: "x", spinoff: id, spinoffFrom: "parent" })
-  assert.equal(stale.success, true)
-  assert.equal(stale.success && "spinoff" in stale.data, false)
+  const stale = DispatchInput({ prompt: "x", spinoff: id, spinoffFrom: "parent" })
+  if (stale instanceof type.errors) assert.fail(stale.summary)
+  assert.equal("spinoff" in stale, false)
   const base = { slug: "parent", sessionId: "sid" }
-  assert.equal(SpinoffInput.safeParse({ ...base, instructions: "   " }).success, false)
-  assert.equal(SpinoffInput.safeParse({ ...base, instructions: "fix this" }).success, true)
+  assert.ok(SpinoffInput({ ...base, instructions: "   " }) instanceof type.errors)
+  assert.ok(!(SpinoffInput({ ...base, instructions: "fix this" }) instanceof type.errors))
   // No message is picked any more, so a client that still sends one is out of date and refused.
-  assert.equal(SpinoffInput.safeParse({ ...base, instructions: "fix this", sourceId: "m1" }).success, false)
+  assert.ok(SpinoffInput({ ...base, instructions: "fix this", sourceId: "m1" }) instanceof type.errors)
 })

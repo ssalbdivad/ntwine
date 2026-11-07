@@ -1,15 +1,12 @@
-import { z } from "zod"
+import { type } from "./ark.ts"
 
 // One identifier contract for every thread-bearing boundary. Keeping this deliberately narrower
 // than a filesystem basename also makes the value safe as a process identity string, an environment
 // value, and a literal path segment without relying on shell escaping or platform-specific filename
 // rules.
 export const THREAD_SLUG_MAX_CHARS = 200
-export const ThreadSlug = z.string()
-  .min(1)
-  .max(THREAD_SLUG_MAX_CHARS)
-  .regex(/^[a-z0-9][a-z0-9-]*$/)
-export type ThreadSlug = z.infer<typeof ThreadSlug>
+export const ThreadSlug = type(`1 <= string <= ${THREAD_SLUG_MAX_CHARS} & /^[a-z0-9][a-z0-9-]*$/`)
+export type ThreadSlug = typeof ThreadSlug.infer
 
 // title -> slug matching the id regex above. Non-alnum collapses to a single '-'; leading/trailing
 // '-' trimmed; empty falls back to "thread". Lives beside the contract it produces so both the

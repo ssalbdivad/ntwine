@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { type, type Traversal } from "./ark.ts"
 import { ThreadSlug } from "./thread-slug.ts"
 
 // Runtime-neutral typed interaction protocol. Provider-controlled strings in this module are
@@ -21,54 +21,71 @@ function byteLength(value: unknown): number {
   return encoder.encode(typeof value === "string" ? value : JSON.stringify(value)).byteLength
 }
 
-function plainText(maxChars: number, maxBytes: number, multiline = false) {
-  return z.string()
-    .min(1)
-    .max(maxChars)
-    .refine((value) => !UNSAFE_TEXT.test(value), "contains unsafe control or bidirectional text")
-    .refine((value) => multiline || (!value.includes("\n") && !value.includes("\r")), "must be a single line")
-    .refine((value) => byteLength(value) <= maxBytes, `must be at most ${maxBytes} UTF-8 bytes`)
+// A rule a whole value breaks, in the words zod's custom issue used: `problem` is the location-free text,
+// and `relativePath` points inside the value being checked.
+type Issue = { problem: string; relativePath?: PropertyKey[] }
+
+/** Report every issue found on `ctx`: the narrow passes exactly when there were none. */
+function rejectEach(ctx: Traversal, issues: readonly Issue[]): boolean {
+  for (const issue of issues) ctx.reject(issue)
+  return issues.length === 0
 }
 
-function plainValue(maxChars: number, maxBytes: number, multiline = false) {
-  return z.string()
-    .max(maxChars)
-    .refine((value) => !UNSAFE_TEXT.test(value), "contains unsafe control or bidirectional text")
-    .refine((value) => multiline || (!value.includes("\n") && !value.includes("\r")), "must be a single line")
-    .refine((value) => byteLength(value) <= maxBytes, `must be at most ${maxBytes} UTF-8 bytes`)
-}
+// One rule set for every provider-controlled string: at most N characters, no unsafe text, a single line
+// unless the field is multiline, and at most M UTF-8 bytes. Each rule reports on its own, so a value that
+// breaks two of them says both.
+//
+// Each definition spells the chain out rather than calling a helper taking (maxChars, maxBytes), and every
+// narrow is a module-level function, one per byte cap: arktype's precompiler (`@ark/aot`) builds each Type at
+// build time and cannot yet precompile a helper's result that holds a function (it refuses both a function
+// the helper creates and a module-level one the helper reads).
+const safeText = (value: string, ctx: Traversal) =>
+  !UNSAFE_TEXT.test(value) || ctx.reject({ problem: "contains unsafe control or bidirectional text" })
+const singleLine = (value: string, ctx: Traversal) =>
+  (!value.includes("\n") && !value.includes("\r")) || ctx.mustBe("a single line")
+const atMost512Bytes = (value: string, ctx: Traversal) => byteLength(value) <= 512 || ctx.mustBe("at most 512 UTF-8 bytes")
+const atMost2000Bytes = (value: string, ctx: Traversal) => byteLength(value) <= 2000 || ctx.mustBe("at most 2000 UTF-8 bytes")
+const atMost2048Bytes = (value: string, ctx: Traversal) => byteLength(value) <= 2048 || ctx.mustBe("at most 2048 UTF-8 bytes")
+const atMost4096Bytes = (value: string, ctx: Traversal) => byteLength(value) <= 4096 || ctx.mustBe("at most 4096 UTF-8 bytes")
+const atMost8000Bytes = (value: string, ctx: Traversal) => byteLength(value) <= 8000 || ctx.mustBe("at most 8000 UTF-8 bytes")
+const atMost24000Bytes = (value: string, ctx: Traversal) => byteLength(value) <= 24000 || ctx.mustBe("at most 24000 UTF-8 bytes")
 
-export const InteractionOpaqueId = plainText(256, 512)
+// zod 3's `datetime({ offset: true })` pattern, verbatim: a calendar-checked date, `T`, a 24h time whose
+// seconds and fraction are optional, then `Z` or a `±hh[:]mm` offset. The durable journal holds instants
+// this accepted, so the rule a record is re-read under must not move.
+const ISO_DATETIME_WITH_OFFSET = /^((\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-((0[13578]|1[02])-(0[1-9]|[12]\d|3[01])|(0[469]|11)-(0[1-9]|[12]\d|30)|(02)-(0[1-9]|1\d|2[0-8])))T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?(Z|([+-]\d{2}:?\d{2}))$/
+
+export const InteractionOpaqueId = type.string.atMostLength(256).narrow(safeText).narrow(singleLine).narrow(atMost512Bytes).atLeastLength(1)
 // Back-compatible protocol name; the value itself is the canonical thread identifier schema.
 export const InteractionThreadSlug = ThreadSlug
-export const InteractionRevision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
-export const InteractionTimestamp = z.string().datetime({ offset: true }).transform((value) => new Date(value).toISOString())
-export const InteractionLabel = plainText(160, 512)
-export const InteractionDescription = plainText(4_000, 8_000, true)
-export const InteractionPreview = plainText(16_000, 24_000, true)
-  .refine((value) => value.split(/\r?\n/u).length <= 256, "must be at most 256 lines")
-export const InteractionFieldId = z.string()
-  .min(1)
-  .max(128)
-  .regex(/^[A-Za-z_][A-Za-z0-9_.:-]*$/)
-  .refine((value) => !["__proto__", "constructor", "prototype"].includes(value), "reserved field id")
-export const InteractionDecisionId = z.string().min(1).max(80).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/)
+export const InteractionRevision = type("number.integer >= 0").atMost(Number.MAX_SAFE_INTEGER)
+export const InteractionTimestamp = type(ISO_DATETIME_WITH_OFFSET).pipe((value) => new Date(value).toISOString())
+export const InteractionLabel = type.string.atMostLength(160).narrow(safeText).narrow(singleLine).narrow(atMost512Bytes).atLeastLength(1)
+export const InteractionDescription = type.string.atMostLength(4_000).narrow(safeText).narrow(atMost8000Bytes).atLeastLength(1)
+export const InteractionPreview = type.string.atMostLength(16_000).narrow(safeText).narrow(atMost24000Bytes).atLeastLength(1)
+  .narrow((value, ctx) => value.split(/\r?\n/u).length <= 256 || ctx.mustBe("at most 256 lines"))
+export const InteractionFieldId = type("1 <= string <= 128 & /^[A-Za-z_][A-Za-z0-9_.:-]*$/")
+  .narrow((value, ctx) => !["__proto__", "constructor", "prototype"].includes(value) || ctx.reject({ problem: "reserved field id" }))
+export const InteractionDecisionId = type("1 <= string <= 80 & /^[A-Za-z0-9][A-Za-z0-9._:-]*$/")
 
-export const InteractionProvider = z.object({
-  kind: z.enum(["claude", "codex", "acp", "ntwine"]),
-  name: InteractionLabel.optional(),
-  version: InteractionOpaqueId.optional(),
-}).strict()
-export type InteractionProvider = z.infer<typeof InteractionProvider>
+export const InteractionProvider = type({
+  "+": "reject",
+  kind: "'claude' | 'codex' | 'acp' | 'ntwine'",
+  "name?": InteractionLabel,
+  "version?": InteractionOpaqueId,
+})
+export type InteractionProvider = typeof InteractionProvider.infer
 
-export const InteractionSource = z.object({
-  kind: z.enum(["runtime", "agent", "tool", "mcp-server", "ntwine"]),
+export const InteractionSource = type({
+  "+": "reject",
+  kind: "'runtime' | 'agent' | 'tool' | 'mcp-server' | 'ntwine'",
   id: InteractionOpaqueId,
-  label: InteractionLabel.optional(),
-}).strict()
-export type InteractionSource = z.infer<typeof InteractionSource>
+  "label?": InteractionLabel,
+})
+export type InteractionSource = typeof InteractionSource.infer
 
-export const InteractionOwner = z.object({
+export const InteractionOwner = type({
+  "+": "reject",
   projectId: InteractionOpaqueId,
   threadSlug: InteractionThreadSlug,
   sessionId: InteractionOpaqueId,
@@ -76,92 +93,100 @@ export const InteractionOwner = z.object({
   itemId: InteractionOpaqueId,
   sessionEpoch: InteractionRevision,
   capabilityRevision: InteractionRevision,
-}).strict()
-export type InteractionOwner = z.infer<typeof InteractionOwner>
+})
+export type InteractionOwner = typeof InteractionOwner.infer
 
-export const InteractionDecisionSemantic = z.enum(["approve", "deny", "cancel", "accept", "decline", "answer"])
-export type InteractionDecisionSemantic = z.infer<typeof InteractionDecisionSemantic>
+export const InteractionDecisionSemantic = type("'approve' | 'deny' | 'cancel' | 'accept' | 'decline' | 'answer'")
+export type InteractionDecisionSemantic = typeof InteractionDecisionSemantic.infer
 
-export const InteractionDecision = z.object({
+export const InteractionDecision = type({
+  "+": "reject",
   id: InteractionDecisionId,
   semantic: InteractionDecisionSemantic,
   // Provider context only. Authorization UIs must make `semantic` visible with a canonical verb and
   // must never infer the security effect from this provider-controlled label.
   label: InteractionLabel,
-  description: InteractionDescription.optional(),
-}).strict()
-export type InteractionDecision = z.infer<typeof InteractionDecision>
+  "description?": InteractionDescription,
+})
+export type InteractionDecision = typeof InteractionDecision.infer
 
-const InteractionNumber = z.number().finite().min(-INTERACTION_NUMBER_LIMIT).max(INTERACTION_NUMBER_LIMIT)
+const InteractionNumber = type(`${-INTERACTION_NUMBER_LIMIT} <= number <= ${INTERACTION_NUMBER_LIMIT}`)
 
-const InteractionScalar = z.union([
-  plainValue(4_000, 8_000, true),
+const InteractionScalar = type.or(
+  type.string.atMostLength(4_000).narrow(safeText).narrow(atMost8000Bytes),
   InteractionNumber,
-  z.boolean(),
-])
-export type InteractionScalar = z.infer<typeof InteractionScalar>
+  "boolean",
+)
+export type InteractionScalar = typeof InteractionScalar.infer
 
-export const InteractionValue = z.union([
+export const InteractionValue = type.or(
   InteractionScalar,
-  z.array(plainValue(1_000, 2_000, true)).max(32),
-])
-export type InteractionValue = z.infer<typeof InteractionValue>
+  type.string.atMostLength(1_000).narrow(safeText).narrow(atMost2000Bytes).array().atMostLength(32),
+)
+export type InteractionValue = typeof InteractionValue.infer
 
-const FieldBase = {
+const FieldBase = type({
   id: InteractionFieldId,
   label: InteractionLabel,
-  description: InteractionDescription.optional(),
-  required: z.boolean(),
-  secret: z.boolean().default(false),
-}
+  "description?": InteractionDescription,
+  required: "boolean",
+  secret: "boolean = false",
+})
 
-const InteractionChoice = z.object({
+const InteractionChoice = type({
+  "+": "reject",
   value: InteractionScalar,
   label: InteractionLabel,
-}).strict()
+})
 
-const InteractionMultiChoice = z.object({
-  value: plainValue(1_000, 2_000, true),
+const InteractionMultiChoice = type({
+  "+": "reject",
+  value: type.string.atMostLength(1_000).narrow(safeText).narrow(atMost2000Bytes),
   label: InteractionLabel,
-}).strict()
+})
 
-const InteractionFieldShapeSchema = z.discriminatedUnion("input", [
-  z.object({
-    ...FieldBase,
-    input: z.enum(["text", "multiline"]),
-    minLength: z.number().int().nonnegative().max(4_000).optional(),
-    maxLength: z.number().int().nonnegative().max(4_000).optional(),
-    format: z.enum(["email", "uri", "date", "date-time"]).optional(),
-    default: plainValue(4_000, 8_000, true).optional(),
-  }).strict(),
-  z.object({
-    ...FieldBase,
-    input: z.enum(["number", "integer"]),
-    minimum: InteractionNumber.optional(),
-    maximum: InteractionNumber.optional(),
-    default: InteractionNumber.optional(),
-  }).strict(),
-  z.object({
-    ...FieldBase,
-    input: z.literal("boolean"),
-    default: z.boolean().optional(),
-  }).strict(),
-  z.object({
-    ...FieldBase,
-    input: z.literal("select"),
-    options: z.array(InteractionChoice).min(1).max(64),
-    default: InteractionScalar.optional(),
-  }).strict(),
-  z.object({
-    ...FieldBase,
-    input: z.literal("multi-select"),
-    options: z.array(InteractionMultiChoice).min(1).max(64),
-    minItems: z.number().int().nonnegative().max(32).optional(),
-    maxItems: z.number().int().nonnegative().max(32).optional(),
-    default: z.array(plainValue(1_000, 2_000, true)).max(32).optional(),
-  }).strict(),
-])
-type InteractionFieldShape = z.infer<typeof InteractionFieldShapeSchema>
+const InteractionFieldShapeSchema = type.or(
+  {
+    "...": FieldBase,
+    "+": "reject",
+    input: "'text' | 'multiline'",
+    "minLength?": "0 <= number.integer <= 4000",
+    "maxLength?": "0 <= number.integer <= 4000",
+    "format?": "'email' | 'uri' | 'date' | 'date-time'",
+    "default?": type.string.atMostLength(4_000).narrow(safeText).narrow(atMost8000Bytes),
+  },
+  {
+    "...": FieldBase,
+    "+": "reject",
+    input: "'number' | 'integer'",
+    "minimum?": InteractionNumber,
+    "maximum?": InteractionNumber,
+    "default?": InteractionNumber,
+  },
+  {
+    "...": FieldBase,
+    "+": "reject",
+    input: "'boolean'",
+    "default?": "boolean",
+  },
+  {
+    "...": FieldBase,
+    "+": "reject",
+    input: "'select'",
+    options: InteractionChoice.array().atLeastLength(1).atMostLength(64),
+    "default?": InteractionScalar,
+  },
+  {
+    "...": FieldBase,
+    "+": "reject",
+    input: "'multi-select'",
+    options: InteractionMultiChoice.array().atLeastLength(1).atMostLength(64),
+    "minItems?": "0 <= number.integer <= 32",
+    "maxItems?": "0 <= number.integer <= 32",
+    "default?": type.string.atMostLength(1_000).narrow(safeText).narrow(atMost2000Bytes).array().atMostLength(32),
+  },
+)
+type InteractionFieldShape = typeof InteractionFieldShapeSchema.infer
 
 function validCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
@@ -187,7 +212,7 @@ export function validateInteractionFieldValue(field: InteractionFieldShape, valu
       }
     }
     if (field.format === "date" && !validCalendarDate(value)) return "must be a date"
-    if (field.format === "date-time" && !InteractionTimestamp.safeParse(value).success) return "must be a date-time"
+    if (field.format === "date-time" && !InteractionTimestamp.allows(value)) return "must be a date-time"
     return undefined
   }
   if (field.input === "number" || field.input === "integer") {
@@ -216,176 +241,189 @@ export function validateInteractionFieldValue(field: InteractionFieldShape, valu
   return "has an unsupported input type"
 }
 
-export const InteractionField = InteractionFieldShapeSchema.superRefine((field, ctx) => {
+export const InteractionField = InteractionFieldShapeSchema.narrow((field, ctx) => {
+  const issues: Issue[] = []
   if (field.secret && field.default !== undefined) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "secret fields cannot advertise defaults", path: ["default"] })
+    issues.push({ problem: "secret fields cannot advertise defaults", relativePath: ["default"] })
   }
   if (field.input === "text" || field.input === "multiline") {
     if (field.minLength !== undefined && field.maxLength !== undefined && field.minLength > field.maxLength) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "minLength exceeds maxLength" })
+      issues.push({ problem: "minLength exceeds maxLength" })
     }
   }
   if (field.input === "number" || field.input === "integer") {
     if (field.minimum !== undefined && field.maximum !== undefined && field.minimum > field.maximum) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "minimum exceeds maximum" })
+      issues.push({ problem: "minimum exceeds maximum" })
     }
   }
   if (field.input === "select" || field.input === "multi-select") {
     const seen = new Set<string>()
     for (const [index, option] of field.options.entries()) {
       const key = JSON.stringify(option.value)
-      if (seen.has(key)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "duplicate option value", path: ["options", index, "value"] })
+      if (seen.has(key)) issues.push({ problem: "duplicate option value", relativePath: ["options", index, "value"] })
       seen.add(key)
     }
     if (field.input === "multi-select" && field.minItems !== undefined && field.maxItems !== undefined && field.minItems > field.maxItems) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "minItems exceeds maxItems" })
+      issues.push({ problem: "minItems exceeds maxItems" })
     }
   }
   if (field.default !== undefined) {
     const error = validateInteractionFieldValue(field, field.default)
-    if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `invalid default: ${error}`, path: ["default"] })
+    if (error) issues.push({ problem: `invalid default: ${error}`, relativePath: ["default"] })
   }
+  return rejectEach(ctx, issues)
 })
-export type InteractionField = z.infer<typeof InteractionField>
+export type InteractionField = typeof InteractionField.infer
 
-const CommonPayload = {
+const CommonPayload = type({
   title: InteractionLabel,
-  message: InteractionDescription.optional(),
-}
+  "message?": InteractionDescription,
+})
 
 // Authorization displays keep security-relevant structure separate from provider prose. Adapters
 // construct these values from provider protocols after redaction and bounding; React renders every
 // string as text, never as HTML or Markdown.
-export const InteractionCommandAction = z.object({
-  kind: z.enum(["read", "list-files", "search", "unknown"]),
+export const InteractionCommandAction = type({
+  "+": "reject",
+  kind: "'read' | 'list-files' | 'search' | 'unknown'",
   commandPreview: InteractionPreview,
-  resourceLabel: plainText(2_048, 4_096).optional(),
-  queryLabel: plainText(1_024, 2_048).optional(),
-}).strict()
-export type InteractionCommandAction = z.infer<typeof InteractionCommandAction>
+  "resourceLabel?": type.string.atMostLength(2_048).narrow(safeText).narrow(singleLine).narrow(atMost4096Bytes).atLeastLength(1),
+  "queryLabel?": type.string.atMostLength(1_024).narrow(safeText).narrow(singleLine).narrow(atMost2048Bytes).atLeastLength(1),
+})
+export type InteractionCommandAction = typeof InteractionCommandAction.infer
 
-const InteractionResourceLabel = plainText(2_048, 4_096)
-export const InteractionCapability = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("network"),
-    enabled: z.boolean().nullable(),
-    hosts: z.array(InteractionResourceLabel).max(24),
-  }).strict(),
-  z.object({
-    kind: z.literal("filesystem"),
-    access: z.enum(["read", "write", "deny"]),
-    resources: z.array(InteractionResourceLabel).min(1).max(32),
-  }).strict(),
-  z.object({
-    kind: z.literal("glob-scan"),
-    depth: z.number().int().nonnegative().max(256),
-  }).strict(),
-  z.object({
-    kind: z.literal("exec-policy"),
-    prefixes: z.array(InteractionResourceLabel).min(1).max(32),
-  }).strict(),
-  z.object({
-    kind: z.literal("network-policy"),
-    access: z.enum(["allow", "deny"]),
-    hosts: z.array(InteractionResourceLabel).min(1).max(24),
-  }).strict(),
-])
-export type InteractionCapability = z.infer<typeof InteractionCapability>
+const InteractionResourceLabel = type.string.atMostLength(2_048).narrow(safeText).narrow(singleLine).narrow(atMost4096Bytes).atLeastLength(1)
+export const InteractionCapability = type.or(
+  {
+    "+": "reject",
+    kind: "'network'",
+    enabled: "boolean | null",
+    hosts: InteractionResourceLabel.array().atMostLength(24),
+  },
+  {
+    "+": "reject",
+    kind: "'filesystem'",
+    access: "'read' | 'write' | 'deny'",
+    resources: InteractionResourceLabel.array().atLeastLength(1).atMostLength(32),
+  },
+  {
+    "+": "reject",
+    kind: "'glob-scan'",
+    depth: "0 <= number.integer <= 256",
+  },
+  {
+    "+": "reject",
+    kind: "'exec-policy'",
+    prefixes: InteractionResourceLabel.array().atLeastLength(1).atMostLength(32),
+  },
+  {
+    "+": "reject",
+    kind: "'network-policy'",
+    access: "'allow' | 'deny'",
+    hosts: InteractionResourceLabel.array().atLeastLength(1).atMostLength(24),
+  },
+)
+export type InteractionCapability = typeof InteractionCapability.infer
 
-export const InteractionFileChangeDisplay = z.object({
-  operation: z.enum(["create", "write", "move", "delete"]),
-  pathLabel: plainText(2_048, 4_096),
-  destinationLabel: plainText(2_048, 4_096).optional(),
+export const InteractionFileChangeDisplay = type({
+  "+": "reject",
+  operation: "'create' | 'write' | 'move' | 'delete'",
+  pathLabel: type.string.atMostLength(2_048).narrow(safeText).narrow(singleLine).narrow(atMost4096Bytes).atLeastLength(1),
+  "destinationLabel?": type.string.atMostLength(2_048).narrow(safeText).narrow(singleLine).narrow(atMost4096Bytes).atLeastLength(1),
   // Display-only, bounded plain text. This value is never parsed or applied as a patch by ntwine.
-  diffPreview: InteractionPreview.optional(),
-}).strict()
-export type InteractionFileChangeDisplay = z.infer<typeof InteractionFileChangeDisplay>
+  "diffPreview?": InteractionPreview,
+})
+export type InteractionFileChangeDisplay = typeof InteractionFileChangeDisplay.infer
 
-export const InteractionPayload = z.discriminatedUnion("kind", [
-  z.object({
-    ...CommonPayload,
-    kind: z.literal("command-approval"),
-    command: z.object({
+export const InteractionPayload = type.or(
+  {
+    "...": CommonPayload,
+    "+": "reject",
+    kind: "'command-approval'",
+    command: {
+      "+": "reject",
       summary: InteractionLabel,
       // Adapters must redact credentials/environment/stdin before constructing this preview. The
       // literal makes accidentally passing an unreviewed raw command shape a schema error.
       preview: InteractionPreview,
-      redacted: z.literal(true),
-      workingDirectoryLabel: plainText(1_024, 2_048).optional(),
-      actions: z.array(InteractionCommandAction).max(16).optional(),
-    }).strict(),
-    capabilities: z.array(InteractionCapability).max(32).optional(),
-  }).strict(),
-  z.object({
-    ...CommonPayload,
-    kind: z.literal("file-approval"),
-    operation: z.enum(["read", "create", "write", "move", "delete", "execute", "other"]),
-    pathLabel: plainText(1_024, 2_048),
-    destinationLabel: plainText(1_024, 2_048).optional(),
+      redacted: "true",
+      "workingDirectoryLabel?": type.string.atMostLength(1_024).narrow(safeText).narrow(singleLine).narrow(atMost2048Bytes).atLeastLength(1),
+      "actions?": InteractionCommandAction.array().atMostLength(16),
+    },
+    "capabilities?": InteractionCapability.array().atMostLength(32),
+  },
+  {
+    "...": CommonPayload,
+    "+": "reject",
+    kind: "'file-approval'",
+    operation: "'read' | 'create' | 'write' | 'move' | 'delete' | 'execute' | 'other'",
+    pathLabel: type.string.atMostLength(1_024).narrow(safeText).narrow(singleLine).narrow(atMost2048Bytes).atLeastLength(1),
+    "destinationLabel?": type.string.atMostLength(1_024).narrow(safeText).narrow(singleLine).narrow(atMost2048Bytes).atLeastLength(1),
     // `grantRoot` in the pinned Codex protocol is broader than an affected path: accepting for the
     // session authorizes writes below this root for the rest of that session. Keep it separately
     // labeled so the affected-file summary cannot disguise the durable scope.
-    grantRootLabel: plainText(2_048, 4_096).optional(),
-    scopeLabel: InteractionDescription.optional(),
+    "grantRootLabel?": type.string.atMostLength(2_048).narrow(safeText).narrow(singleLine).narrow(atMost4096Bytes).atLeastLength(1),
+    "scopeLabel?": InteractionDescription,
     // Plain-text, bounded preview only. It is never a trusted patch and must never be applied by ntwine.
-    diffPreview: InteractionPreview.optional(),
-    changes: z.array(InteractionFileChangeDisplay).min(1).max(16).optional(),
-  }).strict(),
-  z.object({
-    ...CommonPayload,
-    kind: z.literal("permission-approval"),
+    "diffPreview?": InteractionPreview,
+    "changes?": InteractionFileChangeDisplay.array().atLeastLength(1).atMostLength(16),
+  },
+  {
+    "...": CommonPayload,
+    "+": "reject",
+    kind: "'permission-approval'",
     permission: InteractionOpaqueId,
     // The exact text of what is being authorized — a command, a path, a request body. Multi-line and
     // rendered monospace, because a Bash command is the one thing the operator actually reads and a
     // single-line label cannot hold a heredoc. Adapters redact and clamp it before it gets here.
-    preview: InteractionPreview.optional(),
+    "preview?": InteractionPreview,
     // A shell prompt to render in FRONT of `preview`, which is how a terminal shows a command and where
     // the working directory belongs when there is one. Set it only when the preview genuinely IS a shell
     // command line: a file path or an MCP argument behind a `❯` would be a lie about what runs.
-    promptLabel: plainText(256, 512).optional(),
-    resourceLabel: plainText(1_024, 2_048).optional(),
-    workingDirectoryLabel: plainText(1_024, 2_048).optional(),
-    scopeLabel: InteractionDescription.optional(),
-    capabilities: z.array(InteractionCapability).min(1).max(32).optional(),
-  }).strict(),
-  z.object({
-    kind: z.literal("mcp-elicitation-form"),
+    "promptLabel?": type.string.atMostLength(256).narrow(safeText).narrow(singleLine).narrow(atMost512Bytes).atLeastLength(1),
+    "resourceLabel?": type.string.atMostLength(1_024).narrow(safeText).narrow(singleLine).narrow(atMost2048Bytes).atLeastLength(1),
+    "workingDirectoryLabel?": type.string.atMostLength(1_024).narrow(safeText).narrow(singleLine).narrow(atMost2048Bytes).atLeastLength(1),
+    "scopeLabel?": InteractionDescription,
+    "capabilities?": InteractionCapability.array().atLeastLength(1).atMostLength(32),
+  },
+  {
+    "+": "reject",
+    kind: "'mcp-elicitation-form'",
     title: InteractionLabel,
     message: InteractionDescription,
     protocolVersion: InteractionOpaqueId,
-    fields: z.array(InteractionField).max(32),
-  }).strict(),
-  z.object({
-    kind: z.literal("mcp-elicitation-url"),
+    fields: InteractionField.array().atMostLength(32),
+  },
+  {
+    "+": "reject",
+    kind: "'mcp-elicitation-url'",
     title: InteractionLabel,
     message: InteractionDescription,
     protocolVersion: InteractionOpaqueId,
     elicitationId: InteractionOpaqueId,
     // URL-mode consent is explicit. Consumers must display the complete URL and must not prefetch it.
-    url: z.string().min(1).max(2_048).url().superRefine((value, ctx) => {
-      let url: URL
-      try {
-        url = new URL(value)
-      } catch {
-        return
-      }
+    url: type("string.url & 1 <= string <= 2048").narrow((value, ctx) => {
+      const url = new URL(value)
+      const issues: Issue[] = []
       const localHttp = url.protocol === "http:" && ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname)
       if (url.protocol !== "https:" && !localHttp) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "URL elicitation requires HTTPS (except localhost development)" })
+        issues.push({ problem: "URL elicitation requires HTTPS (except localhost development)" })
       }
       if (url.username || url.password) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "URL elicitation must not contain userinfo credentials" })
+        issues.push({ problem: "URL elicitation must not contain userinfo credentials" })
       }
+      return rejectEach(ctx, issues)
     }),
-  }).strict(),
-  z.object({
-    kind: z.literal("agent-question"),
+  },
+  {
+    "+": "reject",
+    kind: "'agent-question'",
     title: InteractionLabel,
-    message: InteractionDescription.optional(),
-    fields: z.array(InteractionField).min(1).max(32),
-  }).strict(),
-])
-export type InteractionPayload = z.infer<typeof InteractionPayload>
+    "message?": InteractionDescription,
+    fields: InteractionField.array().atLeastLength(1).atMostLength(32),
+  },
+)
+export type InteractionPayload = typeof InteractionPayload.infer
 
 // An `agent-question` splits ONE question across TWO fields: the options (a select the store validates
 // against the advertised choices) and the free text beside them (which by definition no option list can
@@ -396,17 +434,18 @@ export type InteractionPayload = z.infer<typeof InteractionPayload>
 // can silently drift: change it on one side alone and the card splits into a phantom second question.
 export const NOTES_FIELD_SUFFIX = "_notes"
 
-const InteractionRequestObject = z.object({
-  protocolVersion: z.literal(INTERACTION_PROTOCOL_VERSION),
-  contentFormat: z.literal("plain-text"),
+const InteractionRequestObject = type({
+  "+": "reject",
+  protocolVersion: type.unit(INTERACTION_PROTOCOL_VERSION),
+  contentFormat: "'plain-text'",
   provider: InteractionProvider,
   source: InteractionSource,
   owner: InteractionOwner,
   providerRequestId: InteractionOpaqueId,
-  allowedDecisions: z.array(InteractionDecision).min(1).max(8),
+  allowedDecisions: InteractionDecision.array().atLeastLength(1).atMostLength(8),
   payload: InteractionPayload,
-  expiresAt: InteractionTimestamp.nullable(),
-}).strict()
+  expiresAt: InteractionTimestamp.or("null"),
+})
 
 const semanticsForKind: Record<InteractionPayload["kind"], ReadonlySet<InteractionDecisionSemantic>> = {
   "command-approval": new Set(["approve", "deny", "cancel"]),
@@ -417,16 +456,16 @@ const semanticsForKind: Record<InteractionPayload["kind"], ReadonlySet<Interacti
   "agent-question": new Set(["answer", "decline", "cancel"]),
 }
 
-function validateInteractionRequest(value: z.infer<typeof InteractionRequestObject>, ctx: z.RefinementCtx): void {
+function validateInteractionRequest(value: typeof InteractionRequestObject.infer, issues: Issue[]): void {
   const allowedSemantics = semanticsForKind[value.payload.kind]
   const decisionIds = new Set<string>()
   for (const [index, decision] of value.allowedDecisions.entries()) {
     if (decisionIds.has(decision.id)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "duplicate decision id", path: ["allowedDecisions", index, "id"] })
+      issues.push({ problem: "duplicate decision id", relativePath: ["allowedDecisions", index, "id"] })
     }
     decisionIds.add(decision.id)
     if (!allowedSemantics.has(decision.semantic)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `decision is invalid for ${value.payload.kind}`, path: ["allowedDecisions", index, "semantic"] })
+      issues.push({ problem: `decision is invalid for ${value.payload.kind}`, relativePath: ["allowedDecisions", index, "semantic"] })
     }
   }
 
@@ -435,12 +474,12 @@ function validateInteractionRequest(value: z.infer<typeof InteractionRequestObje
     : []
   const fieldIds = new Set<string>()
   for (const [index, field] of fields.entries()) {
-    if (fieldIds.has(field.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "duplicate field id", path: ["payload", "fields", index, "id"] })
+    if (fieldIds.has(field.id)) issues.push({ problem: "duplicate field id", relativePath: ["payload", "fields", index, "id"] })
     fieldIds.add(field.id)
     // MCP form mode is explicitly non-secret; sensitive flows belong in URL mode. Agent questions may
     // mark an input secret, in which case the store validates it transiently and persists only a marker.
     if (value.payload.kind === "mcp-elicitation-form" && field.secret) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "MCP form elicitation cannot request secret fields; use URL mode", path: ["payload", "fields", index, "secret"] })
+      issues.push({ problem: "MCP form elicitation cannot request secret fields; use URL mode", relativePath: ["payload", "fields", index, "secret"] })
     }
   }
 
@@ -458,15 +497,19 @@ function validateInteractionRequest(value: z.infer<typeof InteractionRequestObje
     expiresAt: value.expiresAt,
   }
   if (byteLength(requestOnly) > INTERACTION_REQUEST_MAX_BYTES) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `interaction request exceeds ${INTERACTION_REQUEST_MAX_BYTES} bytes` })
+    issues.push({ problem: `interaction request exceeds ${INTERACTION_REQUEST_MAX_BYTES} bytes` })
   }
 }
 
-export const InteractionRequest = InteractionRequestObject.superRefine(validateInteractionRequest)
-export type InteractionRequest = z.infer<typeof InteractionRequest>
+export const InteractionRequest = InteractionRequestObject.narrow((value, ctx) => {
+  const issues: Issue[] = []
+  validateInteractionRequest(value, issues)
+  return rejectEach(ctx, issues)
+})
+export type InteractionRequest = typeof InteractionRequest.infer
 
-export const InteractionLifecycle = z.enum(["pending", "resolved", "cancelled", "expired"])
-export type InteractionLifecycle = z.infer<typeof InteractionLifecycle>
+export const InteractionLifecycle = type("'pending' | 'resolved' | 'cancelled' | 'expired'")
+export type InteractionLifecycle = typeof InteractionLifecycle.infer
 
 // Provider-neutral delivery authority projected by scoped server reads. This is deliberately an
 // effect rather than a provider transport state: React must not learn provider ids, RPC request ids,
@@ -476,88 +519,89 @@ export type InteractionLifecycle = z.infer<typeof InteractionLifecycle>
 // requests, only `awaiting-user` permits a decision submission. `sending` means an answer is already
 // durably queued or has crossed the ambiguous write boundary; `reconnect-required` is fail-closed
 // until the owning bridge can safely accept the first response.
-export const InteractionDeliveryEffect = z.enum(["awaiting-user", "sending", "reconnect-required"])
-export type InteractionDeliveryEffect = z.infer<typeof InteractionDeliveryEffect>
+export const InteractionDeliveryEffect = type("'awaiting-user' | 'sending' | 'reconnect-required'")
+export type InteractionDeliveryEffect = typeof InteractionDeliveryEffect.infer
 
-export const InteractionDelivery = z.object({
+export const InteractionDelivery = type({
+  "+": "reject",
   effect: InteractionDeliveryEffect,
-}).strict()
-export type InteractionDelivery = z.infer<typeof InteractionDelivery>
-
-export const InteractionCancellationReason = z.enum([
-  "user-cancelled",
-  "provider-cancelled",
-  "turn-ended",
-  "session-replaced",
-  "session-deleted",
-  "capabilities-changed",
-  "expired",
-])
-export type InteractionCancellationReason = z.infer<typeof InteractionCancellationReason>
-
-export const InteractionValues = z.record(InteractionFieldId, InteractionValue).superRefine((values, ctx) => {
-  if (Object.keys(values).length > 32) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "too many response fields" })
-  if (byteLength(values) > INTERACTION_RESPONSE_MAX_BYTES) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `interaction response exceeds ${INTERACTION_RESPONSE_MAX_BYTES} bytes` })
-  }
 })
-export type InteractionValues = z.infer<typeof InteractionValues>
+export type InteractionDelivery = typeof InteractionDelivery.infer
 
-export const InteractionResolution = z.object({
+export const InteractionCancellationReason = type("'user-cancelled' | 'provider-cancelled' | 'turn-ended' | 'session-replaced' | 'session-deleted' | 'capabilities-changed' | 'expired'")
+export type InteractionCancellationReason = typeof InteractionCancellationReason.infer
+
+// zod's record checked every key against InteractionFieldId; a key the index signature does not match is
+// undeclared here, so rejecting undeclared keys is that same check.
+export const InteractionValues = type.Record(InteractionFieldId, InteractionValue).onUndeclaredKey("reject").narrow((values, ctx) => {
+  const issues: Issue[] = []
+  if (Object.keys(values).length > 32) issues.push({ problem: "too many response fields" })
+  if (byteLength(values) > INTERACTION_RESPONSE_MAX_BYTES) {
+    issues.push({ problem: `interaction response exceeds ${INTERACTION_RESPONSE_MAX_BYTES} bytes` })
+  }
+  return rejectEach(ctx, issues)
+})
+export type InteractionValues = typeof InteractionValues.infer
+
+export const InteractionResolution = type({
+  "+": "reject",
   responseId: InteractionOpaqueId,
   decisionId: InteractionDecisionId,
-  values: InteractionValues.optional(),
+  "values?": InteractionValues,
   // Secret response values are absent from `values`; only their field ids survive persistence.
-  redactedFieldIds: z.array(InteractionFieldId).max(32),
+  redactedFieldIds: InteractionFieldId.array().atMostLength(32),
   resolvedAt: InteractionTimestamp,
-}).strict()
-export type InteractionResolution = z.infer<typeof InteractionResolution>
+})
+export type InteractionResolution = typeof InteractionResolution.infer
 
-export const InteractionRecord = InteractionRequestObject.extend({
+export const InteractionRecord = type({
+  "...": InteractionRequestObject,
+  "+": "reject",
   id: InteractionOpaqueId,
   lifecycle: InteractionLifecycle,
-  delivery: InteractionDelivery.optional(),
+  "delivery?": InteractionDelivery,
   recordRevision: InteractionRevision,
   createdAt: InteractionTimestamp,
   updatedAt: InteractionTimestamp,
-  completedAt: InteractionTimestamp.nullable(),
-  resolution: InteractionResolution.nullable(),
-  cancellationReason: InteractionCancellationReason.nullable(),
-}).strict().superRefine((value, ctx) => {
-  validateInteractionRequest(value, ctx)
+  completedAt: InteractionTimestamp.or("null"),
+  resolution: InteractionResolution.or("null"),
+  cancellationReason: InteractionCancellationReason.or("null"),
+}).narrow((value, ctx) => {
+  const issues: Issue[] = []
+  validateInteractionRequest(value, issues)
   if (value.delivery && value.lifecycle !== "pending") {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "terminal interaction cannot advertise a delivery effect" })
+    issues.push({ problem: "terminal interaction cannot advertise a delivery effect" })
   }
   if (value.lifecycle === "pending") {
-    if (value.completedAt || value.resolution || value.cancellationReason) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "pending interaction has terminal data" })
+    if (value.completedAt || value.resolution || value.cancellationReason) issues.push({ problem: "pending interaction has terminal data" })
     if (value.recordRevision !== 0 || value.updatedAt !== value.createdAt) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "pending interaction has invalid revision or timestamps" })
+      issues.push({ problem: "pending interaction has invalid revision or timestamps" })
     }
   } else if (!value.completedAt) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "terminal interaction is missing completedAt" })
+    issues.push({ problem: "terminal interaction is missing completedAt" })
   } else {
     if (value.recordRevision < 1 || value.updatedAt !== value.completedAt || value.updatedAt < value.createdAt) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "terminal interaction has invalid revision or timestamps" })
+      issues.push({ problem: "terminal interaction has invalid revision or timestamps" })
     }
   }
   if (value.lifecycle === "resolved") {
-    if (!value.resolution || value.cancellationReason) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "resolved interaction has invalid terminal data" })
+    if (!value.resolution || value.cancellationReason) issues.push({ problem: "resolved interaction has invalid terminal data" })
   } else if (value.resolution) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "non-resolved interaction contains a resolution" })
+    issues.push({ problem: "non-resolved interaction contains a resolution" })
   }
   if (value.lifecycle === "cancelled" && (!value.cancellationReason || value.cancellationReason === "expired")) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "cancelled interaction has invalid reason" })
+    issues.push({ problem: "cancelled interaction has invalid reason" })
   }
   if (value.lifecycle === "expired" && value.cancellationReason !== "expired") {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "expired interaction has invalid reason" })
+    issues.push({ problem: "expired interaction has invalid reason" })
   }
   if (value.resolution) {
     if (value.resolution.resolvedAt !== value.completedAt) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "resolution timestamp does not match its terminal record" })
+      issues.push({ problem: "resolution timestamp does not match its terminal record" })
     }
     const decision = value.allowedDecisions.find((candidate) => candidate.id === value.resolution!.decisionId)
     if (!decision) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "resolution names an unadvertised decision", path: ["resolution", "decisionId"] })
+      issues.push({ problem: "resolution names an unadvertised decision", relativePath: ["resolution", "decisionId"] })
     }
     const fields = value.payload.kind === "mcp-elicitation-form" || value.payload.kind === "agent-question"
       ? value.payload.fields
@@ -565,19 +609,19 @@ export const InteractionRecord = InteractionRequestObject.extend({
     const byId = new Map(fields.map((field) => [field.id, field]))
     const redactedIds = new Set(value.resolution.redactedFieldIds)
     if (redactedIds.size !== value.resolution.redactedFieldIds.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "resolution contains duplicate redaction markers", path: ["resolution", "redactedFieldIds"] })
+      issues.push({ problem: "resolution contains duplicate redaction markers", relativePath: ["resolution", "redactedFieldIds"] })
     }
     for (const id of value.resolution.redactedFieldIds) {
-      if (!byId.get(id)?.secret) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "redaction marker does not name a secret field", path: ["resolution", "redactedFieldIds"] })
+      if (!byId.get(id)?.secret) issues.push({ problem: "redaction marker does not name a secret field", relativePath: ["resolution", "redactedFieldIds"] })
     }
     for (const [id, responseValue] of Object.entries(value.resolution.values ?? {})) {
       const field = byId.get(id)
       if (!field) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "resolution contains an unadvertised field", path: ["resolution", "values", id] })
+        issues.push({ problem: "resolution contains an unadvertised field", relativePath: ["resolution", "values", id] })
       } else if (field.secret) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "secret value persisted in resolution", path: ["resolution", "values", id] })
+        issues.push({ problem: "secret value persisted in resolution", relativePath: ["resolution", "values", id] })
       } else if (validateInteractionFieldValue(field, responseValue)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "persisted response failed advertised validation", path: ["resolution", "values", id] })
+        issues.push({ problem: "persisted response failed advertised validation", relativePath: ["resolution", "values", id] })
       }
     }
     if (decision) {
@@ -585,7 +629,7 @@ export const InteractionRecord = InteractionRequestObject.extend({
         (value.payload.kind === "agent-question" && decision.semantic === "answer")
       if (!expectsValues) {
         if (value.resolution.values !== undefined || value.resolution.redactedFieldIds.length > 0) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "resolution decision cannot contain response fields", path: ["resolution"] })
+          issues.push({ problem: "resolution decision cannot contain response fields", relativePath: ["resolution"] })
         }
       } else {
         for (const field of fields) {
@@ -593,57 +637,65 @@ export const InteractionRecord = InteractionRequestObject.extend({
             ? redactedIds.has(field.id)
             : Object.prototype.hasOwnProperty.call(value.resolution.values ?? {}, field.id)
           if (field.required && !supplied) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "resolution is missing a required field", path: ["resolution", "values", field.id] })
+            issues.push({ problem: "resolution is missing a required field", relativePath: ["resolution", "values", field.id] })
           }
         }
       }
     }
   }
+  return rejectEach(ctx, issues)
 })
-export type InteractionRecord = z.infer<typeof InteractionRecord>
+export type InteractionRecord = typeof InteractionRecord.infer
 
-export const ListInteractionsInput = z.object({
+export const ListInteractionsInput = type({
+  "+": "reject",
   slug: InteractionThreadSlug,
   sessionId: InteractionOpaqueId,
-}).strict()
-export type ListInteractionsInput = z.infer<typeof ListInteractionsInput>
+})
+export type ListInteractionsInput = typeof ListInteractionsInput.infer
 
-export const ListInteractionsResult = z.object({ interactions: z.array(InteractionRecord).max(INTERACTION_LIST_MAX) }).strict()
-export type ListInteractionsResult = z.infer<typeof ListInteractionsResult>
+export const ListInteractionsResult = type({ "+": "reject", interactions: InteractionRecord.array().atMostLength(INTERACTION_LIST_MAX) })
+export type ListInteractionsResult = typeof ListInteractionsResult.infer
 
-export const GetInteractionInput = ListInteractionsInput.extend({ interactionId: InteractionOpaqueId }).strict()
-export type GetInteractionInput = z.infer<typeof GetInteractionInput>
+export const GetInteractionInput = type({ "...": ListInteractionsInput, "+": "reject", interactionId: InteractionOpaqueId })
+export type GetInteractionInput = typeof GetInteractionInput.infer
 
-export const GetInteractionResult = z.object({ interaction: InteractionRecord }).strict()
-export type GetInteractionResult = z.infer<typeof GetInteractionResult>
+export const GetInteractionResult = type({ "+": "reject", interaction: InteractionRecord })
+export type GetInteractionResult = typeof GetInteractionResult.infer
 
-export const ResolveInteractionInput = GetInteractionInput.extend({
+export const ResolveInteractionInput = type({
+  "...": GetInteractionInput,
+  "+": "reject",
   sessionEpoch: InteractionRevision,
   capabilityRevision: InteractionRevision,
   expectedRecordRevision: InteractionRevision,
   responseId: InteractionOpaqueId,
   decisionId: InteractionDecisionId,
-  values: InteractionValues.optional(),
-}).strict()
-export type ResolveInteractionInput = z.infer<typeof ResolveInteractionInput>
+  "values?": InteractionValues,
+})
+export type ResolveInteractionInput = typeof ResolveInteractionInput.infer
 
-export const ResolveInteractionResult = z.object({
+export const ResolveInteractionResult = type({
+  "+": "reject",
   // Provider-backed interactions remain pending until the provider acknowledges the delivered
   // response. `queued` is therefore a truthful intermediate result, not an optimistic resolution.
-  effect: z.enum(["resolved", "already-resolved", "queued", "already-queued"]),
+  effect: "'resolved' | 'already-resolved' | 'queued' | 'already-queued'",
   interaction: InteractionRecord,
-}).strict()
-export type ResolveInteractionResult = z.infer<typeof ResolveInteractionResult>
+})
+export type ResolveInteractionResult = typeof ResolveInteractionResult.infer
 
-export const CancelInteractionInput = GetInteractionInput.extend({
+export const CancelInteractionInput = type({
+  "...": GetInteractionInput,
+  "+": "reject",
   sessionEpoch: InteractionRevision,
   capabilityRevision: InteractionRevision,
   expectedRecordRevision: InteractionRevision,
-}).strict()
-export type CancelInteractionInput = z.infer<typeof CancelInteractionInput>
+})
+export type CancelInteractionInput = typeof CancelInteractionInput.infer
 
-export const CancelInteractionResult = z.object({
-  effect: z.enum(["cancelled", "already-cancelled"]),
+export const CancelInteractionResult = type({
+  "+": "reject",
+  effect: "'cancelled' | 'already-cancelled'",
   interaction: InteractionRecord,
-}).strict()
-export type CancelInteractionResult = z.infer<typeof CancelInteractionResult>
+})
+export type CancelInteractionResult = typeof CancelInteractionResult.infer

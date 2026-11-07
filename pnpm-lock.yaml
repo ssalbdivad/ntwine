@@ -105,12 +105,12 @@ importers:
 
   packages/rpc:
     dependencies:
+      arktype:
+        specifier: ^2.2.9
+        version: 2.2.9
       hono:
         specifier: ^4.7
         version: 4.12.27
-      zod:
-        specifier: ^3.24
-        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.7
@@ -173,12 +173,12 @@ importers:
 
   packages/shared:
     dependencies:
+      arktype:
+        specifier: ^2.2.9
+        version: 2.2.9
       yaml:
         specifier: ^2.9
         version: 2.9.0
-      zod:
-        specifier: ^3.24
-        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.7
@@ -394,6 +394,12 @@ packages:
 
   '@apm-js-collab/tracing-hooks@0.13.0':
     resolution: {integrity: sha512-mTvWz9rnQwx1U3h0XPTHaX7bgfkpipLLTQyjlC2cdhQpQEuoLT0AGzoydeoq2NxfEVv6fWOOETcSbb2nptleyw==}
+
+  '@ark/schema@0.56.8':
+    resolution: {integrity: sha512-R05TOe85oQBGFFw2zKMuZpqkXibLKuC/aJt6VwFn5Cjc4x3NkWfhvGRpRDycNkj3ddcHnOPtIsmjVowJO9Yxdw==}
+
+  '@ark/util@0.56.8':
+    resolution: {integrity: sha512-XLiQyGfpJcws1zCtp2Cva8s1oheCdFn1Rt6JSyC4NnkDrpwCJnlaiawuuOc1Z97vMH+jEzW5vyyf0xOju5wUQA==}
 
   '@astrojs/compiler@4.0.0':
     resolution: {integrity: sha512-eouss7G8ygdZqHuke033VMcVw5HTZUu+PXd/h06DGDUg/jt5btPYPqh66ENWw/mU78rBrf/oeC4oqoBwMtDMNA==}
@@ -1185,6 +1191,7 @@ packages:
   '@opentelemetry/sdk-trace-base@2.10.0':
     resolution: {integrity: sha512-GuYQQT7QD2EeO8lcZLRQzcbOyhqAzL+6WWTKTU9mSUBYBazkEDl+VrQcXQhbB08OWM9anD1aHleVadzulpOaUQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
@@ -2585,6 +2592,12 @@ packages:
     resolution: {integrity: sha512-ik3ZgC9dY/lYVVM++OISsaYDeg1tb0VtP5uL3ouh1koGOaUMDPpbFIei4JkFimWUFPn90sbMNMXQAIVOlnYKJA==}
     engines: {node: '>=10'}
 
+  arkregex@0.0.14:
+    resolution: {integrity: sha512-G3I/uCtWE0IKQiPh0qqmmAFDdtjZKZQ5mNPR6gJBeAMZ7VqYCpoaDeXnLju2Zo6ywExtmxZJELeVFb0MPDjPyA==}
+
+  arktype@2.2.9:
+    resolution: {integrity: sha512-Cja0IMEn19rB35on9da1i1z6QMasuS7ULffXbetCry09jvCGYT8Bi1KgYiqri5FymF4nQAXkM90yksYkgSK2EA==}
+
   astring@1.9.0:
     resolution: {integrity: sha512-LElXdjswlqjWrPpJFg1Fx4wpkOCxj1TDHlSV4PlaRxHGWko024xICaa97ZkMfs6DRKlCguiAI+rbXv5GWwXIkg==}
     hasBin: true
@@ -3680,8 +3693,8 @@ packages:
   oxc-resolver@11.24.2:
     resolution: {integrity: sha512-FY91FiDBj7ls5MsFS9jN3tjz2o0/zsdSsymlakySaBwVJZorHhkWyICLZMKxlu1R9vYo+sd3z1jwb4J8x7bNDw==}
 
-  oxlint-plugin-react-doctor@0.9.18:
-    resolution: {integrity: sha512-1mfeb/jzXnduWOZJxrvdJjvKT0pFNKrNFYcPO4ncpFAnfW41M0mLz/23lAFzHb0knNLYayEgIQ5DjI4ZfFe+DQ==}
+  oxlint-plugin-react-doctor@0.9.22:
+    resolution: {integrity: sha512-kf9MwCpK3YlAWYUyX5Zx7XYrdIbA/4lQD2QREIqC8DvmNb2I+wP8zyjL4NeGl2FO2EC1sLuYvW8ir4Ooq1Xd2A==}
     engines: {node: ^20.19.0 || >=22.13.0}
 
   oxlint@1.81.0:
@@ -3819,8 +3832,8 @@ packages:
     resolution: {integrity: sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA==}
     engines: {node: '>= 0.10'}
 
-  react-doctor@0.9.18:
-    resolution: {integrity: sha512-4Ach00KtfnfjTBGgr2PyPgHua85vT/UfPY5sR0bHgRAc/QSu0JInA0GHCL6a7WFGMeGUrxtGnI8oqZinG44BOA==}
+  react-doctor@0.9.22:
+    resolution: {integrity: sha512-SyZOIl61VMCZ3sN7v7Vr2zCsPlyy7nNnBshtIrl0B/X+uY+rL9MGfyNhTmp/FLXfuDKEv61Y6xMguya7vn1Ulg==}
     engines: {node: ^20.19.0 || >=22.13.0}
     hasBin: true
 
@@ -4463,6 +4476,12 @@ snapshots:
       module-details-from-path: 1.0.4
     transitivePeerDependencies:
       - supports-color
+
+  '@ark/schema@0.56.8':
+    dependencies:
+      '@ark/util': 0.56.8
+
+  '@ark/util@0.56.8': {}
 
   '@astrojs/compiler@4.0.0': {}
 
@@ -6259,6 +6278,16 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  arkregex@0.0.14:
+    dependencies:
+      '@ark/util': 0.56.8
+
+  arktype@2.2.9:
+    dependencies:
+      '@ark/schema': 0.56.8
+      '@ark/util': 0.56.8
+      arkregex: 0.0.14
+
   astring@1.9.0: {}
 
   atomically@2.1.1:
@@ -7413,7 +7442,7 @@ snapshots:
       '@oxc-resolver/binding-win32-arm64-msvc': 11.24.2
       '@oxc-resolver/binding-win32-x64-msvc': 11.24.2
 
-  oxlint-plugin-react-doctor@0.9.18:
+  oxlint-plugin-react-doctor@0.9.22:
     dependencies:
       '@shaderfrog/glsl-parser': 7.0.1
       '@typescript-eslint/types': 8.65.0
@@ -7557,7 +7586,7 @@ snapshots:
       iconv-lite: 0.7.3
       unpipe: 1.0.0
 
-  react-doctor@0.9.18(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(eslint@10.7.0(jiti@2.7.0))(react@19.2.7):
+  react-doctor@0.9.22(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(eslint@10.7.0(jiti@2.7.0))(react@19.2.7):
     dependencies:
       '@astrojs/compiler': 4.0.0
       '@sentry/node': 10.67.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))
@@ -7572,7 +7601,7 @@ snapshots:
       oxc-parser: 0.148.0
       oxc-resolver: 11.24.2
       oxlint: 1.81.0
-      oxlint-plugin-react-doctor: 0.9.18
+      oxlint-plugin-react-doctor: 0.9.22
       playwright-core: 1.62.1
       prompts: 2.4.2
       typescript: 5.9.3
@@ -7639,7 +7668,7 @@ snapshots:
       preact: 10.29.7
       prompts: 2.4.2
       react: 19.2.7
-      react-doctor: 0.9.18(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(eslint@10.7.0(jiti@2.7.0))(react@19.2.7)
+      react-doctor: 0.9.22(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(eslint@10.7.0(jiti@2.7.0))(react@19.2.7)
       react-dom: 19.2.7(react@19.2.7)
       react-grab: 0.2.0(react@19.2.7)
     optionalDependencies:

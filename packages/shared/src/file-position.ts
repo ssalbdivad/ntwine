@@ -8,7 +8,7 @@
 //   GitHub fragment   `a.ts#L12` `a.ts#L12C3` `a.ts#L12-L20` `a.ts#L12-20`
 //
 // Pure and dependency-free on purpose: the extension bundles it, and pulling `@ntwine/shared`'s index
-// (zod, yaml) into an editor extension for one regex would be absurd.
+// (arktype, yaml) into an editor extension for one regex would be absurd.
 
 export interface FilePosition {
   /** 1-based line. */

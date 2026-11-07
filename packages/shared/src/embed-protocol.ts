@@ -18,7 +18,7 @@
 // server's held-item path (`compose` → `composeTake`, claimed by whichever page has focus) stays what it is
 // for browser tabs, and the sidebar never races a tab — or the human's own typing — for an item.
 //
-// Pure types and constants, no zod: the extension bundles this module, and so does the page.
+// Pure types and constants, no schemas: the extension bundles this module, and so does the page.
 
 import type { EditorComposeInput } from "./editor-protocol.ts"
 

@@ -8,7 +8,7 @@
  * DEPENDENCY-FREE ON PURPOSE. Both halves run this code, and they run in different places: the CLI on
  * Node, the Worker on workerd. Web Crypto's Ed25519 is the one primitive both have, so nothing here
  * imports from `node:` or from the rest of `@ntwine/shared` — a Worker can import this single file
- * without dragging in zod, yaml and 3,600 lines of unrelated types.
+ * without dragging in arktype, yaml and 3,600 lines of unrelated types.
  */
 
 export const CLAIM_PROTOCOL_VERSION = 2

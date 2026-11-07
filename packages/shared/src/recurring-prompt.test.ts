@@ -178,7 +178,7 @@ test("parseRecurringPrompt still reads the PRE-MERGE trailers", () => {
 // would fail a pre-change worker's `start` on a field its model cannot see it is sending. This is what
 // stops the tolerance being deleted as dead code, and what says when it may go.
 test("a pre-2026-08-16 worker's `start` still parses, and the hold is dropped rather than stored", () => {
-  const parsed = SetOwnThreadRecurringPromptInput.parse({
+  const parsed = SetOwnThreadRecurringPromptInput.assert({
     slug: "keep-going", prompt: "keep going", stopHook: true, heartbeat: false, pauseOnQuestions: true,
   })
   assert.equal(parsed.stopHook, true)
@@ -187,7 +187,7 @@ test("a pre-2026-08-16 worker's `start` still parses, and the hold is dropped ra
 
   // The BROWSER input is deliberately NOT tolerant — a stale tab is one reload away, and a schema that
   // accepts a field nobody sends is a field the next reader has to look up.
-  assert.throws(() => SetThreadRecurringPromptInput.parse({
+  assert.throws(() => SetThreadRecurringPromptInput.assert({
     slug: "keep-going", sessionId: "sid", prompt: "keep going", stopHook: true, heartbeat: false, pauseOnQuestions: true,
   }))
 })

@@ -1,0 +1,4 @@
+{
+  "$schema": "./node_modules/@ark/aot/ark.schema.json",
+  "precompile": { "config": "./packages/shared/src/ark-config.ts" }
+}

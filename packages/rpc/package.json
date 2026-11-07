@@ -7,8 +7,8 @@
     "./server": "./src/server.ts"
   },
   "dependencies": {
-    "hono": "^4.7",
-    "zod": "^3.24"
+    "arktype": "^2.2.9",
+    "hono": "^4.7"
   },
   "devDependencies": {
     "typescript": "^5.7"

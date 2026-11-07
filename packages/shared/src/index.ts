@@ -1,10 +1,10 @@
 import { parse as parseYaml } from "yaml"
-import { z } from "zod"
+import { type, type Traversal } from "./ark.ts"
 import { InteractionLifecycle, InteractionOpaqueId, InteractionRevision, InteractionThreadSlug } from "./interactions.ts"
 import { ThreadSlug } from "./thread-slug.ts"
 import { insideCodeFence } from "./code-fences.ts"
 import { ProjectSchedules, ThreadScheduleRef } from "./schedules.ts"
-import { formatDeadlineLeft, ThreadDeadlineView } from "./deadline.ts"
+import { formatDeadlineLeft, IsoInstant, ThreadDeadlineView } from "./deadline.ts"
 import { EDITOR_COMPOSE_MAX_TEXT, EDITOR_MAX_FOLDERS, EDITOR_MAX_PATH, EDITOR_PROTOCOL_VERSION, EDITOR_REVIEW_MAX_CHECKOUTS, EDITOR_REVIEW_MAX_FILES, EDITOR_STATE_MAX_DIAGNOSTICS, EDITOR_STATE_MAX_MESSAGE, EDITOR_STATE_MAX_OPEN, EDITOR_STATE_MAX_SELECTION_TEXT, EDITOR_STATE_MAX_TAG, type EditorClientMessage, type EditorComposeInput, type EditorReviewTarget, type EditorSnapshot, type EditorWindowSummary } from "./editor-protocol.ts"
 import type { TranscriptPatchOp } from "./transcript-delta.ts"
 
@@ -82,35 +82,29 @@ export const ATTACHMENT_ACCEPT = ATTACHMENT_EXTENSIONS.map((e) => `.${e}`).join(
 
 // ---- ntwine board vocabulary (mirrors board/config.mjs) ----
 
-// Declaration order IS the lifecycle order (STATUS_ORDER = NtwineStatus.options), consumed by the
+// Declaration order IS the lifecycle order (STATUS_ORDER = NTWINE_STATUSES), consumed by the
 // status pickers and the roadmap-count ordering. `needs-human` is a FIRST-CLASS status — the declared
 // "awaiting a human" state and THE queue definition — and sits at the human gate between `active`
 // (work in flight) and `blocked` (now narrowed to machine-waits only: blocking_threads / revalidate_at).
-export const NtwineStatus = z.enum(["planning", "planned", "active", "needs-human", "blocked", "done", "dismissed"])
-export type NtwineStatus = z.infer<typeof NtwineStatus>
+export const NTWINE_STATUSES = ["planning", "planned", "active", "needs-human", "blocked", "done", "dismissed"] as const
+export const NtwineStatus = type.enumerated(...NTWINE_STATUSES)
+export type NtwineStatus = typeof NtwineStatus.infer
 
 // How a blocked thread unblocks. `human` = the awaiting-you queue.
-export const BlockMechanism = z.enum(["human", "threads", "timer"])
-export type BlockMechanism = z.infer<typeof BlockMechanism>
+export const BlockMechanism = type("'human' | 'threads' | 'timer'")
+export type BlockMechanism = typeof BlockMechanism.infer
 
 // ---- Runtime state of the Claude process bound to a thread ----
 
-export const RuntimeState = z.enum([
-  "none", // no session ever spawned for this thread
-  "spawning",
-  "running", // process alive, turn in flight
-  "perm-prompt", // process alive, parked on a permission request a person has not answered yet
-  "turn-idle", // process alive, waiting at the prompt
-  "exited", // the worker process that owned this session is gone, or is no longer driving its turn
-])
-export type RuntimeState = z.infer<typeof RuntimeState>
+export const RuntimeState = type("'none' | 'spawning' | 'running' | 'perm-prompt' | 'turn-idle' | 'exited'")
+export type RuntimeState = typeof RuntimeState.infer
 
 // Which agent CLI a dispatch/thread runs on (Codex-support epic, Phase 3). Mirrors BackendKind in
 // server/backend/types.ts (the wire can't import it — it lives behind the server boundary). A model
 // selection drives this: a Claude model ⇒ "claude", an OpenAI/GPT model ⇒ "codex", an `acp:<agent>`
 // slug ⇒ "acp" (any Agent Client Protocol agent; plans/acp-backend.md).
-export const Backend = z.enum(["claude", "codex", "acp"])
-export type Backend = z.infer<typeof Backend>
+export const Backend = type("'claude' | 'codex' | 'acp'")
+export type Backend = typeof Backend.infer
 
 // One selectable Codex model, derived server-side from the AUTHORITATIVE ~/.codex/models_cache.json
 // (the codexModels RPC) rather than a hand-maintained list — the source of two live breakages (a bare
@@ -118,20 +112,21 @@ export type Backend = z.infer<typeof Backend>
 // `codex -m` id; `efforts` is exactly that model's supported reasoning levels (5.6 → …/max/ultra, 5.5 →
 // …/xhigh), so the effort dropdown offers only what the chosen model actually accepts. Ordered by the
 // cache's `priority` (index 0 = the codex default). See .ntwine/codex-model-cache.md.
-export const CodexModel = z.object({
-  slug: z.string(),
-  displayName: z.string(),
-  defaultEffort: z.string(),
-  efforts: z.array(z.string()),
+export const CodexModel = type({
+  "+": "delete",
+  slug: "string",
+  displayName: "string",
+  defaultEffort: "string",
+  efforts: "string[]",
   // The model's stock context window and the largest one it accepts, in tokens, straight from the
   // cache's `context_window` / `max_context_window` (272K / 872K on GPT-5.6, 128K / 128K on Spark).
   // The Settings "Context window" presets are built from these so the drawer names the numbers codex
   // will actually run at (maintainer 2026-09-11: "reflect the actual numbers"). Optional: a cache from
   // before the fields existed, or the degraded fallback, simply carries neither.
-  contextWindow: z.number().int().positive().optional(),
-  maxContextWindow: z.number().int().positive().optional(),
+  "contextWindow?": "number.integer > 0",
+  "maxContextWindow?": "number.integer > 0",
 })
-export type CodexModel = z.infer<typeof CodexModel>
+export type CodexModel = typeof CodexModel.infer
 
 // One selectable Claude Code model, as the pinned Claude runtime RESOLVES it (the claudeModels RPC).
 // `alias` is the `claude --model` word ntwine dispatches with and keys every preference on ("opus");
@@ -140,15 +135,16 @@ export type CodexModel = z.infer<typeof CodexModel>
 // the same reason the Codex column reads "GPT-6 Astra" and not "gpt". `resolvedModel` is the canonical
 // wire id behind the alias ("claude-opus-5-5"); absent on the degraded fallback, where `label` is the
 // bare family.
-export const ClaudeModel = z.object({
-  alias: z.string(),
-  label: z.string(),
-  resolvedModel: z.string().optional(),
+export const ClaudeModel = type({
+  "+": "delete",
+  alias: "string",
+  label: "string",
+  "resolvedModel?": "string",
   // The edition alone ("5.5") — the tail of `label`, which the picker sets dimmer than the family word.
   // Absent exactly when `resolvedModel` is.
-  edition: z.string().optional(),
+  "edition?": "string",
 })
-export type ClaudeModel = z.infer<typeof ClaudeModel>
+export type ClaudeModel = typeof ClaudeModel.infer
 
 // The DEGRADED catalogue used while ntwine's pinned Codex runtime has not written a compatible
 // `models_cache.json` yet. This is deliberately one shared mirror: the server used to fall back to
@@ -172,13 +168,14 @@ export const CODEX_MODELS_FALLBACK: CodexModel[] = [
 
 // An Agent Client Protocol agent ntwine can launch (server/backend/acp-agents.ts). `available` means
 // its executable was found on the server's PATH; the composer lists only those, as `acp:<id>` models.
-export const AcpAgent = z.object({
-  id: z.string(),
-  label: z.string(),
-  command: z.string(),
-  available: z.boolean(),
+export const AcpAgent = type({
+  "+": "delete",
+  id: "string",
+  label: "string",
+  command: "string",
+  available: "boolean",
 })
-export type AcpAgent = z.infer<typeof AcpAgent>
+export type AcpAgent = typeof AcpAgent.infer
 
 /** The model slug the composer uses for an ACP agent, and its inverses. Model already drives backend in
  *  the web (`backendForModel`), so an agent IS a model there — a slug with this prefix means `acp`.
@@ -235,39 +232,42 @@ export function acpModelPreset(model: string | null | undefined): AcpModelPreset
 }
 
 /** One model an ACP agent advertises, and the probe result the composer's model picker reads. */
-export const AcpAgentModel = z.object({ id: z.string(), name: z.string() })
-export type AcpAgentModel = z.infer<typeof AcpAgentModel>
-export const AcpAgentModels = z.object({
-  agentId: z.string(),
-  models: z.array(AcpAgentModel),
+export const AcpAgentModel = type({ "+": "delete", id: "string", name: "string" })
+export type AcpAgentModel = typeof AcpAgentModel.infer
+export const AcpAgentModels = type({
+  "+": "delete",
+  agentId: "string",
+  models: AcpAgentModel.array(),
   /** The model the agent opens a session on when ntwine asks for none. */
-  current: z.string().optional(),
+  "current?": "string",
   /** Why the list is empty, when the probe could not open a session (not installed, not logged in…). */
-  error: z.string().optional(),
-  probedAt: z.string(),
+  "error?": "string",
+  probedAt: "string",
 })
-export type AcpAgentModels = z.infer<typeof AcpAgentModels>
-export const AcpAgentModelsInput = z.object({ agentId: z.string().min(1).max(100), refresh: z.boolean().optional() }).strict()
-export type AcpAgentModelsInput = z.infer<typeof AcpAgentModelsInput>
+export type AcpAgentModels = typeof AcpAgentModels.infer
+export const AcpAgentModelsInput = type({ "+": "reject", agentId: "1 <= string <= 100", "refresh?": "boolean" })
+export type AcpAgentModelsInput = typeof AcpAgentModelsInput.infer
 
 // A provider-scoped launch profile. The server is the catalogue authority for existing threads:
 // callers receive only models that belong to the row's exact backend and each model carries its
 // complete supported effort set. The intentionally generic shape also lets a future backend expose
 // its own native ids without teaching the browser how to classify model names.
-export const ThreadProfileOption = z.object({
-  model: z.string().min(1),
-  label: z.string().min(1),
+export const ThreadProfileOption = type({
+  "+": "delete",
+  model: "string > 0",
+  label: "string > 0",
   // The edition at the end of `label` ("5.5" of "Opus 5.5"), for a Claude row the pinned runtime resolved.
-  edition: z.string().optional(),
-  defaultEffort: z.string().min(1),
-  efforts: z.array(z.string().min(1)).min(1),
+  "edition?": "string",
+  defaultEffort: "string > 0",
+  efforts: type("string > 0").array().atLeastLength(1),
 })
-export type ThreadProfileOption = z.infer<typeof ThreadProfileOption>
+export type ThreadProfileOption = typeof ThreadProfileOption.infer
 
-export const ThreadAgent = z.object({
-  id: z.string(),
-  label: z.string().optional(),
-  state: z.string().optional(),
+export const ThreadAgent = type({
+  "+": "delete",
+  id: "string",
+  "label?": "string",
+  "state?": "string",
 })
 
 // A LIVE background sub-agent the thread's worker dispatched and is now resting against — derived by
@@ -275,9 +275,10 @@ export const ThreadAgent = z.object({
 // what makes a "dispatched a sub-agent, then came to rest" worker read as in-motion rather than idle.
 // `running` = the child's transcript is still being appended to; `stale` = no output for a while (a
 // completion record we likely missed). Distinct from `ThreadAgent`/`agents` (ntwine frontmatter).
-export const SubAgentView = z.object({
-  label: z.string(), // the dispatch's `description` (e.g. "Investigate nubjs/nub GitHub issue 376")
-  startedAt: z.string(), // ISO8601 of the dispatch record
+export const SubAgentView = type({
+  "+": "delete",
+  label: "string", // the dispatch's `description` (e.g. "Investigate nubjs/nub GitHub issue 376")
+  startedAt: "string", // ISO8601 of the dispatch record
   // running — appending to its transcript now. stale — tracked, but quiet past the staleness ceiling.
   // rested — its RUN ended (the harness notified `completed`/`failed`) while its own fan-out kept
   // running. Not a phantom and not a lie: `completed` does not mean finished — the same notification
@@ -286,7 +287,7 @@ export const SubAgentView = z.object({
   // tailer.ts. Only ever emitted for a DIRECT child that still has something running under it, so it
   // clears itself when that work does. Every liveness reading keys on "running", so a rested row holds
   // nothing back: it does not block a rest, hold the queue, or gate Mark-as-done.
-  state: z.enum(["running", "stale", "rested"]),
+  state: "'running' | 'stale' | 'rested'",
   // The worker-profile cell (model+effort) for the dispatch — RESOLVED, not the raw `subagent_type`:
   // an effort-only profile carries no model, so the server composes it from the call's own `model` or
   // the dispatching turn's (server/subagent-profile.ts). It is NO LONGER drawn as a tag on the child
@@ -294,18 +295,18 @@ export const SubAgentView = z.object({
   // control one line up, not repeated on every child line); the transcript's dispatch card shows it,
   // the sidebar rail carries it in the row tooltip, and the drill-in passes it to the drawer.
   // Optional — absent when nothing about the child's runtime is known.
-  subagentType: z.string().optional(),
+  "subagentType?": "string",
   // The dispatch tool_use id (the stable correlation key: same id on the Agent tool_use block, the
   // completion <task-notification>, and the transcript AgentBlock). Optional — absent on a pre-restart
   // server that doesn't emit it yet → the drill-in drawer's entry point is simply not offered. Present
   // → the banner row / AgentBlock is clickable and resolves this exact child's transcript.
-  id: z.string().optional(),
+  "id?": "string",
   // The RUNTIME agent id — the `agentId: a01b2d20b32feab11` line of the Agent tool's launch ack, which
   // is the only id the MODEL is ever shown for its child (the tool_use id above is invisible to it). So
   // it is the string a worker writes in an `agents:` fence line or registers a `watch` against, exactly
   // as BgShellView.taskId is for a shell. Every liveness reading accepts both. Absent for a codex row
   // and for a Claude row between its tool_use and its launch ack.
-  taskId: z.string().optional(),
+  "taskId?": "string",
   // Can ntwine actually END this child's work right now? Computed SERVER-side (board.ts, the one place
   // holding both the session row and the tailer's telemetry) and never re-derived by a client — the
   // same discipline as `steerable`, and for the same reason: the policy depends on the thread's
@@ -317,45 +318,45 @@ export const SubAgentView = z.object({
   // its sub-agents inside its own app-server process, which exposes no such channel.
   // Absent/false on a pre-restart server's snapshot ⇒ the × is simply not offered on a RUNNING row,
   // which fails toward showing no control rather than a false one.
-  stoppable: z.boolean().optional(),
+  "stoppable?": "boolean",
   // ISO8601 of the child transcript's last append (its output file's mtime — the SAME signal that
   // decides running vs stale). Surfaced so a row can show "last active 6 min ago": the state alone only
   // says quiet-for-15-min, not HOW quiet. Optional — absent before the output path resolves, or on a
   // pre-restart server. Minute-bucketed into the board signature server-side, so a running child's
   // steadily-advancing mtime does not spam deltas.
-  lastActivityAt: z.string().optional(),
+  "lastActivityAt?": "string",
   // ---- what the child is actually DOING, from the provider's own task_* event stream ----
   // A live sub-agent used to be a name and a spinner: start, stop, nothing in between. These come off
   // the Claude Agent SDK's typed task lifecycle (stream-only — none of it is in the session JSONL), so
   // they are present for a BROKER thread and absent for a codex one, an older CLI, or a pre-restart
   // server. Render each only when set; never assume they arrive together.
-  activity: z.string().optional(), // the tool the child is running right now (e.g. "Bash", "Edit")
+  "activity?": "string", // the tool the child is running right now (e.g. "Bash", "Edit")
   // What the current step IS, in words — the provider rewrites it per tool call ("Running Print
   // current date and time"). Measured against a real session this is the richest LIVE field: `summary`
   // stayed empty on every progress event and only arrived with the terminal notification.
-  activityDetail: z.string().optional(),
-  summary: z.string().optional(), // the provider's rolling one-line summary of the child's work
-  toolUses: z.number().optional(), // tool calls the child has made so far
-  tokens: z.number().optional(), // total tokens the child has spent so far
-  durationMs: z.number().optional(), // the provider's own working-time measure (excludes paused)
+  "activityDetail?": "string",
+  "summary?": "string", // the provider's rolling one-line summary of the child's work
+  "toolUses?": "number", // tool calls the child has made so far
+  "tokens?": "number", // total tokens the child has spent so far
+  "durationMs?": "number", // the provider's own working-time measure (excludes paused)
   // ---- NESTING: a sub-agent's sub-agent, and so on down ----
   // 1 = a child this thread's worker dispatched itself (the only kind that used to reach any surface).
   // 2 = a grandchild, 3 = a great-grandchild, … Its dispatch is in an ANCESTOR's transcript rather than
   // this thread's, so it is derived from claude's flat descendant sidecars, not from the fold — see the
   // DESCENDANTS note in tailer.ts. Absent on a pre-restart server's snapshot, which is why every reader
   // treats absent as 1 (`isDirectSubAgent`) instead of testing for the field.
-  depth: z.number().optional(),
+  "depth?": "number",
   // The dispatch tool_use id of the sub-agent that dispatched THIS one — the `id` of another row in the
   // same list. Absent at depth 1 (the thread itself is the parent). Present → the row indents under it.
-  parentId: z.string().optional(),
+  "parentId?": "string",
   // ---- WORKFLOWS: a `Workflow` tool run, and the agents it fans out ----
   // true on the row for the RUN itself — a phased fan-out of many agents behind one tool call, which the
   // row drills into as a tree rather than as a transcript (see WorkflowAgentView).
-  workflow: z.boolean().optional(),
+  "workflow?": "boolean",
   // On a workflow AGENT's row (depth 2, `parentId` = the run's id): the script phase it ran in.
-  phase: z.string().optional(),
+  "phase?": "string",
 })
-export type SubAgentView = z.infer<typeof SubAgentView>
+export type SubAgentView = typeof SubAgentView.infer
 
 // A DIRECT sub-agent that has RETURNED while its siblings are still out — what a queued parent's card
 // lists beside the ones still running, so "2 of 3 sub-agents returned" can say which two.
@@ -366,28 +367,30 @@ export type SubAgentView = z.infer<typeof SubAgentView>
 // was dispatched, so a sibling that came back before the parent even rested counts, and a child from an
 // earlier, finished batch does not. Absent whenever no direct sub-agent is running: with nothing out
 // there is no "of N" to state.
-export const ReturnedSubAgentView = z.object({
-  id: z.string(), // the dispatch tool_use id — the same drill-in handle SubAgentView.id is
-  label: z.string(),
+export const ReturnedSubAgentView = type({
+  "+": "delete",
+  id: "string", // the dispatch tool_use id — the same drill-in handle SubAgentView.id is
+  label: "string",
   // How it ended, as the harness reported it. `killed` is a stop — the human's ×, or an interrupt.
-  status: z.enum(["completed", "failed", "killed"]),
-  startedAt: z.string().optional(), // ISO8601 of the dispatch
-  finishedAt: z.string().optional(), // ISO8601 of its completion notification
-  subagentType: z.string().optional(),
+  status: "'completed' | 'failed' | 'killed'",
+  "startedAt?": "string", // ISO8601 of the dispatch
+  "finishedAt?": "string", // ISO8601 of its completion notification
+  "subagentType?": "string",
 })
-export type ReturnedSubAgentView = z.infer<typeof ReturnedSubAgentView>
+export type ReturnedSubAgentView = typeof ReturnedSubAgentView.infer
 
 // One agent of a workflow run, as its drawer lists it — every agent the run has started, finished ones
 // included, so the run can be browsed after the fact. `id` is the agent id, which is also the drill-in
 // handle `subAgentTranscript` resolves.
-export const WorkflowAgentView = z.object({
-  id: z.string(),
-  label: z.string(),
-  phase: z.string().optional(),
-  state: z.enum(["running", "stale", "done", "failed"]),
-  startedAt: z.string().optional(),
+export const WorkflowAgentView = type({
+  "+": "delete",
+  id: "string",
+  label: "string",
+  "phase?": "string",
+  state: "'running' | 'stale' | 'done' | 'failed'",
+  "startedAt?": "string",
 })
-export type WorkflowAgentView = z.infer<typeof WorkflowAgentView>
+export type WorkflowAgentView = typeof WorkflowAgentView.infer
 
 // A sub-agent THIS thread's worker dispatched itself, as opposed to one of its descendants.
 //
@@ -407,8 +410,8 @@ export function isDirectSubAgent(agent: { depth?: number }): boolean {
 //   kind "worktree" — the folder's `.git` is a FILE: a linked worktree (`git worktree add`, EnterWorktree).
 //   kind "folder"   — anything else off the root: another repository's own checkout, or a plain folder.
 // ntwine takes no position on worktrees; this INFORMS where a terminal will open and never prescribes.
-export const WorkCheckout = z.object({ dir: z.string(), kind: z.enum(["worktree", "folder"]) }).strict()
-export type WorkCheckout = z.infer<typeof WorkCheckout>
+export const WorkCheckout = type({ "+": "reject", dir: "string", kind: "'worktree' | 'folder'" })
+export type WorkCheckout = typeof WorkCheckout.infer
 
 // A LIVE background SHELL the worker launched (Bash run_in_background:true) — same tailer tracking as a
 // sub-agent (dispatch → launch output path → task-notification clear). Foreground-blocking waits keep
@@ -418,11 +421,12 @@ export type WorkCheckout = z.infer<typeof WorkCheckout>
 // drawer's scoped RPC rather than inflating or exposing it in every board snapshot. Its FOLDER (`cwd`)
 // does ride the board: a folder is not the command, and it is what tells a shell running in the agent's
 // worktree from one running in the project root.
-export const BgShellView = z.object({
-  label: z.string(), // the command's `description`, else its first-line summary
-  startedAt: z.string(), // ISO8601 of the launch record
-  state: z.enum(["running", "stale"]),
-  id: z.string().optional(),
+export const BgShellView = type({
+  "+": "delete",
+  label: "string", // the command's `description`, else its first-line summary
+  startedAt: "string", // ISO8601 of the launch record
+  state: "'running' | 'stale'",
+  "id?": "string",
   // Can ntwine actually END this shell right now? The same contract as SubAgentView.stoppable — computed
   // server-side, never re-derived by a client — but it takes TWO answers, because a shell's control
   // handle is not implied by the thread's transport alone:
@@ -438,7 +442,7 @@ export const BgShellView = z.object({
   // a background Bash is a TASK in the same session-wide registry a sub-agent lives in, so
   // `Query.stopTask` ends it (verified end-to-end in backend/_live_shell_stop.mts: the OS process is
   // gone inside a second).
-  stoppable: z.boolean().optional(),
+  "stoppable?": "boolean",
   // ntwine cannot read this shell's output, so the row must NOT offer a drill-in. True only for a CODEX
   // background exec: codex keeps a yielded command's output inside its own session and hands it back
   // only when the model polls, so there is no file for ntwine to tail — unlike a Claude shell, whose
@@ -446,16 +450,16 @@ export const BgShellView = z.object({
   //
   // A positive flag for the EXCEPTION rather than a `readable` that every existing row would have to
   // start setting: an old snapshot then keeps its drill-in instead of silently losing it.
-  outputUnavailable: z.boolean().optional(),
+  "outputUnavailable?": "boolean",
   // The command this shell runs, when ntwine knows it independently of the label. Set only on a CODEX
   // row, where it is the ONE thing the board's copy of the shell and the transcript's copy share — see
   // lib/childOps.ts mergeBackgroundShells, which reconciles the two on it. A Claude row leaves it
   // absent: its two copies already reconcile on the launch tool_use id, and a `command` that merely
   // repeated the label would make two identically-described shells collide into one row.
-  command: z.string().optional(),
+  "command?": "string",
   // ISO8601 of the shell output file's last write — "last active 6 min ago" for a quiet-but-live
   // watcher. Optional (see SubAgentView.lastActivityAt).
-  lastActivityAt: z.string().optional(),
+  "lastActivityAt?": "string",
   // The PROVIDER's session-wide background-task handle (`bzvtnt3ig`), as distinct from `id`, which is
   // the launch tool_use id. Both name the same shell and neither is a substitute for the other:
   // `id` is what the two copies of a row reconcile on, and this is the handle the runtime hands the
@@ -463,55 +467,56 @@ export const BgShellView = z.object({
   // it is the one it registers a `shell` watcher against. Matching on `id`/`label` alone meant every
   // such watcher was unfireable (scheduler.evalWatchers, 2026-08-14). Absent for a CODEX row, whose
   // single `processId` IS its `id`, and for a Claude row between its tool_use and its launch ack.
-  taskId: z.string().optional(),
+  "taskId?": "string",
   // The runtime budget this shell LAUNCHED with, in ms (server shell-budget.ts): the Bash `timeout` the
   // worker passed on its `run_in_background` call, clamped to [1m, 24h]. Absent ⇒ none was declared, and
   // none is imposed — a shell with no budget runs until it ends or is stopped (the 1h default of
   // 4e5eaca1 was withdrawn the same day). An `extend_shell` does not rewrite this; see `budgetEndsAt`.
-  budgetMs: z.number().optional(),
+  "budgetMs?": "number",
   // A `Monitor` rather than a background Bash — never budgeted, and `extend_shell` refuses it.
-  monitor: z.boolean().optional(),
+  "monitor?": "boolean",
   // When the budget ACTUALLY runs out (ISO8601): launch + `budgetMs`, or the deadline an `extend_shell`
   // set, held later by an armed `watch` on the shell (shell-budget.ts resolveShellBudget). This is what
   // the card's "2h left" reads. Past it the worker is warned once and, unextended, the shell is stopped
   // ten minutes later. Absent ⇒ unbudgeted.
-  budgetEndsAt: z.string().optional(),
+  "budgetEndsAt?": "string",
   // The absolute folder the shell RUNS in, NOT lifted to its checkout: what the row's tooltip ("Runs in")
   // and the drawer's subtitle say. While the shell runs it is the OS's answer — the folder the process
   // holding its log is in (server shell-cwd-probe.ts), which is where it is NOW. Until the OS has answered,
   // and for a Codex exec, it is the start folder the transcript names: the session's `cwd` on the launch
   // record, or where a leading `cd <path> &&` moved it (tailer.ts leadingCd). A retired shell keeps the
   // last of these it had.
-  cwd: z.string().optional(),
+  "cwd?": "string",
   // That folder lifted to its checkout, present only when that checkout is NOT the project root — the
   // row's quiet folder hint. Absent ⇒ the root (see WorkCheckout), or no reading: see `atRoot`.
-  checkout: WorkCheckout.optional(),
+  "checkout?": WorkCheckout,
   // The server READ this row's folder and it is in the project's own checkout. `checkout` alone could not
   // say that: absent, it is the root and also "no reading" — a folder since deleted, a Codex exec whose
   // item named none — and a row that claimed the root on no reading said `root` beside a shell running in
   // a worktree. With neither field set, no surface claims a place for the row.
-  atRoot: z.literal(true).optional(),
+  "atRoot?": "true",
 })
-export type BgShellView = z.infer<typeof BgShellView>
+export type BgShellView = typeof BgShellView.infer
 
 // A background shell that has FINISHED, still listed in the drawer's TERM strip the way a finished terminal
 // of yours is: openable (its drawer reads its log from the server's retired ring), cleared with its ×.
 // Bounded by that ring (the tailer keeps the newest 20 per thread), newest first. Until 2026-09-30 a
 // finished agent terminal left every surface the moment it ended, so a 10-second shell could not be opened
 // from anywhere — while a finished terminal of yours stayed in the strip with its exit code.
-export const EndedShellView = z.object({
-  id: z.string(), // the launch tool_use id, as BgShellView.id — what its drawer is addressed by
-  label: z.string(),
-  status: z.enum(["completed", "failed", "killed"]),
-  startedAt: z.string().optional(),
-  finishedAt: z.string().optional(),
-  taskId: z.string().optional(), // see BgShellView.taskId — what an ntwine-relayed completion names it by
-  monitor: z.boolean().optional(),
-  cwd: z.string().optional(),
-  checkout: WorkCheckout.optional(),
-  atRoot: z.literal(true).optional(),
+export const EndedShellView = type({
+  "+": "delete",
+  id: "string", // the launch tool_use id, as BgShellView.id — what its drawer is addressed by
+  label: "string",
+  status: "'completed' | 'failed' | 'killed'",
+  "startedAt?": "string",
+  "finishedAt?": "string",
+  "taskId?": "string", // see BgShellView.taskId — what an ntwine-relayed completion names it by
+  "monitor?": "boolean",
+  "cwd?": "string",
+  "checkout?": WorkCheckout,
+  "atRoot?": "true",
 })
-export type EndedShellView = z.infer<typeof EndedShellView>
+export type EndedShellView = typeof EndedShellView.infer
 
 // ONE AGENT TERMINAL'S LOG — the drawer's read of a background shell (server router backgroundShellOutput).
 //
@@ -520,40 +525,42 @@ export type EndedShellView = z.infer<typeof EndedShellView>
 // resumes at a previous reply's `end`, so the drawer's poll appends only what arrived; `raw` keeps colour
 // and bare `\r` for its xterm. Every field added since the first version is optional both ways, so an
 // older client's call and reply are unchanged.
-export const BackgroundShellOutputInput = z.object({
+export const BackgroundShellOutputInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  id: z.string().max(128),
-  from: z.number().int().nonnegative().optional(),
-  raw: z.boolean().optional(),
-}).strict()
-export type BackgroundShellOutputInput = z.infer<typeof BackgroundShellOutputInput>
-export const BackgroundShellOutputResult = z.object({
-  command: z.string().nullable(),
-  output: z.string(),
-  truncated: z.boolean(),
-  state: z.enum(["running", "done", "gone"]),
+  id: "string <= 128",
+  "from?": "number.integer >= 0",
+  "raw?": "boolean",
+})
+export type BackgroundShellOutputInput = typeof BackgroundShellOutputInput.infer
+export const BackgroundShellOutputResult = type({
+  "+": "delete",
+  command: "string | null",
+  output: "string",
+  truncated: "boolean",
+  state: "'running' | 'done' | 'gone'",
   // The drawer renders Stop if and only if this is true, and states `stopNote` in its place when a
   // running shell still cannot be reached. Never re-derived client-side.
-  stoppable: z.boolean(),
-  stopNote: z.string().nullable(),
+  stoppable: "boolean",
+  stopNote: "string | null",
   // The offset read's cursor: where the next read starts, whether this one started over on a file that
   // shrank, and whether more is already waiting.
-  end: z.number().optional(),
-  reset: z.boolean().optional(),
-  more: z.boolean().optional(),
+  "end?": "number",
+  "reset?": "boolean",
+  "more?": "boolean",
   // A path WAS named and nothing the vet accepts is readable there — a forged ack, or a task log tmp
   // cleanup removed after the shell ended.
-  missing: z.boolean().optional(),
+  "missing?": "boolean",
   // A CODEX background exec: Codex keeps its output inside its own session and hands it to the model when
   // it polls, so ntwine holds no file to read. The command, the folder and Stop still work.
-  outputUnavailable: z.boolean().optional(),
+  "outputUnavailable?": "boolean",
   // Where it runs (BgShellView.cwd) and that folder's checkout when it is off the project root — kept
   // with the retired shell, so an open drawer keeps its subtitle after the shell ends.
-  cwd: z.string().nullable().optional(),
-  checkout: WorkCheckout.nullable().optional(),
-  monitor: z.boolean().optional(),
+  "cwd?": "string | null",
+  "checkout?": WorkCheckout.or("null"),
+  "monitor?": "boolean",
 })
-export type BackgroundShellOutputResult = z.infer<typeof BackgroundShellOutputResult>
+export type BackgroundShellOutputResult = typeof BackgroundShellOutputResult.infer
 
 // WHY "Mark as done" stopped to ask instead of ending the session outright. The server already knows
 // the exact evidence it refused on (an executing turn, named live children, or no telemetry at all) —
@@ -561,41 +568,43 @@ export type BackgroundShellOutputResult = z.infer<typeof BackgroundShellOutputRe
 // still running, here they are" rather than a bare "this thread is still running". Labels are the same
 // worker-authored strings the board's ops strip already renders; the lists are capped and the true
 // totals travel separately so a long list can say "+N more" instead of silently truncating.
-export const CompletionHoldOp = z.object({
-  label: z.string(),
-  state: z.enum(["running", "stale"]),
+export const CompletionHoldOp = type({
+  "+": "delete",
+  label: "string",
+  state: "'running' | 'stale'",
   // A terminal's slug, so the dialog can offer to stop it (completeThread `stopTerminals`).
-  id: z.string().optional(),
+  "id?": "string",
   // A terminal's starter: the thread's agent (`ntwinectl terminal start`) or the human. Absent ⇒ the human's.
-  owner: z.enum(["agent", "human"]).optional(),
+  "owner?": "'agent' | 'human'",
 })
-export type CompletionHoldOp = z.infer<typeof CompletionHoldOp>
-export const CompletionHold = z.object({
-  turnInFlight: z.boolean().default(false), // the session's own turn is mid-execution
+export type CompletionHoldOp = typeof CompletionHoldOp.infer
+export const CompletionHold = type({
+  "+": "delete",
+  turnInFlight: "boolean = false", // the session's own turn is mid-execution
   // Telemetry is missing entirely (live runtime, unreadable transcript). We can neither confirm nor
   // rule out work in flight, so the dialog says exactly that rather than inventing a specific cause.
-  unobservable: z.boolean().default(false),
-  subAgents: z.array(CompletionHoldOp).default([]),
-  subAgentCount: z.number().default(0), // total live sub-agents (≥ subAgents.length)
-  bgShells: z.array(CompletionHoldOp).default([]),
-  bgShellCount: z.number().default(0), // total live background shells (≥ bgShells.length)
+  unobservable: "boolean = false",
+  subAgents: CompletionHoldOp.array().default(() => []),
+  subAgentCount: "number = 0", // total live sub-agents (≥ subAgents.length)
+  bgShells: CompletionHoldOp.array().default(() => []),
+  bgShellCount: "number = 0", // total live background shells (≥ bgShells.length)
   // The live TERMINAL THREADS this thread started (server thread-terminals.ts) — `npm run dev`, a shell.
   // Marking the thread done no longer stops them (a dev server outlives the effort that started it): the
   // dialog lists them, each with a stop checkbox, unticked. Each op carries its terminal's `id`. Optional
   // so a pre-change client reads a hold unchanged.
-  terminals: z.array(CompletionHoldOp).optional(),
-  terminalCount: z.number().optional(),
+  "terminals?": CompletionHoldOp.array(),
+  "terminalCount?": "number",
   // The worker is DEAD and its recorded turn never ended — cut off by a reboot, a signal or a crash
   // mid-tool-call (router.cutOffHold). Nothing is running, so nothing will be killed; the hold exists
   // because the thread is not finished and Done would say it was. Optional rather than defaulted so it
   // is absent (⇒ false) on every hold that is not this one, and a pre-change client reads them unchanged.
-  cutOff: z.boolean().optional(),
+  "cutOff?": "boolean",
   // A message the operator sent has not been read by the agent yet — the turn it opens is starting, not
   // yet on disk (router.withUnreadSendHold). Always with `turnInFlight`; optional for the same reason as
   // `cutOff`.
-  unreadMessage: z.boolean().optional(),
+  "unreadMessage?": "boolean",
 })
-export type CompletionHold = z.infer<typeof CompletionHold>
+export type CompletionHold = typeof CompletionHold.infer
 
 // A PENDING native AskUserQuestion — the worker (or any session) called Claude Code's AskUserQuestion
 // tool and is frozen at its TUI dialog, no tool_result yet. Safety net for pre-contract / external
@@ -603,22 +612,25 @@ export type CompletionHold = z.infer<typeof CompletionHold>
 // what's being asked, and route them to answer in the terminal (a deny-hook enforces the contract
 // channel for compliant workers; answering here is deliberately NOT wired — too fragile). Structured
 // input is capped defensively (never trust a foreign tool's payload shape).
-export const AskOption = z.object({
-  label: z.string(),
-  description: z.string().optional(),
+export const AskOption = type({
+  "+": "delete",
+  label: "string",
+  "description?": "string",
 })
-export const AskQuestion = z.object({
-  question: z.string(),
-  header: z.string().optional(),
-  multiSelect: z.boolean().optional(),
-  options: z.array(AskOption),
+export const AskQuestion = type({
+  "+": "delete",
+  question: "string",
+  "header?": "string",
+  "multiSelect?": "boolean",
+  options: AskOption.array(),
 })
-export const PendingAsk = z.object({
-  questions: z.array(AskQuestion),
+export const PendingAsk = type({
+  "+": "delete",
+  questions: AskQuestion.array(),
 })
-export type AskOption = z.infer<typeof AskOption>
-export type AskQuestion = z.infer<typeof AskQuestion>
-export type PendingAsk = z.infer<typeof PendingAsk>
+export type AskOption = typeof AskOption.infer
+export type AskQuestion = typeof AskQuestion.infer
+export type PendingAsk = typeof PendingAsk.infer
 
 // Cap a foreign string defensively (AskUserQuestion is an UNTRUSTED tool payload — never let it
 // fatten a snapshot or a projected transcript). Caps chosen so the read-only render stays a compact card.
@@ -767,11 +779,12 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //                      below the `---`, where it always belonged and where it has no length limit.
 //   prose bodies       narrowed to `reason:` so the fence is machine-checkable — then given back in full
 //                      below the `---` delimiter, where prose cannot be mistaken for structure.
-export const AwaitingHint = z.object({
-  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command", "terminal", "for", "title", "status", "needs_input", "step", "question"]),
-  value: z.string(),
+export const AwaitingHint = type({
+  "+": "delete",
+  kind: "'shell' | 'agent' | 'timer' | 'pr' | 'thread' | 'command' | 'terminal' | 'for' | 'title' | 'status' | 'needs_input' | 'step' | 'question'",
+  value: "string",
 })
-export type AwaitingHint = z.infer<typeof AwaitingHint>
+export type AwaitingHint = typeof AwaitingHint.infer
 
 /** The hint kinds that USED to exist, so a worker still writing one can be told rather than ignored.
  *
@@ -1368,24 +1381,23 @@ export function awaitingDefaultForMs(kinds: Iterable<AwaitingItemKind>): number 
 // serializes local date/time input with Date#toISOString, so the wire/storage representation is one
 // unambiguous UTC instant. Keeping this stricter than the legacy awaiting-timer grammar avoids locale
 // strings and offset-normalization surprises at the RPC boundary.
-export const SnoozeUntil = z.string().regex(
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
-  "Snooze time must be an ISO-8601 UTC instant",
-).refine((value) => {
-  const instant = Date.parse(value)
-  // Date.parse normalizes impossible calendar dates in some runtimes (for example February 31).
-  // Round-trip the canonical UTC serialization so the durable deadline is a real exact instant.
-  return Number.isFinite(instant) && new Date(instant).toISOString() === value
-}, "Snooze time must be valid")
-export type SnoozeUntil = z.infer<typeof SnoozeUntil>
+export const SnoozeUntil = type(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+  .configure({ expected: "an ISO-8601 UTC instant" })
+  .narrow((value, ctx) => {
+    const instant = Date.parse(value)
+    // Date.parse normalizes impossible calendar dates in some runtimes (for example February 31).
+    // Round-trip the canonical UTC serialization so the durable deadline is a real exact instant.
+    return (Number.isFinite(instant) && new Date(instant).toISOString() === value) || ctx.mustBe("a valid instant")
+  })
+export type SnoozeUntil = typeof SnoozeUntil.infer
 
 // The follow-up a snooze carries. Its presence is what turns a snooze from a passive reminder (the
 // card re-surfaces, you act) into a SCHEDULED BUMP (ntwine resumes the agent with this text at the
 // deadline). Trimmed at the boundary so whitespace can never arm a wake that delivers nothing, and
 // capped like a composer message because it is delivered as an ordinary user turn.
 export const SNOOZE_PROMPT_MAX = 4000
-export const SnoozePrompt = z.string().trim().min(1).max(SNOOZE_PROMPT_MAX)
-export type SnoozePrompt = z.infer<typeof SnoozePrompt>
+export const SnoozePrompt = type(`string.trim |> 1 <= string <= ${SNOOZE_PROMPT_MAX}`)
+export type SnoozePrompt = typeof SnoozePrompt.infer
 
 // ---- THE RECURRING PROMPT (scheduler SOURCES 4 and 5) --------------------------------------------
 // ONE piece of text, and up to two independent reasons to send it:
@@ -1417,7 +1429,7 @@ export const RECURRING_PROMPT_MAX = SNOOZE_PROMPT_MAX
 // forgotten schedule from being indistinguishable from a dead one.
 export const RECURRING_MIN_INTERVAL_SECONDS = 60
 export const RECURRING_MAX_INTERVAL_SECONDS = 24 * 60 * 60
-export const RecurringPromptText = z.string().trim().min(1).max(RECURRING_PROMPT_MAX)
+export const RecurringPromptText = type(`string.trim |> 1 <= string <= ${RECURRING_PROMPT_MAX}`)
 
 // WHAT THE PANEL PREFILLS on a thread that has never armed one. The overwhelmingly common reason an
 // operator reaches for this control is the same one every time — the thread stopped with work left in it
@@ -1450,43 +1462,40 @@ export const RecurringPromptText = z.string().trim().min(1).max(RECURRING_PROMPT
 // delivery, whatever the operator has typed over this text.
 export const DEFAULT_RECURRING_PROMPT =
   "If additional work remains on the original task, keep going. Make decisions autonomously."
-export const RecurringIntervalSeconds = z
-  .number()
-  .int()
-  .min(RECURRING_MIN_INTERVAL_SECONDS)
-  .max(RECURRING_MAX_INTERVAL_SECONDS)
+export const RecurringIntervalSeconds = type(`${RECURRING_MIN_INTERVAL_SECONDS} <= number.integer <= ${RECURRING_MAX_INTERVAL_SECONDS}`)
 
 // What the board renders for a thread carrying one. The three triggers are independent booleans rather
 // than one `enabled` flag, and the text survives all of them being switched off so re-arming costs no
 // retyping. `intervalSeconds` is present whenever a schedule has ever been set, INCLUDING while the
 // heartbeat is off — otherwise flipping the schedule back on would lose the cadence the operator chose.
-export const ThreadRecurringPrompt = z.object({
-  prompt: z.string(),
+export const ThreadRecurringPrompt = type({
+  "+": "reject",
+  prompt: "string",
   /** The three mechanisms, named as the panel labels them. `stopHook` fires at every rest; `heartbeat`
    *  fires on `intervalSeconds`; `postCompaction` fires whenever the harness summarizes the thread's
    *  context away. The latter two both reach the agent mid-turn. */
-  stopHook: z.boolean(),
-  heartbeat: z.boolean(),
-  postCompaction: z.boolean(),
-  intervalSeconds: z.number().int().positive().optional(),
-  armedAt: z.string(),
+  stopHook: "boolean",
+  heartbeat: "boolean",
+  postCompaction: "boolean",
+  "intervalSeconds?": "number.integer > 0",
+  armedAt: "string",
   /** Last delivery per trigger; stamped separately so each reads its own clock. */
-  lastRestFiredAt: z.string().optional(),
-  lastScheduleFiredAt: z.string().optional(),
-  lastCompactFiredAt: z.string().optional(),
+  "lastRestFiredAt?": "string",
+  "lastScheduleFiredAt?": "string",
+  "lastCompactFiredAt?": "string",
   /** THE RUN COUNTER: deliveries that actually reached the worker under THIS generation (a text or
    *  cadence edit starts a new one at 0). Optional only so a view built by an older server still parses. */
-  runs: z.number().int().nonnegative().optional(),
+  "runs?": "number.integer >= 0",
   /** The LIMITS (2026-09-29). Either, both or neither: with neither the Goal is unbounded, as before. */
-  maxRuns: z.number().int().positive().optional(),
-  forSeconds: z.number().int().positive().optional(),
+  "maxRuns?": "number.integer > 0",
+  "forSeconds?": "number.integer > 0",
   /** The instant a time bound runs out — present exactly when `forSeconds` is. */
-  endsAt: z.string().optional(),
+  "endsAt?": "string",
   /** Present when the Goal DISARMED ITSELF at a limit: which one, and when. Retired the moment any
    *  trigger is switched back on or the text changes. */
-  stopped: z.object({ reason: z.enum(["runs", "time"]), at: z.string() }).strict().optional(),
-}).strict()
-export type ThreadRecurringPrompt = z.infer<typeof ThreadRecurringPrompt>
+  "stopped?": { "+": "reject", reason: "'runs' | 'time'", at: "string" },
+})
+export type ThreadRecurringPrompt = typeof ThreadRecurringPrompt.infer
 
 // ---- THE GOAL'S LIMITS ---------------------------------------------------------------------------
 // A Goal is a loop when it has an end. Maintainer 2026-09-29: loops are a Goal SETTING, not a new thread
@@ -1503,8 +1512,8 @@ export const GOAL_MAX_RUNS = 10_000
  *  loop before its first delivery landed. Thirty days matches the one-off timer's ceiling. */
 export const GOAL_MIN_FOR_SECONDS = 60
 export const GOAL_MAX_FOR_SECONDS = 30 * 24 * 60 * 60
-export const GoalMaxRuns = z.number().int().min(1).max(GOAL_MAX_RUNS)
-export const GoalForSeconds = z.number().int().min(GOAL_MIN_FOR_SECONDS).max(GOAL_MAX_FOR_SECONDS)
+export const GoalMaxRuns = type(`1 <= number.integer <= ${GOAL_MAX_RUNS}`)
+export const GoalForSeconds = type(`${GOAL_MIN_FOR_SECONDS} <= number.integer <= ${GOAL_MAX_FOR_SECONDS}`)
 
 /** `2h` → 7200. `null` for anything the `for:` grammar does not accept, or out of the Goal's bounds. */
 export function parseGoalForSeconds(value: string): number | null {
@@ -1880,7 +1889,7 @@ export const TIMER_MIN_DELAY_SECONDS = 10
 export const TIMER_MAX_DELAY_SECONDS = 30 * 24 * 60 * 60
 export const TIMER_MAX_ARMED = 64
 
-export const TimerPromptText = z.string().trim().min(1).max(TIMER_PROMPT_MAX)
+export const TimerPromptText = type(`string.trim |> 1 <= string <= ${TIMER_PROMPT_MAX}`)
 
 /** What ntwine delivers when a one-off timer fires: the worker's own words VERBATIM, then a one-line
  *  trailer naming the INSTANT — with several timers armed at once, the instant is the only thing that
@@ -3111,8 +3120,8 @@ export function parseOwnWatchExpiredWake(text: string): { kind: "shell" | "agent
 // So the board SYNTHESIZES one row per parseable `prs:` entry on the thread's standing fence. It is
 // derived state, not a registration: it appears when the worker parks, vanishes when it says anything
 // else, and carries no drop affordance, because there is no row to drop.
-export const ThreadWatchKind = z.enum(["shell", "github", "timer"])
-export type ThreadWatchKind = z.infer<typeof ThreadWatchKind>
+export const ThreadWatchKind = type("'shell' | 'github' | 'timer'")
+export type ThreadWatchKind = typeof ThreadWatchKind.infer
 
 /** How a watched PR's checks stand right now, in the shape GitHub's own merge box states it: a rollup
  *  verdict plus the counts behind it, and whether the PR can actually be merged.
@@ -3122,73 +3131,75 @@ export type ThreadWatchKind = z.infer<typeof ThreadWatchKind>
  *  rail. Only if CI has failed or completed successfully should it show up back in the queue"). So it
  *  has to travel — a card that renders check state the board cannot also read would put the two out of
  *  step, which is the drift that produced two cards saying different things about the same wait. */
-export const GithubChecksState = z.enum(["none", "running", "passing", "failing"])
-export type GithubChecksState = z.infer<typeof GithubChecksState>
+export const GithubChecksState = type("'none' | 'running' | 'passing' | 'failing'")
+export type GithubChecksState = typeof GithubChecksState.infer
 
 /** Can GitHub merge it? `blocked` covers a required review or a failing required check — GitHub reports
  *  the two the same way, and neither is something ntwine should claim to distinguish. */
-export const GithubMergeState = z.enum(["mergeable", "blocked", "conflicting", "unknown"])
-export type GithubMergeState = z.infer<typeof GithubMergeState>
+export const GithubMergeState = type("'mergeable' | 'blocked' | 'conflicting' | 'unknown'")
+export type GithubMergeState = typeof GithubMergeState.infer
 
-export const GithubWatchStatus = z.object({
+export const GithubWatchStatus = type({
+  "+": "reject",
   checks: GithubChecksState,
   /** The counts behind the verdict, so the card can say "3 running, 12 passed" the way GitHub does
    *  rather than only "checks are running". */
-  running: z.number().int().nonnegative(),
-  passed: z.number().int().nonnegative(),
-  failed: z.number().int().nonnegative(),
+  running: "number.integer >= 0",
+  passed: "number.integer >= 0",
+  failed: "number.integer >= 0",
   /** Checks that reached a terminal state without asserting anything — GitHub's `SKIPPED` and `STALE`.
    *  Counted apart from `passed` since 2026-09-04: they were folded into it, so a rollup of 12 skipped
    *  no-ops and 3 label bots rendered and reported as "15 checks green". Defaulted, because a reading
    *  written before that date carries neither this nor `gated`. */
-  skipped: z.number().int().nonnegative().default(0),
+  skipped: "number.integer >= 0 = 0",
   /** Workflows held at `action_required` — GitHub's "Approve and run" gate on a fork or first-time
    *  contributor's PR. They produce NO check run, so they are absent from the rollup entirely and the
    *  poll cannot see them there; the head's workflow runs are where they show up. Non-zero means CI has
    *  not started and will not until a maintainer presses the button. */
-  gated: z.number().int().nonnegative().default(0),
+  gated: "number.integer >= 0 = 0",
   /** The gated workflow NAMES, capped — "Test Linux, Test macOS, Linters" says what is being withheld,
    *  where a bare count does not. */
-  gating: z.array(z.string()).max(8).default([]),
+  gating: ["string[] <= 8", "=", () => []],
   /** The failing job NAMES, capped — what a human actually needs to decide whether to look. */
-  failing: z.array(z.string()).max(8).default([]),
+  failing: ["string[] <= 8", "=", () => []],
   merge: GithubMergeState,
   /** OPEN | CLOSED | MERGED, lowercased. A merged or closed PR ends the wait outright. */
-  state: z.enum(["open", "closed", "merged"]),
+  state: "'open' | 'closed' | 'merged'",
   /** When ntwine last heard from GitHub. A poll can fail or be rate-limited, and a stale reading stated
    *  as current is worse than no reading. */
-  polledAt: z.string(),
+  polledAt: "string",
   /** The head commit this verdict was reached on. A PR watcher reports a CI verdict when it is NEWS, and
    *  "red again on a new commit" is news that the bare word `failing` cannot express. Optional because a
    *  reading taken before 2026-08-17 carries none. */
-  head: z.string().optional(),
+  "head?": "string",
   /** A digest of WHICH jobs are failing right now. The head commit alone cannot express a re-run of the
    *  same job, or a slower job going red after the first — both of which are a second failure the worker
    *  must hear about. Empty when nothing is failing. */
-  failureSig: z.string().optional(),
-}).strict()
-export type GithubWatchStatus = z.infer<typeof GithubWatchStatus>
+  "failureSig?": "string",
+})
+export type GithubWatchStatus = typeof GithubWatchStatus.infer
 
 /** How a watched ISSUE stands right now — the issue twin of `GithubWatchStatus`, and deliberately a
  *  different shape rather than that one with its CI fields zeroed: an issue has no checks and no merge,
  *  and a row that said "no checks" about an issue would be reading a PR fact off a thing that has none.
  *  It decides no queue rule: an issue watcher is a visible queue handoff exactly as a PR watcher without
  *  running CI is, so this is a readout for the card and the worker's `list`, nothing more. */
-export const GithubIssueStatus = z.object({
+export const GithubIssueStatus = type({
+  "+": "reject",
   /** OPEN | CLOSED, lowercased. A closed issue ends the wait outright. */
-  state: z.enum(["open", "closed"]),
+  state: "'open' | 'closed'",
   /** GitHub's own reason for a close — `completed`, `not_planned`, `duplicate` — lowercased, when it
    *  gave one. Absent while open. */
-  stateReason: z.string().optional(),
+  "stateReason?": "string",
   /** The issue's title, as of the last poll — the one fact a human needs to place a bare `owner/repo#N`
    *  on the card. Capped, because a title is a headline and the card is not the place to read one. */
-  title: z.string().max(200).optional(),
+  "title?": "string <= 200",
   /** The conversation's size, so the card can say "14 comments" the way GitHub's list does. */
-  comments: z.number().int().nonnegative(),
+  comments: "number.integer >= 0",
   /** When ntwine last heard from GitHub, for the same reason `GithubWatchStatus.polledAt` carries it. */
-  polledAt: z.string(),
-}).strict()
-export type GithubIssueStatus = z.infer<typeof GithubIssueStatus>
+  polledAt: "string",
+})
+export type GithubIssueStatus = typeof GithubIssueStatus.infer
 
 /** One wait the thread has out, as the board states it.
  *
@@ -3198,30 +3209,31 @@ export type GithubIssueStatus = z.infer<typeof GithubIssueStatus>
  *  `timer` row an ARMED timer (`thread_timer`), fence or no fence — a registration is live work that
  *  WILL wake the thread. Either way the coupling is the point: the strip lists precisely what will
  *  actually wake the thread, and the two cannot drift into claiming different things. */
-export const ThreadWatchView = z.object({
-  id: z.string(),
+export const ThreadWatchView = type({
+  "+": "reject",
+  id: "string",
   kind: ThreadWatchKind,
-  target: z.string(),
-  state: z.enum(["armed", "fired", "dropped"]),
-  createdAt: z.string(),
+  target: "string",
+  state: "'armed' | 'fired' | 'dropped'",
+  createdAt: "string",
   /** `github` rows only, and absent until the first successful poll. */
-  github: GithubWatchStatus.optional(),
+  "github?": GithubWatchStatus,
   /** `github` rows only: WHAT the row watches. A pull request and an issue share the kind — they are one
    *  registry, one ref grammar (`owner/repo#N`) and one place on every surface that lists waits — and
    *  differ in what the poll can read off them, which is what this field lets a card branch on.
    *  Optional, and absent means a pull request — a row from a server that predates issues reads as the
    *  PR it always was, and the non-github kinds never carry it. */
-  subject: z.enum(["pull", "issue"]).optional(),
+  "subject?": "'pull' | 'issue'",
   /** `github` rows watching an ISSUE only, and absent until the first successful poll — the twin of the
    *  `github` half above, for the rows whose subject has no checks to report. */
-  issue: GithubIssueStatus.optional(),
+  "issue?": GithubIssueStatus,
   /** `timer` rows only: the armed timer's own registration, which is everything the row renders — the
    *  worker's prompt is the row's NAME (a `tmr_…` id names nothing to a human) and the fire instant is
    *  its status. Unlike `github` there is no polled half to be absent: a timer that exists is fully
    *  known, so a timer row always carries this. */
-  timer: z.object({ fireAt: z.string(), prompt: z.string() }).strict().optional(),
-}).strict()
-export type ThreadWatchView = z.infer<typeof ThreadWatchView>
+  "timer?": { "+": "reject", fireAt: "string", prompt: "string" },
+})
+export type ThreadWatchView = typeof ThreadWatchView.infer
 
 /** A PR watcher's own ceiling, and it is a YEAR — deliberately nothing like AWAITING_FOR_MAX_MS.
  *
@@ -3248,29 +3260,31 @@ export const PR_WATCH_DEFAULT_FOR_MS = 30 * 24 * 60 * 60 * 1000
 export const PR_WATCH_MAX_ARMED = 32
 
 /** One registered PR watcher, as the worker's own tool reads it back. */
-export const PrWatchView = z.object({
-  id: z.string(),
+export const PrWatchView = type({
+  "+": "reject",
+  id: "string",
   /** `owner/repo#N`, normalized — the same string the board's row and the status book are keyed by. */
-  target: z.string(),
+  target: "string",
   /** A pull request or an issue. Both live in one registry (`pr_watch`) and answer to one drop verb; an
    *  issue row is the human's, from the done card's Watch (or a worker's from before 2026-10-14, when
    *  `watch_issue` was removed), and `watch_pr` lists only pull requests. Defaulted for a row an older
    *  server sends. */
-  kind: z.enum(["pull", "issue"]).default("pull"),
-  state: z.enum(["armed", "dropped", "settled"]),
-  createdAt: z.string(),
+  kind: "'pull' | 'issue' = 'pull'",
+  state: "'armed' | 'dropped' | 'settled'",
+  createdAt: "string",
   /** The PR's checks/mergeability as the poller last saw it. Absent until the first successful poll. */
-  github: GithubWatchStatus.optional(),
+  "github?": GithubWatchStatus,
   /** An ISSUE's state as the poller last saw it — `kind: "issue"` rows only, absent until polled. */
-  issue: GithubIssueStatus.optional(),
-}).strict()
-export type PrWatchView = z.infer<typeof PrWatchView>
+  "issue?": GithubIssueStatus,
+})
+export type PrWatchView = typeof PrWatchView.infer
 
-export const AddOwnPrWatchInput = z.object({
+export const AddOwnPrWatchInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   /** `owner/repo#123` or a PR URL. Parsed server-side; an unparseable ref is refused rather than stored,
    *  because a watcher that can never fire is worse than none — the worker rests believing it is covered. */
-  target: z.string().trim().min(1).max(200),
+  target: "string.trim |> 1 <= string <= 200",
   /** How long to watch, as a DURATION (`2h`, `3d`, `180d` — parseAwaitingDurationRaw, capped at
    *  PR_WATCH_FOR_MAX_MS).
    *
@@ -3289,56 +3303,61 @@ export const AddOwnPrWatchInput = z.object({
    *  already running, with no recourse from inside those threads. Absent ⇒ PR_WATCH_DEFAULT_FOR, which
    *  still BOUNDS the poll; the point of the field is that a worker chooses, and one that cannot choose
    *  is better bounded than broken. */
-  for: z.string().trim().min(1).max(16).optional(),
-}).strict()
-export type AddOwnPrWatchInput = z.infer<typeof AddOwnPrWatchInput>
+  "for?": "string.trim |> 1 <= string <= 16",
+})
+export type AddOwnPrWatchInput = typeof AddOwnPrWatchInput.infer
 
-export const AddOwnPrWatchResult = z.object({
-  id: z.string(),
-  target: z.string(),
+export const AddOwnPrWatchResult = type({
+  "+": "reject",
+  id: "string",
+  target: "string",
   /** True when this exact PR was ALREADY watched by this thread, so the call registered nothing new.
    *  Re-registering after a compaction is the common case, and a duplicate would double every wake. */
-  alreadyArmed: z.boolean(),
+  alreadyArmed: "boolean",
   /** When this watcher runs out. Read back so the worker sees the duration it ACTUALLY got rather than
    *  the one it asked for — on a re-registration that is the original expiry, which the call left alone. */
-  expiresAt: z.string(),
+  expiresAt: "string",
   /** The `for:` the worker wrote, present ONLY when it exceeded the ceiling and was capped. A clamp
    *  nobody is told about is a worker resting on a year of coverage it does not have. */
-  clampedFrom: z.string().optional(),
-  watches: z.array(PrWatchView),
-}).strict()
-export type AddOwnPrWatchResult = z.infer<typeof AddOwnPrWatchResult>
+  "clampedFrom?": "string",
+  watches: PrWatchView.array(),
+})
+export type AddOwnPrWatchResult = typeof AddOwnPrWatchResult.infer
 
 /** The done card's Watch button (2026-10-07): the HUMAN arms a watcher on a pull request or issue the
  *  finished thread names, and parks this rest in Snoozed until it reports. `target` is `owner/repo#N` —
  *  the card resolves a bare `#N` against the project's repo, as its links do. Which of the two it is, is
  *  the server's to find out (it probes), because prose cannot say. */
-export const WatchDoneRefInput = z.object({
+export const WatchDoneRefInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  sessionId: z.string().min(1),
-  target: z.string().trim().min(1).max(200),
-}).strict()
-export type WatchDoneRefInput = z.infer<typeof WatchDoneRefInput>
+  sessionId: "string > 0",
+  target: "string.trim |> 1 <= string <= 200",
+})
+export type WatchDoneRefInput = typeof WatchDoneRefInput.infer
 
-export const WatchDoneRefResult = z.object({
-  target: z.string(),
-  kind: z.enum(["pull", "issue"]),
+export const WatchDoneRefResult = type({
+  "+": "reject",
+  target: "string",
+  kind: "'pull' | 'issue'",
   /** The thread already watched it (the worker's own watcher, or an earlier click); only the park is new. */
-  alreadyArmed: z.boolean(),
-}).strict()
-export type WatchDoneRefResult = z.infer<typeof WatchDoneRefResult>
+  alreadyArmed: "boolean",
+})
+export type WatchDoneRefResult = typeof WatchDoneRefResult.infer
 
-export const DropOwnPrWatchInput = z.object({
+export const DropOwnPrWatchInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  id: z.string().min(1).max(64),
-}).strict()
-export type DropOwnPrWatchInput = z.infer<typeof DropOwnPrWatchInput>
+  id: "1 <= string <= 64",
+})
+export type DropOwnPrWatchInput = typeof DropOwnPrWatchInput.infer
 
-export const DropOwnPrWatchResult = z.object({
-  dropped: z.boolean(),
-  watches: z.array(PrWatchView),
-}).strict()
-export type DropOwnPrWatchResult = z.infer<typeof DropOwnPrWatchResult>
+export const DropOwnPrWatchResult = type({
+  "+": "reject",
+  dropped: "boolean",
+  watches: PrWatchView.array(),
+})
+export type DropOwnPrWatchResult = typeof DropOwnPrWatchResult.infer
 
 // ---- THE WORKER'S OWN WATCHES on its own running work (2026-08-26) -----------------------------------
 // `ntwinectl watch` / `ntwinectl unwatch`. See plans/rest-by-registration.md: a wait stops being a
@@ -3349,10 +3368,11 @@ export type DropOwnPrWatchResult = z.infer<typeof DropOwnPrWatchResult>
 // two things where there is one. A PR keeps its own verb because it is not the same act: `watch_pr`
 // creates a REPEATING poll against a service ntwine has to reach, and it can fail for reasons a runtime
 // handle never can (signed out, an SSO-gated org, no `gh`).
-export const OwnWatchKind = z.enum(["shell", "agent"])
-export type OwnWatchKind = z.infer<typeof OwnWatchKind>
+export const OwnWatchKind = type("'shell' | 'agent'")
+export type OwnWatchKind = typeof OwnWatchKind.infer
 
-export const AddOwnWatchInput = z.object({
+export const AddOwnWatchInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   /** What KIND of thing the target is. Stored, and checked against the thread's live telemetry before the
    *  row is written — see the note on `target`. */
@@ -3366,7 +3386,7 @@ export const AddOwnWatchInput = z.object({
    *  exactly is whether this thread has a live shell — or a live sub-agent — answering to this handle, and
    *  that is both the stronger check and the one that catches the real mistake: naming a sub-agent under
    *  `kind: "shell"`, which is what put two sub-agents under a "Background shells" heading on 2026-08-26. */
-  target: z.string().trim().min(1).max(200),
+  target: "string.trim |> 1 <= string <= 200",
   /** REQUIRED, and a DURATION (`30m`, `2h`, `3d` — parseAwaitingDurationRaw, capped at 24h).
    *
    *  STILL A DAY, where a PR watcher now gets a year: this names a shell or a sub-agent, which lives
@@ -3377,9 +3397,9 @@ export const AddOwnWatchInput = z.object({
    *  only to keep working for sessions dispatched before it existed, and this RPC has no such sessions.
    *  On elapse the row is CANCELLED and the thread woken to re-decide, which is what stops a registration
    *  outliving its own relevance — the one thing an un-restated fence could never do wrong. */
-  for: z.string().trim().min(1).max(16),
-}).strict()
-export type AddOwnWatchInput = z.infer<typeof AddOwnWatchInput>
+  for: "string.trim |> 1 <= string <= 16",
+})
+export type AddOwnWatchInput = typeof AddOwnWatchInput.infer
 
 // ---- EXTENDING A BACKGROUND SHELL'S RUNTIME BUDGET (`ntwinectl extend-shell`, 2026-09-29) -------------
 // A background shell carries a budget only when one was declared (server shell-budget.ts: its launch
@@ -3388,65 +3408,71 @@ export type AddOwnWatchInput = z.infer<typeof AddOwnWatchInput>
 // ("keep it"), or pre-empts it for a shell the worker knows will run long. It sets the budget to end
 // `for` from NOW, not from launch, so the worker never has to do arithmetic against an instant it
 // cannot see.
-export const ExtendOwnShellInput = z.object({
+export const ExtendOwnShellInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   /** The shell's handle — the same three a `watch` of kind shell accepts: the runtime task id the worker
    *  was shown, the launch tool_use id, or the shell's label. Resolved against live telemetry. */
-  shell: z.string().trim().min(1).max(200),
+  shell: "string.trim |> 1 <= string <= 200",
   /** A DURATION (`30m`, `2h`), parseAwaitingDurationRaw, capped at 24h and the cap reported. */
-  for: z.string().trim().min(1).max(16),
-}).strict()
-export type ExtendOwnShellInput = z.infer<typeof ExtendOwnShellInput>
+  for: "string.trim |> 1 <= string <= 16",
+})
+export type ExtendOwnShellInput = typeof ExtendOwnShellInput.infer
 
-export const ExtendOwnShellResult = z.object({
+export const ExtendOwnShellResult = type({
+  "+": "reject",
   /** The handle the shell answers to in every other readout (its task id where it has one). */
-  shell: z.string(),
-  label: z.string(),
+  shell: "string",
+  label: "string",
   /** The new deadline, ISO8601. */
-  budgetEndsAt: z.string(),
+  budgetEndsAt: "string",
   /** The `for` as written, present ONLY when it exceeded 24h and was capped. */
-  clampedFrom: z.string().optional(),
-}).strict()
-export type ExtendOwnShellResult = z.infer<typeof ExtendOwnShellResult>
+  "clampedFrom?": "string",
+})
+export type ExtendOwnShellResult = typeof ExtendOwnShellResult.infer
 
-export const OwnWatchView = z.object({
-  id: z.string(),
+export const OwnWatchView = type({
+  "+": "reject",
+  id: "string",
   kind: OwnWatchKind,
-  target: z.string(),
+  target: "string",
   /** The op's own label where the target resolved to one, so a read-back names the work rather than an
    *  opaque handle. Absent when the target no longer resolves — the row still stands and names itself. */
-  label: z.string().optional(),
-  createdAt: z.string(),
-  expiresAt: z.string(),
-}).strict()
-export type OwnWatchView = z.infer<typeof OwnWatchView>
+  "label?": "string",
+  createdAt: "string",
+  expiresAt: "string",
+})
+export type OwnWatchView = typeof OwnWatchView.infer
 
-export const AddOwnWatchResult = z.object({
-  id: z.string(),
+export const AddOwnWatchResult = type({
+  "+": "reject",
+  id: "string",
   kind: OwnWatchKind,
-  target: z.string(),
+  target: "string",
   /** True when this exact (kind, target) was already watched, so the call registered nothing new and the
    *  existing expiry stands. Re-registering after a wake or a compaction is the common, correct case. */
-  alreadyArmed: z.boolean(),
+  alreadyArmed: "boolean",
   /** The `for:` the worker wrote, present ONLY when it exceeded the ceiling and was capped — the twin of
    *  `AddOwnPrWatchResult.clampedFrom`, for the same reason: a silent clamp is a worker resting on
    *  coverage it does not have. */
-  clampedFrom: z.string().optional(),
-  watches: z.array(OwnWatchView),
-}).strict()
-export type AddOwnWatchResult = z.infer<typeof AddOwnWatchResult>
+  "clampedFrom?": "string",
+  watches: OwnWatchView.array(),
+})
+export type AddOwnWatchResult = typeof AddOwnWatchResult.infer
 
-export const DropOwnWatchInput = z.object({
+export const DropOwnWatchInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  id: z.string().min(1).max(64),
-}).strict()
-export type DropOwnWatchInput = z.infer<typeof DropOwnWatchInput>
+  id: "1 <= string <= 64",
+})
+export type DropOwnWatchInput = typeof DropOwnWatchInput.infer
 
-export const DropOwnWatchResult = z.object({
-  dropped: z.boolean(),
-  watches: z.array(OwnWatchView),
-}).strict()
-export type DropOwnWatchResult = z.infer<typeof DropOwnWatchResult>
+export const DropOwnWatchResult = type({
+  "+": "reject",
+  dropped: "boolean",
+  watches: OwnWatchView.array(),
+})
+export type DropOwnWatchResult = typeof DropOwnWatchResult.infer
 
 /** How many watches one thread may hold at once. A bound, not an opinion — the same shape as
  *  PR_WATCH_MAX_ARMED, and generous enough that no honest fan-out meets it. */
@@ -3489,82 +3515,88 @@ export const COMMAND_WATCH_RUN_TIMEOUT_MS = 2 * 60_000
 
 /** One finished check, as stored on the row and read back. `exitCode` is null for every outcome but
  *  `exit`: a run killed by its timeout, by a signal, or that never started has no exit status to report. */
-export const CommandWatchRun = z.object({
-  at: z.string(),
-  outcome: z.enum(["exit", "timeout", "signal", "error"]),
-  exitCode: z.number().int().nullable(),
-  output: z.string(),
-}).strict()
-export type CommandWatchRun = z.infer<typeof CommandWatchRun>
+export const CommandWatchRun = type({
+  "+": "reject",
+  at: "string",
+  outcome: "'exit' | 'timeout' | 'signal' | 'error'",
+  exitCode: "number.integer | null",
+  output: "string",
+})
+export type CommandWatchRun = typeof CommandWatchRun.infer
 
-export const CommandWatchState = z.enum(["armed", "dropped", "passed", "expired", "cancelled"])
-export type CommandWatchState = z.infer<typeof CommandWatchState>
+export const CommandWatchState = type("'armed' | 'dropped' | 'passed' | 'expired' | 'cancelled'")
+export type CommandWatchState = typeof CommandWatchState.infer
 
 /** One registered command watch, as the worker's own command reads it back. */
-export const CommandWatchView = z.object({
-  id: z.string(),
-  command: z.string(),
+export const CommandWatchView = type({
+  "+": "reject",
+  id: "string",
+  command: "string",
   /** The cadence in the house duration grammar (`5m`, `1h 30m`). */
-  every: z.string(),
+  every: "string",
   state: CommandWatchState,
-  createdAt: z.string(),
-  expiresAt: z.string(),
+  createdAt: "string",
+  expiresAt: "string",
   /** How many checks have run since it was armed, the registration's own first check included. */
-  runs: z.number().int().nonnegative(),
-  lastRun: CommandWatchRun.optional(),
-}).strict()
-export type CommandWatchView = z.infer<typeof CommandWatchView>
+  runs: "number.integer >= 0",
+  "lastRun?": CommandWatchRun,
+})
+export type CommandWatchView = typeof CommandWatchView.infer
 
-export const AddOwnCommandWatchInput = z.object({
+export const AddOwnCommandWatchInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   /** Run with `/bin/sh -c` in the project root, with the server's environment. Exit status 0 is "passed". */
-  command: z.string().trim().min(1).max(COMMAND_WATCH_COMMAND_MAX),
+  command: `string.trim |> 1 <= string <= ${COMMAND_WATCH_COMMAND_MAX}`,
   /** How often to check, as a DURATION (`5m`; parseAwaitingDurationRaw). Clamped to [1m, 24h] and reported. */
-  every: z.string().trim().min(1).max(16),
+  every: "string.trim |> 1 <= string <= 16",
   /** How long to keep checking, as a DURATION. Clamped to COMMAND_WATCH_FOR_MAX_MS and reported. */
-  for: z.string().trim().min(1).max(16),
-}).strict()
-export type AddOwnCommandWatchInput = z.infer<typeof AddOwnCommandWatchInput>
+  for: "string.trim |> 1 <= string <= 16",
+})
+export type AddOwnCommandWatchInput = typeof AddOwnCommandWatchInput.infer
 
-export const AddOwnCommandWatchResult = z.object({
+export const AddOwnCommandWatchResult = type({
+  "+": "reject",
   /** Present when the call was REFUSED — the thread may not run commands outside the CLI's permission
    *  system, or the command cannot run here at all. A refusal is an answer, not a fault: the text says
    *  why and what to use instead, and nothing was stored. */
-  refused: z.string().optional(),
+  "refused?": "string",
   /** The armed row's id. Absent when nothing was armed: a refusal, or a first check that already passed. */
-  id: z.string().optional(),
+  "id?": "string",
   /** This exact command was already watched on this thread, so the call registered nothing new. */
-  alreadyArmed: z.boolean().default(false),
+  alreadyArmed: "boolean = false",
   /** The FIRST CHECK, run before anything was stored. Exit 0 there means the condition already holds:
    *  nothing is armed, and the worker proceeds now rather than waiting a cadence to be told so. */
-  firstRun: CommandWatchRun.optional(),
-  passed: z.boolean().default(false),
-  expiresAt: z.string().optional(),
-  every: z.string().optional(),
+  "firstRun?": CommandWatchRun,
+  passed: "boolean = false",
+  "expiresAt?": "string",
+  "every?": "string",
   /** The `every` / `for` the worker wrote, present ONLY when it was clamped — a clamp nobody is told about
    *  is a worker resting on coverage it does not have. */
-  clamped: z.object({ every: z.string().optional(), for: z.string().optional() }).strict().optional(),
-  watches: z.array(CommandWatchView),
-}).strict()
-export type AddOwnCommandWatchResult = z.infer<typeof AddOwnCommandWatchResult>
+  "clamped?": { "+": "reject", "every?": "string", "for?": "string" },
+  watches: CommandWatchView.array(),
+})
+export type AddOwnCommandWatchResult = typeof AddOwnCommandWatchResult.infer
 
-export const DropOwnCommandWatchInput = z.object({
+export const DropOwnCommandWatchInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  id: z.string().min(1).max(64),
-}).strict()
-export type DropOwnCommandWatchInput = z.infer<typeof DropOwnCommandWatchInput>
+  id: "1 <= string <= 64",
+})
+export type DropOwnCommandWatchInput = typeof DropOwnCommandWatchInput.infer
 
-export const DropOwnCommandWatchResult = z.object({
-  dropped: z.boolean(),
-  watches: z.array(CommandWatchView),
-}).strict()
-export type DropOwnCommandWatchResult = z.infer<typeof DropOwnCommandWatchResult>
+export const DropOwnCommandWatchResult = type({
+  "+": "reject",
+  dropped: "boolean",
+  watches: CommandWatchView.array(),
+})
+export type DropOwnCommandWatchResult = typeof DropOwnCommandWatchResult.infer
 
-export const ListOwnCommandWatchesInput = z.object({ slug: ThreadSlug }).strict()
-export type ListOwnCommandWatchesInput = z.infer<typeof ListOwnCommandWatchesInput>
+export const ListOwnCommandWatchesInput = type({ "+": "reject", slug: ThreadSlug })
+export type ListOwnCommandWatchesInput = typeof ListOwnCommandWatchesInput.infer
 
-export const OwnCommandWatchesResult = z.object({ watches: z.array(CommandWatchView) }).strict()
-export type OwnCommandWatchesResult = z.infer<typeof OwnCommandWatchesResult>
+export const OwnCommandWatchesResult = type({ "+": "reject", watches: CommandWatchView.array() })
+export type OwnCommandWatchesResult = typeof OwnCommandWatchesResult.infer
 
 /** A code fence that cannot be closed early by what it holds: one backtick longer than the longest run
  *  of backticks inside. A command or its output may carry ``` of its own. */
@@ -3736,8 +3768,8 @@ export function needsInputRequired(spawnedAt: string | number | undefined | null
 // `danger` is orthogonal to it, so nothing here invents a second name for a thing the renderer already
 // has a name for. A FREE-TEXT question is one with no options — which the card already renders, since
 // its "something else…" row is unconditional — rather than a third kind.
-export const AskQuestionKind = z.enum(["question", "multi"])
-export type AskQuestionKind = z.infer<typeof AskQuestionKind>
+export const AskQuestionKind = type("'question' | 'multi'")
+export type AskQuestionKind = typeof AskQuestionKind.infer
 
 export interface AskedOption {
   label: string
@@ -3817,42 +3849,47 @@ export interface AskedQuestion {
  *  unbounded. */
 export const ASK_MAX_DEPTH = 3
 
-const AskedOptionSchema: z.ZodType<AskedOption> = z.lazy(() => z.object({
-  // 400, not the 120 it launched with (2026-09-03): a label is a chip line, but "Post the drafted
-  // comment as written" plus its qualifier runs long, and the fence has no cap at all. The answer's
-  // `chosen` carries labels, so its per-item cap matches this one.
-  label: z.string().trim().min(1).max(400),
-  // 20000, not the 4000 the retired `preview` had (2026-09-03): a description is allowed to BE the rich
-  // body — a diff, a drafted comment, a table — and a real diff exceeds 4000.
-  description: z.string().trim().max(20000).optional(),
-  recommended: z.boolean().optional(),
-  external: z.boolean().optional(),
-  preview: z.string().max(4000).optional(),
-  // No count cap, like `options` (2026-09-03); the tree is bounded by ASK_MAX_DEPTH instead.
-  followUps: z.array(AskedQuestionSchema).optional(),
-}).strict())
-
-export const AskedQuestionSchema: z.ZodType<AskedQuestion> = z.lazy(() => z.object({
+// The option and question shapes recurse into each other (an option's follow-ups are questions), so
+// both are one definition: the option is written inline, and `this` inside it is the question.
+export const AskedQuestionSchema = type({
+  "+": "reject",
   // 4000, not the 600 it launched with (2026-09-03): this field is the whole card context — everything
   // the human needs to answer cold — and a question that carries its own evidence needs the room. The
   // answer restates it, so QuestionAnswerSchema's cap matches.
-  question: z.string().trim().min(1).max(4000),
-  header: z.string().trim().max(24).optional(),
+  question: "string.trim |> 1 <= string <= 4000",
+  "header?": "string.trim |> string <= 24",
   kind: AskQuestionKind,
-  danger: z.boolean().optional(),
-  waitForHuman: z.boolean().optional(),
-  mayDefault: z.boolean().optional(),
-  secret: z.boolean().optional(),
-  mcp: z.string().trim().min(1).max(200).optional(),
+  "danger?": "boolean",
+  "waitForHuman?": "boolean",
+  "mayDefault?": "boolean",
+  "secret?": "boolean",
+  "mcp?": "string.trim |> 1 <= string <= 200",
   // UNBOUNDED, deliberately. This carried `.max(8)` from launch until 2026-09-03, when the maintainer
   // asked for the cap to go ("allow arbitrary numbers of options"): a `multi` over a long list — which
   // gates to run, which of twenty findings to act on — is a real shape, and the card numbers past 9
   // (only 1–9 are keys) already. The count is the worker's to choose; the answer's `chosen` is unbounded to match.
-  options: z.array(AskedOptionSchema).optional(),
-}).strict())
+  "options?": [
+    {
+      "+": "reject",
+      // 400, not the 120 it launched with (2026-09-03): a label is a chip line, but "Post the drafted
+      // comment as written" plus its qualifier runs long, and the fence has no cap at all. The answer's
+      // `chosen` carries labels, so its per-item cap matches this one.
+      label: "string.trim |> 1 <= string <= 400",
+      // 20000, not the 4000 the retired `preview` had (2026-09-03): a description is allowed to BE the rich
+      // body — a diff, a drafted comment, a table — and a real diff exceeds 4000.
+      "description?": "string.trim |> string <= 20000",
+      "recommended?": "boolean",
+      "external?": "boolean",
+      "preview?": "string <= 4000",
+      // No count cap, like `options` (2026-09-03); the tree is bounded by ASK_MAX_DEPTH instead.
+      "followUps?": "this[]",
+    },
+    "[]",
+  ],
+})
 
-/** The depth of a question tree, counting the root as 1. Separate from the schema because zod's `lazy`
- *  cannot bound its own recursion — the RPC refuses on this, with a message naming the limit. */
+/** The depth of a question tree, counting the root as 1. Separate from the schema because a recursive
+ *  type cannot bound its own depth — the RPC refuses on this, with a message naming the limit. */
 export function askedQuestionDepth(q: AskedQuestion): number {
   let deepest = 1
   for (const option of q.options ?? []) {
@@ -3895,38 +3932,40 @@ export function askedQuestionFaults(q: AskedQuestion): string[] {
   return faults
 }
 
-export const AskInput = z.object({
+export const AskInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   // No cap on the count (four until 2026-09-03): the command's own help says several at once is one
   // run — register them together — and a cap here told a worker with six to batch and then refused it.
-  questions: z.array(AskedQuestionSchema).min(1),
-}).strict()
-export type AskInput = z.infer<typeof AskInput>
+  questions: AskedQuestionSchema.array().atLeastLength(1),
+})
+export type AskInput = typeof AskInput.infer
 
 /** One registered question, as every reader sees it: the worker's read-back, the board, and the card. */
-export const RegisteredQuestionView = z.object({
+export const RegisteredQuestionView = type({
+  "+": "reject",
   /** Minted by ntwine. The worker never chose it, which is why an answer RESTATES the question text —
    *  an id alone cannot be correlated back to what was asked. */
-  id: z.string(),
+  id: "string",
   spec: AskedQuestionSchema,
-  askedAt: z.string(),
+  askedAt: "string",
   /** When ntwine will take the recommended option for the human (questionDefaultAtMs). Absent when it
    *  will not: the thread is still working, the question has nothing to take, it was typed past, or the
    *  human turned the default off with the countdown's ×. The card counts down to it. */
-  defaultsAt: z.string().optional(),
+  "defaultsAt?": "string",
   /** The label the default will pick, present beside `defaultsAt` only when it is NOT the recommended
    *  option — the recommendation acts outside this machine, so the default falls back (see
    *  recommendedDefaultAnswer) and the countdown names what it will actually take. */
-  defaultsTo: z.string().optional(),
+  "defaultsTo?": "string",
   /** A `secret` question only: the path its value will be served at. Known at registration, so the
    *  worker can prepare the command that reads it before the human has answered. */
-  secretPath: z.string().optional(),
+  "secretPath?": "string",
   /** The human TYPED PAST it (questionPassedOver): still open, and its card still answerable in the
    *  transcript where it was asked, but it no longer holds the thread — no queue, no `done` refusal, no
    *  `questions:` claim, no default. Absent on every question that still holds. */
-  passedOver: z.literal(true).optional(),
-}).strict()
-export type RegisteredQuestionView = z.infer<typeof RegisteredQuestionView>
+  "passedOver?": "true",
+})
+export type RegisteredQuestionView = typeof RegisteredQuestionView.infer
 
 /** The questions that still HOLD their thread — every open one but those the human typed past. What
  *  every queue, needs-you and handoff reader counts; only the transcript draws the passed-over ones. */
@@ -4000,15 +4039,16 @@ export function questionDefaultAtMs(
 /** The card's report on a question's default: `engage` when the human picks, toggles or types on it
  *  (pushes the deadline out by QUESTION_DEFAULT_ENGAGED_GRACE_MS), `cancel` when they press the
  *  countdown's × (the question waits for them for good). */
-export const HoldQuestionDefaultInput = z.object({
+export const HoldQuestionDefaultInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  id: z.string().min(1).max(64),
-  action: z.enum(["engage", "cancel"]),
-}).strict()
-export type HoldQuestionDefaultInput = z.infer<typeof HoldQuestionDefaultInput>
+  id: "1 <= string <= 64",
+  action: "'engage' | 'cancel'",
+})
+export type HoldQuestionDefaultInput = typeof HoldQuestionDefaultInput.infer
 
-export const HoldQuestionDefaultResult = z.object({ held: z.boolean() }).strict()
-export type HoldQuestionDefaultResult = z.infer<typeof HoldQuestionDefaultResult>
+export const HoldQuestionDefaultResult = type({ "+": "reject", held: "boolean" })
+export type HoldQuestionDefaultResult = typeof HoldQuestionDefaultResult.infer
 
 /** The `text` an automatic answer carries beside its picked label — read by the worker in the answers
  *  wake and by the human on the settled card, so neither mistakes ntwine's default for the human's pick. */
@@ -4121,24 +4161,27 @@ function quotePath(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-export const AskResult = z.object({
-  registered: z.array(RegisteredQuestionView),
+export const AskResult = type({
+  "+": "reject",
+  registered: RegisteredQuestionView.array(),
   /** Everything still open on this thread afterwards, so a worker never needs a second call. */
-  open: z.array(RegisteredQuestionView),
-}).strict()
-export type AskResult = z.infer<typeof AskResult>
+  open: RegisteredQuestionView.array(),
+})
+export type AskResult = typeof AskResult.infer
 
-export const UnaskInput = z.object({
+export const UnaskInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  id: z.string().min(1).max(64),
-}).strict()
-export type UnaskInput = z.infer<typeof UnaskInput>
+  id: "1 <= string <= 64",
+})
+export type UnaskInput = typeof UnaskInput.infer
 
-export const UnaskResult = z.object({
-  withdrawn: z.boolean(),
-  open: z.array(RegisteredQuestionView),
-}).strict()
-export type UnaskResult = z.infer<typeof UnaskResult>
+export const UnaskResult = type({
+  "+": "reject",
+  withdrawn: "boolean",
+  open: RegisteredQuestionView.array(),
+})
+export type UnaskResult = typeof UnaskResult.infer
 
 /** One question's answer, as the worker receives it.
  *
@@ -4167,19 +4210,21 @@ export interface QuestionAnswer {
   changed?: boolean
 }
 
-export const QuestionAnswerSchema: z.ZodType<QuestionAnswer> = z.lazy(() => z.object({
-  questionId: z.string().min(1).max(64),
-  question: z.string().min(1).max(4000),
+export const QuestionAnswerSchema = type({
+  "+": "reject",
+  questionId: "1 <= string <= 64",
+  question: "1 <= string <= 4000",
   // No count cap: a `multi` may carry any number of options (see AskedQuestionSchema), and the human
   // may pick every one of them. The per-item cap is the option label's.
-  chosen: z.array(z.string().max(400)),
-  text: z.string().max(8000).optional(),
-  followUps: z.array(QuestionAnswerSchema).optional(),
-  skipped: z.boolean().optional(),
-  changed: z.boolean().optional(),
-}).strict())
+  chosen: "(string <= 400)[]",
+  "text?": "string <= 8000",
+  "followUps?": "this[]",
+  "skipped?": "boolean",
+  "changed?": "boolean",
+})
 
-export const AnswerQuestionsInput = z.object({
+export const AnswerQuestionsInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   /** ONE QUESTION'S ANSWER, USUALLY — sent the moment that question is complete (a pick, an Enter in its
    *  own box, a multi's confirm), so the worker starts on it while the human is still reading the rest
@@ -4189,29 +4234,32 @@ export const AnswerQuestionsInput = z.object({
    *  to be independent — dependent ones are `followUps` — which is what makes one answer actionable
    *  alone. Answers stored before the scheduler's next pass still reach the worker as ONE delivery,
    *  merged at claim (scheduler adoptCompanions, mergeAnswerMessages). */
-  answers: z.array(QuestionAnswerSchema).min(1),
-}).strict()
-export type AnswerQuestionsInput = z.infer<typeof AnswerQuestionsInput>
+  answers: QuestionAnswerSchema.array().atLeastLength(1),
+})
+export type AnswerQuestionsInput = typeof AnswerQuestionsInput.infer
 
-export const AnswerQuestionsResult = z.object({
+export const AnswerQuestionsResult = type({
+  "+": "reject",
   /** The ids that were open and are now answered, or answered and now changed. An id that was dismissed
    *  or withdrawn is silently absent rather than an error: two browser tabs answering the same card is a race nobody should see. */
-  answered: z.array(z.string()),
-  open: z.array(RegisteredQuestionView),
-}).strict()
-export type AnswerQuestionsResult = z.infer<typeof AnswerQuestionsResult>
+  answered: "string[]",
+  open: RegisteredQuestionView.array(),
+})
+export type AnswerQuestionsResult = typeof AnswerQuestionsResult.infer
 
-export const DismissQuestionsInput = z.object({
+export const DismissQuestionsInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  ids: z.array(z.string().min(1).max(64)).min(1),
-}).strict()
-export type DismissQuestionsInput = z.infer<typeof DismissQuestionsInput>
+  ids: type("1 <= string <= 64").array().atLeastLength(1),
+})
+export type DismissQuestionsInput = typeof DismissQuestionsInput.infer
 
-export const DismissQuestionsResult = z.object({
-  dismissed: z.array(z.string()),
-  open: z.array(RegisteredQuestionView),
-}).strict()
-export type DismissQuestionsResult = z.infer<typeof DismissQuestionsResult>
+export const DismissQuestionsResult = type({
+  "+": "reject",
+  dismissed: "string[]",
+  open: RegisteredQuestionView.array(),
+})
+export type DismissQuestionsResult = typeof DismissQuestionsResult.infer
 
 /** A registered question the human ANSWERED, with the answer — what the transcript draws in the slot the
  *  open card used to fill. An answered card used to vanish the moment it was sent, leaving the rest it
@@ -4219,20 +4267,22 @@ export type DismissQuestionsResult = z.infer<typeof DismissQuestionsResult>
  *  showing only what was picked (2026-09-25). Read per thread, beside its transcript, rather than
  *  carried on the board: the board ships every thread on every keyframe, and a thread's whole answered
  *  history is dead weight to every surface but the one reading that thread. */
-export const SettledQuestionView = z.object({
-  id: z.string(),
+export const SettledQuestionView = type({
+  "+": "reject",
+  id: "string",
   spec: AskedQuestionSchema,
-  askedAt: z.string(),
+  askedAt: "string",
   /** When the human sent the answer — what decides which rest the card stood at when it was answered. */
-  settledAt: z.string(),
+  settledAt: "string",
   answer: QuestionAnswerSchema,
-}).strict()
-export type SettledQuestionView = z.infer<typeof SettledQuestionView>
+})
+export type SettledQuestionView = typeof SettledQuestionView.infer
 
-export const ThreadSettledQuestionsResult = z.object({
-  questions: z.array(SettledQuestionView),
-}).strict()
-export type ThreadSettledQuestionsResult = z.infer<typeof ThreadSettledQuestionsResult>
+export const ThreadSettledQuestionsResult = type({
+  "+": "reject",
+  questions: SettledQuestionView.array(),
+})
+export type ThreadSettledQuestionsResult = typeof ThreadSettledQuestionsResult.infer
 
 /** THE HEADER OF THE ONE WIRE FORMAT AN ANSWER TRAVELS IN, and the reason it is declared in shared
  *  rather than beside either producer: two of them write this line — the fence path's `composeAnswerWire`
@@ -4413,15 +4463,16 @@ export function parseQuestionsCancelledWake(text: string): { count: number } | u
 
 /** The worker's own completion. `body` is the markdown the card renders — the same thing the ```done
  *  fence carried, minus the fence. */
-export const MarkOwnDoneInput = z.object({
+export const MarkOwnDoneInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  body: z.string().trim().min(1).max(20_000),
+  body: "string.trim |> 1 <= string <= 20000",
   // A SCHEDULED RUN's quiet finish (ARCHITECTURE.md § Scheduled threads): nothing for the human, so the thread
   // goes straight to Done instead of the queue and the body's first line becomes the run's history line.
   // Refused on any thread that is not a run of a schedule.
-  quiet: z.boolean().optional(),
-}).strict()
-export type MarkOwnDoneInput = z.infer<typeof MarkOwnDoneInput>
+  "quiet?": "boolean",
+})
+export type MarkOwnDoneInput = typeof MarkOwnDoneInput.infer
 
 /** What still holds the thread open, when something does. The call is REFUSED in that case and this is
  *  the refusal's material: the worker is told exactly what to resolve, by id, so it can act rather than
@@ -4429,59 +4480,62 @@ export type MarkOwnDoneInput = z.infer<typeof MarkOwnDoneInput>
  *  call gets learned (the first refusal teaches it, it is then passed pre-emptively) and the gate
  *  degrades to a two-token tax. Any gate whose escape hatch is a parameter on the gated call is not a
  *  gate; the escape hatches here are `unask` and `unwatch`, which are the worker deciding on purpose. */
-export const MarkOwnDoneResult = z.object({
-  done: z.boolean(),
+export const MarkOwnDoneResult = type({
+  "+": "reject",
+  done: "boolean",
   /** Open questions, by id and question text. */
-  blockingQuestions: z.array(z.object({ id: z.string(), question: z.string() }).strict()),
+  blockingQuestions: type({ "+": "reject", id: "string", question: "string" }).array(),
   /** Armed registrations, by id and what each names. Watches, PR watchers and timers alike. */
-  blockingWatches: z.array(z.object({ id: z.string(), what: z.string() }).strict()),
+  blockingWatches: type({ "+": "reject", id: "string", what: "string" }).array(),
   /** Set on a done when the worker has written no prose the human can read since their last message
    *  (router nothingWrittenSinceHuman), so the reply demands the result rather than leaving it a judgement. */
-  unwritten: z.literal(true).optional(),
+  "unwritten?": "true",
   /** Set on a done that is the whole reply to the sign-off nudge (router signedOffInPlace): the message
    *  before the nudge is the reply, so the worker ends its turn with nothing more. */
-  standing: z.literal(true).optional(),
-}).strict()
-export type MarkOwnDoneResult = z.infer<typeof MarkOwnDoneResult>
+  "standing?": "true",
+})
+export type MarkOwnDoneResult = typeof MarkOwnDoneResult.infer
 
-export const ListOwnPrWatchesInput = z.object({ slug: ThreadSlug }).strict()
-export type ListOwnPrWatchesInput = z.infer<typeof ListOwnPrWatchesInput>
+export const ListOwnPrWatchesInput = type({ "+": "reject", slug: ThreadSlug })
+export type ListOwnPrWatchesInput = typeof ListOwnPrWatchesInput.infer
 
-export const OwnPrWatchesResult = z.object({ watches: z.array(PrWatchView) }).strict()
-export type OwnPrWatchesResult = z.infer<typeof OwnPrWatchesResult>
+export const OwnPrWatchesResult = type({ "+": "reject", watches: PrWatchView.array() })
+export type OwnPrWatchesResult = typeof OwnPrWatchesResult.infer
 
 /** One armed (or just-settled) timer, as the worker's own tool reads it back. */
-export const ThreadTimerView = z.object({
-  id: z.string(),
-  prompt: z.string(),
+export const ThreadTimerView = type({
+  "+": "reject",
+  id: "string",
+  prompt: "string",
   /** The exact UTC instant it fires — the same string the delivered trailer names. */
-  fireAt: z.string(),
-  state: z.enum(["armed", "fired", "cancelled"]),
-  createdAt: z.string(),
-}).strict()
-export type ThreadTimerView = z.infer<typeof ThreadTimerView>
+  fireAt: "string",
+  state: "'armed' | 'fired' | 'cancelled'",
+  createdAt: "string",
+})
+export type ThreadTimerView = typeof ThreadTimerView.infer
 
 // The signal fence on a thread's FINAL assistant message — the fence language IS the state, the
 // body is the message. `done` = checked success card in the queue until the human Archives it (the
 // fence itself MUTATES NOTHING — maintainer-settled); `awaiting` = a parked human/timer wait.
 // Only excuses WHILE it is the final message — any newer activity clears it. ```question fences
 // keep their own machinery (pendingQuestion / questionBlocks) and are NOT an excusal.
-export const ThreadFence = z.object({
-  kind: z.enum(["done", "awaiting"]),
-  body: z.string(), // fence body minus hint lines, capped server-side; may be ""
-  hints: z.array(AwaitingHint).default([]),
+export const ThreadFence = type({
+  "+": "delete",
+  kind: "'done' | 'awaiting'",
+  body: "string", // fence body minus hint lines, capped server-side; may be ""
+  hints: AwaitingHint.array().default(() => []),
   // Present only on a completion the worker REGISTERED (`ntwinectl done`, board.registeredDoneFence)
   // rather than wrote as a ```done fence in its final message. The two are one fence to every predicate,
   // but the TRANSCRIPT draws a fence card from the message text it parses — so a registered done, which
   // is in no message, needs the client to know it must draw the card itself at the bottom of the thread
   // (maintainer 2026-08-27: a thread that signed off by tool rested with no card at all).
-  registered: z.literal(true).optional(),
+  "registered?": "true",
   // On a registered done only: the human has written since it was registered and the worker answered in
   // prose, so the done still stands (board.registeredDoneFence) but its ledger is old news. The client
   // draws the card without its body (web lib/registeredDone registeredDoneBody).
-  spokenPast: z.literal(true).optional(),
+  "spokenPast?": "true",
 })
-export type ThreadFence = z.infer<typeof ThreadFence>
+export type ThreadFence = typeof ThreadFence.infer
 
 // ---- Subscription usage-limit pause (auto-resume) ------------------------------------------------
 // Which metered subscription window the provider says is exhausted. "session" is the 5-hour rolling
@@ -4489,56 +4543,60 @@ export type ThreadFence = z.infer<typeof ThreadFence>
 // MODEL-SCOPED weekly cap ("You've reached your Fable 5 limit. Switch to another model…", CLI
 // ≥2.1.251 — the usage endpoint reports it as a `weekly-<model>` scoped window); "unknown" is a limit
 // stop whose phrasing we could not attribute — never auto-resumed on a text-derived clock.
-export const LimitWindow = z.enum(["session", "weekly", "model", "unknown"])
-export type LimitWindow = z.infer<typeof LimitWindow>
+export const LimitWindow = type("'session' | 'weekly' | 'model' | 'unknown'")
+export type LimitWindow = typeof LimitWindow.infer
 
 // A thread whose turn was cut off mid-work by an exhausted subscription window, plus what ntwine will
 // do about it. `resumesAt` is a unix-seconds instant resolved from the provider's own reset clock (or
 // its usage endpoint) — absent when neither source could supply one, in which case `autoResume` is
 // false and the thread stays a normal human handoff.
-export const LimitPause = z.object({
+export const LimitPause = type({
+  "+": "delete",
   backend: Backend,
   window: LimitWindow,
-  at: z.string(), // ISO8601 of the limit record — "when the agent got cut off"
-  resumesAt: z.number().optional(), // unix seconds the window rolls
+  at: "string", // ISO8601 of the limit record — "when the agent got cut off"
+  "resumesAt?": "number", // unix seconds the window rolls
   // Whether ntwine intends to deliver its own "continue" once `resumesAt` passes. False when the
   // setting is off, the instant is unresolvable, or the pause is too old to safely resume.
-  autoResume: z.boolean(),
+  autoResume: "boolean",
 })
-export type LimitPause = z.infer<typeof LimitPause>
+export type LimitPause = typeof LimitPause.infer
 
 // Provider-authored failure data, never inferred from assistant prose. Unknown codes are retained so
 // a new provider error cannot silently turn into an ordinary rest. Render the message as plain text.
-export const ProviderError = z.object({
-  message: z.string(),
-  code: z.string().optional(),
-  details: z.string().optional(),
-  retrying: z.boolean().optional(),
-  at: z.string().optional(),
+export const ProviderError = type({
+  "+": "delete",
+  message: "string",
+  "code?": "string",
+  "details?": "string",
+  "retrying?": "boolean",
+  "at?": "string",
 })
-export type ProviderError = z.infer<typeof ProviderError>
+export type ProviderError = typeof ProviderError.infer
 
 // Saved destinations, not live work. They survive rests and never hold a thread open.
-export const ThreadLinkView = z.object({
-  id: z.string(),
-  kind: z.enum(["link", "file"]),
-  label: z.string(),
-  target: z.string(),
-}).strict()
-export type ThreadLinkView = z.infer<typeof ThreadLinkView>
+export const ThreadLinkView = type({
+  "+": "reject",
+  id: "string",
+  kind: "'link' | 'file'",
+  label: "string",
+  target: "string",
+})
+export type ThreadLinkView = typeof ThreadLinkView.infer
 
-export const UpsertOwnLinkInput = z.object({
+export const UpsertOwnLinkInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  label: z.string().trim().min(1).max(240).regex(/^[^\x00-\x1f\x7f]+$/),
-  target: z.string().trim().min(1).max(8192).regex(/^[^\x00-\x1f\x7f]+$/),
-}).strict()
-export type UpsertOwnLinkInput = z.infer<typeof UpsertOwnLinkInput>
-export const UpsertOwnLinkResult = z.object({ link: ThreadLinkView }).strict()
-export type UpsertOwnLinkResult = z.infer<typeof UpsertOwnLinkResult>
-export const DropOwnLinkInput = z.object({ slug: ThreadSlug, id: z.string().min(1) }).strict()
-export type DropOwnLinkInput = z.infer<typeof DropOwnLinkInput>
-export const DropOwnLinkResult = z.object({ dropped: z.boolean() }).strict()
-export type DropOwnLinkResult = z.infer<typeof DropOwnLinkResult>
+  label: "string.trim |> 1 <= string <= 240 & /^[^\\x00-\\x1f\\x7f]+$/",
+  target: "string.trim |> 1 <= string <= 8192 & /^[^\\x00-\\x1f\\x7f]+$/",
+})
+export type UpsertOwnLinkInput = typeof UpsertOwnLinkInput.infer
+export const UpsertOwnLinkResult = type({ "+": "reject", link: ThreadLinkView })
+export type UpsertOwnLinkResult = typeof UpsertOwnLinkResult.infer
+export const DropOwnLinkInput = type({ "+": "reject", slug: ThreadSlug, id: "string > 0" })
+export type DropOwnLinkInput = typeof DropOwnLinkInput.infer
+export const DropOwnLinkResult = type({ "+": "reject", dropped: "boolean" })
+export type DropOwnLinkResult = typeof DropOwnLinkResult.infer
 
 // A TERMINAL THREAD's process — a live pty a human or an agent started (server thread-terminals.ts). Since
 // 2026-10-15 a terminal is a thread of its own (`ThreadView.kind: "terminal"`, carrying this as
@@ -4548,48 +4606,49 @@ export type DropOwnLinkResult = z.infer<typeof DropOwnLinkResult>
 // `id` is its slug and its /term/<id> handle. `runId` counts starts, so a restart is a NEW terminal to the
 // browser (a fresh pty, a fresh screen) rather than more output on the old one. An exited run with no
 // `exitCode` is one the server went away under — shown as interrupted, never as a success.
-export const ThreadTerminal = z.object({
+export const ThreadTerminal = type({
+  "+": "delete",
   id: ThreadSlug,
   // The line it runs, or — for an interactive shell (`shell`) — the shell's name, which is what a
   // terminal tab calls one.
-  command: z.string(),
-  shell: z.boolean().optional(),
+  command: "string",
+  "shell?": "boolean",
   // The folder it runs in: the project root, or the worktree the agent had moved into when it opened.
-  cwd: z.string(),
-  state: z.enum(["running", "exited"]),
-  runId: z.number().int(),
-  startedAt: z.string(),
-  exitedAt: z.string().optional(),
-  exitCode: z.number().int().optional(),
+  cwd: "string",
+  state: "'running' | 'exited'",
+  runId: "number.integer",
+  startedAt: "string",
+  "exitedAt?": "string",
+  "exitCode?": "number.integer",
   // The human pressed Stop — the signal's code is theirs, not a failure.
-  stopped: z.boolean().optional(),
+  "stopped?": "boolean",
   // A LIVE run that has gone quiet on an unterminated line — a password, OTP or [y/N] prompt. It queues
   // the terminal's THREAD (the terminal has no card of its own), and clears the moment it writes again.
-  awaitingInput: z.boolean().optional(),
+  "awaitingInput?": "boolean",
   // When it went quiet at that prompt — the queue entry's honest time.
-  awaitingSince: z.string().optional(),
+  "awaitingSince?": "string",
   // `cwd` lifted to its checkout, present only when that is not the project root (WorkCheckout) — the
   // same rule an agent's shell row follows, so the two kinds carry the folder hint on one condition.
-  checkout: WorkCheckout.optional(),
+  "checkout?": WorkCheckout,
   // `cwd` was read and is in the project's own checkout (BgShellView.atRoot): a terminal left in a
   // worktree that has since been removed has neither, and claims no place.
-  atRoot: z.literal(true).optional(),
+  "atRoot?": "true",
   // The thread it was started from, when it was: a parented terminal follows that thread's folder and
   // shows in its strip. Absent ⇒ started on its own (a top-level `$ cmd`).
-  parent: ThreadSlug.optional(),
+  "parent?": ThreadSlug,
   // Who started it: `human`, or the slug of the thread whose agent did. The strip's owner glyph reads it.
-  startedBy: z.string().optional(),
+  "startedBy?": "string",
   // Its `@handle` (`$ pnpm run dev` → `pnpm-run-dev`), what `read-thread` and the agents address it by.
-  handle: z.string().optional(),
+  "handle?": "string",
   // CONTROL (plans/terminal-threads.md § Control): who types into it, `human` or a thread's slug — its starter
   // until control moves. Only the controller types, stops or restarts it; the human can always take it.
-  controller: z.string().optional(),
+  "controller?": "string",
   // The last thread that drove it, which Hand back returns it to.
-  controlAgent: z.string().optional(),
+  "controlAgent?": "string",
   // The signal that ended the last run, when one did (node-pty reports it beside the code).
-  signal: z.number().int().optional(),
+  "signal?": "number.integer",
 })
-export type ThreadTerminal = z.infer<typeof ThreadTerminal>
+export type ThreadTerminal = typeof ThreadTerminal.infer
 
 /**
  * HOW A TERMINAL STANDS, as the board bands it (plans/terminal-threads.md § Lifecycle). ONE reading for
@@ -4634,30 +4693,32 @@ export function terminalOutcome(t: Pick<ThreadTerminal, "state" | "awaitingInput
 // Open a terminal on a thread. No `command` ⇒ an interactive login shell. `cwd` absent ⇒ the thread's
 // current working folder (threadWorkingDir); the drawer sends the one the human confirmed or edited.
 export const TERMINAL_COMMAND_MAX_CHARS = 4_000
-export const TerminalCommand = z.string().trim().min(1).max(TERMINAL_COMMAND_MAX_CHARS)
-export const StartTerminalInput = z.object({
+export const TerminalCommand = type(`string.trim |> 1 <= string <= ${TERMINAL_COMMAND_MAX_CHARS}`)
+export const StartTerminalInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  command: TerminalCommand.optional(),
-  cwd: z.string().trim().min(1).max(4_096).optional(),
-}).strict()
-export type StartTerminalInput = z.infer<typeof StartTerminalInput>
+  "command?": TerminalCommand,
+  "cwd?": "string.trim |> 1 <= string <= 4096",
+})
+export type StartTerminalInput = typeof StartTerminalInput.infer
 // Start a TOP-LEVEL terminal thread — a `$ cmd` in the prompt box on All projects, a project page or Home.
 // No parent; `cwd` is one of the folders `terminalFolders` lists (the project root when absent).
-export const StartTerminalThreadInput = z.object({
-  command: TerminalCommand.optional(),
-  cwd: z.string().trim().min(1).max(4_096).optional(),
-}).strict()
-export type StartTerminalThreadInput = z.infer<typeof StartTerminalThreadInput>
+export const StartTerminalThreadInput = type({
+  "+": "reject",
+  "command?": TerminalCommand,
+  "cwd?": "string.trim |> 1 <= string <= 4096",
+})
+export type StartTerminalThreadInput = typeof StartTerminalThreadInput.infer
 // Where a top-level terminal can start: the project root, then every `.ntwine/worktrees/*` checkout.
-export const TerminalFolder = z.object({ dir: z.string(), kind: z.enum(["root", "worktree"]), label: z.string() }).strict()
-export type TerminalFolder = z.infer<typeof TerminalFolder>
-export const TerminalInput = z.object({ id: ThreadSlug }).strict()
-export type TerminalInput = z.infer<typeof TerminalInput>
+export const TerminalFolder = type({ "+": "reject", dir: "string", kind: "'root' | 'worktree'", label: "string" })
+export type TerminalFolder = typeof TerminalFolder.infer
+export const TerminalInput = type({ "+": "reject", id: ThreadSlug })
+export type TerminalInput = typeof TerminalInput.infer
 // The terminal drawer's `$` line once a run finished: the terminal's next run, of a new line.
-export const RunTerminalInput = z.object({ id: ThreadSlug, command: TerminalCommand }).strict()
-export type RunTerminalInput = z.infer<typeof RunTerminalInput>
-export const StartTerminalResult = z.object({ id: ThreadSlug, handle: z.string().optional() }).strict()
-export type StartTerminalResult = z.infer<typeof StartTerminalResult>
+export const RunTerminalInput = type({ "+": "reject", id: ThreadSlug, command: TerminalCommand })
+export type RunTerminalInput = typeof RunTerminalInput.infer
+export const StartTerminalResult = type({ "+": "reject", id: ThreadSlug, "handle?": "string" })
+export type StartTerminalResult = typeof StartTerminalResult.infer
 
 // ---- A WORKER'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md § Agents, § Control) ------------
 // The same terminal threads the human starts, started by an agent: a dev server, a log tail, anything the
@@ -4666,57 +4727,60 @@ export type StartTerminalResult = z.infer<typeof StartTerminalResult>
 // thread verbs (`read-thread`, `message-thread`, `threads:`); only starting, stopping, restarting and
 // releasing are terminal verbs. `stop`, `restart` and `release` reach only a terminal the caller CONTROLS
 // (its `controller`), as typing does. A refusal is an answer (`refused`), not a fault.
-export const OwnTerminalInput = z.discriminatedUnion("action", [
-  z.object({ slug: ThreadSlug, action: z.literal("start"), command: TerminalCommand, cwd: z.string().trim().min(1).max(4_096).optional() }).strict(),
-  z.object({ slug: ThreadSlug, action: z.enum(["stop", "restart", "release"]), handle: z.string().trim().min(1).max(200) }).strict(),
-])
-export type OwnTerminalInput = z.infer<typeof OwnTerminalInput>
-export const OwnTerminalResult = z.object({
+export const OwnTerminalInput = type.or(
+  { "+": "reject", slug: ThreadSlug, action: "'start'", command: TerminalCommand, "cwd?": "string.trim |> 1 <= string <= 4096" },
+  { "+": "reject", slug: ThreadSlug, action: "'stop' | 'restart' | 'release'", handle: "string.trim |> 1 <= string <= 200" },
+)
+export type OwnTerminalInput = typeof OwnTerminalInput.infer
+export const OwnTerminalResult = type({
+  "+": "reject",
   /** Set when the call was refused: the text says why and what to do instead. Nothing was changed. */
-  refused: z.string().optional(),
+  "refused?": "string",
   /** The terminal's `@handle`, without the `@`, and its slug. */
-  handle: z.string().optional(),
-  id: z.string().optional(),
-  command: z.string().optional(),
-  cwd: z.string().optional(),
-  outcome: z.enum(["running", "prompt", "failed", "interrupted", "finished"]).optional(),
-  exitCode: z.number().int().optional(),
+  "handle?": "string",
+  "id?": "string",
+  "command?": "string",
+  "cwd?": "string",
+  "outcome?": "'running' | 'prompt' | 'failed' | 'interrupted' | 'finished'",
+  "exitCode?": "number.integer",
   /** `human`, or the handle of the thread that started it. */
-  startedBy: z.string().optional(),
+  "startedBy?": "string",
   /** `human`, or the handle of the thread that drives it now. */
-  controller: z.string().optional(),
+  "controller?": "string",
   /** The caller drives it, so typing, `stop`, `restart` and `release` reach it. */
-  driving: z.boolean().optional(),
+  "driving?": "boolean",
   /** The screen's tail, escape sequences dropped. */
-  screen: z.string().optional(),
+  "screen?": "string",
   /** `stop` on a run that had already ended: nothing to stop, so it was marked done instead. */
-  filed: z.boolean().optional(),
+  "filed?": "boolean",
   /** When the handle named nothing: the terminal handles that exist. */
-  known: z.array(z.string()).optional(),
-}).strict()
-export type OwnTerminalResult = z.infer<typeof OwnTerminalResult>
+  "known?": "string[]",
+})
+export type OwnTerminalResult = typeof OwnTerminalResult.infer
 
 /** A thread's wait on a terminal (`ntwinectl watch terminal`), stored on the terminal's row with the thread
  *  that armed it: a terminal holds at most one. `trw_…` ids. */
 export const OWN_TERMINAL_WATCH_ID_PREFIX = "trw_"
-export const AddOwnTerminalWatchInput = z.object({
+export const AddOwnTerminalWatchInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  handle: z.string().trim().min(1).max(200),
+  handle: "string.trim |> 1 <= string <= 200",
   /** A DURATION (`30m`, `2h`), parseAwaitingDurationRaw, capped at 24h and the cap reported. */
-  for: z.string().trim().min(1).max(16),
-}).strict()
-export type AddOwnTerminalWatchInput = z.infer<typeof AddOwnTerminalWatchInput>
-export const AddOwnTerminalWatchResult = z.object({
-  refused: z.string().optional(),
-  id: z.string().optional(),
-  handle: z.string().optional(),
-  alreadyArmed: z.boolean().optional(),
-  expiresAt: z.string().optional(),
-  clampedFrom: z.string().optional(),
-}).strict()
-export type AddOwnTerminalWatchResult = z.infer<typeof AddOwnTerminalWatchResult>
-export const DropOwnTerminalWatchInput = z.object({ slug: ThreadSlug, id: z.string().min(1).max(64) }).strict()
-export type DropOwnTerminalWatchInput = z.infer<typeof DropOwnTerminalWatchInput>
+  for: "string.trim |> 1 <= string <= 16",
+})
+export type AddOwnTerminalWatchInput = typeof AddOwnTerminalWatchInput.infer
+export const AddOwnTerminalWatchResult = type({
+  "+": "reject",
+  "refused?": "string",
+  "id?": "string",
+  "handle?": "string",
+  "alreadyArmed?": "boolean",
+  "expiresAt?": "string",
+  "clampedFrom?": "string",
+})
+export type AddOwnTerminalWatchResult = typeof AddOwnTerminalWatchResult.infer
+export const DropOwnTerminalWatchInput = type({ "+": "reject", slug: ThreadSlug, id: "1 <= string <= 64" })
+export type DropOwnTerminalWatchInput = typeof DropOwnTerminalWatchInput.infer
 
 /** How a terminal a worker waits on stands at its wake, as a clause after its `@handle`. */
 function terminalWakeClause(t: { outcome: TerminalOutcome; exitCode?: number }): string {
@@ -4802,8 +4866,8 @@ export function parseTerminalControlWake(text: string): { event: TerminalControl
 
 /** Move control of a terminal (the board's Take control, Hand back and Let an agent drive). `to` is
  *  `human` or a thread slug; `back` marks a hand-back, which tells the thread "yours again". */
-export const TerminalControlInput = z.object({ id: ThreadSlug, to: z.string().trim().min(1).max(200), back: z.boolean().optional() }).strict()
-export type TerminalControlInput = z.infer<typeof TerminalControlInput>
+export const TerminalControlInput = type({ "+": "reject", id: ThreadSlug, to: "string.trim |> 1 <= string <= 200", "back?": "boolean" })
+export type TerminalControlInput = typeof TerminalControlInput.infer
 
 const TERMINAL_WATCH_EXPIRED_HEAD = /^⏰ Your watch on the terminal @([a-z0-9-]+) has expired\b/
 export function parseTerminalWatchExpiredWake(text: string): { handle: string } | null {
@@ -4815,71 +4879,76 @@ export function parseTerminalWatchExpiredWake(text: string): { handle: string } 
 // tool call's `workdir`), the session's recorded folder, or the project root when neither is known.
 // `kind` says what that folder IS — the project root, a linked worktree, or somewhere else — so the dialog
 // can say so. Optional, so a client older than it still parses the answer.
-export const ThreadWorkingDir = z.object({
-  dir: z.string(),
-  source: z.enum(["transcript", "session", "project"]),
-  kind: z.enum(["root", "worktree", "folder"]).optional(),
-}).strict()
-export type ThreadWorkingDir = z.infer<typeof ThreadWorkingDir>
+export const ThreadWorkingDir = type({
+  "+": "reject",
+  dir: "string",
+  source: "'transcript' | 'session' | 'project'",
+  "kind?": "'root' | 'worktree' | 'folder'",
+})
+export type ThreadWorkingDir = typeof ThreadWorkingDir.infer
 
 // THE THREAD INFO VIEW (⋯ menu → Thread info): what a thread has consumed, read off its own transcript
 // by server thread-stats.ts. Token buckets follow the API's accounting: `input` is fresh input only, and
 // `cacheRead` / `cacheWrite` are the prompt prefix read back from or newly written to the cache, so a
 // request's whole input is the three summed. Codex reports no cache writes; its `cacheWrite` stays 0.
-export const ThreadTokenUsage = z.object({
-  input: z.number(),
-  cacheWrite: z.number(),
-  cacheRead: z.number(),
-  output: z.number(),
-}).strict()
-export type ThreadTokenUsage = z.infer<typeof ThreadTokenUsage>
+export const ThreadTokenUsage = type({
+  "+": "reject",
+  input: "number",
+  cacheWrite: "number",
+  cacheRead: "number",
+  output: "number",
+})
+export type ThreadTokenUsage = typeof ThreadTokenUsage.infer
 
-export const ThreadModelUsage = z.object({
-  model: z.string(),
-  requests: z.number(),
+export const ThreadModelUsage = type({
+  "+": "reject",
+  model: "string",
+  requests: "number",
   tokens: ThreadTokenUsage,
-}).strict()
-export type ThreadModelUsage = z.infer<typeof ThreadModelUsage>
+})
+export type ThreadModelUsage = typeof ThreadModelUsage.infer
 
-export const ThreadStats = z.object({
-  backend: z.enum(["claude", "codex", "acp"]),
+export const ThreadStats = type({
+  "+": "reject",
+  backend: "'claude' | 'codex' | 'acp'",
   // False when there is no transcript to read (an ACP thread, a session that never started): every
   // count below is then zero and means "unknown", not "none".
-  recorded: z.boolean(),
-  startedAt: z.string().optional(),
-  lastActivityAt: z.string().optional(),
+  recorded: "boolean",
+  "startedAt?": "string",
+  "lastActivityAt?": "string",
   // Times the agent was set going: a prompt, a follow-up, a wake. Tool results do not count.
-  turns: z.number(),
+  turns: "number",
   // Model requests, the unit the provider bills.
-  requests: z.number(),
-  toolCalls: z.number(),
-  compactions: z.number(),
-  subAgents: z.number(),
+  requests: "number",
+  toolCalls: "number",
+  compactions: "number",
+  subAgents: "number",
   // The thread's own requests, then its sub-agents' — kept apart so the cost of fanning out is visible.
   tokens: ThreadTokenUsage,
   subAgentTokens: ThreadTokenUsage,
-  models: z.array(ThreadModelUsage),
+  models: ThreadModelUsage.array(),
   // Claude only: what Claude Code prices the session at, at API rates (on a subscription this is what
   // the work would have cost, not a charge). `partial`: the newest reading predates later requests,
   // so the true figure is higher.
-  cost: z.object({ usd: z.number(), partial: z.boolean() }).strict().optional(),
-}).strict()
-export type ThreadStats = z.infer<typeof ThreadStats>
+  "cost?": { "+": "reject", usd: "number", partial: "boolean" },
+})
+export type ThreadStats = typeof ThreadStats.infer
 
 /** One spinoff edge as a thread sees it — either end. `childSlug` is null while the parent has not yet
  *  dispatched it. */
-export const SpinoffView = z.object({
-  id: z.string(),
+export const SpinoffView = type({
+  "+": "reject",
+  id: "string",
   parentSlug: ThreadSlug,
-  childSlug: ThreadSlug.nullable(),
-  instructions: z.string(),
-  createdAt: z.number(),
+  childSlug: ThreadSlug.or("null"),
+  instructions: "string",
+  createdAt: "number",
   // A CROSS-PROJECT spinoff (2026-09-30) names the project of whichever end is NOT the board's own, so a
   // link to it can go there. Absent for an end in this project — every same-project spinoff.
-  parentProjectId: z.string().optional(),
-  childProjectId: z.string().optional(),
-}).strict()
-export type SpinoffView = z.infer<typeof SpinoffView>
+  "parentProjectId?": "string",
+  "childProjectId?": "string",
+})
+export type SpinoffView = typeof SpinoffView.infer
 
 // One sidebar row: ntwine board thread + runtime overlay.
 /**
@@ -4887,64 +4956,66 @@ export type SpinoffView = z.infer<typeof SpinoffView>
  * Bash call's), and the target the input reveals (a path, a pattern, a command's first line). A subset
  * of TranscriptToolCall, so the web labels it with the transcript's own `toolActivityLabel`.
  */
-export const LiveTool = z.object({
-  name: z.string(),
-  desc: z.string().optional(),
-  detail: z.string().optional(),
+export const LiveTool = type({
+  "+": "delete",
+  name: "string",
+  "desc?": "string",
+  "detail?": "string",
 })
-export type LiveTool = z.infer<typeof LiveTool>
+export type LiveTool = typeof LiveTool.infer
 
-export const ThreadView = z.object({
+export const ThreadView = type({
+  "+": "delete",
   id: ThreadSlug, // slug; filename is <slug>.md
-  title: z.string(),
+  title: "string",
   status: NtwineStatus,
-  statusText: z.string().optional(),
+  "statusText?": "string",
   // Form-constrained gerund label (≤100 chars, e.g. "Awaiting CI on PR #391") the worker maintains;
   // the listing row's at-a-glance gloss. Optional → absent on old threads renders nothing. Distinct
   // from statusText, which keeps its own surfaces (queue cards / board gloss).
-  activity: z.string().optional(),
-  next: z.string().optional(),
+  "activity?": "string",
+  "next?": "string",
   // DERIVED (board shell-out, from the body): the thread keeps a `## Plan` section, i.e. it carries a
   // plan document → the sidebar renders a quiet PLAN badge. NOT a status and NOT a frontmatter flag
   // (that was deliberately rejected). Defaults false so an old snapshot / pre-restart server (which
   // omits it) parses.
-  hasPlan: z.boolean().default(false),
-  mechanism: BlockMechanism.nullable(), // set only when status=blocked
-  humanBlocked: z.boolean(),
-  ready: z.boolean(), // deps cleared, auto-fire candidate
-  dependsOn: z.array(ThreadSlug),
-  externalDeps: z.array(z.string()),
-  owner: z.string().optional(),
-  revalidate: z.string().optional(), // ISO8601
-  agents: z.array(ThreadAgent),
-  errors: z.array(z.string()),
-  warnings: z.array(z.string()),
+  hasPlan: "boolean = false",
+  mechanism: BlockMechanism.or("null"), // set only when status=blocked
+  humanBlocked: "boolean",
+  ready: "boolean", // deps cleared, auto-fire candidate
+  dependsOn: ThreadSlug.array(),
+  externalDeps: "string[]",
+  "owner?": "string",
+  "revalidate?": "string", // ISO8601
+  agents: ThreadAgent.array(),
+  errors: "string[]",
+  warnings: "string[]",
   // runtime overlay (from the UI server, not the .ntwine file)
   runtime: RuntimeState,
-  sessionId: z.string().optional(),
-  threadName: z.string().optional(),
-  unread: z.boolean(),
-  archived: z.boolean(), // user hid the row from the nav; respawn/resume un-archives
-  lastAssistant: z.string().optional(), // trimmed preview of last assistant text
+  "sessionId?": "string",
+  "threadName?": "string",
+  unread: "boolean",
+  archived: "boolean", // user hid the row from the nav; respawn/resume un-archives
+  "lastAssistant?": "string", // trimmed preview of last assistant text
   // The FIRST non-empty line of that same text, markdown intact and newlines honoured (capped) — the
   // handoff's verdict line ("**Fixed** — …"), which `lastAssistant` cannot give back because its preview
   // collapses every newline to a space. The phone board's rested row reads it. Optional so old
   // snapshots parse.
-  lastAssistantLine: z.string().optional(),
+  "lastAssistantLine?": "string",
   // The newest tool call the agent has issued and not yet had a result for (Claude session threads),
   // in the shape `toolActivityLabel` reads, so a list row can say "Running the focused tests" with the
   // gerund the chat's working indicator shows. Absent between calls, at rest, and for other backends.
-  liveTool: LiveTool.optional(),
-  spawnedAt: z.string().optional(), // ISO8601
-  lastActivityAt: z.string().optional(), // ISO8601, from jsonl tail — ANY record (incl. sub-agent/system)
+  "liveTool?": LiveTool,
+  "spawnedAt?": "string", // ISO8601
+  "lastActivityAt?": "string", // ISO8601, from jsonl tail — ANY record (incl. sub-agent/system)
   // ISO8601 of the agent's OWN last output (Claude: last assistant record; Codex: turn-end/final text).
   // This is the "rest time" — when the thread's own turn last came to rest — and UNLIKE lastActivityAt
   // it is NOT bumped by a background sub-agent's completion notification (a promptSource:system record).
   // The at-rest "Last active" label keys off this; the QUEUE orders by `queuedAt` instead, which equals
   // this for a plain rest. Optional so old snapshots parse; the client falls back to
   // lastActivityAt/spawnedAt when absent.
-  lastAssistantAt: z.string().optional(),
-  aiTitle: z.string().optional(), // Claude's own auto-generated session title (latest ai-title record)
+  "lastAssistantAt?": "string",
+  "aiTitle?": "string", // Claude's own auto-generated session title (latest ai-title record)
   // The thread's live STATUS — a short phrase of what is happening NOW, rewritten at
   // every rest the conversation moved (server periodic-status.ts). Never the NAME: the name is one or two stable words for the
   // subject, and this is the part allowed to move. Shown beside the name on the queue card, in the
@@ -4952,14 +5023,14 @@ export const ThreadView = z.object({
   // its density. Absent until the first one lands. Named `statusLine` because `status` above is the
   // legacy .ntwine-file lifecycle field, synthesized and unused for session rows; the registry column is
   // `session.status`.
-  statusLine: z.string().optional(),
+  "statusLine?": "string",
   // When `statusLine` last CHANGED (ISO) — the start of the task it names. While the thread is working
   // the status wears "for how long" off this (server live-status.ts); a write that keeps the text keeps it.
-  statusSince: z.string().optional(),
+  "statusSince?": "string",
   // True when `title` is a machine-guessed dispatch slug (title_auto=1), NOT a real name — the display
   // then shows a "Spinning up a thread…" placeholder instead of the guess until aiTitle lands. Optional
   // (absent ⇒ legacy/slim row) so old snapshots parse; absent is treated as "not provisional".
-  titleAuto: z.boolean().optional(),
+  "titleAuto?": "boolean",
   // True when a HUMAN named this thread (rename / native /rename) and no
   // backend auto-title may replace it. FALSE is the interesting case: a title hard-coded by a dispatch
   // CALLER — `Investigate acme/app#391`, a parent agent's guess through spawn_thread — reads as a real
@@ -4967,36 +5038,36 @@ export const ThreadView = z.object({
   // informative one. Optional (absent ⇒ legacy/slim row): the display then derives it the pre-split way,
   // treating any non-guessed title as the human's. The server enforces this too by withholding aiTitle
   // from a locked row; the client keeps its own copy so a stale record can never win on either side.
-  titleLocked: z.boolean().optional(),
+  "titleLocked?": "boolean",
   // True when the row carries a persisted NAME — a human's, a caller's dispatch title, or a machine name
   // that landed (server thread-names.ts `rowThreadName`). Only a name is shown as an `@handle`, and a
   // name never changes once shown (David 2026-09-30: "once someone sees the id, it cannot
   // change"), so while this is false `aiTitle` is the live session title and displays as plain text.
   // Optional (absent ⇒ legacy/slim row): the display then keeps the pre-2026-09-30 aiTitle-is-a-name rule.
-  titleNamed: z.boolean().optional(),
+  "titleNamed?": "boolean",
   // The NAMES this thread has carried before its current one, oldest first (storage.ts
   // session_former_titles trigger). Prose written under an old name keeps linking: a worker told its
   // sub-agent is `@donePersistence.doneRepro` a second before it renamed the thread "Done reappears"
   // still wrote that address in every handoff after. Resolved only, never offered in the typeahead.
-  formerTitles: z.array(z.string()).optional(),
+  "formerTitles?": "string[]",
   // Live background sub-agents the worker dispatched (tailer-derived). Defaults to [] so an old
   // snapshot/row (or a pre-restart server that doesn't emit the field yet) parses without breaking.
-  subAgents: z.array(SubAgentView).default([]),
+  subAgents: SubAgentView.array().default(() => []),
   // Live background SHELLS the worker launched (tailer-derived). Same default-[] discipline. Rendered
   // in the anchored background-ops strip alongside sub-agents; ids make current rows drillable.
-  bgShells: z.array(BgShellView).default([]),
+  bgShells: BgShellView.array().default(() => []),
   // FINISHED agent terminals the strip still lists (EndedShellView). Optional for an older server.
-  endedShells: z.array(EndedShellView).optional(),
+  "endedShells?": EndedShellView.array(),
   // WHERE THE AGENT IS WORKING, when that is not the project root: the newest folder its own transcript
   // names (a Claude record's `cwd`, a Codex tool call's `workdir`), lifted to its checkout. It flips the
   // moment an agent moves into a worktree, and it is where a terminal opened on the thread starts. Absent
   // ⇒ the root, or no reading — both draw nothing (see WorkCheckout).
-  checkout: WorkCheckout.optional(),
+  "checkout?": WorkCheckout,
   // Optional for snapshots from a server that predates link registration.
-  links: z.array(ThreadLinkView).optional(),
+  "links?": ThreadLinkView.array(),
   // SPINOFFS touching this thread, at either end: the ones it was asked for (parentSlug = this thread)
   // and the one it came from (childSlug = this thread). Optional for an older server.
-  spinoffs: z.array(SpinoffView).optional(),
+  "spinoffs?": SpinoffView.array(),
   // The thread's ARMED WATCHERS — registry-derived, not folded from the transcript, which is what makes
   // them survive the worker saying one more sentence. Same default-[] discipline as the two above.
   //
@@ -5004,50 +5075,51 @@ export const ThreadView = z.object({
   // remains the only way to hide one (maintainer 2026-08-12, choosing this over auto-Held for every
   // kind). So this field is for the operator to SEE what a thread is waiting on — it deliberately feeds
   // no queue-membership rule.
-  watches: z.array(ThreadWatchView).default([]),
+  watches: ThreadWatchView.array().default(() => []),
   // A pending native AskUserQuestion the session is frozen on (tailer-derived). Optional — absent
   // when there's no unanswered ask. Feeds needsAction + the read-only question render + "Answer in Terminal".
-  pendingAsk: PendingAsk.optional(),
+  "pendingAsk?": PendingAsk,
   // Derived safety net (tailer): at rest with an unanswered ```question the worker asked in chat but
   // never encoded as blocked. Defaults false so old snapshots/rows parse. Feeds needsAction.
-  pendingQuestion: z.boolean().default(false),
+  pendingQuestion: "boolean = false",
   // The worker's REGISTERED questions, still open (thread_question). Distinct from `pendingQuestion`
   // beside it, and the difference is the whole point of the registry: that boolean is recomputed from
   // the LATEST assistant text on every assistant record and cleared by any human turn, so it cannot
   // outlive the message that carried it. These rows can, and they carry the question itself rather than
   // merely asserting one exists — the card renders from this instead of re-parsing prose.
-  questions: z.array(RegisteredQuestionView).default([]),
+  questions: RegisteredQuestionView.array().default(() => []),
   /** The answer the human has already SENT that the worker has not received yet, as the exact message
    *  the delivery will carry (board.answersInFlight → questionAnswerMessage). The chat parses it with
    *  the same reader it uses on the delivered turn, so the in-flight card and the landed one are the
    *  same card and the swap is invisible. Absent whenever there is nothing in flight, which is almost
    *  always — it exists for the seconds between the human sending and the worker being handed it. */
-  answersInFlight: z.string().optional(),
+  "answersInFlight?": "string",
   /** The human's message — a follow-up or a registered answer — is on its way to the worker and the turn
    *  has not started yet (board.deriveDeliveryInFlight). The queue has already let the thread go; this
    *  tells the rail to draw it as working in every tab, not only the one that sent it (web
    *  lib/steering.ts). Absent otherwise. */
-  deliveryInFlight: z.boolean().optional(),
+  "deliveryInFlight?": "boolean",
   // ISO8601 of the newest REAL user interaction (answer/steer/dispatch) — the chronological listing
   // sort key. Optional; the listing falls back to spawnedAt when absent (a dispatch IS an interaction).
-  lastUserAt: z.string().optional(),
+  "lastUserAt?": "string",
   // Runtime provider-auth rejection (claude-auth plan): the session's provider positively rejected
   // its credential (Claude: synthetic isApiErrorMessage 401 record, or the 401/login text on a
   // boot-failed pane). Bounded by design — only the typed category travels, never raw provider/pane
   // text. Drives the trusted sign-in recovery card. Optional so old snapshots/servers parse.
-  providerFault: z.object({
-    backend: z.enum(["claude", "codex"]),
-    category: z.enum(["authentication_required", "authentication_rejected"]),
-  }).optional(),
+  "providerFault?": {
+    "+": "delete",
+    backend: "'claude' | 'codex'",
+    category: "'authentication_required' | 'authentication_rejected'",
+  },
   // The session's turn was cut off by an exhausted SUBSCRIPTION window. Distinct from providerFault:
   // the credential is fine, the account is simply out of quota until the window rolls, so the recovery
   // is to WAIT and continue — not to sign in. Same discipline as providerFault: only typed data
   // travels, never the provider's own error text. Optional so old snapshots/servers parse.
-  limitPause: LimitPause.optional(),
-  providerError: ProviderError.optional(),
+  "limitPause?": LimitPause,
+  "providerError?": ProviderError,
 
   // ---- Session-first fields (ALL optional: absent ⇒ a legacy .ntwine-file row / pre-restart server;
-  // the client treats such rows as Legacy-shelf material). Deliberately not zod-defaulted so server
+  // the client treats such rows as Legacy-shelf material). Deliberately not defaulted so server
   // constructors that predate the model still typecheck and old snapshots parse unchanged. ----
   // "session" = a session-backed thread (the working rail's unit); "legacy" (or absent) = a .ntwine
   // file row, rendered read-only in the collapsed Legacy shelf.
@@ -5055,95 +5127,95 @@ export const ThreadView = z.object({
   // started, with `terminal` below as its process. It has no model, no transcript and no worker contract;
   // its band is its process's state (shared terminalOutcome). Terminal COMMAND threads (`kind: "command"`,
   // 2026-09-23) were the first try at this; 2026-09-29 to 2026-10-15 a terminal hung off a thread instead.
-  kind: z.enum(["session", "legacy", "terminal"]).optional(),
+  "kind?": "'session' | 'legacy' | 'terminal'",
   // A terminal thread's process (kind "terminal" only).
-  terminal: ThreadTerminal.optional(),
+  "terminal?": ThreadTerminal,
   // A HELD thread (server SessionRow.held_by): present ⇒ no agent has ever run for it, and it names who holds
   // it — `schedules` for a schedule's next run, or `lazy` on a row left from lazy threads. A message sent
   // to it starts it. Base never queues one.
-  held: z.string().optional(),
+  "held?": "string",
   // A held thread's OPENING PROMPT as base keeps it (server SessionRow.lazy_prompt): a schedule's next run's
   // prompt, which the human may edit for that run alone, and for any other held thread the text it starts on.
   // Present exactly when `held` is.
-  heldPrompt: z.string().optional(),
+  "heldPrompt?": "string",
   // A TO-DO's starters (server todo-steps.ts): up to three first jobs a model proposed from the task when
   // it was added, each a button that starts the agent on it. Absent until they land, on a to-do that needed
   // none, and on every other thread.
-  todoStarters: z.array(z.object({ label: z.string(), prompt: z.string() })).max(3).optional(),
+  "todoStarters?": type({ "+": "delete", label: "string", prompt: "string" }).array().atMostLength(3),
   // The SCHEDULE this thread is a run of (ARCHITECTURE.md § Scheduled threads) — what draws the repeat glyph and
   // its tooltip. `pending` marks the schedule's next run: a held row that sits in Snoozed with its wake
   // time until the scheduler starts it, even once that time has passed (isSnoozed). Absent on every other
   // thread, and on a run whose schedule has since been deleted.
-  schedule: ThreadScheduleRef.optional(),
+  "schedule?": ThreadScheduleRef,
   // The terminal threads started FROM this thread (their `parent`) that are not yet Done, as their
   // processes stand — what the thread's strip lists, each a link to the terminal's own row. Absent ⇒ none.
   // A terminal at a prompt queues ITSELF (its own row), never this thread.
-  terminals: z.array(ThreadTerminal).optional(),
+  "terminals?": ThreadTerminal.array(),
   // No registry row (a maintainer terminal discovered from the JSONL dir): read-only transcript,
   // no lifecycle verbs (no composer / kill / resume), never in Needs-you, no archive/seen state.
-  foreign: z.boolean().optional(),
+  "foreign?": "boolean",
   // ui.db lifecycle for session threads (open|archived) — written ONLY by explicit Archive/Reopen.
-  state: z.enum(["open", "archived"]).optional(),
+  "state?": "'open' | 'archived'",
   // Exact durable user snooze. While this instant is in the future, an otherwise-resting thread is
   // suppressed from Queue and shown dimmed in Held. Hard interactive gates (question, permission,
   // native approval, crash) deliberately break through it. Expired values are cleared server-side.
-  snoozedUntil: SnoozeUntil.optional(),
+  "snoozedUntil?": SnoozeUntil,
   // The prompt this snooze will deliver at its deadline, when it carries one. Present ⇒ the wake is an
   // AUTO-bump (the scheduler resumes the agent with exactly this text) rather than a reminder, which is
   // the distinction the held row's tooltip renders. Absent ⇒ the card merely re-surfaces.
-  snoozePrompt: z.string().optional(),
+  "snoozePrompt?": "string",
   // THE THREAD'S TIME LIMIT (deadline.ts): when it runs out, when it was set (the budget runs from
   // here) and by whom — only the human may move or clear one the human set, so the drawer offers its
   // controls on that basis. Absent ⇒ no limit. The card and the drawer count down from `at` and read
   // "over by …" past it; nothing is stopped there.
-  deadline: ThreadDeadlineView.optional(),
+  "deadline?": ThreadDeadlineView,
   // The instant the human PINNED this thread (absent = not pinned). A pinned thread leaves the rail's
   // band system entirely — Rested/Active/Snoozed/Done — and holds the pinned band at the very top, in
   // this instant's order. Lifecycle metadata like the snooze: written only by the pin/unpin verb, and
   // it outranks every derived state (a pinned thread that finishes stays pinned).
-  pinnedAt: z.string().optional(),
+  "pinnedAt?": "string",
   /** The human pressed Watch on this rest's done card (board.doneParkedOnWatch): the done stays readable
    *  while the watch runs, and the thread waits in the Waiting band until it reports. It clears itself
    *  when the thread comes to a NEW rest. (It was also the resting card's "Snooze until new activity"
    *  until 2026-10-14, when that snooze and "until all sub-agents return" were removed.) */
-  bgSnoozed: z.boolean().optional(),
+  "bgSnoozed?": "boolean",
   /** Direct sub-agents that returned inside the wait still open — see ReturnedSubAgentView. */
-  returnedSubAgents: z.array(ReturnedSubAgentView).optional(),
+  "returnedSubAgents?": ReturnedSubAgentView.array(),
   // Which Claude transport serves this thread. "broker" — a session-broker-owned Agent SDK session with
   // a typed control channel — is the only one there is; ABSENT means a row dispatched before the broker
   // became the sole transport, which ntwine can no longer reach that way. Only the broker can be asked to
   // reload its plugin closure in place, so the board needs this to decide whether to offer that verb at
   // all rather than render a button that throws.
-  claudeRuntime: z.literal("broker").optional(),
+  "claudeRuntime?": "'broker'",
   // The thread's recurring prompt, when one has been written. Present with BOTH triggers false ⇒ the
   // text and the cadence are kept but nothing fires — that pair of falses IS the off state, which is
   // why there is no separate enable flag here to disagree with them.
-  recurringPrompt: ThreadRecurringPrompt.optional(),
+  "recurringPrompt?": ThreadRecurringPrompt,
   // The signal fence on the final assistant message, present only while the thread is excused by it.
-  lastFence: ThreadFence.optional(),
+  "lastFence?": ThreadFence,
   // SERVER-DERIVED queue membership: explicit questions, checked/done handoffs, plus the process-level
   // blocks (perm-prompt / pendingAsk / crash) that a view can't clear. The client renders the
   // queue off this bit alone for session threads (legacy rows keep needsAction()).
-  needsYou: z.boolean().optional(),
+  "needsYou?": "boolean",
   // When this thread most recently ENTERED the queue (ISO), present exactly while `needsYou` is. The
   // queue's order key: a thread keeps it for as long as it stays queued and gets a fresh one each time
   // it re-enters, so a new arrival joins the BACK of the line. It is not the rest time — a thread that
   // rested behind a wait (CI, a sub-agent, a park, a snooze) enters when the wait lets go. See the
   // server's queue-clock.ts.
-  queuedAt: z.string().optional(),
+  "queuedAt?": "string",
   // True while the server WITHHOLDS this thread's entry into the queue: a hold (a sub-agent, CI, a park)
   // has just let go and the wake that usually follows gets a few seconds to land (queue-clock.ts). The
   // thread reads `needsYou: false` meanwhile, but no hold stands any more — so nothing may read a park
   // into it (groups.isSnoozed), and its page keeps its handoff card.
-  queueSettling: z.boolean().optional(),
+  "queueSettling?": "boolean",
   // True while the ONLY thing queuing this thread is a reply to the human they have not read: it is
   // parked on a wait it named, and once they have seen the reply it leaves the queue on its own. The
   // card says so and offers "Mark as read" (board.ts queuedForReply).
-  queuedForReply: z.boolean().optional(),
+  "queuedForReply?": "boolean",
   // True only for the crash/stall branch (pane exited while the transcript still says in-flight).
   // Once every ordinary rest also queues, runtime=exited + needsYou is no longer enough for clients
   // to distinguish a failed worker from a clean completed process.
-  crashed: z.boolean().optional(),
+  "crashed?": "boolean",
   // The queued reason is "resting while its OWN background work (sub-agents / shells) is still live,
   // with no human ask": the agent came to rest awaiting results it dispatched, not awaiting the human.
   // The card renders the informational awaiting-background banner (with an event-Snooze that hid it
@@ -5151,82 +5223,83 @@ export const ThreadView = z.object({
   // ask / native input / done fence outranks it).
   // Optional like needsYou/crashed: absent ⇒ a pre-restart server or a non-session row; the client
   // treats absence as false.
-  awaitingBackground: z.boolean().optional(),
+  "awaitingBackground?": "boolean",
   // SERVER-DERIVED: which band a rest OUT OF THE QUEUE sits in (board.deriveWaitStatus, 2026-10-05).
   // `working` — the work it waits on finishes by itself, so it is Running and spins; `watching` —
   // something must happen outside the thread, so it is in Waiting (Snoozed until 2026-10-14) and still. Present only for a thread at
   // rest behind a wait the server honoured with no queue card; absent everywhere else, including every
   // queued rest, which never spins. Absent from a pre-2026-10-05 server, which the client reads as the
   // old Running placement.
-  waitStatus: z.enum(["working", "watching"]).optional(),
+  "waitStatus?": "'working' | 'watching'",
   // Exact typed-interaction presence for this CURRENT registered session. The board already derives
   // this from the scoped durable journal to compute needsYou; exposing the reason lets React avoid a
   // pendingInteractions RPC for every unrelated question/completion card. Optional preserves rolling
   // compatibility: a client paired with an older server treats absence as "unknown" and keeps the
   // previous query behavior, while a current server always emits true/false for owned session rows.
-  pendingInteraction: z.boolean().optional(),
+  "pendingInteraction?": "boolean",
   // True only while a durable typed interaction still needs a USER decision. This is deliberately
   // distinct from pendingInteraction: after the human answers, provider delivery can remain queued or
   // sent (and therefore pending/readable) without remaining a hard gate that disables Snooze.
   // Optional keeps rolling client/server reloads compatible; current servers always emit the bit.
-  actionableInteraction: z.boolean().optional(),
+  "actionableInteraction?": "boolean",
   // ISO8601 read/seen telemetry (threadSeen RPC — recorded when the human opens the thread). Kept for
   // compatibility and analytics only; viewing never acknowledges or removes a queue handoff.
-  seenAt: z.string().optional(),
+  "seenAt?": "string",
   // Which agent backend runs this thread (Codex-support epic, Phase 3) — drives the subtle per-row
   // rail badge. Optional so a legacy/foreign/pre-restart row parses; absent OR "claude" ⇒ no badge
   // (Claude is the unmarked default), "codex" ⇒ the small Codex badge.
-  backend: Backend.optional(),
+  "backend?": Backend,
   // The backend-native permission/sandbox profile this session was launched (or explicitly
   // re-attached) with. Persisted per thread: never inferred from mutable Settings. Optional for
   // migrated/foreign sessions whose actual process mode is unknown.
-  permissionMode: z.enum(["auto", "default", "acceptEdits", "plan", "bypassPermissions"]).optional(),
+  "permissionMode?": "'auto' | 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'",
   // A durable requested mode that has not yet appeared in backend telemetry. The UI renders this as
   // pending beside permissionMode; it never replaces the observed value optimistically.
-  permissionPending: z.enum(["auto", "default", "acceptEdits", "plan", "bypassPermissions"]).optional(),
+  "permissionPending?": "'auto' | 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'",
   // Raw durable barrier bit. Unlike permissionPending this remains true for a future/corrupt value,
   // so rolling clients fail closed instead of enabling another composer while ownership is unknown.
-  permissionChangePending: z.boolean().optional(),
+  "permissionChangePending?": "boolean",
   // The last DENIAL the worker's permission POLICY made for this thread (cc-worker/hooks/
   // perm-policy.mjs), and how many times it has denied. A refusal changes what the worker can do, so
   // it earns a card. Approvals and deferrals are deliberately absent: a deferral already shows as a
   // permission prompt / Needs you, and an approval blocks nobody — the quiet line that used to report
   // one stuck to the bottom of the thread forever, describing a command the reader had long moved past.
-  permPolicy: z.object({
-    decision: z.literal("deny"),
-    rule: z.string(),
-    reason: z.string(),
-    tool: z.string().nullable(),
-    at: z.string(),
-    command: z.string().optional(),
-  }).optional(),
-  permDenies: z.number().optional(),
+  "permPolicy?": {
+    "+": "delete",
+    decision: "'deny'",
+    rule: "string",
+    reason: "string",
+    tool: "string | null",
+    at: "string",
+    "command?": "string",
+  },
+  "permDenies?": "number",
   // Atomic model+effort handoff state. The displayed model/effort remain the last committed launch
   // target until both pending values are attached and readiness-proven for a new generation.
-  profilePendingModel: z.string().optional(),
-  profilePendingEffort: z.string().optional(),
-  profileChangePending: z.boolean().optional(),
+  "profilePendingModel?": "string",
+  "profilePendingEffort?": "string",
+  "profileChangePending?": "boolean",
   // One durable runtime-control owner serializes reattach/resume/native-composer mutations. Unknown
   // future owner values still disable the composer rather than being treated as idle.
-  runtimeControlPending: z.boolean().optional(),
+  "runtimeControlPending?": "boolean",
   // controlError is an actionable reason the controller failed closed (for example a busy thread).
-  controlError: z.string().optional(),
+  "controlError?": "string",
   // The session's concrete model + reasoning effort: pinned launch metadata for new dispatches,
   // refined/backfilled from backend transcript telemetry where available (Claude records model;
   // Codex records both). Never derived from current Settings. Strings keep future backend-native
   // values forward-compatible; absent when neither durable source knows → the UI renders no guess.
-  model: z.string().optional(),
-  effort: z.string().optional(),
+  "model?": "string",
+  "effort?": "string",
   // The Claude EDITION this thread's worker last ran ("Opus 5"), read off the model id on its own
   // transcript. It can be older than the edition the picker's row names ("Opus 5.5"): a worker keeps the
   // runtime it was started on, and a new pin only reaches the workers started after it. Emitted only when
   // that id belongs to the family `model` names, so a pending model switch never shows the old family's.
-  runningModelLabel: z.string().optional(),
+  "runningModelLabel?": "string",
   // Present when the pinned runtime now resolves this thread's family to a NEWER edition than it runs.
   // `staged`: no live worker holds the old edition, so the next turn starts on `label` with nothing
   // further to do; otherwise the composer offers the upgrade, and the first message after the thread's
   // next compaction takes it on its own.
-  modelUpgrade: z.object({ label: z.string(), staged: z.boolean() }).optional(),
+  "modelUpgrade?": { "+": "delete", label: "string", staged: "boolean" },
   // How full the session's context window is right now — the header's fullness readout. BOTH halves
   // are provider-measured and the field is emitted ONLY when both are present, so a client never has
   // to decide what to do with half a fraction: absent ⇒ no reading, never a 0% dial. Codex reports
@@ -5234,9 +5307,9 @@ export const ThreadView = z.object({
   // `window` only once its first broker turn has ended (and never at all for a foreign row, or one
   // dispatched before the broker became the only Claude transport).
   // `tokens` legitimately DROPS after a compaction — the context really did get smaller.
-  context: z.object({ tokens: z.number(), window: z.number() }).optional(),
+  "context?": { "+": "delete", tokens: "number", window: "number" },
 })
-export type ThreadView = z.infer<typeof ThreadView>
+export type ThreadView = typeof ThreadView.infer
 
 /**
  * Whether a thread is IN THE QUEUE — the maintainer's "rested" band, the one with a card per row.
@@ -5717,147 +5790,164 @@ export function boardAskThread(t: ThreadView): boolean {
 // board-read failure) and renders as today with no repair affordance. Additive: the legacy string
 // array is untouched, this is a PARALLEL field. `file` is the .md basename (or "" for a board-level
 // failure with no single file).
-export const BoardErrorItem = z.object({
-  file: z.string(),
-  kind: z.enum(["no-frontmatter", "other"]),
-  message: z.string(),
+export const BoardErrorItem = type({
+  "+": "delete",
+  file: "string",
+  kind: "'no-frontmatter' | 'other'",
+  message: "string",
 })
-export type BoardErrorItem = z.infer<typeof BoardErrorItem>
+export type BoardErrorItem = typeof BoardErrorItem.infer
 
-export const BoardSnapshot = z.object({
-  projectDir: z.string(),
-  projectName: z.string(),
-  projectLabel: z.string(), // "owner/repo" from the git origin remote; falls back to projectName
+export const BoardSnapshot = type({
+  "+": "delete",
+  projectDir: "string",
+  projectName: "string",
+  projectLabel: "string", // "owner/repo" from the git origin remote; falls back to projectName
   // "owner/repo" ONLY when that origin remote is github.com — the link target the rendered-markdown
   // autolinker turns `#123` and a bare commit hash into. Deliberately NOT projectLabel, which is a
   // host-agnostic DISPLAY name: a GitLab origin yields an owner/repo there too, and pointing its `#12`
   // at github.com would be a wrong destination rather than a missing one. Absent means the
   // augmentation stays off (no remote, another forge, or a pre-restart server).
-  githubRepo: z.string().optional(),
+  "githubRepo?": "string",
   // This project's URL slug — the `<slug>` in `/project/<slug>`. The client cannot derive it: a
   // PREFIXED page reads it off its own path, but the LAUNCHING project is served unprefixed and so has
   // nothing to read, which left `/` — the all-projects GRID — as the only URL its queue could name.
   // Optional so a pre-restart server keeps working; absent means "fall back to `/`", i.e. the old
   // behaviour. Registry-derived, so it is the same slug every other surface links to.
-  projectSlug: z.string().optional(),
+  "projectSlug?": "string",
   // The server's home directory — the expansion of a `~` a worker wrote in prose. Agents reference
   // files that way constantly (`~/.claude/CLAUDE.md`), and the browser has no way to derive it, so a
   // `~`-anchored Markdown link had no absolute path to become and stayed a same-origin anchor that
   // navigated out of ntwine. The client only ever uses it to build a path it then hands BACK to the
   // server, which realpath-gates it exactly as it gates one the author typed in full. Optional so a
   // pre-restart server keeps working; absent means `~` links stay unresolved, i.e. the old behaviour.
-  homeDir: z.string().optional(),
+  "homeDir?": "string",
   // (No `.ntwine/ exists` bit here on purpose. Threads are session-first — the ui.db registry IS the
   // board — so `.ntwine/` presence says nothing about whether this project has one. Its only consumer
   // was a shell gate that dead-ended `.ntwine`-less repos; the server still probes the directory
   // locally where it genuinely matters, for scratchpad storage.)
-  threads: z.array(ThreadView),
-  errors: z.array(z.string()),
-  warnings: z.array(z.string()),
+  threads: ThreadView.array(),
+  errors: "string[]",
+  warnings: "string[]",
   // Structured mirror of `errors` (see BoardErrorItem). Optional so a pre-restart server / old
   // snapshot that omits it still parses; the client treats absent as "no structured errors" and
   // falls back to rendering the plain `errors` strings.
-  errorItems: z.array(BoardErrorItem).optional(),
+  "errorItems?": BoardErrorItem.array(),
 })
-export type BoardSnapshot = z.infer<typeof BoardSnapshot>
+export type BoardSnapshot = typeof BoardSnapshot.infer
 
 // ---- Provider quota (subscription rate-limit windows) ----
 // A single usage window for a provider's plan — the 5-hour rolling window or the weekly window that
 // Claude/Codex subscriptions meter against. `usedPercent` is 0..100 (how much of the window is spent,
 // so remaining = 100 - usedPercent); `resetsAt` is a unix-seconds instant the window rolls over.
-export const QuotaWindow = z.object({
-  key: z.string(), // stable id: "5h" | "weekly" (provider-neutral)
-  label: z.string(), // short human label for the chip ("5h", "Weekly") — house duration grammar
-  usedPercent: z.number(), // 0..100
-  resetsAt: z.number().optional(), // unix seconds; absent when the source doesn't report it
+export const QuotaWindow = type({
+  "+": "delete",
+  key: "string", // stable id: "5h" | "weekly" (provider-neutral)
+  label: "string", // short human label for the chip ("5h", "Weekly") — house duration grammar
+  usedPercent: "number", // 0..100
+  "resetsAt?": "number", // unix seconds; absent when the source doesn't report it
 })
-export type QuotaWindow = z.infer<typeof QuotaWindow>
+export type QuotaWindow = typeof QuotaWindow.infer
 
 // One provider's quota. `status: "ok"` carries live windows; "unavailable" means we could not read it
 // (no recent session, endpoint unreachable, not logged in) and the UI shows a neutral dash + `detail`.
-export const ProviderQuota = z.object({
-  status: z.enum(["ok", "unavailable"]),
-  planType: z.string().optional(), // "pro" / "max" / etc. when the source reports it
-  windows: z.array(QuotaWindow),
-  detail: z.string().optional(), // why unavailable, or an extra note
+export const ProviderQuota = type({
+  "+": "delete",
+  status: "'ok' | 'unavailable'",
+  "planType?": "string", // "pro" / "max" / etc. when the source reports it
+  windows: QuotaWindow.array(),
+  "detail?": "string", // why unavailable, or an extra note
 })
-export type ProviderQuota = z.infer<typeof ProviderQuota>
+export type ProviderQuota = typeof ProviderQuota.infer
 
 // The polled quota snapshot the sidebar status bar renders — one entry per agent backend.
-export const QuotaSnapshot = z.object({
+export const QuotaSnapshot = type({
+  "+": "delete",
   claude: ProviderQuota,
   codex: ProviderQuota,
 })
-export type QuotaSnapshot = z.infer<typeof QuotaSnapshot>
+export type QuotaSnapshot = typeof QuotaSnapshot.infer
 
 // ---- Provider auth (local credential presence) ----
 // Whether a provider's LOCAL credential exists — the signal the new-thread dispatch gate keys on.
 // DISTINCT from quota's "unavailable": that is overloaded with transient endpoint failures, whereas
 // this reports credential presence only. "signed-out" = we positively found no credential; "unknown" =
 // we couldn't determine it (read error). The gate BLOCKS on "signed-out" and FAILS OPEN on "unknown".
-export const ProviderAuth = z.enum(["authed", "signed-out", "unknown"])
-export type ProviderAuth = z.infer<typeof ProviderAuth>
+export const ProviderAuth = type("'authed' | 'signed-out' | 'unknown'")
+export type ProviderAuth = typeof ProviderAuth.infer
 
 // WHICH account each credential belongs to — the email the provider's own on-disk account record
 // carries. Purely informational (the quota popover answers "signed in as who?"); nothing gates on it,
 // so every field is optional and an unreadable record simply yields nothing rather than an error.
 // Deliberately a SIBLING of the per-provider auth verdicts rather than nested with them: the gate's
 // shape (`snapshot[backend] === "signed-out"`) is load-bearing in dispatch and must not move.
-export const AccountEmails = z.object({
-  claude: z.string().max(320).optional(),
-  codex: z.string().max(320).optional(),
+export const AccountEmails = type({
+  "+": "delete",
+  "claude?": "string <= 320",
+  "codex?": "string <= 320",
 })
-export type AccountEmails = z.infer<typeof AccountEmails>
+export type AccountEmails = typeof AccountEmails.infer
 
 // The per-provider auth snapshot the new-thread gate reads — one entry per agent backend.
-export const AuthSnapshot = z.object({
+export const AuthSnapshot = type({
+  "+": "delete",
   claude: ProviderAuth,
   codex: ProviderAuth,
   emails: AccountEmails,
 })
 // The backends that HAVE an account ntwine can read and act on. An ACP agent's credentials belong to the
 // agent's own CLI (plans/acp-backend.md, decision 5): ntwine never reads, refreshes or revokes them.
-export const AccountBackend = z.enum(["claude", "codex"])
-export type AccountBackend = z.infer<typeof AccountBackend>
-export const AccountLogoutInput = z.object({ backend: AccountBackend }).strict()
-export type AccountLogoutInput = z.infer<typeof AccountLogoutInput>
+export const AccountBackend = type("'claude' | 'codex'")
+export type AccountBackend = typeof AccountBackend.infer
+export const AccountLogoutInput = type({ "+": "reject", backend: AccountBackend })
+export type AccountLogoutInput = typeof AccountLogoutInput.infer
 // Result of the typed provider logout action. "blocked" = refused because the provider had live
 // turns (account state is process-global; changing it mid-request produces ambiguous failures);
 // "failed" = the CLI errored AND the credential still reads present. `auth` is the post-attempt
 // credential state so the client can refresh its snapshot without another round-trip.
-export const AccountLogoutResult = z.object({
-  status: z.enum(["done", "blocked", "failed"]),
+export const AccountLogoutResult = type({
+  "+": "delete",
+  status: "'done' | 'blocked' | 'failed'",
   auth: ProviderAuth,
-  activeThreads: z.number().int().positive().optional(),
-  detail: z.string().max(200).optional(),
+  "activeThreads?": "number.integer > 0",
+  "detail?": "string <= 200",
 })
-export type AccountLogoutResult = z.infer<typeof AccountLogoutResult>
-export type AuthSnapshot = z.infer<typeof AuthSnapshot>
+export type AccountLogoutResult = typeof AccountLogoutResult.infer
+export type AuthSnapshot = typeof AuthSnapshot.infer
 
 // ---- Settings ----
 
-export const PermissionMode = z.enum(["auto", "default", "acceptEdits", "plan", "bypassPermissions"])
-export type PermissionMode = z.infer<typeof PermissionMode>
+export const PERMISSION_MODES = ["auto", "default", "acceptEdits", "plan", "bypassPermissions"] as const
+export const PermissionMode = type.enumerated(...PERMISSION_MODES)
+export type PermissionMode = typeof PermissionMode.infer
 
 // Where a vetted local artifact link opens. This is intentionally a server-owned setting: the
 // browser never gets permission to navigate to file:// or choose an arbitrary executable. `editor` is
 // the SERVER's own `$VISUAL`/`$EDITOR`, read from the environment ntwine was started in — the browser
 // still names no executable, it only picks "whatever this machine's shell already says".
-export const LocalFileOpener = z.enum(["system", "cursor", "vscode", "editor", "finder", "copy"])
-export type LocalFileOpener = z.infer<typeof LocalFileOpener>
+export const LocalFileOpener = type("'system' | 'cursor' | 'vscode' | 'editor' | 'finder' | 'copy'")
+export type LocalFileOpener = typeof LocalFileOpener.infer
 
-export const Settings = z.object({
+// An operator ACP agent's id, after trimming: case-insensitive, so it cannot be a string-embedded regex.
+const ACP_AGENT_ID = type("string.trim").to(type("1 <= string <= 64").and(/^[a-z0-9][a-z0-9._-]*$/i))
+
+// Reasoning effort: `Settings.effort`, and every profile that carries one (see the note on that key).
+export const Effort = type("'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra' | 'ultracode'")
+export type Effort = typeof Effort.infer
+
+export const Settings = type({
+  "+": "delete",
   // The mode NEW Claude workers launch in. Settings surfaces exactly two of them — `bypassPermissions`
   // (--dangerously-skip-permissions, the shipped default since 0.7.2) and `auto` — because those are the only two
   // an unattended worker can actually run in; the server's workerDispatchPermission enforces that same
   // floor, so a restrictive value left here by an older build cannot reach a spawn.
   permissionMode: PermissionMode,
-  model: z.string().optional(), // the agent's --model value; undefined = CLI default
+  "model?": "string", // the agent's --model value; undefined = CLI default
   // The agent backend the selected model runs on (Codex-support epic, Phase 3). Persisted ALONGSIDE
   // `model` — a Claude model pins "claude", a GPT/Codex model pins "codex" — so the dependent controls
   // (permission-mode vs sandbox, the effort set) know which axis to present. Optional so an old blob
   // parses; absent ⇒ "claude" (derivable from `model` too, via backendForModel in web/lib/options).
-  backend: Backend.optional(),
+  "backend?": Backend,
   // Reasoning effort. The ladder spans BOTH backends' universes: Claude's (low..max, plus "ultracode")
   // and codex's (adds "ultra" — a 5.6-sol/terra level above max). Which subset is OFFERED is
   // backend/model-gated in the UI (a codex model exposes exactly its cache `efforts`; "ultracode" is
@@ -5872,8 +5962,8 @@ export const Settings = z.object({
   // "auto" is not a level either: it asks ntwine to pick one per dispatch from the prompt (a short Haiku
   // call, server/effort-chooser.ts) before anything launches. It is a DISPATCH value only — a started
   // thread's row records the concrete level that call chose, so no runtime ever sees "auto".
-  effort: z.enum(["auto", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"]).optional(),
-  notifications: z.boolean(),
+  "effort?": Effort,
+  notifications: "boolean",
   // (No `projectRail`: the opt-in column of project icons was a setting from 2026-10-06 to 2026-10-14,
   // and before 2026-09-30; a stored value is stripped on parse, this being non-strict.)
   // (No `homeFolder`: the Home workspace's agents run in the operator's home folder, always. It was a
@@ -5888,7 +5978,7 @@ export const Settings = z.object({
    * defaultSettings pins 7. A number rather than an absent key for "never", for the same reason as
    * `deleteDoneThreadsUntouchedDays`. Machine-level.
    */
-  removeIdleWorktreesDays: z.number().int().min(0).max(3650).optional(),
+  "removeIdleWorktreesDays?": "0 <= number.integer <= 3650",
   /**
    * Done threads the human has not touched (opened, replied to, acted on) for this many days are deleted, in every open project, by an hourly sweep
    * (server/thread-retention.ts). 0 = never, the default — a delete cannot be undone, so nothing is
@@ -5896,7 +5986,7 @@ export const Settings = z.object({
    * "never" because an absent machine key falls back to a project's stored blob (settings.ts), which
    * would resurrect the period just cleared. Machine-level.
    */
-  deleteDoneThreadsUntouchedDays: z.number().int().min(0).max(3650).optional(),
+  "deleteDoneThreadsUntouchedDays?": "0 <= number.integer <= 3650",
   /**
    * Spend Fable's own weekly budget when the base Claude usage runs low: while the 5-hour or weekly
    * window is nearly out (90% used) and the Fable window still has room, a new Claude thread launches
@@ -5904,7 +5994,7 @@ export const Settings = z.object({
    * (server/backend/fable-fallback.ts). Off by default — it moves work onto a different, costlier
    * model. Machine-level, because quota is the account's, not a project's.
    */
-  fableFallback: z.boolean().optional(),
+  "fableFallback?": "boolean",
   // There is no `backgroundSummaries` key any more: ntwine's own model calls were a Settings switch until
   // 2026-10-07, and are on now (NTWINE_*=0 still turns one off). A stored key is stripped on parse.
   // There is no `font` key any more. The interface rendered in one of two type families as a machine
@@ -5913,7 +6003,7 @@ export const Settings = z.object({
   // so a stored `font` is stripped the moment an old blob parses — no migration.
   // Default action for a vetted non-image local path in agent markdown. Image clicks always use the
   // OS default viewer so screenshots retain their expected behavior.
-  localFileOpener: LocalFileOpener.optional(),
+  "localFileOpener?": LocalFileOpener,
   // The token count at which a NEW Claude worker auto-compacts its conversation. ntwine requests the
   // 1M context window on every dispatch (resolveClaudeLaunchModel), so without this a worker grows
   // toward 1M before it ever compacts — and every turn past 200K re-sends up to 5x the conversation a
@@ -5921,13 +6011,13 @@ export const Settings = z.object({
   // the TUI (measured 2026-08-26). Reaches the worker as CLAUDE_CODE_AUTO_COMPACT_WINDOW, which Claude
   // Code caps to the model's real window. Optional so an old blob parses; defaultSettings pins 500_000
   // (maintainer 2026-08-26: "a default compaction window of 500k by default").
-  autoCompactWindow: z.number().int().positive().optional(),
+  "autoCompactWindow?": "number.integer > 0",
   // The prompt-cache tier a NEW Claude worker writes to. "auto" leaves the CLI's own choice (1h on a
   // subscription); "5m" and "1h" reach the worker as CLAUDE_CODE_PROMPT_CACHE_TTL (and the sub-agent
   // twin). The 1h tier bills a cache write at 2x input against 1.25x for 5m; on 2026-09-03 cache
   // writes were 51% of a day's spend while the entries were invalidated every 15–30 minutes anyway
   // (see claudePromptCacheEnv). Optional so an old blob parses; defaultSettings pins "auto".
-  promptCacheTtl: z.enum(["auto", "5m", "1h"]).optional(),
+  "promptCacheTtl?": "'auto' | '5m' | '1h'",
   // The context window a NEW Codex thread runs with, in tokens. Codex's own default is the model's
   // stock window (272K on GPT-5.6), but the catalogue also carries a larger `max_context_window` (872K
   // on GPT-5.6-sol/terra/luna and GPT-6-astra, measured 2026-09-11 in ~/.codex/models_cache.json) that
@@ -5936,18 +6026,19 @@ export const Settings = z.object({
   // the model's maximum, so a value above it is harmless, and it moves the auto-compact threshold with
   // it (codex compacts at 90% of the resolved window). Unset ⇒ nothing is sent and the model's stock
   // window applies. Optional so an old blob parses; defaultSettings leaves it unset.
-  codexContextWindow: z.number().int().positive().optional(),
+  "codexContextWindow?": "number.integer > 0",
   // The operator's OWN Agent Client Protocol agents, merged over the built-in catalogue by id
   // (server/backend/acp-agents.ts). `command` is an executable name on PATH or an absolute path;
   // `args` is what puts it into ACP mode (`["acp"]`, `["--acp"]`). Optional so an old blob parses.
-  acpAgents: z.array(z.object({
-    id: z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9._-]*$/i),
-    label: z.string().trim().min(1).max(80),
-    command: z.string().trim().min(1).max(1_024),
-    args: z.array(z.string().max(1_024)).max(32).optional(),
-  })).max(32).optional(),
+  "acpAgents?": type({
+    "+": "delete",
+    id: ACP_AGENT_ID,
+    label: "string.trim |> 1 <= string <= 80",
+    command: "string.trim |> 1 <= string <= 1024",
+    "args?": type("string <= 1024").array().atMostLength(32),
+  }).array().atMostLength(32),
 })
-export type Settings = z.infer<typeof Settings>
+export type Settings = typeof Settings.infer
 
 /**
  * The settings that describe the MACHINE rather than a project — stored once for every project the
@@ -5965,113 +6056,118 @@ export const MACHINE_SETTING_KEYS = ["notifications", "localFileOpener", "remove
 // moving between Claude and Codex never overwrites the other runtime's model, effort, or permission
 // selection. Fields stay optional for the first-run/default case: a displayed fallback is not stored
 // as user intent until the human actually chooses it.
-export const DispatchProviderPreferences = z.object({
-  model: z.string().trim().min(1).max(200).optional(),
-  effort: Settings.shape.effort,
-  permissionMode: PermissionMode.optional(),
+export const DispatchProviderPreferences = type({
+  "+": "delete",
+  "model?": "string.trim |> 1 <= string <= 200",
+  "effort?": Effort,
+  "permissionMode?": PermissionMode,
 })
-export type DispatchProviderPreferences = z.infer<typeof DispatchProviderPreferences>
+export type DispatchProviderPreferences = typeof DispatchProviderPreferences.infer
 
-export const DispatchPreferences = z.object({
+export const DispatchPreferences = type({
+  "+": "delete",
   backend: Backend,
   claude: DispatchProviderPreferences,
   codex: DispatchProviderPreferences,
   // Optional because every record written before the ACP backend existed lacks it, and a required
   // key would fail those records' parse and silently reset the operator's saved profile.
-  acp: DispatchProviderPreferences.optional(),
+  "acp?": DispatchProviderPreferences,
 })
-export type DispatchPreferences = z.infer<typeof DispatchPreferences>
+export type DispatchPreferences = typeof DispatchPreferences.infer
 
 // Atomic updates avoid read/modify/write races between the sidebar form and the anywhere composer.
 // A matrix-cell selection is one complete model+effort profile mutation; permission remains an
 // independent axis. Every provider-owned update names its runtime so a delayed request can never
 // contaminate the other profile.
-export const SetDispatchPreferenceInput = z.discriminatedUnion("field", [
-  z.object({ field: z.literal("backend"), value: Backend }),
-  z.object({
-    field: z.literal("profile"),
+export const SetDispatchPreferenceInput = type.or(
+  { "+": "delete", field: "'backend'", value: Backend },
+  {
+    "+": "delete",
+    field: "'profile'",
     backend: Backend,
-    model: z.string().trim().min(1).max(200),
+    model: "string.trim |> 1 <= string <= 200",
     // Optional ONLY for an ACP profile, which runs with whatever model and effort its own CLI is
     // configured for — ntwine has no effort axis to offer there. A Claude/Codex profile without an
     // effort is refused below rather than silently stored as "default".
-    effort: Settings.shape.effort,
-  }),
-  z.object({ field: z.literal("model"), backend: Backend, value: z.string().trim().min(1).max(200) }),
-  z.object({ field: z.literal("effort"), backend: Backend, value: Settings.shape.effort.unwrap() }),
-]).superRefine((update, ctx) => { if (update.field === "profile") requireEffortOutsideAcp(update, ctx) })
-export type SetDispatchPreferenceInput = z.infer<typeof SetDispatchPreferenceInput>
+    "effort?": Effort,
+  },
+  { "+": "delete", field: "'model'", backend: Backend, value: "string.trim |> 1 <= string <= 200" },
+  { "+": "delete", field: "'effort'", backend: Backend, value: Effort },
+).narrow((update, ctx) => update.field !== "profile" || requireEffortOutsideAcp(update, ctx))
+export type SetDispatchPreferenceInput = typeof SetDispatchPreferenceInput.infer
 
-function requireEffortOutsideAcp(profile: { backend: Backend; effort?: string }, ctx: z.RefinementCtx): void {
-  if (profile.backend !== "acp" && profile.effort === undefined) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["effort"], message: `effort is required for a ${profile.backend} profile` })
-  }
+function requireEffortOutsideAcp(profile: { backend: Backend; effort?: string }, ctx: Traversal): boolean {
+  return profile.backend === "acp" || profile.effort !== undefined ||
+    ctx.reject({ problem: `effort is required for a ${profile.backend} profile`, relativePath: ["effort"] })
 }
 
 // ---- RPC inputs ----
 
-export const DispatchInput = z.object({
+export const DispatchInput = type({
+  "+": "delete",
   // Optional: when omitted, dispatch derives a fallback title from the prompt (Claude later renames
   // the session via ai-title, which the UI prefers for display). The thread FILE always gets a
   // concrete title regardless — ntwine requires one.
-  title: z.string().min(1).optional(),
-  prompt: z.string().min(1),
-  slug: ThreadSlug.optional(), // derived from title if omitted
+  "title?": "string > 0",
+  prompt: "string > 0",
+  "slug?": ThreadSlug, // derived from title if omitted
   // IGNORED: dispatch permission is decided server-side (workerDispatchPermission) from the
   // non-interactive floor plus the operator's Settings choice, never per dispatch. Accepted-but-ignored
   // so old clients still parse.
-  permissionMode: PermissionMode.optional(),
-  model: z.string().optional(),
+  "permissionMode?": PermissionMode,
+  "model?": "string",
   // The agent backend for THIS dispatch (Codex-support epic, Phase 3). Omitted ⇒ the dispatcher
   // defaults to "claude", keeping the legacy RPC path byte-identical. The router forwards it into
   // `dispatch(input, { backend })`; the model picker sets it from the chosen model's family.
-  backend: Backend.optional(),
-  effort: Settings.shape.effort,
+  "backend?": Backend,
+  "effort?": Effort,
   // The thread's TIME LIMIT (deadline.ts): the absolute instant the browser resolved from the prompt
   // box's control ("2h", "15:30"). Set by the HUMAN — a worker's `spawn_thread` cannot pass one, so a
   // spawned thread starts with none and its own worker may set it with `ntwinectl deadline`.
-  deadline: z.string().refine((v) => Number.isFinite(Date.parse(v)), "deadline must be an ISO-8601 instant").optional(),
+  "deadline?": IsoInstant,
   // `spawn_thread`'s choice of project (router spawnTarget, server spawn-project.ts): a slug, name, id or
   // checkout path of a project ntwine has open. Omitted ⇒ the project this dispatch was addressed to.
-  project: z.string().min(1).optional(),
+  "project?": "string > 0",
   // The thread calling `spawn_thread`, from the shim's own identity. Its presence marks a WORKER's
   // dispatch, whose prompt is checked for another project's checkout when `project` is omitted; the
   // board's own dispatch never sets it, so what the human types is never second-guessed. A plain string:
   // only its presence is read, and a caller id that is not a slug must not refuse the whole spawn.
-  spawnedFrom: z.string().optional(),
+  "spawnedFrom?": "string",
   // `spawn_thread` sets it: hold the answer until the new thread has its NAME (a caller's title at once,
   // else the mint, bounded) and return its `@handle`, which is how one thread names another. The board's
   // own dispatch leaves it off and is answered the moment the thread exists.
-  awaitHandle: z.boolean().optional(),
+  "awaitHandle?": "boolean",
 })
-export type DispatchInput = z.infer<typeof DispatchInput>
+export type DispatchInput = typeof DispatchInput.infer
 
 // A HELD THREAD (SessionRow.held_by on the server): a thread created WITHOUT starting an agent, held by whoever
 // wrote it down — a schedule's next run. `prompt` is what it will start with, and what
 // its name is minted from unless a `title` is typed. The profile is the prompt box's pick at the moment it
 // was written down, and is what the agent starts on unless changed then.
-export const CreateHeldThreadInput = z.object({
-  prompt: z.string().trim().min(1),
-  title: z.string().min(1).optional(),
-  model: z.string().optional(),
-  backend: Backend.optional(),
-  effort: Settings.shape.effort,
+export const CreateHeldThreadInput = type({
+  "+": "delete",
+  prompt: "string.trim |> string > 0",
+  "title?": "string > 0",
+  "model?": "string",
+  "backend?": Backend,
+  "effort?": Effort,
 })
-export type CreateHeldThreadInput = z.infer<typeof CreateHeldThreadInput>
+export type CreateHeldThreadInput = typeof CreateHeldThreadInput.infer
 // Rewrite a held thread's opening prompt (ThreadView.heldPrompt) — a schedule's next run's, edited for that run.
-export const UpdateHeldPromptInput = z.object({ slug: ThreadSlug, sessionId: z.string().min(1), prompt: z.string() }).strict()
-export type UpdateHeldPromptInput = z.infer<typeof UpdateHeldPromptInput>
+export const UpdateHeldPromptInput = type({ "+": "reject", slug: ThreadSlug, sessionId: "string > 0", prompt: "string" })
+export type UpdateHeldPromptInput = typeof UpdateHeldPromptInput.infer
 // Start a held thread's agent: `prompt` is its opening message (the held prompt, usually edited first). The
 // profile fields default to the ones the thread was written down with.
-export const StartHeldThreadInput = z.object({
+export const StartHeldThreadInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  sessionId: z.string().min(1),
-  prompt: z.string().min(1),
-  model: z.string().optional(),
-  backend: Backend.optional(),
-  effort: Settings.shape.effort,
-}).strict()
-export type StartHeldThreadInput = z.infer<typeof StartHeldThreadInput>
+  sessionId: "string > 0",
+  prompt: "string > 0",
+  "model?": "string",
+  "backend?": Backend,
+  "effort?": Effort,
+})
+export type StartHeldThreadInput = typeof StartHeldThreadInput.infer
 
 // ---- SPINOFFS (2026-09-29) -----------------------------------------------------------------------
 // A new thread the HUMAN asks for from an existing one — "fix this", "investigate perf" — with the
@@ -6083,48 +6179,50 @@ export type StartHeldThreadInput = z.infer<typeof StartHeldThreadInput>
 // the parent's timeline shows the request as a card linking forward, and the child's header links back.
 // "Spinoff" is one word, verb and noun alike (maintainer 2026-09-29); it is asked of the whole thread,
 // never of one message.
-export const SpinoffInput = z.object({
+export const SpinoffInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   // Bound to the session the tab is looking at, exactly like FollowUpInput.
-  sessionId: z.string().min(1),
+  sessionId: "string > 0",
   // Uncapped, like the prompt box's own follow-up and dispatch: a 4,000-char cap here silently cut off
   // pasted context (maintainer 2026-10-01).
-  instructions: z.string().trim().min(1),
+  instructions: "string.trim |> string > 0",
   // The project the new thread starts in (its id), when that is not this thread's own (2026-09-30). It
   // must be open on this server: the child is dispatched through that project's own dispatcher.
-  project: z.string().min(1).optional(),
-}).strict()
-export type SpinoffInput = z.infer<typeof SpinoffInput>
-export const SpinoffResult = z.object({ id: z.string() }).strict()
-export type SpinoffResult = z.infer<typeof SpinoffResult>
+  "project?": "string > 0",
+})
+export type SpinoffInput = typeof SpinoffInput.infer
+export const SpinoffResult = type({ "+": "reject", id: "string" })
+export type SpinoffResult = typeof SpinoffResult.infer
 
 
-export const FollowUpInput = z.object({
+export const FollowUpInput = type({
+  "+": "delete",
   slug: ThreadSlug,
   // Binds the call to the session the tab is looking at, so a stale page cannot deliver a follow-up
   // into a thread that has since been re-dispatched (merged from origin/main, 2026-07-21).
-  sessionId: z.string().min(1),
+  sessionId: "string > 0",
   // EMPTY only when `answers` ride: the staged answers alone are a message. The server refuses a send
   // that carries neither.
-  message: z.string(),
+  message: "string",
   // REGISTERED-QUESTION ANSWERS SENT WITH THIS MESSAGE — the prompt box's one Send. The server settles
   // each question exactly as `answerQuestions` does, then delivers ONE turn: the answers in their wire
   // form (questionAnswerMessage) and `message` under them as the note (withAnswersNote). They ride the
   // follow-up rather than the scheduler's answer wake so the pair arrives together, in the order the
   // human wrote it, and as fast as a steer does.
-  answers: z.array(QuestionAnswerSchema).optional(),
+  "answers?": QuestionAnswerSchema.array(),
   // SEND TO THE QUEUE: while the agent is mid-turn, ntwine keeps this message and delivers it when the
   // thread comes to rest, so it opens the next turn instead of steering this one. At rest it is an
   // ordinary send — there is nothing to wait for. See `held` in the server's delivery-ledger.ts.
-  hold: z.boolean().optional(),
+  "hold?": "boolean",
   // Generated once before the optimistic clear so a transport replay can be idempotent.
-  deliveryId: z.string().min(1).max(200).optional(),
+  "deliveryId?": "1 <= string <= 200",
   // Retire the worker's live process before delivering, so this message lands in a `claude` that has
   // just started. The operator's "Restart worker" verb — the ONLY caller that sets it — exists because
   // a worker inherits its plugin/hooks AND its system prompt at process start and can never pick up a
   // newer ntwine build in place (hooks are read once, at startup). Everything else that needs a fresh
   // process derives it server-side; see needsFreshProcessForLimit.
-  freshProcess: z.boolean().optional(),
+  "freshProcess?": "boolean",
   // PREEMPT the operation the worker is running right now, so this message is read at once instead of
   // when that operation finishes. The operator's "Interrupt and send" verb, and opt-in for the same
   // reason `freshProcess` is: it costs the in-flight tool call's result. (It no longer costs the
@@ -6140,43 +6238,46 @@ export const FollowUpInput = z.object({
   // Broker-backed Claude only — that is every Claude thread dispatched since the broker cutover. On
   // any other runtime the message is delivered normally and this is ignored, never refused: a send
   // that arrives is always better than a send that errors.
-  interrupt: z.boolean().optional(),
+  "interrupt?": "boolean",
   // The deliveryId of a FAILED send this one re-sends — the failed bubble's Retry. The server drops that
   // failed entry in the same write that opens this send's own, so the retry replaces the failed bubble
   // rather than standing beside it. A new deliveryId, never the old one: the old send's failure may be
   // ambiguous, and only the operator decides to risk a second copy.
-  supersedes: z.string().min(1).max(200).optional(),
+  "supersedes?": "1 <= string <= 200",
 })
-export type FollowUpInput = z.infer<typeof FollowUpInput>
+export type FollowUpInput = typeof FollowUpInput.infer
 
 // Dismiss a FAILED send — the × on its bubble, or the second half of Edit (the text goes back into the
 // prompt box first). Only a failed entry can go: every other ledger state belongs to its transport.
-export const DismissFailedFollowUpInput = z.object({
+export const DismissFailedFollowUpInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  deliveryId: z.string().min(1).max(200),
-}).strict()
-export type DismissFailedFollowUpInput = z.infer<typeof DismissFailedFollowUpInput>
-export const DismissFailedFollowUpResult = z.object({ dismissed: z.boolean() }).strict()
-export type DismissFailedFollowUpResult = z.infer<typeof DismissFailedFollowUpResult>
+  deliveryId: "1 <= string <= 200",
+})
+export type DismissFailedFollowUpInput = typeof DismissFailedFollowUpInput.infer
+export const DismissFailedFollowUpResult = type({ "+": "reject", dismissed: "boolean" })
+export type DismissFailedFollowUpResult = typeof DismissFailedFollowUpResult.infer
 
 // Take a follow-up back out of the provider's queue — the operator clicked their own queued bubble to
 // unqueue it and get the text back in the prompt box. Keyed by the same `deliveryId` the send carried,
 // which IS the uuid the provider queued the message under.
-export const UnqueueFollowUpInput = z.object({
+export const UnqueueFollowUpInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   // Same staleness guard as followUp: a stale tab must not unqueue against a re-dispatched session.
-  sessionId: z.string().min(1),
-  deliveryId: z.string().min(1).max(200),
-}).strict()
-export type UnqueueFollowUpInput = z.infer<typeof UnqueueFollowUpInput>
+  sessionId: "string > 0",
+  deliveryId: "1 <= string <= 200",
+})
+export type UnqueueFollowUpInput = typeof UnqueueFollowUpInput.infer
 // `unqueued:false` is a real, expected outcome, NOT an error: the message had already been dequeued for
 // execution. It is reported rather than thrown precisely because the operator must be able to tell
 // "I took it back" from "it's already on its way" — `reason` is what the surface shows them.
-export const UnqueueFollowUpResult = z.object({
-  unqueued: z.boolean(),
-  reason: z.string().optional(),
-}).strict()
-export type UnqueueFollowUpResult = z.infer<typeof UnqueueFollowUpResult>
+export const UnqueueFollowUpResult = type({
+  "+": "reject",
+  unqueued: "boolean",
+  "reason?": "string",
+})
+export type UnqueueFollowUpResult = typeof UnqueueFollowUpResult.infer
 
 // PUSH IT THROUGH NOW — the ↑ on a queued bubble. Carries no message, because there is nothing left to
 // send: the words are already sitting in the provider's queue, and the only thing between the agent and
@@ -6187,41 +6288,44 @@ export type UnqueueFollowUpResult = z.infer<typeof UnqueueFollowUpResult>
 //
 // It preempts the TURN, not one message: the SDK opens the next turn on everything queued, so with
 // several bubbles waiting this delivers all of them, in order. The button's copy says so.
-export const DeliverQueuedNowInput = z.object({
+export const DeliverQueuedNowInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   // Same staleness guard as unqueueFollowUp: a stale tab must not preempt a re-dispatched session.
-  sessionId: z.string().min(1),
+  sessionId: "string > 0",
   // Hand over what ntwine is HOLDING for the agent's rest ("Send to queue") and stop there — no
   // interrupt. The "Send now" under a held bubble: the operator changed their mind about waiting, not
   // about interrupting, so the message goes in as the steer it would have been.
-  releaseOnly: z.boolean().optional(),
-}).strict()
-export type DeliverQueuedNowInput = z.infer<typeof DeliverQueuedNowInput>
+  "releaseOnly?": "boolean",
+})
+export type DeliverQueuedNowInput = typeof DeliverQueuedNowInput.infer
 // `interrupted:false` is an expected outcome, NOT an error: there was no live turn to preempt (the
 // daemon is gone, or the agent is already resting), and the queued message is read the ordinary way.
 // Reported rather than thrown so the surface can say which happened — the same truthfulness rule
 // UnqueueFollowUpResult is built on.
-export const DeliverQueuedNowResult = z.object({
-  interrupted: z.boolean(),
-  reason: z.string().optional(),
+export const DeliverQueuedNowResult = type({
+  "+": "reject",
+  interrupted: "boolean",
+  "reason?": "string",
   // How many messages ntwine was HOLDING for the agent's rest ("Send to queue") and has now handed over.
   // Those were never in a provider queue, so on a runtime that cannot be interrupted this is the whole
   // of what "send now" did — and it is a success the surface must not report as a refusal.
-  released: z.number().int().nonnegative().optional(),
-}).strict()
-export type DeliverQueuedNowResult = z.infer<typeof DeliverQueuedNowResult>
+  "released?": "number.integer >= 0",
+})
+export type DeliverQueuedNowResult = typeof DeliverQueuedNowResult.infer
 
 // COMPACT NOW — the button in the context meter's hover panel. Asks the thread's own harness to
 // summarize its context in place, the same act as typing `/compact` into Claude Code or codex: a
 // broker-backed Claude row is sent the literal `/compact` (the Agent SDK runs a streamed slash command
 // as a local command, recording a `compact_boundary` with trigger "manual"), and an app-server codex row
 // gets `thread/compact/start`. Refused while a turn is in flight and for every other runtime.
-export const CompactThreadInput = z.object({
+export const CompactThreadInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   // Same staleness guard as followUp: a stale tab must not compact a re-dispatched session.
-  sessionId: z.string().min(1),
-}).strict()
-export type CompactThreadInput = z.infer<typeof CompactThreadInput>
+  sessionId: "string > 0",
+})
+export type CompactThreadInput = typeof CompactThreadInput.infer
 
 /** Whether the thread's runtime gives ntwine a way to request a compaction at all — the gate the
  *  server enforces and the context meter's panel reads to decide whether to offer the button. */
@@ -6232,26 +6336,28 @@ export function threadCanCompact(thread: { backend?: string; claudeRuntime?: str
   return thread.backend === "codex" || thread.claudeRuntime === "broker"
 }
 
-export const SetThreadSnoozeInput = z.object({
+export const SetThreadSnoozeInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  sessionId: z.string().min(1),
+  sessionId: "string > 0",
   // null is the explicit "wake now"/cancel operation; presets and custom local input send UTC.
-  until: SnoozeUntil.nullable(),
+  until: SnoozeUntil.or("null"),
   // Optional scheduled follow-up. Omitted/null ⇒ a plain reminder snooze; a prompt ⇒ the thread is
   // automatically bumped with it at `until`. Always cleared together with the instant, so a wake-now
   // can never leave an armed prompt behind.
-  prompt: SnoozePrompt.nullable().optional(),
-}).strict()
-export type SetThreadSnoozeInput = z.infer<typeof SetThreadSnoozeInput>
+  "prompt?": SnoozePrompt.or("null"),
+})
+export type SetThreadSnoozeInput = typeof SetThreadSnoozeInput.infer
 
 // Pin/unpin a thread out of the rail's band system (the pinned band at the very top of the rail).
 // Session-guarded like the snooze: the verb lives on a row a stale tab may still be showing.
-export const SetThreadPinnedInput = z.object({
+export const SetThreadPinnedInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  sessionId: z.string().min(1),
-  pinned: z.boolean(),
-}).strict()
-export type SetThreadPinnedInput = z.infer<typeof SetThreadPinnedInput>
+  sessionId: "string > 0",
+  pinned: "boolean",
+})
+export type SetThreadPinnedInput = typeof SetThreadPinnedInput.infer
 
 // The recurring prompt's OPERATOR half — the Goal panel, arming and disarming in ONE call. The
 // text, the two triggers and the cadence are all views of one row, and splitting them into separate
@@ -6264,26 +6370,27 @@ export type SetThreadPinnedInput = z.infer<typeof SetThreadPinnedInput>
 // cadence parked and silent — that IS the off state, and it is why there is no `enabled` field.
 // `intervalSeconds` is required when `heartbeat` is true, because a schedule nobody chose is exactly
 // the ambiguity the minutes field exists to remove.
-export const SetThreadRecurringPromptInput = z.object({
+export const SetThreadRecurringPromptInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  sessionId: z.string().min(1),
-  prompt: RecurringPromptText.nullable(),
-  stopHook: z.boolean(),
-  heartbeat: z.boolean(),
+  sessionId: "string > 0",
+  prompt: RecurringPromptText.or("null"),
+  stopHook: "boolean",
+  heartbeat: "boolean",
   // The POST-COMPACTION trigger (scheduler SOURCE 7, added 2026-08-06). Defaulted rather than required
   // so a client that predates it — an older tab, an older MCP server — keeps writing the row correctly
   // with the trigger off, which is the honest reading of a caller that has never heard of it.
-  postCompaction: z.boolean().default(false),
-  intervalSeconds: RecurringIntervalSeconds.optional(),
+  postCompaction: "boolean = false",
+  "intervalSeconds?": RecurringIntervalSeconds,
   // The LIMITS. Omitted KEEPS what the row holds (a tab that predates them must not drop a cap the
   // worker set); `null` clears one.
-  maxRuns: GoalMaxRuns.nullable().optional(),
-  forSeconds: GoalForSeconds.nullable().optional(),
-}).strict()
-// z.input, not z.infer: `postCompaction` is `.default(false)`, so the parsed OUTPUT has it
-// required while the wire INPUT does not — and rpc-contract.ts compares the client type against
-// z.input. Inferring the output here is what made the drift gate fire.
-export type SetThreadRecurringPromptInput = z.input<typeof SetThreadRecurringPromptInput>
+  "maxRuns?": GoalMaxRuns.or("null"),
+  "forSeconds?": GoalForSeconds.or("null"),
+})
+// `inferIn`, not `infer`: `postCompaction` defaults to false, so the parsed OUTPUT has it required
+// while the wire INPUT does not — and rpc-contract.ts compares the client type against the input
+// side. Inferring the output here is what made the drift gate fire.
+export type SetThreadRecurringPromptInput = typeof SetThreadRecurringPromptInput.inferIn
 
 // The WORKER half, through `ntwinectl goal` (which POSTs the same `/rpc/*` surface the
 // board uses). A worker has no other way to keep a long effort moving — Claude Code's own in-session
@@ -6300,15 +6407,16 @@ export type SetThreadRecurringPromptInput = z.input<typeof SetThreadRecurringPro
 //
 // `prompt: null` is the explicit stop, which is how a worker ends its own loop deliberately rather than
 // by falling back on the ALLDONE sentinel.
-export const SetOwnThreadRecurringPromptInput = z.object({
+export const SetOwnThreadRecurringPromptInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  prompt: RecurringPromptText.nullable(),
-  stopHook: z.boolean(),
-  heartbeat: z.boolean(),
+  prompt: RecurringPromptText.or("null"),
+  stopHook: "boolean",
+  heartbeat: "boolean",
   // The POST-COMPACTION trigger (scheduler SOURCE 7, added 2026-08-06). Defaulted rather than required
   // so a client that predates it — an older tab, an older MCP server — keeps writing the row correctly
   // with the trigger off, which is the honest reading of a caller that has never heard of it.
-  postCompaction: z.boolean().default(false),
+  postCompaction: "boolean = false",
   /** ACCEPTED AND IGNORED. The question hold was deleted 2026-08-16 (see scheduler.ts) and no caller in
    *  this repo sends it any more — but this object is `.strict()`, and the caller on the other end is a
    *  DETACHED worker daemon holding the `ntwine-mcp.mjs` it was spawned with. Those outlive a server
@@ -6316,42 +6424,45 @@ export const SetOwnThreadRecurringPromptInput = z.object({
    *  come back as a validation error on a field the model cannot see it is sending. Tolerated here rather
    *  than in the router so the shape stays one declaration; delete it once no such worker can be running.
    *  The BROWSER input above needs no such clause — a stale tab is one reload away. */
-  pauseOnQuestions: z.boolean().optional(),
-  intervalSeconds: RecurringIntervalSeconds.optional(),
+  "pauseOnQuestions?": "boolean",
+  "intervalSeconds?": RecurringIntervalSeconds,
   // The LIMITS, as above. The `goal` tool's `start` sends both explicitly (null for "no limit"), since a
   // `start` replaces the whole Goal; an older MCP server sends neither, and keeps whatever is set.
-  maxRuns: GoalMaxRuns.nullable().optional(),
-  forSeconds: GoalForSeconds.nullable().optional(),
-}).strict()
-// z.input, not z.infer: `postCompaction` is `.default(false)`, so the parsed OUTPUT has it
-// required while the wire INPUT does not — and rpc-contract.ts compares the client type against
-// z.input. Inferring the output here is what made the drift gate fire.
-export type SetOwnThreadRecurringPromptInput = z.input<typeof SetOwnThreadRecurringPromptInput>
+  "maxRuns?": GoalMaxRuns.or("null"),
+  "forSeconds?": GoalForSeconds.or("null"),
+})
+// `inferIn`, not `infer`: `postCompaction` defaults to false, so the parsed OUTPUT has it required
+// while the wire INPUT does not — and rpc-contract.ts compares the client type against the input
+// side. Inferring the output here is what made the drift gate fire.
+export type SetOwnThreadRecurringPromptInput = typeof SetOwnThreadRecurringPromptInput.inferIn
 
 // What the write ANSWERS with: the row it just overwrote. A `start` REPLACES whatever the thread held —
 // including text the HUMAN edited in the Goal panel — and the writer could not previously see what it
 // destroyed. Returning the superseded row lets the command say so in the same breath, so a blind overwrite
 // is at least a REPORTED one. `null` when the thread held nothing.
-export const SetOwnThreadRecurringPromptResult = z.object({
-  replaced: ThreadRecurringPrompt.nullable(),
-}).strict()
-export type SetOwnThreadRecurringPromptResult = z.infer<typeof SetOwnThreadRecurringPromptResult>
+export const SetOwnThreadRecurringPromptResult = type({
+  "+": "reject",
+  replaced: ThreadRecurringPrompt.or("null"),
+})
+export type SetOwnThreadRecurringPromptResult = typeof SetOwnThreadRecurringPromptResult.infer
 
 // The READ half, from `ntwinectl goal get`. Without it a worker can only
 // write: it cannot tell whether it is armed at all, what text it armed before its context was compacted
 // away, or whether the human has since edited it in the Goal panel. Same caller rules as the write above —
 // keyed on the slug alone, and no thread parameter a model could aim at anyone else's row.
-export const GetOwnThreadRecurringPromptInput = z.object({
+export const GetOwnThreadRecurringPromptInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-}).strict()
-export type GetOwnThreadRecurringPromptInput = z.infer<typeof GetOwnThreadRecurringPromptInput>
+})
+export type GetOwnThreadRecurringPromptInput = typeof GetOwnThreadRecurringPromptInput.infer
 
 // `null` — rather than an omitted field — because "nothing is armed" is the answer a worker most needs
 // to be able to tell apart from "this server is too old to know", which arrives as an HTTP 404 instead.
-export const OwnThreadRecurringPromptResult = z.object({
-  recurringPrompt: ThreadRecurringPrompt.nullable(),
-}).strict()
-export type OwnThreadRecurringPromptResult = z.infer<typeof OwnThreadRecurringPromptResult>
+export const OwnThreadRecurringPromptResult = type({
+  "+": "reject",
+  recurringPrompt: ThreadRecurringPrompt.or("null"),
+})
+export type OwnThreadRecurringPromptResult = typeof OwnThreadRecurringPromptResult.infer
 
 // ---- THE ONE-OFF TIMER's three worker procedures -------------------------------------------------
 // Same caller and therefore the same rules as the recurring prompt above: no session guard (the MCP
@@ -6360,94 +6471,103 @@ export type OwnThreadRecurringPromptResult = z.infer<typeof OwnThreadRecurringPr
 // `fireAt` is an exact UTC instant, resolved by the TOOL from whichever of "in N seconds" / "at this
 // instant" the worker gave it — one representation reaches the server, so the row, the trailer and the
 // scheduler all name the same string.
-export const SetOwnThreadTimerInput = z.object({
+export const SetOwnThreadTimerInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   prompt: TimerPromptText,
   fireAt: SnoozeUntil,
-}).strict()
-export type SetOwnThreadTimerInput = z.infer<typeof SetOwnThreadTimerInput>
+})
+export type SetOwnThreadTimerInput = typeof SetOwnThreadTimerInput.infer
 
-export const CancelOwnThreadTimerInput = z.object({
+export const CancelOwnThreadTimerInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  id: z.string().min(1).max(64),
-}).strict()
-export type CancelOwnThreadTimerInput = z.infer<typeof CancelOwnThreadTimerInput>
+  id: "1 <= string <= 64",
+})
+export type CancelOwnThreadTimerInput = typeof CancelOwnThreadTimerInput.infer
 
-export const ListOwnThreadTimersInput = z.object({
+export const ListOwnThreadTimersInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-}).strict()
-export type ListOwnThreadTimersInput = z.infer<typeof ListOwnThreadTimersInput>
+})
+export type ListOwnThreadTimersInput = typeof ListOwnThreadTimersInput.infer
 
 // Every one of the three answers with the thread's CURRENT armed set, so a worker never has to make a
 // second call to see what it now holds — and so a `set` that lands while an earlier timer is still armed
 // shows both.
-export const OwnThreadTimersResult = z.object({
-  timers: z.array(ThreadTimerView),
-}).strict()
-export type OwnThreadTimersResult = z.infer<typeof OwnThreadTimersResult>
+export const OwnThreadTimersResult = type({
+  "+": "reject",
+  timers: ThreadTimerView.array(),
+})
+export type OwnThreadTimersResult = typeof OwnThreadTimersResult.infer
 
 // ---- THE ACTIVITY READOUT -------------------------------------------------------------------------
 // EVERY kind of background work a thread has out, with the id the awaiting fence names it by, in ONE
 // call. The fence is structural — it references things by id — so a worker that has lost its ids (a
 // compaction, a long turn, a wake it did not expect) cannot write a correct fence at all. This is how it
 // gets them back, and it is the same list the sign-off nudge prints, so the two can never disagree.
-export const ThreadActivityItem = z.object({
-  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command", "terminal"]),
+export const ThreadActivityItem = type({
+  "+": "reject",
+  kind: "'shell' | 'agent' | 'timer' | 'pr' | 'thread' | 'command' | 'terminal'",
   /** The string a `<kind>:` fence line must carry. For a shell that is the runtime task id the worker
    *  was shown; for a PR, `owner/repo#N`; for a timer, its `tmr_…` row id; for a thread this one awaits a
    *  reply from, its `@handle`. */
-  id: z.string(),
-  label: z.string(),
+  id: "string",
+  label: "string",
   /** ISO8601 of when it started or was armed — absent when ntwine has no instant for it. */
-  since: z.string().optional(),
+  "since?": "string",
   /** A timer's fire instant, or a PR's expiry. Absent for shells and sub-agents. */
-  until: z.string().optional(),
+  "until?": "string",
   /** The `wch_…` id of the REGISTERED WATCH holding this item, when the worker armed one — so a readout
    *  that exists to hand ids back also hands back the one `unwatch` takes. A separate ROW per watch was
    *  the alternative and it would list the same shell twice, which is exactly the duplication that put
    *  two sub-agents under a "Background shells" heading. */
-  watchId: z.string().optional(),
+  "watchId?": "string",
   /** A SUB-AGENT's `thread.subAgent` address (thread-handle.ts), so the worker names it in its prose the
    *  way the board shows it — as a link the human can click — rather than as "a sub-agent". */
-  address: z.string().optional(),
+  "address?": "string",
   /** A SHELL's runtime-budget deadline (ISO8601) — when ntwine warns about it and, unextended, stops it
    *  ten minutes later. Its own field rather than `until`, which reads as "fires at" everywhere else. */
-  budgetEndsAt: z.string().optional(),
-}).strict()
-export type ThreadActivityItem = z.infer<typeof ThreadActivityItem>
+  "budgetEndsAt?": "string",
+})
+export type ThreadActivityItem = typeof ThreadActivityItem.infer
 
-export const ListOwnThreadActivityInput = z.object({
+export const ListOwnThreadActivityInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-}).strict()
-export type ListOwnThreadActivityInput = z.infer<typeof ListOwnThreadActivityInput>
+})
+export type ListOwnThreadActivityInput = typeof ListOwnThreadActivityInput.infer
 
-export const OwnThreadActivityResult = z.object({
+export const OwnThreadActivityResult = type({
+  "+": "reject",
   /** This thread's own handle — the head of every sub-agent address above, and what other threads call it. */
-  handle: z.string().optional(),
-  activity: z.array(ThreadActivityItem),
-  links: z.array(ThreadLinkView).optional(),
+  "handle?": "string",
+  activity: ThreadActivityItem.array(),
+  "links?": ThreadLinkView.array(),
   /** Every question still owed an answer. NOT a `ThreadActivityItem` and deliberately its own list: a
    *  question is not running work, it waits on a PERSON, and holds the thread by itself until it is
    *  answered or withdrawn — never an item a fence waits on. Until 2026-08-28 a worker could read its open questions back only
    *  as a side effect of `ask` (which registers another) or `unask` (which withdraws one) — so the ids
    *  that block `done` were readable only by mutating something (maintainer: "Is there a way for the
    *  agent to read out the current set of watchers and questions?"). */
-  questions: z.array(RegisteredQuestionView).default([]),
-}).strict()
-export type OwnThreadActivityResult = z.infer<typeof OwnThreadActivityResult>
+  questions: RegisteredQuestionView.array().default(() => []),
+})
+export type OwnThreadActivityResult = typeof OwnThreadActivityResult.infer
 
-export const SetOwnThreadTimerResult = z.object({
-  id: z.string(),
-  fireAt: z.string(),
-  timers: z.array(ThreadTimerView),
-}).strict()
-export type SetOwnThreadTimerResult = z.infer<typeof SetOwnThreadTimerResult>
+export const SetOwnThreadTimerResult = type({
+  "+": "reject",
+  id: "string",
+  fireAt: "string",
+  timers: ThreadTimerView.array(),
+})
+export type SetOwnThreadTimerResult = typeof SetOwnThreadTimerResult.infer
 
-export const CancelOwnThreadTimerResult = z.object({
-  cancelled: z.boolean(),
-  timers: z.array(ThreadTimerView),
-}).strict()
-export type CancelOwnThreadTimerResult = z.infer<typeof CancelOwnThreadTimerResult>
+export const CancelOwnThreadTimerResult = type({
+  "+": "reject",
+  cancelled: "boolean",
+  timers: ThreadTimerView.array(),
+})
+export type CancelOwnThreadTimerResult = typeof CancelOwnThreadTimerResult.infer
 
 // ---- The SUPERSEDED worker shapes, kept alive for MCP servers already in flight -----------------
 //
@@ -6465,32 +6585,35 @@ export type CancelOwnThreadTimerResult = z.infer<typeof CancelOwnThreadTimerResu
 // live worker silently losing a capability mid-effort.
 //
 // The trigger each one owns is fixed: the stop hook was the ON-REST feature.
-export const SetOwnThreadStopHookInput = z.object({
+export const SetOwnThreadStopHookInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  prompt: RecurringPromptText.nullable(),
-  enabled: z.boolean(),
-}).strict()
-export type SetOwnThreadStopHookInput = z.infer<typeof SetOwnThreadStopHookInput>
+  prompt: RecurringPromptText.or("null"),
+  enabled: "boolean",
+})
+export type SetOwnThreadStopHookInput = typeof SetOwnThreadStopHookInput.infer
 
 // The heartbeat was the ON-SCHEDULE feature. This covers BOTH of its generations: the older one (posted
 // as `setThreadHeartbeat`) carried no `enabled` field and signalled its stop with `prompt: null` alone,
 // which is why `enabled` is optional here rather than required.
-export const SetOwnThreadHeartbeatInput = z.object({
+export const SetOwnThreadHeartbeatInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  prompt: RecurringPromptText.nullable(),
-  intervalSeconds: RecurringIntervalSeconds.optional(),
-  enabled: z.boolean().optional(),
-}).strict()
-export type SetOwnThreadHeartbeatInput = z.infer<typeof SetOwnThreadHeartbeatInput>
+  prompt: RecurringPromptText.or("null"),
+  "intervalSeconds?": RecurringIntervalSeconds,
+  "enabled?": "boolean",
+})
+export type SetOwnThreadHeartbeatInput = typeof SetOwnThreadHeartbeatInput.infer
 
 // A human-authored display title for a registered session. Trimming happens at the RPC boundary so
 // storage never has to distinguish whitespace-only names from real intent; the web input mirrors the
 // same cap. This is metadata-only and therefore works identically for Claude and Codex sessions.
-export const RenameThreadInput = z.object({
+export const RenameThreadInput = type({
+  "+": "delete",
   slug: ThreadSlug,
-  title: z.string().trim().min(1).max(200),
+  title: "string.trim |> 1 <= string <= 200",
 })
-export type RenameThreadInput = z.infer<typeof RenameThreadInput>
+export type RenameThreadInput = typeof RenameThreadInput.infer
 
 // THE WORKER NAMING ITS OWN THREAD, from `ntwinectl title`. Both backends get a name automatically at
 // spawn — Claude from the provider's own titler, Codex from the first-line `<!-- ntwine title="…" -->`
@@ -6507,61 +6630,65 @@ export type RenameThreadInput = z.infer<typeof RenameThreadInput>
 // still outranks it. Unguarded on session/generation for `SetOwnThreadRecurringPromptInput`'s reasons:
 // the MCP server knows only the slug ntwine stamped into its env, and a model chooses the TEXT, never
 // the thread.
-export const SetOwnThreadTitleInput = z.object({
+export const SetOwnThreadTitleInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  title: z.string().trim().min(1).max(200),
-}).strict()
-export type SetOwnThreadTitleInput = z.infer<typeof SetOwnThreadTitleInput>
+  title: "string.trim |> 1 <= string <= 200",
+})
+export type SetOwnThreadTitleInput = typeof SetOwnThreadTitleInput.infer
 
 // ONE THREAD READING OR MESSAGING ANOTHER, BY HANDLE (thread-handle.ts). `slug` is the CALLER, stamped
 // into the worker's MCP env exactly as for `title`; `handle` is the other thread's kebab-case name as the
 // board shows it — `shell-budgets`, with or without the `@`, in any casing.
-export const ReadThreadInput = z.object({
+export const ReadThreadInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  handle: z.string().trim().min(1).max(200),
-}).strict()
-export type ReadThreadInput = z.infer<typeof ReadThreadInput>
+  handle: "string.trim |> 1 <= string <= 200",
+})
+export type ReadThreadInput = typeof ReadThreadInput.infer
 
 // Either the thread, or — when the handle names none — the handles that DO exist, so the worker can
 // correct a typo without a second lookup.
-export const ReadThreadResult = z.object({
-  found: z.boolean(),
-  handle: z.string().optional(),
-  slug: z.string().optional(),
-  state: z.enum(["running", "resting", "done"]).optional(),
-  status: z.string().optional(),
-  request: z.string().optional(),
-  latest: z.string().optional(),
-  latestAt: z.string().optional(),
+export const ReadThreadResult = type({
+  "+": "reject",
+  found: "boolean",
+  "handle?": "string",
+  "slug?": "string",
+  "state?": "'running' | 'resting' | 'done'",
+  "status?": "string",
+  "request?": "string",
+  "latest?": "string",
+  "latestAt?": "string",
   /** Up to three assistant messages BEFORE the newest, oldest first — the thread's approach and progress,
    *  which the newest message alone (often a terse handoff) does not carry. */
-  earlier: z.array(z.string()).optional(),
-  editedFiles: z.array(z.string()).optional(),
-  known: z.array(z.string()).optional(),
+  "earlier?": "string[]",
+  "editedFiles?": "string[]",
+  "known?": "string[]",
   /** Set when the handle named a SUB-AGENT (`thread.subAgent`): the handle of the thread it belongs to.
    *  `state` is then the child's own — "done" once it has returned — and `outcome` how it ended. */
-  subAgentOf: z.string().optional(),
-  outcome: z.enum(["completed", "failed", "killed"]).optional(),
+  "subAgentOf?": "string",
+  "outcome?": "'completed' | 'failed' | 'killed'",
   /** Set when the thread is in ANOTHER open project than the caller's (a handle the caller's own project
    *  does not carry): that project's name. */
-  project: z.string().optional(),
+  "project?": "string",
   /** Set when the handle named a TERMINAL THREAD: what it runs, where, how it stands, who started it — and
    *  `screen`, the tail of its screen with escape sequences dropped. `state` is then `running` while it
    *  moves, `resting` at a prompt or after a failure or an interruption, `done` once Done. */
-  terminal: z.object({
-    command: z.string(),
-    cwd: z.string(),
-    outcome: z.enum(["running", "prompt", "failed", "interrupted", "finished"]),
-    exitCode: z.number().int().optional(),
-    startedBy: z.string().optional(),
+  "terminal?": {
+    "+": "reject",
+    command: "string",
+    cwd: "string",
+    outcome: "'running' | 'prompt' | 'failed' | 'interrupted' | 'finished'",
+    "exitCode?": "number.integer",
+    "startedBy?": "string",
     /** Who types into it: `human` or the driving thread's handle; `driving` when that is the caller. */
-    controller: z.string().optional(),
-    driving: z.boolean().optional(),
-    parent: z.string().optional(),
-    screen: z.string(),
-  }).strict().optional(),
-}).strict()
-export type ReadThreadResult = z.infer<typeof ReadThreadResult>
+    "controller?": "string",
+    "driving?": "boolean",
+    "parent?": "string",
+    screen: "string",
+  },
+})
+export type ReadThreadResult = typeof ReadThreadResult.infer
 
 // A THREAD'S SUB-AGENTS, EVERY ONE IT EVER DISPATCHED — live first, then the finished ones newest first
 // (the `subAgentDirectory` RPC). The board's `subAgents` is the LIVE list only; a child that has returned
@@ -6570,87 +6697,94 @@ export type ReadThreadResult = z.infer<typeof ReadThreadResult>
 // directory is read from there rather than kept by ntwine. It is what `@thread.` completes against in the
 // prompt box, and what a `@thread.subAgent` mention opens — after the child has returned as well as while
 // it runs (shared thread-handle.ts for the address itself).
-export const SubAgentDirectoryEntry = z.object({
+export const SubAgentDirectoryEntry = type({
+  "+": "reject",
   /** The drill-in id — what `subAgentTranscript` and the sub-agent drawer take. */
-  id: z.string(),
+  id: "string",
   /** The dispatch name as written (`description`, or a Workflow agent's `label`). */
-  label: z.string(),
+  label: "string",
   /** Its full `thread.subAgent` address without the `@`, when every link down to it has a handle. */
-  address: z.string().optional(),
+  "address?": "string",
   /** The drill-in id of the sub-agent that dispatched it; absent for the thread's own children. */
-  parentId: z.string().optional(),
-  depth: z.number().int().min(1),
-  state: z.enum(["running", "stale", "rested", "done"]),
-  outcome: z.enum(["completed", "failed", "killed"]).optional(),
-  startedAt: z.string().optional(),
-  finishedAt: z.string().optional(),
-  workflow: z.boolean().optional(),
-  subagentType: z.string().optional(),
-}).strict()
-export type SubAgentDirectoryEntry = z.infer<typeof SubAgentDirectoryEntry>
+  "parentId?": "string",
+  depth: "number.integer >= 1",
+  state: "'running' | 'stale' | 'rested' | 'done'",
+  "outcome?": "'completed' | 'failed' | 'killed'",
+  "startedAt?": "string",
+  "finishedAt?": "string",
+  "workflow?": "boolean",
+  "subagentType?": "string",
+})
+export type SubAgentDirectoryEntry = typeof SubAgentDirectoryEntry.infer
 
-export const SubAgentDirectory = z.object({
+export const SubAgentDirectory = type({
+  "+": "reject",
   /** The thread's own handle, the head of every address below; absent when its name has none. */
-  threadHandle: z.string().optional(),
-  agents: z.array(SubAgentDirectoryEntry),
-}).strict()
-export type SubAgentDirectory = z.infer<typeof SubAgentDirectory>
+  "threadHandle?": "string",
+  agents: SubAgentDirectoryEntry.array(),
+})
+export type SubAgentDirectory = typeof SubAgentDirectory.infer
 
-export const MessageThreadInput = z.object({
+export const MessageThreadInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  handle: z.string().trim().min(1).max(200),
-  message: z.string().trim().min(1).max(20_000),
+  handle: "string.trim |> 1 <= string <= 200",
+  message: "string.trim |> 1 <= string <= 20000",
   /** Register a wait on the other thread's answer. The registration is a one-off TIMER on the sender (it
    *  blocks `done` and is what a `threads:` fence entry is checked against) that the ANSWER cancels. It
    *  does not park the sender: the rest that follows ends with an ```awaiting fence naming the thread
    *  under `threads:`, whose `for:` is the timeout, as on every park. */
-  awaitReply: z.boolean().optional(),
+  "awaitReply?": "boolean",
   /** RETIRED, and ignored: the wait's own timeout, which only duplicated the fence's `for:`. Still
    *  accepted because a worker's MCP server outlives a server upgrade and may still send it. */
-  for: z.string().trim().min(1).max(16).optional(),
-}).strict()
-export type MessageThreadInput = z.infer<typeof MessageThreadInput>
+  "for?": "string.trim |> 1 <= string <= 16",
+})
+export type MessageThreadInput = typeof MessageThreadInput.infer
 
-export const MessageThreadResult = z.object({
-  sent: z.boolean(),
-  handle: z.string().optional(),
-  from: z.string().optional(),
+export const MessageThreadResult = type({
+  "+": "reject",
+  sent: "boolean",
+  "handle?": "string",
+  "from?": "string",
   /** The `tmr_…` id of the reply wait, when `awaitReply` armed one, and when the registration lapses. */
-  timerId: z.string().optional(),
-  waitUntil: z.string().optional(),
+  "timerId?": "string",
+  "waitUntil?": "string",
   /** A reply wait on the RECIPIENT's side that this message answered, now settled. */
-  answered: z.boolean().optional(),
-  refusal: z.string().optional(),
-  known: z.array(z.string()).optional(),
+  "answered?": "boolean",
+  "refusal?": "string",
+  "known?": "string[]",
   /** Set when the recipient is in ANOTHER open project than the sender's: that project's name. */
-  project: z.string().optional(),
+  "project?": "string",
   /** `mailbox`: the recipient is a running SUB-AGENT (`@thread.child`), which reads it after its next tool call. */
   /** `mailbox`: a sub-agent's, read after its next tool call. `terminal`: typed into a terminal thread's pty,
    *  followed by Enter; its answer is on its screen. */
-  delivery: z.enum(["mailbox", "terminal"]).optional(),
-}).strict()
-export type MessageThreadResult = z.infer<typeof MessageThreadResult>
+  "delivery?": "'mailbox' | 'terminal'",
+})
+export type MessageThreadResult = typeof MessageThreadResult.infer
 
 // What the write answers with: whether it landed, and the name the thread carries NOW. A refusal is not
 // an error — a human who has renamed the thread owns its name — so it comes back as a flag the command can
 // explain rather than a throw the model will retry. `refusal` says why in words the worker can act on:
 // another open thread already holds the name (named, so it can pick a different subject), the name is
 // longer than two words, or the thread already has a name (thread-names.ts).
-export const SetOwnThreadTitleResult = z.object({
-  accepted: z.boolean(),
-  title: z.string(),
-  lockedByHuman: z.boolean(),
-  refusal: z.string().optional(),
-}).strict()
-export type SetOwnThreadTitleResult = z.infer<typeof SetOwnThreadTitleResult>
+export const SetOwnThreadTitleResult = type({
+  "+": "reject",
+  accepted: "boolean",
+  title: "string",
+  lockedByHuman: "boolean",
+  "refusal?": "string",
+})
+export type SetOwnThreadTitleResult = typeof SetOwnThreadTitleResult.infer
 
-export const SetThreadPermissionInput = z.object({
+export const SetThreadPermissionInput = type({
+  "+": "delete",
   slug: ThreadSlug,
   permissionMode: PermissionMode,
 })
-export type SetThreadPermissionInput = z.infer<typeof SetThreadPermissionInput>
+export type SetThreadPermissionInput = typeof SetThreadPermissionInput.infer
 
-export const SetThreadPermissionResult = z.object({
+export const SetThreadPermissionResult = type({
+  "+": "delete",
   // "next-turn" is the Codex mid-turn answer: `thread/settings/update` ACCEPTS a sandbox change while a
   // turn is running, but the running turn keeps the policy it started with (verified live — a turn that
   // attempted a write after the flip to danger-full-access was still refused). So the change is real and
@@ -6661,17 +6795,18 @@ export const SetThreadPermissionResult = z.object({
   // flag there, so ntwine retires the idle worker process and the next turn cold-resumes under the new
   // one (router `setThreadPermission`). Same promise to the operator — stored, and true from the next
   // turn on — reached by restarting rather than by retuning.
-  effect: z.enum(["applied", "next-turn", "next-resume"]),
+  effect: "'applied' | 'next-turn' | 'next-resume'",
 })
-export type SetThreadPermissionResult = z.infer<typeof SetThreadPermissionResult>
+export type SetThreadPermissionResult = typeof SetThreadPermissionResult.infer
 
-export const ThreadProfileOptionsInput = z.object({ slug: ThreadSlug }).strict()
-export type ThreadProfileOptionsInput = z.infer<typeof ThreadProfileOptionsInput>
-export const ThreadProfileOptionsResult = z.object({
+export const ThreadProfileOptionsInput = type({ "+": "reject", slug: ThreadSlug })
+export type ThreadProfileOptionsInput = typeof ThreadProfileOptionsInput.infer
+export const ThreadProfileOptionsResult = type({
+  "+": "delete",
   backend: Backend,
-  options: z.array(ThreadProfileOption),
+  options: ThreadProfileOption.array(),
 })
-export type ThreadProfileOptionsResult = z.infer<typeof ThreadProfileOptionsResult>
+export type ThreadProfileOptionsResult = typeof ThreadProfileOptionsResult.infer
 
 // The thread's invocable skills — and, on Claude, the built-in slash commands an ntwine thread can run —
 // for the composer's `/` typeahead. Always the HARNESS's own list —
@@ -6686,25 +6821,27 @@ export type ThreadProfileOptionsResult = z.infer<typeof ThreadProfileOptionsResu
 // a scope ntwine has no mapping for must degrade to an unlabelled row rather than to a wrong label.
 // `ntwine` is never a harness's answer: it labels a USER COMMAND written in ntwine's own editor, which the
 // composer offers in the same menu (UserCommand below).
-export const ThreadSkillSource = z.enum(["project", "user", "builtin", "plugin", "ntwine"])
-export type ThreadSkillSource = z.infer<typeof ThreadSkillSource>
-export const ThreadSkill = z.object({
-  name: z.string().min(1).max(512),
-  description: z.string().max(1024),
-  source: ThreadSkillSource.optional(),
+export const THREAD_SKILL_SOURCES = ["project", "user", "builtin", "plugin", "ntwine"] as const
+export const ThreadSkillSource = type.enumerated(...THREAD_SKILL_SOURCES)
+export type ThreadSkillSource = typeof ThreadSkillSource.infer
+export const ThreadSkill = type({
+  "+": "reject",
+  name: "1 <= string <= 512",
+  description: "string <= 1024",
+  "source?": ThreadSkillSource,
   // A built-in COMMAND (`/context`, `/usage`) rather than a skill. Claude runs a command only when it
   // OPENS the message — mid-sentence it is plain text — so the composer offers these at the start of a
   // draft alone, where a skill is offered at any word boundary.
-  command: z.literal(true).optional(),
-}).strict()
-export type ThreadSkill = z.infer<typeof ThreadSkill>
+  "command?": "true",
+})
+export type ThreadSkill = typeof ThreadSkill.infer
 
-export const ThreadSkillsInput = z.object({ slug: ThreadSlug }).strict()
-export type ThreadSkillsInput = z.infer<typeof ThreadSkillsInput>
+export const ThreadSkillsInput = type({ "+": "reject", slug: ThreadSlug })
+export type ThreadSkillsInput = typeof ThreadSkillsInput.infer
 // `stale`: the thread's session is not running, so this is the last list it (or, failing that, another
 // thread of its project) gave — shown, but asked again rather than cached.
-export const ThreadSkillsResult = z.object({ skills: z.array(ThreadSkill).max(1024), stale: z.boolean().optional() }).strict()
-export type ThreadSkillsResult = z.infer<typeof ThreadSkillsResult>
+export const ThreadSkillsResult = type({ "+": "reject", skills: ThreadSkill.array().atMostLength(1024), "stale?": "boolean" })
+export type ThreadSkillsResult = typeof ThreadSkillsResult.infer
 
 // USER SLASH COMMANDS — a markdown file whose body is a prompt, invoked by its file name (`commit.md` is
 // `/commit`). The same format Claude Code and Cursor read: an optional frontmatter block carrying
@@ -6717,38 +6854,41 @@ export type ThreadSkillsResult = z.infer<typeof ThreadSkillsResult>
 //
 // NTWINE expands them, not the harness, so `/commit` means the same thing on a Claude, Codex or ACP
 // thread — see expandUserCommand.
-export const UserCommandSource = z.enum(["ntwine", "project", "global"])
-export type UserCommandSource = z.infer<typeof UserCommandSource>
+export const UserCommandSource = type("'ntwine' | 'project' | 'global'")
+export type UserCommandSource = typeof UserCommandSource.infer
 // A file name is a command name: what can follow a `/` and survive every filesystem.
-export const UserCommandName = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/, "Use letters, digits, '-', '_', '.' or ':' (up to 64), starting with a letter or digit")
-export const UserCommand = z.object({
+export const UserCommandName = type("/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/")
+export const UserCommand = type({
+  "+": "reject",
   name: UserCommandName,
-  description: z.string().max(1024),
-  argumentHint: z.string().max(256).optional(),
-  body: z.string().max(64 * 1024),
+  description: "string <= 1024",
+  "argumentHint?": "string <= 256",
+  body: "string <= 65536",
   source: UserCommandSource,
-  path: z.string(),
-}).strict()
-export type UserCommand = z.infer<typeof UserCommand>
-export const UserCommandsResult = z.object({
-  commands: z.array(UserCommand).max(1024),
+  path: "string",
+})
+export type UserCommand = typeof UserCommand.infer
+export const UserCommandsResult = type({
+  "+": "reject",
+  commands: UserCommand.array().atMostLength(1024),
   // Where a new ntwine command is written, for the editor to say.
-  ntwineDir: z.string(),
-}).strict()
-export type UserCommandsResult = z.infer<typeof UserCommandsResult>
-export const SaveUserCommandInput = z.object({
+  ntwineDir: "string",
+})
+export type UserCommandsResult = typeof UserCommandsResult.infer
+export const SaveUserCommandInput = type({
+  "+": "reject",
   name: UserCommandName,
-  description: z.string().max(1024),
-  argumentHint: z.string().max(256).optional(),
-  body: z.string().min(1).max(64 * 1024),
+  description: "string <= 1024",
+  "argumentHint?": "string <= 256",
+  body: "1 <= string <= 65536",
   // Set when an edit RENAMES a command: that file is removed once the new one is written.
-  previousName: UserCommandName.optional(),
-}).strict()
-export type SaveUserCommandInput = z.infer<typeof SaveUserCommandInput>
+  "previousName?": UserCommandName,
+})
+export type SaveUserCommandInput = typeof SaveUserCommandInput.infer
 // `source` names the folder the file is removed from; a project's or the machine-wide one is deleted on
 // the operator's say-so in Settings, so every tool reading that folder loses the command too.
-export const DeleteUserCommandInput = z.object({ name: UserCommandName, source: UserCommandSource }).strict()
-export type DeleteUserCommandInput = z.infer<typeof DeleteUserCommandInput>
+export const DeleteUserCommandInput = type({ "+": "reject", name: UserCommandName, source: UserCommandSource })
+export type DeleteUserCommandInput = typeof DeleteUserCommandInput.infer
 
 // The text a user command is DELIVERED as. Not a `<ntwine-…>` tag: that prefix marks ntwine's own
 // plumbing, which every transcript drops (NOISE_PREFIXES), and this is the human's message. The prompt goes to the agent wrapped in a tag naming the
@@ -6815,26 +6955,28 @@ export function userCommandDisplayText(text: string): string | undefined {
   return after.trim() ? `${typed}${after}` : typed
 }
 
-export const SetThreadProfileInput = z.object({
+export const SetThreadProfileInput = type({
+  "+": "reject",
   slug: ThreadSlug,
-  model: z.string().trim().min(1).max(200),
+  model: "string.trim |> 1 <= string <= 200",
   // Absent ONLY for an ACP thread, whose model slug (`acp:<agent>@<model>`) carries no effort axis; the
   // router refuses a Claude/Codex profile without one rather than storing "".
-  effort: z.string().trim().min(1).max(100).optional(),
-}).strict()
-export type SetThreadProfileInput = z.infer<typeof SetThreadProfileInput>
-export const SetThreadProfileResult = z.object({
-  effect: z.enum(["applied", "next-resume"]),
+  "effort?": "string.trim |> 1 <= string <= 100",
 })
-export type SetThreadProfileResult = z.infer<typeof SetThreadProfileResult>
+export type SetThreadProfileInput = typeof SetThreadProfileInput.infer
+export const SetThreadProfileResult = type({
+  "+": "delete",
+  effect: "'applied' | 'next-resume'",
+})
+export type SetThreadProfileResult = typeof SetThreadProfileResult.infer
 
 // Move a Claude thread onto the newer edition of its family that the pinned runtime resolves (ThreadView
 // `modelUpgrade`). Always `next-turn`: the worker process is retired and the next turn starts in a fresh
 // one, on the current pin.
-export const UpgradeThreadModelInput = z.object({ slug: ThreadSlug, sessionId: z.string().min(1) }).strict()
-export type UpgradeThreadModelInput = z.infer<typeof UpgradeThreadModelInput>
-export const UpgradeThreadModelResult = z.object({ effect: z.literal("next-turn"), label: z.string() })
-export type UpgradeThreadModelResult = z.infer<typeof UpgradeThreadModelResult>
+export const UpgradeThreadModelInput = type({ "+": "reject", slug: ThreadSlug, sessionId: "string > 0" })
+export type UpgradeThreadModelInput = typeof UpgradeThreadModelInput.infer
+export const UpgradeThreadModelResult = type({ "+": "delete", effect: "'next-turn'", label: "string" })
+export type UpgradeThreadModelResult = typeof UpgradeThreadModelResult.infer
 
 // ---- DISPATCH TASK BANNER (composer ↔ transcript) -------------------------------------------------
 // The loud fence ntwine puts between its own dispatch orientation and the human operator's prompt. It is
@@ -7384,21 +7526,23 @@ export function parseThreadMessage(text: string): { from: string; project?: stri
 
 // Zod rather than a bare interface because the SERVER hands the parsed steer to the chat on the
 // transcript message (TranscriptMessage.wakeSteer), so it has to survive wire validation.
-export const GithubWakeItem = z.object({
-  label: z.string(), // the activity's noun ("comment", "approval", "change request", …)
-  actor: z.string(), // GitHub login, no leading @
-  bot: z.boolean(), // drives the 🤖/👤 icon; an app files most of what wakes this watcher
-  at: z.string().optional(), // ISO8601
-  url: z.string().optional(), // the item's own permalink
+export const GithubWakeItem = type({
+  "+": "delete",
+  label: "string", // the activity's noun ("comment", "approval", "change request", …)
+  actor: "string", // GitHub login, no leading @
+  bot: "boolean", // drives the 🤖/👤 icon; an app files most of what wakes this watcher
+  "at?": "string", // ISO8601
+  "url?": "string", // the item's own permalink
 })
-export type GithubWakeItem = z.infer<typeof GithubWakeItem>
+export type GithubWakeItem = typeof GithubWakeItem.infer
 
-export const GithubWakeSteer = z.object({
-  ref: z.string(), // owner/repo#N
-  items: z.array(GithubWakeItem),
-  omitted: z.number(), // fresh items counted but not named (the enumeration cap)
+export const GithubWakeSteer = type({
+  "+": "delete",
+  ref: "string", // owner/repo#N
+  items: GithubWakeItem.array(),
+  omitted: "number", // fresh items counted but not named (the enumeration cap)
 })
-export type GithubWakeSteer = z.infer<typeof GithubWakeSteer>
+export type GithubWakeSteer = typeof GithubWakeSteer.infer
 
 const WAKE_SCOPE = "ignore older activity you have already handled"
 
@@ -7655,13 +7799,14 @@ export function parsePrWatchWake(text: string): PrWatchWake | null {
 // The server's gh-CLI availability signal. `installed`/`inRepo`/`nameWithOwner` are STABLE for the
 // process lifetime (resolved once at boot); `authed` can flip mid-session (the user runs
 // `gh auth login`) so it is re-checked live on each githubStatus query.
-export const GithubStatus = z.object({
-  installed: z.boolean(),
-  inRepo: z.boolean(),
-  nameWithOwner: z.string().nullable(),
-  authed: z.boolean(),
+export const GithubStatus = type({
+  "+": "delete",
+  installed: "boolean",
+  inRepo: "boolean",
+  nameWithOwner: "string | null",
+  authed: "boolean",
 })
-export type GithubStatus = z.infer<typeof GithubStatus>
+export type GithubStatus = typeof GithubStatus.infer
 
 // ── Hovercards for the GitHub references autolinked into prose ───────────────────────────────────
 //
@@ -7673,50 +7818,53 @@ export type GithubStatus = z.infer<typeof GithubStatus>
 // `ref` is the canonical key both sides cache on — `owner/repo#123` for an issue or PR,
 // `owner/repo@<sha>` for a commit — and it is echoed back so a batched response can be matched to
 // its request without positional assumptions.
-export const GithubRefCard = z.object({
-  ref: z.string(),
-  kind: z.enum(["issue", "pr", "commit"]),
-  repo: z.string(), // owner/repo, for the card's header line
-  url: z.string(),
-  title: z.string(),
-  body: z.string(), // already truncated server-side to the card's excerpt budget
-  state: z.string(), // OPEN | CLOSED | MERGED | DRAFT — empty for a commit, which has no state
-  stateReason: z.string().optional(), // COMPLETED | NOT_PLANNED | REOPENED — GitHub's closed-issue nuance
-  at: z.string().optional(), // ISO: opened-at for an issue/PR, committed-at for a commit
-  authorLogin: z.string().optional(),
-  authorName: z.string().optional(), // commits carry a git author name with no GitHub account behind it
-  authorAvatar: z.string().optional(),
-  labels: z.array(z.object({ name: z.string(), color: z.string() })).default([]),
-  additions: z.number().int().nonnegative().optional(),
-  deletions: z.number().int().nonnegative().optional(),
-  changedFiles: z.number().int().nonnegative().optional(),
-  comments: z.number().int().nonnegative().optional(),
+export const GithubRefCard = type({
+  "+": "delete",
+  ref: "string",
+  kind: "'issue' | 'pr' | 'commit'",
+  repo: "string", // owner/repo, for the card's header line
+  url: "string",
+  title: "string",
+  body: "string", // already truncated server-side to the card's excerpt budget
+  state: "string", // OPEN | CLOSED | MERGED | DRAFT — empty for a commit, which has no state
+  "stateReason?": "string", // COMPLETED | NOT_PLANNED | REOPENED — GitHub's closed-issue nuance
+  "at?": "string", // ISO: opened-at for an issue/PR, committed-at for a commit
+  "authorLogin?": "string",
+  "authorName?": "string", // commits carry a git author name with no GitHub account behind it
+  "authorAvatar?": "string",
+  labels: type({ "+": "delete", name: "string", color: "string" }).array().default(() => []),
+  "additions?": "number.integer >= 0",
+  "deletions?": "number.integer >= 0",
+  "changedFiles?": "number.integer >= 0",
+  "comments?": "number.integer >= 0",
   // Epoch ms of the fetch this card came from. The CLIENT owns the freshness decision (render the
   // cached card instantly, then revalidate if it is old), so it has to be able to see the age.
-  fetchedAt: z.number().int().nonnegative(),
+  fetchedAt: "number.integer >= 0",
 })
-export type GithubRefCard = z.infer<typeof GithubRefCard>
+export type GithubRefCard = typeof GithubRefCard.infer
 
 // ONE request for every reference on the page. The whole point of the batch is that a hover costs no
 // round trip at all: the client asks for a screenful of refs as the prose renders and answers the
 // hover out of its own store. `refresh` is the revalidation half — set only for the handful of refs
 // the client is actually looking at, it makes the server bypass its TTL for those.
-export const GithubRefPreviewInput = z.object({
-  refs: z.array(z.string().min(3).max(120)).min(1).max(100),
-  refresh: z.boolean().default(false),
+export const GithubRefPreviewInput = type({
+  "+": "delete",
+  refs: type("3 <= string <= 120").array().atLeastLength(1).atMostLength(100),
+  refresh: "boolean = false",
 })
-export type GithubRefPreviewInput = z.infer<typeof GithubRefPreviewInput>
+export type GithubRefPreviewInput = typeof GithubRefPreviewInput.infer
 
 // `missing` is a real answer, not a failure: a `#123` in prose can name an issue that does not exist
 // (a worker misremembered, or the repo is private to someone else). The client caches it so the
 // anchor never asks twice. `error` is set only when the whole batch failed — no gh, no token, rate
 // limit — and the client keeps the plain link with no card rather than showing a broken one.
-export const GithubRefPreviewResult = z.object({
-  cards: z.array(GithubRefCard),
-  missing: z.array(z.string()),
-  error: z.string().optional(),
+export const GithubRefPreviewResult = type({
+  "+": "delete",
+  cards: GithubRefCard.array(),
+  missing: "string[]",
+  "error?": "string",
 })
-export type GithubRefPreviewResult = z.infer<typeof GithubRefPreviewResult>
+export type GithubRefPreviewResult = typeof GithubRefPreviewResult.infer
 
 // ---- SSE events on the global /events channel ----
 // The channel is DELTA-based (see delta.ts): a full "board" frame is the connect keyframe and the
@@ -7724,178 +7872,197 @@ export type GithubRefPreviewResult = z.infer<typeof GithubRefPreviewResult>
 // A one-thread status change ships one ThreadView, not the whole ~310KB board — that is the byte win.
 
 // Board-level (non-thread) fields, diffed as a unit and shipped only when they change (BoardDelta.meta).
-export const BoardMeta = z.object({
-  projectDir: z.string(),
-  projectName: z.string(),
-  projectLabel: z.string(),
-  errors: z.array(z.string()),
-  warnings: z.array(z.string()),
+export const BoardMeta = type({
+  "+": "delete",
+  projectDir: "string",
+  projectName: "string",
+  projectLabel: "string",
+  errors: "string[]",
+  warnings: "string[]",
   // Structured mirror of `errors` (see BoardErrorItem), diffed + shipped with the rest of the board
   // meta so the repair affordance survives a delta (not just the connect keyframe). Optional for the
   // same pre-restart back-compat reason as on BoardSnapshot.
-  errorItems: z.array(BoardErrorItem).optional(),
+  "errorItems?": BoardErrorItem.array(),
 })
-export type BoardMeta = z.infer<typeof BoardMeta>
+export type BoardMeta = typeof BoardMeta.infer
 
 // ── The editor bridge's wire (types and rationale: ./editor-protocol.ts, ARCHITECTURE.md § VS Code extension) ──
 // The server validates every frame an editor sends with these; each is pinned to its plain type below.
-const EditorKindSchema = z.enum(["vscode", "cursor", "windsurf", "other"])
-const EditorWindowSummarySchema = z.object({ app: z.string(), kind: EditorKindSchema, acceptsOpens: z.boolean(), reviews: z.literal(true).optional(), extensionVersion: z.string().optional() }).strict()
-const EditorPath = z.string().min(1).max(EDITOR_MAX_PATH)
-const EditorLine = z.number().int().min(1).max(10_000_000)
-export const EditorComposeInputSchema = z.object({
-  projectId: z.string().min(1).max(200).optional(),
+const EditorKindSchema = type("'vscode' | 'cursor' | 'windsurf' | 'other'")
+const EditorWindowSummarySchema = type({ "+": "reject", app: "string", kind: EditorKindSchema, acceptsOpens: "boolean", "reviews?": "true", "extensionVersion?": "string" })
+const EditorPath = type(`1 <= string <= ${EDITOR_MAX_PATH}`)
+const EditorLine = type("1 <= number.integer <= 10000000")
+export const EditorComposeInputSchema = type({
+  "+": "reject",
+  "projectId?": "1 <= string <= 200",
   path: EditorPath,
-  text: z.string().max(EDITOR_COMPOSE_MAX_TEXT).optional(),
-  startLine: EditorLine.optional(),
-  endLine: EditorLine.optional(),
-}).strict()
+  "text?": `string <= ${EDITOR_COMPOSE_MAX_TEXT}`,
+  "startLine?": EditorLine,
+  "endLine?": EditorLine,
+})
 // The `editor` frame — what a window's editor shows, for the agents (`ntwinectl editor`). Every
 // count and length is capped, so one frame is bounded however large the workspace; the extension fits
 // itself under these and under EDITOR_STATE_MAX_BYTES before it sends (packages/vscode editor-state.ts).
-const EditorStateLines = z.object({ startLine: EditorLine, endLine: EditorLine }).strict()
-const EditorStateTag = z.string().max(EDITOR_STATE_MAX_TAG)
-export const EditorSnapshotSchema = z.object({
-  t: z.literal("editor"),
-  shared: z.boolean(),
-  active: z.object({
+const EditorStateLines = type({ "+": "reject", startLine: EditorLine, endLine: EditorLine })
+const EditorStateTag = type(`string <= ${EDITOR_STATE_MAX_TAG}`)
+export const EditorSnapshotSchema = type({
+  "+": "reject",
+  t: "'editor'",
+  shared: "boolean",
+  active: type({
+    "+": "reject",
     path: EditorPath,
-    untitled: z.literal(true).optional(),
+    "untitled?": "true",
     languageId: EditorStateTag,
-    dirty: z.boolean(),
-    lineCount: z.number().int().min(0).max(10_000_000),
+    dirty: "boolean",
+    lineCount: "0 <= number.integer <= 10000000",
     cursorLine: EditorLine,
-    selection: EditorStateLines.extend({
-      text: z.string().max(EDITOR_STATE_MAX_SELECTION_TEXT).optional(),
-      truncated: z.literal(true).optional(),
-      withheld: z.literal(true).optional(),
-    }).strict().optional(),
+    "selection?": {
+      "...": EditorStateLines,
+      "+": "reject",
+      "text?": `string <= ${EDITOR_STATE_MAX_SELECTION_TEXT}`,
+      "truncated?": "true",
+      "withheld?": "true",
+    },
     visible: EditorStateLines,
-  }).strict().nullable(),
-  open: z.array(z.object({ path: EditorPath, untitled: z.literal(true).optional(), dirty: z.literal(true).optional() }).strict()).max(EDITOR_STATE_MAX_OPEN),
-  diagnostics: z.array(z.object({
+  }).or("null"),
+  open: type({ "+": "reject", path: EditorPath, "untitled?": "true", "dirty?": "true" }).array().atMostLength(EDITOR_STATE_MAX_OPEN),
+  diagnostics: type({
+    "+": "reject",
     path: EditorPath,
     line: EditorLine,
-    severity: z.enum(["error", "warning"]),
-    message: z.string().max(EDITOR_STATE_MAX_MESSAGE),
-    source: EditorStateTag.optional(),
-    code: EditorStateTag.optional(),
-  }).strict()).max(EDITOR_STATE_MAX_DIAGNOSTICS),
-  problems: z.object({ errors: z.number().int().min(0), warnings: z.number().int().min(0) }).strict(),
-}).strict()
-export const EditorClientMessageSchema = z.discriminatedUnion("t", [
-  z.object({
-    t: z.literal("hello"),
-    v: z.literal(EDITOR_PROTOCOL_VERSION),
-    windowId: z.string().min(1).max(200),
-    app: z.string().min(1).max(200),
-    extensionVersion: z.string().max(100),
-    folders: z.array(EditorPath).max(EDITOR_MAX_FOLDERS),
-    focused: z.boolean(),
-    focusedAgoMs: z.number().int().min(0).optional(),
-    acceptsOpens: z.boolean(),
-    home: z.string().max(4096),
-    platform: z.string().max(40),
-  }).strict(),
-  z.object({
-    t: z.literal("state"),
-    folders: z.array(EditorPath).max(EDITOR_MAX_FOLDERS),
-    focused: z.boolean(),
-    acceptsOpens: z.boolean(),
-  }).strict(),
-  z.object({ t: z.literal("result"), id: z.string().min(1).max(200), ok: z.boolean(), error: z.string().max(1000).optional() }).strict(),
-  z.object({ t: z.literal("compose"), id: z.string().min(1).max(200), item: EditorComposeInputSchema }).strict(),
+    severity: "'error' | 'warning'",
+    message: `string <= ${EDITOR_STATE_MAX_MESSAGE}`,
+    "source?": EditorStateTag,
+    "code?": EditorStateTag,
+  }).array().atMostLength(EDITOR_STATE_MAX_DIAGNOSTICS),
+  problems: { "+": "reject", errors: "number.integer >= 0", warnings: "number.integer >= 0" },
+})
+export const EditorClientMessageSchema = type.or(
+  {
+    "+": "reject",
+    t: "'hello'",
+    v: type.unit(EDITOR_PROTOCOL_VERSION),
+    windowId: "1 <= string <= 200",
+    app: "1 <= string <= 200",
+    extensionVersion: "string <= 100",
+    folders: EditorPath.array().atMostLength(EDITOR_MAX_FOLDERS),
+    focused: "boolean",
+    "focusedAgoMs?": "number.integer >= 0",
+    acceptsOpens: "boolean",
+    home: "string <= 4096",
+    platform: "string <= 40",
+  },
+  {
+    "+": "reject",
+    t: "'state'",
+    folders: EditorPath.array().atMostLength(EDITOR_MAX_FOLDERS),
+    focused: "boolean",
+    acceptsOpens: "boolean",
+  },
+  { "+": "reject", t: "'result'", id: "1 <= string <= 200", ok: "boolean", "error?": "string <= 1000" },
+  { "+": "reject", t: "'compose'", id: "1 <= string <= 200", item: EditorComposeInputSchema },
   EditorSnapshotSchema,
   // Names this server does not know are kept, not refused: a newer extension may name more than it.
-  z.object({ t: z.literal("features"), features: z.array(z.string().max(100)).max(32) }).strict(),
-  z.object({ t: z.literal("listen"), attention: z.boolean() }).strict(),
-])
+  { "+": "reject", t: "'features'", features: type("string <= 100").array().atMostLength(32) },
+  { "+": "reject", t: "'listen'", attention: "boolean" },
+)
 // A thread's changes for the extension to show (`review`, editor-protocol.ts): the `reviewTarget` RPC's
 // answer, and the body of the `review` frame the server pushes.
-export const EditorReviewTargetSchema = z.object({
-  title: z.string().max(500),
-  checkouts: z.array(z.object({
+export const EditorReviewTargetSchema = type({
+  "+": "reject",
+  title: "string <= 500",
+  checkouts: type({
+    "+": "reject",
     dir: EditorPath,
-    scope: z.enum(["branch", "files"]),
-    files: z.array(EditorPath).max(EDITOR_REVIEW_MAX_FILES),
-  }).strict()).max(EDITOR_REVIEW_MAX_CHECKOUTS),
-}).strict()
+    scope: "'branch' | 'files'",
+    files: EditorPath.array().atMostLength(EDITOR_REVIEW_MAX_FILES),
+  }).array().atMostLength(EDITOR_REVIEW_MAX_CHECKOUTS),
+})
 // Both directions, so neither the plain types nor the schemas can drift without a type error here.
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
-const editorClientWireMatches: Same<z.infer<typeof EditorClientMessageSchema>, EditorClientMessage> = true
-const editorWindowWireMatches: Same<z.infer<typeof EditorWindowSummarySchema>, EditorWindowSummary> = true
-const editorComposeWireMatches: Same<z.infer<typeof EditorComposeInputSchema>, EditorComposeInput> = true
-const editorSnapshotWireMatches: Same<z.infer<typeof EditorSnapshotSchema>, EditorSnapshot> = true
-const editorReviewWireMatches: Same<z.infer<typeof EditorReviewTargetSchema>, EditorReviewTarget> = true
+const editorClientWireMatches: Same<typeof EditorClientMessageSchema.infer, EditorClientMessage> = true
+const editorWindowWireMatches: Same<typeof EditorWindowSummarySchema.infer, EditorWindowSummary> = true
+const editorComposeWireMatches: Same<typeof EditorComposeInputSchema.infer, EditorComposeInput> = true
+const editorSnapshotWireMatches: Same<typeof EditorSnapshotSchema.infer, EditorSnapshot> = true
+const editorReviewWireMatches: Same<typeof EditorReviewTargetSchema.infer, EditorReviewTarget> = true
 void editorClientWireMatches, editorWindowWireMatches, editorComposeWireMatches, editorSnapshotWireMatches, editorReviewWireMatches
 
-export const ServerEvent = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("board"),
+export const ServerEvent = type.or(
+  {
+    "+": "delete",
+    type: "'board'",
     board: BoardSnapshot,
     // Monotonic publish counter this keyframe corresponds to (the client adopts it, then applies
     // deltas seq+1, seq+2 …). `bootId` is the server's per-process id. BOTH optional so a pre-restart
     // server's frame (which omits them) still parses; a new client treats absent seq as "no delta
     // tracking yet" and absent bootId as "unknown — no reload check".
-    seq: z.number().optional(),
-    bootId: z.string().optional(),
-  }),
-  z.object({
+    "seq?": "number",
+    "bootId?": "string",
+  },
+  {
+    "+": "delete",
     // Keyed per-thread delta. `upserts` are COMPLETE ThreadViews for threads whose serialization
     // changed (or are new); `removed` are ids gone from the board; `meta` is present only when a
     // board-level field changed. Emitted only by a post-restart server → seq/bootId are required here.
-    type: z.literal("board-delta"),
-    seq: z.number(),
-    bootId: z.string(),
-    upserts: z.array(ThreadView),
-    removed: z.array(ThreadSlug),
-    meta: BoardMeta.optional(),
-  }),
-  z.object({
-    type: z.literal("notify"),
+    type: "'board-delta'",
+    seq: "number",
+    bootId: "string",
+    upserts: ThreadView.array(),
+    removed: ThreadSlug.array(),
+    "meta?": BoardMeta,
+  },
+  {
+    "+": "delete",
+    type: "'notify'",
     slug: ThreadSlug,
-    kind: z.enum(["needs-decision", "turn-done", "exited"]),
-    title: z.string(),
-    body: z.string().optional(),
-  }),
-  z.object({
+    kind: "'needs-decision' | 'turn-done' | 'exited'",
+    title: "string",
+    "body?": "string",
+  },
+  {
+    "+": "reject",
     // Payload-free invalidation for future interaction cards. Provider-controlled command/diff/form
     // metadata never rides the global event bus; clients re-read the authorization-scoped RPC instead.
-    type: z.literal("interactions-invalidated"),
+    type: "'interactions-invalidated'",
     slug: InteractionThreadSlug,
     sessionId: InteractionOpaqueId,
     interactionId: InteractionOpaqueId,
     lifecycle: InteractionLifecycle,
     recordRevision: InteractionRevision,
-  }).strict(),
-  z.object({
+  },
+  {
+    "+": "reject",
     // The editor windows connected over the editor bridge (packages/vscode), whole, on every change.
     // MACHINE-WIDE: published on every open project's bus, because a page hears only its own project's.
-    type: z.literal("editors"),
-    windows: z.array(EditorWindowSummarySchema),
-  }).strict(),
-  z.object({
+    type: "'editors'",
+    windows: EditorWindowSummarySchema.array(),
+  },
+  {
+    "+": "reject",
     // An editor sent something to the prompt box. Payload-free, like interactions-invalidated: the
     // page that has focus claims it through `composeTake`, so exactly one tab inserts it.
-    type: z.literal("compose-pending"),
-    id: z.string(),
-  }).strict(),
-  z.object({
+    type: "'compose-pending'",
+    id: "string",
+  },
+  {
+    "+": "reject",
     // What some editor window shows changed — its file in front, its selection's lines, whether it shares,
     // which one was used last. MACHINE-WIDE and payload-free: which window has which project open is the
     // server's to work out, so a page showing an editor line asks its project again (`editorFront`).
-    type: z.literal("editor-front"),
-  }).strict(),
-  z.object({
+    type: "'editor-front'",
+  },
+  {
+    "+": "reject",
     // The machine's PROJECT LIST changed: a reorder, a rename, an icon, a project added or forgotten.
     // Payload-free for the same reason as above — the list is one cheap read, and a client that
     // re-reads it cannot apply a stale copy out of order. It is the one event that is not about this
     // stream's own project: the server publishes it on EVERY open project's stream, because the rail
     // and the grid draw the same list in every tab whichever board that tab is on.
-    type: z.literal("projects-changed"),
-  }).strict(),
-])
-export type ServerEvent = z.infer<typeof ServerEvent>
+    type: "'projects-changed'",
+  },
+)
+export type ServerEvent = typeof ServerEvent.infer
 export type BoardEvent = Extract<ServerEvent, { type: "board" }>
 export type BoardDelta = Extract<ServerEvent, { type: "board-delta" }>
 
@@ -7928,16 +8095,17 @@ export * from "./thread-slug.ts"
 // syntax-highlighted diff instead of an opaque "edited file.ts" line. Write → old: "" (whole file
 // is new); MultiEdit → one TranscriptToolCall per sub-edit. Both strings are capped (see
 // transcript.ts EDIT_CAP) so transcripts stay light.
-export const TranscriptEdit = z.object({
-  file: z.string(),
-  old: z.string(),
-  new: z.string(),
+export const TranscriptEdit = type({
+  "+": "delete",
+  file: "string",
+  old: "string",
+  new: "string",
   // Line counts of the UNCAPPED sides, taken at projection time — `old`/`new` above are capped for
   // transport, so a diffstat recomputed from them undercounts any large edit.
-  added: z.number().int().nonnegative().optional(),
-  removed: z.number().int().nonnegative().optional(),
+  "added?": "number.integer >= 0",
+  "removed?": "number.integer >= 0",
 })
-export type TranscriptEdit = z.infer<typeof TranscriptEdit>
+export type TranscriptEdit = typeof TranscriptEdit.infer
 
 // One row of an agent's built-in TO-DO LIST. Set only for a call that ITSELF carries the whole list —
 // Claude Code's `TaskList` (whose result enumerates every task), codex's `update_plan` and Claude's
@@ -7948,50 +8116,52 @@ export type TranscriptEdit = z.infer<typeof TranscriptEdit>
 // is `{taskId:"3", status:"completed"}` and nothing more). Deriving a list from them would mean the
 // projector accumulating list state across the transcript, which is not its job (maintainer 2026-07-29:
 // "don't bother with maintaining your own state here"). Those calls render as ordinary tool cards.
-export const TranscriptTodo = z.object({
-  text: z.string(),
-  status: z.enum(["pending", "in_progress", "completed"]),
+export const TranscriptTodo = type({
+  "+": "delete",
+  text: "string",
+  status: "'pending' | 'in_progress' | 'completed'",
 })
-export type TranscriptTodo = z.infer<typeof TranscriptTodo>
+export type TranscriptTodo = typeof TranscriptTodo.infer
 
-export const TranscriptToolCall = z.object({
-  name: z.string(),
-  detail: z.string().optional(), // file path / command / description — whatever the input reveals
-  edit: TranscriptEdit.optional(), // set only for Edit/Write/MultiEdit blocks
+export const TranscriptToolCall = type({
+  "+": "delete",
+  name: "string",
+  "detail?": "string", // file path / command / description — whatever the input reveals
+  "edit?": TranscriptEdit, // set only for Edit/Write/MultiEdit blocks
   // The model-authored one-line description of a Bash command (Claude Code's `description` input
   // field) — the collapsed block's title.
-  desc: z.string().optional(),
+  "desc?": "string",
   // Raw (multi-line) command, set only for a Bash call whose command spans multiple lines or runs
   // long — the client renders it as its own code block instead of the flattened one-line `detail`.
-  command: z.string().optional(),
+  "command?": "string",
   // Capped human-readable input/source for any tool that has useful payload beyond its one-line
   // detail. Generic cards expand this exactly like Bash expands `command`; specialized cards may
   // retain it as failure context (for example a wrapped apply_patch that did not apply).
-  input: z.string().optional(),
+  "input?": "string",
   // A capped excerpt of a Read call's tool_result (the file content it returned) — set only for Read
   // calls whose result shipped as text. The client renders it as a collapsed, bordered card (same
   // family as Bash/Edit) that expands to the excerpt. Absent for older transcripts / pre-restart
   // servers, in which case the client falls back to the compact one-line Read summary.
-  read: z.string().optional(),
+  "read?": "string",
   // A capped excerpt of a tool's captured result. Codex records results for shell calls and for its
   // unified custom-tool wrapper; the client renders this as a second pane below either the Bash body
   // or a generic input body. Absent for Claude calls whose result isn't present in the transcript.
-  output: z.string().optional(),
+  "output?": "string",
   // Absolute path to an IMAGE the tool returned in its result — e.g. a `take_screenshot` (chrome-devtools
   // MCP) or any tool whose tool_result carries a base64 image block. The server decodes the image once to
   // a content-hashed file under the OS temp dir and records the path here; the client renders it inline in
   // the tool card via the gated /local-image route (tmpdir is a trusted root). Absent for text-only results.
-  outputImage: z.string().optional(),
+  "outputImage?": "string",
   // Tool lifecycle inferred from call/result pairs. A just-appended call is `pending`; the matching
   // result promotes it to completed/failed/cancelled. Background launches deliberately remain pending
   // after their launch acknowledgement: a later provider-native completion is the only terminal fact.
   // Kept optional for pre-restart transcript data.
   // `exitCode` is present for shell-like results that expose it.
-  status: z.enum(["pending", "completed", "failed", "cancelled"]).optional(),
+  "status?": "'pending' | 'completed' | 'failed' | 'cancelled'",
   // A non-terminal shell has a durable, provider-neutral lifecycle identity. `background` means the
   // provider confirmed a live child/session; `unknown` means we saw a poll for an unpaired session.
   // Neither is rendered as done merely because the wrapper call returned.
-  backgroundState: z.enum(["background", "unknown"]).optional(),
+  "backgroundState?": "'background' | 'unknown'",
   // The launching tool_use id of a `background` shell — the SAME key the tailer tracks that shell under
   // (BgShellView.id), and therefore the only exact way to tell "the board's row and this transcript card
   // are one process" from "two processes the model described identically".
@@ -8003,31 +8173,31 @@ export const TranscriptToolCall = z.object({
   // same shell rendered twice — once clickable, once not. Optional: absent on codex (whose background
   // execs are transcript-native and have no board row to collide with) and on pre-restart servers,
   // which fall back to the label+startedAt key.
-  shellId: z.string().optional(),
-  exitCode: z.number().int().optional(),
+  "shellId?": "string",
+  "exitCode?": "number.integer",
   // Execution context/result metadata that is useful in a compact card header without dumping a
   // backend envelope. `cwd` comes from exec_command's workdir/cwd, `sessionId` identifies a yielded
   // PTY process (and later write_stdin polls), and `durationMs` is result wall time when recorded.
-  cwd: z.string().optional(),
-  sessionId: z.union([z.string(), z.number()]).optional(),
-  durationMs: z.number().nonnegative().optional(),
+  "cwd?": "string",
+  "sessionId?": "string | number",
+  "durationMs?": "number >= 0",
   // ---- Agent (sub-agent dispatch) block ----
   // Set only for an `Agent` tool_use that carried a `prompt`. The client promotes such a call into an
   // AgentBlock (same collapsed-card family as Bash/Read): the `detail` is the dispatch description,
   // `subagentType` the model+effort cell, and expanding reveals the (capped) dispatch `prompt`. All
   // optional so a pre-restart server / older transcript falls back to the plain `Agent(detail)` line.
-  prompt: z.string().optional(), // the capped dispatch prompt (the AgentBlock's expanded body)
+  "prompt?": "string", // the capped dispatch prompt (the AgentBlock's expanded body)
   // The RESOLVED model+effort cell (e.g. "ntwine:opus-high"), not `subagent_type` verbatim: a modern
   // profile is effort-only, so the server folds the call's `model` — or, when omitted, the model the
   // dispatching turn itself ran at — back into the cell. See server/subagent-profile.ts.
-  subagentType: z.string().optional(),
-  agentId: z.string().optional(), // the Agent tool_use id — the correlation key to the live tracked sub-agent
+  "subagentType?": "string",
+  "agentId?": "string", // the Agent tool_use id — the correlation key to the live tracked sub-agent
   // Terminal outcome of the dispatched sub-agent, back-filled when a matching completion
   // <task-notification> appears LATER in the transcript. Drives the AgentBlock header's finished state
   // ("finished 35m" / "failed 12m"). Absent while the child is still live (or its completion was
   // missed) — in which case the live tracked-sub-agent overlay supplies "running Nm" instead.
-  agentStatus: z.enum(["completed", "failed", "killed"]).optional(),
-  agentElapsedMs: z.number().optional(), // dispatch → completion elapsed, for the finished-state label
+  "agentStatus?": "'completed' | 'failed' | 'killed'",
+  "agentElapsedMs?": "number", // dispatch → completion elapsed, for the finished-state label
   // TRUE only on the copy of the dispatch call the server re-emits, as its own standalone message, at
   // the position the completion <task-notification> landed (see transcript.ts completionEvents). That
   // copy is a TIMELINE MARKER, not a second tool call, so the client renders it as the centered wake
@@ -8036,7 +8206,7 @@ export const TranscriptToolCall = z.object({
   // "more visually distinct in a big sea of tool call blocks"). The LAUNCH card, which carries the same
   // agentStatus/agentElapsedMs after back-fill, never sets this and stays an expandable prompt card.
   // Optional + additive: an old client ignores it and shows the previous duplicate-card rendering.
-  agentCompletion: z.boolean().optional(),
+  "agentCompletion?": "boolean",
   // ---- SendMessage (peer / agent-to-agent messaging) block ----
   // Set only for a `SendMessage` tool_use (an orchestrator steering a sub-agent, or a teammate note).
   // The client promotes such a call into the centred WAKE DIVIDER the sub-agent completion and upward
@@ -8047,10 +8217,10 @@ export const TranscriptToolCall = z.object({
   // "shutdown_request"). Summary and body are retained because the SUB-AGENT DRAWER — where the same
   // call is read as the child's own record — still needs them; the parent's divider renders neither.
   // All optional so a pre-restart server / older transcript falls back to a bare divider.
-  sendTo: z.string().optional(), // recipient agent id/name (the SendMessage `to`)
-  sendSummary: z.string().optional(), // the short recap (the SendMessage `summary`)
-  sendBody: z.string().optional(), // the capped message body (the SendMessage `message`/`content`)
-  sendType: z.string().optional(), // the message type when not a plain "message" (e.g. "shutdown_request")
+  "sendTo?": "string", // recipient agent id/name (the SendMessage `to`)
+  "sendSummary?": "string", // the short recap (the SendMessage `summary`)
+  "sendBody?": "string", // the capped message body (the SendMessage `message`/`content`)
+  "sendType?": "string", // the message type when not a plain "message" (e.g. "shutdown_request")
   // The steer's DRILL-IN pair, set only when the server could resolve `sendTo` to a child this same
   // transcript dispatched. A Claude `SendMessage` addresses its target by AGENT ID, which is both
   // meaningless to a reader and not a key any drawer resolves — every sub-agent lookup goes through the
@@ -8059,8 +8229,8 @@ export const TranscriptToolCall = z.object({
   // opens, `sendTargetLabel` the dispatch's own description, which is what the title reads.
   // Absent on codex (its peer tools name a target that was never dispatch-acked here) and on `to:"main"`
   // — in both cases the divider degrades to plain text rather than a link to an unavailable drawer.
-  sendDispatchId: z.string().optional(),
-  sendTargetLabel: z.string().optional(),
+  "sendDispatchId?": "string",
+  "sendTargetLabel?": "string",
   // ---- SendUserFile (Claude Code file delivery) block ----
   // Set only for a `SendUserFile` tool_use — the worker surfacing files (screenshots, artifacts) to the
   // human. The client promotes such a call into a SentFilesCard that renders the delivered files inline
@@ -8069,14 +8239,14 @@ export const TranscriptToolCall = z.object({
   // inline via the gated /local-image route; `sentFiles` are the basenames of any NON-image files
   // (rendered as openable chips); `caption` is the model's one-line caption, shown below. All optional so
   // a pre-restart server / older transcript falls back to the generic tool card.
-  sentImages: z.array(z.string()).optional(),
-  sentFiles: z.array(z.string()).optional(),
-  caption: z.string().optional(),
+  "sentImages?": "string[]",
+  "sentFiles?": "string[]",
+  "caption?": "string",
   // ---- To-do list block ----
   // The whole to-do list, for the calls that carry it (see TranscriptTodo). The client promotes such a
   // call into a TodoBlock — a checklist card, one row per task with its status. Optional, so a
   // pre-restart server / older transcript falls back to the generic card.
-  todos: z.array(TranscriptTodo).optional(),
+  "todos?": TranscriptTodo.array(),
   // ---- Native question (AskUserQuestion) block ----
   // The structured questions an `AskUserQuestion` tool_use asked, so a SETTLED call renders as a
   // read-only question card at its place in the transcript instead of a generic tool line buried in a
@@ -8084,42 +8254,43 @@ export const TranscriptToolCall = z.object({
   // of an answer retires the pending interaction card (the broker denies the parked call), and without
   // this field nothing in the transcript ever said what was asked. Optional, so a pre-restart server /
   // older transcript falls back to the generic card.
-  ask: z.array(AskQuestion).optional(),
+  "ask?": AskQuestion.array(),
   // The human's answers, parallel to `ask` (null = that question got no answer), parsed from the
   // call's structured tool result. Absent entirely when the call settled unanswered — the withdrawn /
   // denied case — which the client renders as "Not answered".
-  askAnswers: z.array(z.string().nullable()).optional(),
+  "askAnswers?": type("string | null").array(),
 })
-export type TranscriptToolCall = z.infer<typeof TranscriptToolCall>
+export type TranscriptToolCall = typeof TranscriptToolCall.infer
 
 // One block-ordered PART of an assistant turn — the fidelity fix. A turn's content interleaves text
 // and tool_use blocks in a meaningful order (a "Let me draft the notes:" lead-in sits DIRECTLY above
 // the call it introduces). The legacy split text/tools fields discarded that order (all tools rendered
 // before all prose); `parts` preserves it. Contiguous same-kind blocks coalesce into one part.
-export const TranscriptPart = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("text"), text: z.string() }),
-  z.object({ kind: z.literal("tools"), tools: z.array(TranscriptToolCall) }),
-])
-export type TranscriptPart = z.infer<typeof TranscriptPart>
+export const TranscriptPart = type.or(
+  { "+": "delete", kind: "'text'", text: "string" },
+  { "+": "delete", kind: "'tools'", tools: TranscriptToolCall.array() },
+)
+export type TranscriptPart = typeof TranscriptPart.infer
 
-export const TranscriptMessage = z.object({
+export const TranscriptMessage = type({
+  "+": "delete",
   // Stable identity of this PROVIDER-NEUTRAL projected message. The server derives it from the
   // transcript incarnation plus the source record that opened the rendered unit; clients use it only
   // for overlap reconciliation, keyed rendering, and scroll anchoring. Optional for rolling upgrades.
-  sourceId: z.string().min(1).max(768).optional(),
+  "sourceId?": "1 <= string <= 768",
   // Latest-window projection may pin an unresolved background shell whose original launch message
   // has scrolled into paginated history. The synthetic tools-only card points back to that canonical
   // source so loading the earlier page can replace (not duplicate) it.
-  pinnedFromSourceId: z.string().min(1).max(768).optional(),
-  role: z.enum(["user", "assistant"]),
-  text: z.string(), // markdown; empty when the message was tool-calls only
+  "pinnedFromSourceId?": "1 <= string <= 768",
+  role: "'user' | 'assistant'",
+  text: "string", // markdown; empty when the message was tool-calls only
   // Optional presentation-only projection of `text`. The full text remains available to persistence,
   // search, and transcript logic; shared chat surfaces use this compact form for generated prompts
   // whose machine-facing tail would otherwise dominate the first user bubble.
-  displayText: z.string().optional(),
-  providerError: ProviderError.optional(),
-  tools: z.array(TranscriptToolCall),
-  at: z.string().optional(), // ISO8601
+  "displayText?": "string",
+  "providerError?": ProviderError,
+  tools: TranscriptToolCall.array(),
+  "at?": "string", // ISO8601
   // Additive message variant. "event" is transcript PUNCTUATION emitted inline at the position a
   // sub-agent completion <task-notification> was seen (text like `Agent "…" finished — 35m`).
   // "reasoning" is a Codex model-reasoning SUMMARY (the plaintext `summary[]` of a rollout reasoning
@@ -8127,7 +8298,7 @@ export const TranscriptMessage = z.object({
   // summary markdown, rendered as a collapsed-by-default expandable block. Absent (undefined) → an
   // ordinary user/assistant message. Old clients that don't know a `kind` render it as a plain
   // assistant line, which is a graceful (if unstyled) degrade.
-  kind: z.enum(["event", "reasoning"]).optional(),
+  "kind?": "'event' | 'reasoning'",
   // Wall-clock the model spent THINKING, in ms — set only on a `kind:"reasoning"` message. Derived from
   // the rollout's per-step reasoning timestamps (Σ of each reasoning step's gap from the event before it,
   // which excludes tool-execution time). NOT rendered: it used to caption the reasoning disclosure as
@@ -8135,7 +8306,7 @@ export const TranscriptMessage = z.object({
   // transcript no longer carries (see ReasoningBlock). Kept because it is the server's own measurement
   // and costs nothing to project. Optional: absent on non-reasoning messages and on any reasoning block
   // whose timing couldn't be derived.
-  durationMs: z.number().nonnegative().optional(),
+  "durationMs?": "number >= 0",
   // A turn-BOUNDARY marker: this `kind:"event"` line was emitted at the position a turn opened or
   // closed, so it renders as a centered divider rule carrying the cause label — without it, two
   // consecutive assistant turns (each with its own trailing signal) paint as one seamless bubble.
@@ -8152,27 +8323,27 @@ export const TranscriptMessage = z.object({
   // text, which is the guess this codebase refuses everywhere else. A string stays truthy, so any
   // surviving `if (boundary)` reads exactly as it did — including on a client that predates `rest`,
   // which draws it as an iconless divider rather than dropping it.
-  boundary: z.enum(["wake", "compaction", "rest"]).optional(),
+  "boundary?": "'wake' | 'compaction' | 'rest'",
   // On a `wake` line for an agent terminal's completion ("Agent terminal «…» finished"): that terminal's
   // launch tool_use id, so the line opens its drawer as the strip's row does. Absent for a completion the
   // server could not tie to its launch.
-  wakeShellId: z.string().optional(),
+  "wakeShellId?": "string",
   // Block-ordered content for an assistant turn (see TranscriptPart). Defaults to [] so a pre-restart
   // server (which ships only text/tools) parses; the client renders `parts` when non-empty and falls
   // back to the legacy tools-then-text layout when it's empty. `text`/`tools` stay populated for that
   // fallback window and for consumers (useLiveAnswering, previews) that read the flat fields.
-  parts: z.array(TranscriptPart).default([]),
+  parts: TranscriptPart.array().default(() => []),
   // A human follow-up SENT to a mid-turn worker that Claude Code has QUEUED but not yet delivered into
   // the agent's context (an `enqueue` queue-operation with no matching delivery record yet). Rendered as
   // a grayed user bubble — the SAME affordance the client uses for its own optimistic send. Flips to
   // undefined/false once the delivery (a `queued_command` attachment) materializes the message. Additive
   // + optional: a pre-restart client ignores it; an old server simply never sets it. NB: the client ALSO
   // sets this transiently on an optimistic local send (see web hooks.ts) — same meaning, same styling.
-  queued: z.boolean().optional(),
+  "queued?": "boolean",
   // Server-side delivery-ledger identity for a Claude follow-up (delivery-ledger.ts): set on a queued
   // bubble the ledger projects (or tags), so the client's optimistic copy of the SAME send is consumed
   // by id instead of by exact text — the text-match path stays only for id-less legacy flows. Additive.
-  deliveryId: z.string().optional(),
+  "deliveryId?": "string",
   // The ledger's own state for that send. "pending": injected, no JSONL evidence yet. "enqueued":
   // Claude Code's queue holds it (positive receipt, undelivered). "delivered": the transport's receipt
   // proved the provider took it straight into a turn, but its transcript record has not reached disk
@@ -8184,15 +8355,15 @@ export const TranscriptMessage = z.object({
   // text is kept until the operator retries, edits or dismisses it, and nothing retries it on its own.
   // Additive + optional: an older client renders both as a plain bubble (gray for "sending").
   // "held": the operator sent it TO THE QUEUE — ntwine has it and no transport does, until the agent rests.
-  deliveryState: z.enum(["sending", "pending", "enqueued", "delivered", "unconfirmed", "failed", "held"]).optional(),
+  "deliveryState?": "'sending' | 'pending' | 'enqueued' | 'delivered' | 'unconfirmed' | 'failed' | 'held'",
   // Why a "failed" send failed, verbatim from the transport. Set only alongside deliveryState "failed".
-  deliveryError: z.string().optional(),
+  "deliveryError?": "string",
   // NTWINE wrote this user turn, not the human: it is a scheduler wake delivery (isWakeDelivery). The
   // client renders it as a first-party card rather than the human's off-white right-justified bubble,
   // which was claiming the operator had typed a message the watcher composed. Additive + optional: an
   // old client ignores it and shows the plain bubble (the previous behavior), and an old server simply
   // never sets it.
-  wake: z.boolean().optional(),
+  "wake?": "boolean",
   // The STRUCTURED wake, parsed by the server from the same text the same build formatted. The chat
   // renders the divider from this rather than re-deriving it from prose in the browser.
   //
@@ -8203,19 +8374,19 @@ export const TranscriptMessage = z.object({
   // raw `gh api …` text into the transcript instead. Server-side, formatter and parser can never
   // disagree. Additive + optional: absent from a legacy transcript or an older server, and the client
   // falls back to `parseGithubWakeSteer` on the text.
-  wakeSteer: GithubWakeSteer.optional(),
+  "wakeSteer?": GithubWakeSteer,
   // Input delivered INTO a sub-agent by its coordinator or another agent. It is a user-side turn in
   // that CHILD's conversation, but it is not the human speaking. The drawer's live projection keeps
   // these messages even when the ordinary 300-message tail has moved past them — clicking a parent's
   // "Steered"/"Followed up" divider promises the corresponding instruction remains readable there.
   // Additive + optional: ordinary thread transcripts never set it.
-  agentInstruction: z.literal(true).optional(),
+  "agentInstruction?": "true",
   // The OUTPUT of a slash command the harness ran itself — `/context`, `/usage`, `/mcp` — rather than
   // handing to the model. Set on a `kind:"event"` message whose `text` is that output (plain text or
   // Markdown); `command` is the command it answered, when the transcript named it. Neither the agent nor
   // the human said it, so it renders as its own block under the `/name` bubble. Additive + optional: a
   // client that predates it shows the text as an ordinary event line.
-  commandOutput: z.object({ command: z.string().max(512).optional(), stream: z.enum(["stdout", "stderr"]) }).strict().optional(),
+  "commandOutput?": { "+": "reject", "command?": "string <= 512", stream: "'stdout' | 'stderr'" },
   // A SUB-AGENT (or peer session) wrote this user turn, not the human — the same defect class `wake`
   // above corrects. Claude Code's agent-to-agent channel (a background child calling
   // `SendMessage({to:"main"})`) delivers UPWARD into the parent's queue like any follow-up, so the
@@ -8238,8 +8409,8 @@ export const TranscriptMessage = z.object({
   // carries the new child's `agentId` beside the `tool_use_id` that spawned it. The parser correlates
   // there and stores the DISPATCH id here. Additive + optional: absent when the ack was never seen (a
   // resumed session whose dispatch scrolled out), and the line then renders as plain text, not a dead link.
-  peerFrom: z.string().optional(),
-  peerDispatchId: z.string().optional(),
+  "peerFrom?": "string",
+  "peerDispatchId?": "string",
   // …and the tell that `peerFrom` is ONLY that subagent_type — that the parser could not resolve the
   // dispatch's own description for this sender. It matters because a profile cell is not a name: every
   // child dispatched at `ntwine:opus-high` reports under the identical string, so a divider reading
@@ -8251,13 +8422,13 @@ export const TranscriptMessage = z.object({
   // Resolution is genuinely late-arriving, not merely missing: the description comes from the DISPATCH
   // record, so a report rendered while the window has not yet reached that record is unnamed and gains
   // its title once it has. Set only on the Claude path — a codex peer names a real task.
-  peerUnnamed: z.literal(true).optional(),
+  "peerUnnamed?": "true",
   // The sender's own RUNTIME agent id (`origin.senderTaskId`) — kept so a LATER pass can finish the job
   // the fold could not. The paged transcript RPC folds a bounded window, so a report whose dispatch
   // scrolled above the page start has no description available at fold time; the tailer still holds the
   // pairing, and `projectTranscriptPeerNames` uses this id to ask it. Never a drawer key on its own —
   // that is `peerDispatchId`, which the same pass can also supply once this resolves.
-  peerSenderTaskId: z.string().optional(),
+  "peerSenderTaskId?": "string",
   // ANOTHER TOP-LEVEL SESSION wrote this user turn — a thread messaging this one through Claude Code's
   // cross-session channel (see parseCrossSessionMessage), most often the coordinator thread that spawned
   // it. Not the human, and not a sub-agent either: the chat draws it as an expandable hairline naming
@@ -8267,11 +8438,12 @@ export const TranscriptMessage = z.object({
   // behind it, filled in by the server from the sender's socket (session-peer.ts) — absent when the
   // sender is not an ntwine thread or is gone without having been resolved, and then the line names the
   // session without a link. `project` is the URL slug of the sender's project.
-  sessionPeer: z.object({
-    name: z.string().optional(),
-    socket: z.string().optional(),
-    thread: z.object({ project: z.string().optional(), slug: z.string(), title: z.string() }).optional(),
-  }).optional(),
+  "sessionPeer?": {
+    "+": "delete",
+    "name?": "string",
+    "socket?": "string",
+    "thread?": { "+": "delete", "project?": "string", slug: "string", title: "string" },
+  },
   // NTWINE REFUSED the ```awaiting fence this message ends in — it named something that is not running,
   // or named nothing at all, or used a retired line kind (see `isParkCorrection`). The fence is not a
   // park, so the chat draws nothing for it: an hourglass card with a park button asserts a wait that
@@ -8280,65 +8452,68 @@ export const TranscriptMessage = z.object({
   // signal and the thing it is derived from can never disagree in the browser.
   //
   // Additive + optional: an old client ignores it and renders the fence as it did before.
-  fenceRefused: z.literal(true).optional(),
+  "fenceRefused?": "true",
   // A SPINOFF REQUEST: the human asked to spinoff a new thread from this one. Drawn from the spinoff's row
   // at the instant they asked (server transcript.ts withSpinoffCards), or — in a transcript from before
   // 2026-10-07 — the user turn that delivered the request to the worker (parseSpinoffRequest). The chat
   // draws it as a spinoff card: the human's instructions and a link to the new thread. Additive + optional.
-  spinoff: z.object({ id: z.string(), instructions: z.string() }).optional(),
+  "spinoff?": { "+": "delete", id: "string", instructions: "string" },
   // A SPINOFF CHILD'S FIRST TURN: the prompt ntwine composed from the human's instructions and the
   // parent's context (spinoffChildPrompt), read back into its parts. The chat draws it as the thread's
   // spinoff header — the instructions as the human's request, the context folded beneath them — never as
   // one user bubble, since the context is not the human's words. `displayText` carries the instructions alone, so everything that quotes a thread's request
   // (the queue card, `read_thread`) quotes what the human asked. Additive + optional.
-  spinoffOrigin: z.object({ instructions: z.string(), brief: z.string() }).optional(),
+  "spinoffOrigin?": { "+": "delete", instructions: "string", brief: "string" },
   // THE HUMAN'S KEEP WORKING (KEEP_WORKING_MESSAGE): their own send, but its words are an instruction to
   // the worker, so the chat draws a one-line marker instead of their bubble, and the readers that look for
   // what the human last ASKED skip it the way they skip a spinoff request. Additive + optional.
-  keepWorking: z.literal(true).optional(),
+  "keepWorking?": "true",
 })
-export type TranscriptMessage = z.infer<typeof TranscriptMessage>
+export type TranscriptMessage = typeof TranscriptMessage.infer
 
 // Backward transcript pagination is cursor-based rather than an arbitrary message-count offset. A
 // cursor is opaque to the browser and binds one projected boundary to its exact session/transcript
 // incarnation. `reachedTurnBoundary:false` is the explicit continuation-within-turn contract used
 // only when one pathological turn crosses the bounded page ceiling.
-export const TranscriptPageCursor = z.string().min(1).max(2048).regex(/^[A-Za-z0-9_-]+$/)
-export type TranscriptPageCursor = z.infer<typeof TranscriptPageCursor>
+export const TranscriptPageCursor = type("1 <= string <= 2048 & /^[A-Za-z0-9_-]+$/")
+export type TranscriptPageCursor = typeof TranscriptPageCursor.infer
 
 // A file the thread's worker has WRITTEN — what "Review changes" opens (server review-target.ts), derived
 // server-side over the WHOLE projected transcript rather than the latest window the page carries.
 // The distinction is the whole reason it rides the page: a worker edits in the middle of an effort
 // and verifies at the end, so by the time anyone opens the thread every Edit sits hundreds of
 // messages above the window (this repo's own threads: last Edit at record 633 of 2113, 2026-08-28).
-export const EditedFile = z.object({
-  path: z.string().min(1),
-  edits: z.number().int().positive(),
-  lastEditedAt: z.string().optional(),
+export const EditedFile = type({
+  "+": "reject",
+  path: "string > 0",
+  edits: "number.integer > 0",
+  "lastEditedAt?": "string",
   // The file's diffstat, summed over its write calls (each call's counts are the line counts of its
   // raw old/new sides). A Write counts as all additions — what it replaced is unknowable here.
-  added: z.number().int().nonnegative().optional(),
-  removed: z.number().int().nonnegative().optional(),
-}).strict()
-export type EditedFile = z.infer<typeof EditedFile>
+  "added?": "number.integer >= 0",
+  "removed?": "number.integer >= 0",
+})
+export type EditedFile = typeof EditedFile.infer
 
-export const TranscriptPage = z.object({
-  messages: z.array(TranscriptMessage),
-  beforeCursor: TranscriptPageCursor.nullable(),
-  hasEarlier: z.boolean(),
-  reachedTurnBoundary: z.boolean(),
-  transcriptKey: z.string().min(1).max(256),
+export const TranscriptPage = type({
+  "+": "reject",
+  messages: TranscriptMessage.array(),
+  beforeCursor: TranscriptPageCursor.or("null"),
+  hasEarlier: "boolean",
+  reachedTurnBoundary: "boolean",
+  transcriptKey: "1 <= string <= 256",
   // The LATEST page only (see EditedFile), and only when the server reader asked for it; an earlier page
   // is settled history and carries none.
-  editedFiles: z.array(EditedFile).optional(),
-}).strict()
-export type TranscriptPage = z.infer<typeof TranscriptPage>
+  "editedFiles?": EditedFile.array(),
+})
+export type TranscriptPage = typeof TranscriptPage.infer
 
-export const TranscriptEarlierInput = z.object({
+export const TranscriptEarlierInput = type({
+  "+": "reject",
   slug: ThreadSlug,
   cursor: TranscriptPageCursor,
-}).strict()
-export type TranscriptEarlierInput = z.infer<typeof TranscriptEarlierInput>
+})
+export type TranscriptEarlierInput = typeof TranscriptEarlierInput.infer
 
 // ---- Terminal WebSocket protocol (ws://host/term/:id) — a thread's terminals ----
 // client -> server: {t:"input", d:string} | {t:"resize", cols:number, rows:number}
@@ -8352,7 +8527,7 @@ export type TermClientMsg = { t: "input"; d: string } | { t: "resize"; cols: num
 // Coexists with /events as a graceful fallback (a pre-restart server has
 // no /ws route → the client degrades to SSE + polling).
 
-// Client -> server (zod-validated server-side): subscribe / unsubscribe a thread's transcript push.
+// Client -> server (validated server-side): subscribe / unsubscribe a thread's transcript push.
 // Keep the wire identifier aligned with every server-owned thread slug. Besides bounding retained
 // subscription state, the shape excludes path separators/control text before it can reach transcript
 // lookup code. Foreign session ids are UUID-shaped and remain valid under this grammar.
@@ -8360,22 +8535,22 @@ export const SocketTranscriptSlug = ThreadSlug
 // A local file a reader has open — the Markdown drawer's or the file reader's document. The
 // bound matches the read RPCs' own; the server gates the path exactly as it gates the read, so a
 // file the reader could not read is a file it cannot watch either.
-export const SocketFilePath = z.string().min(1).max(4096)
-const SocketTranscriptClientMsg = z.discriminatedUnion("t", [
-  z.object({ t: z.literal("sub"), topic: z.literal("transcript"), slug: SocketTranscriptSlug }).strict(),
-  z.object({ t: z.literal("unsub"), topic: z.literal("transcript"), slug: SocketTranscriptSlug }).strict(),
-])
+export const SocketFilePath = type("1 <= string <= 4096")
+const SocketTranscriptClientMsg = type.or(
+  { "+": "reject", t: "'sub'", topic: "'transcript'", slug: SocketTranscriptSlug },
+  { "+": "reject", t: "'unsub'", topic: "'transcript'", slug: SocketTranscriptSlug },
+)
 // The FILE topic: "tell me when this file changes on disk". The server answers with `file-changed`
 // frames carrying the path AS SUBSCRIBED, and the reader re-reads through its gated RPC — the push is a
 // notice, never the bytes.
-const SocketFileClientMsg = z.discriminatedUnion("t", [
-  z.object({ t: z.literal("sub"), topic: z.literal("file"), path: SocketFilePath }).strict(),
-  z.object({ t: z.literal("unsub"), topic: z.literal("file"), path: SocketFilePath }).strict(),
-])
-export const SocketClientMsg = z.union([SocketTranscriptClientMsg, SocketFileClientMsg])
-export type SocketClientMsg = z.infer<typeof SocketClientMsg>
+const SocketFileClientMsg = type.or(
+  { "+": "reject", t: "'sub'", topic: "'file'", path: SocketFilePath },
+  { "+": "reject", t: "'unsub'", topic: "'file'", path: SocketFilePath },
+)
+export const SocketClientMsg = type.or(SocketTranscriptClientMsg, SocketFileClientMsg)
+export type SocketClientMsg = typeof SocketClientMsg.infer
 
-// server -> client (hand-built by the server, parsed defensively by the client — a plain union, no zod):
+// server -> client (hand-built by the server, parsed defensively by the client — a plain union, no schema):
 //   - {t:"event"}      wraps a ServerEvent (board keyframe / board-delta / notify)
 //   - {t:"transcript"} the pushed transcript for a subscribed slug (replaces the poll response)
 //   - {t:"payload-too-large"} is a stable, typed transport downgrade. A board overflow moves the client
@@ -8421,20 +8596,21 @@ export type SocketServerMsg =
  * read and never opens a database: the grid must stay cheap enough to be the home page even with
  * forty projects, and opening them to draw cards is exactly the cost lazy activation exists to avoid.
  */
-export const ProjectCard = z.object({
-  id: z.string(),
-  slug: z.string(),
-  name: z.string(),
-  path: z.string(),
-  lastOpenedAt: z.string(),
+export const ProjectCard = type({
+  "+": "delete",
+  id: "string",
+  slug: "string",
+  name: "string",
+  path: "string",
+  lastOpenedAt: "string",
   /**
    * When `ntwine` was last run in this project (a cold launch or a join), as the launcher stamped it in
    * the registry. All projects' prompt box aims at the most recent one when this browser has neither
    * picked nor focused a project. Absent for a project no current launcher has run in.
    */
-  lastLaunchedAt: z.string().optional(),
+  "lastLaunchedAt?": "string",
   /** The directory is gone — moved or deleted. The card stays so it can be reopened or forgotten. */
-  stale: z.boolean(),
+  stale: "boolean",
   /**
    * When this project's icon was last established, or absent if it never has been.
    *
@@ -8446,7 +8622,7 @@ export const ProjectCard = z.object({
    * Deliberately NOT "does this project have an icon". Answering that for a project nobody has
    * scanned yet would mean scanning it, and this list is one file read on purpose.
    */
-  iconVersion: z.string().optional(),
+  "iconVersion?": "string",
   /**
    * Whether this project HAS an icon — and crucially, whether we have even looked.
    *
@@ -8464,20 +8640,20 @@ export const ProjectCard = z.object({
    * Measured 2026-08-06 — a rail of 29 projects had scanned exactly ONE, and only because a probe
    * had fetched that one's URL by hand.
    */
-  iconStatus: z.enum(["icon", "none", "unknown"]),
+  iconStatus: "'icon' | 'none' | 'unknown'",
   /** An operator's uploaded icon, rather than one the scan found. Drives what the menu offers. */
-  iconIsCustom: z.boolean().optional(),
+  "iconIsCustom?": "boolean",
   /** On the backburner: All projects, the dock and the prompt box's picker leave it out until it is restored. */
-  backburner: z.literal(true).optional(),
+  "backburner?": "true",
   /**
    * The built-in HOME workspace rather than a registered project: the prompt box's target for work
    * that belongs to no project, run in the operator's home folder. `path` is
    * that folder. It cannot be renamed, given an icon or removed — it is not a folder ntwine adopted, so
    * there is nothing to forget — and it draws a house instead of a monogram.
    */
-  home: z.literal(true).optional(),
+  "home?": "true",
 })
-export type ProjectCard = z.infer<typeof ProjectCard>
+export type ProjectCard = typeof ProjectCard.infer
 
 /**
  * One project's rail counts: its queue (`queuedThread`) and its Active band (`activeBandThread`).
@@ -8490,12 +8666,13 @@ export type ProjectCard = z.infer<typeof ProjectCard>
  * phone projects list drew it in the accent; the desktop rail does not read it. (The fork's phone list
  * reads `projectsQueues`, which it already has; the field is kept so the RPC is upstream's.)
  */
-export const ProjectRailCounts = z.object({
-  queued: z.number().int().nonnegative(),
-  running: z.number().int().nonnegative(),
-  asks: z.number().int().nonnegative(),
+export const ProjectRailCounts = type({
+  "+": "delete",
+  queued: "number.integer >= 0",
+  running: "number.integer >= 0",
+  asks: "number.integer >= 0",
 })
-export type ProjectRailCounts = z.infer<typeof ProjectRailCounts>
+export type ProjectRailCounts = typeof ProjectRailCounts.infer
 
 /** Formats the icon route will serve — a browser renders each of these in an `<img>`. */
 export const PROJECT_ICON_EXTENSIONS = ["png", "svg", "ico", "webp", "jpg", "jpeg", "gif"] as const
@@ -8509,12 +8686,12 @@ export const PROJECT_ICON_MAX_BASE64_CHARS = 4 * 1024 * 1024
  * `cancelled` is not an error — it is the commonest outcome after a mis-click, and rendering it as
  * one would put a red message on screen every time someone changed their mind.
  */
-export const DirectoryPickResult = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("picked"), project: ProjectCard }),
-  z.object({ kind: z.literal("cancelled") }),
-  z.object({ kind: z.literal("unavailable"), reason: z.string() }),
-])
-export type DirectoryPickResult = z.infer<typeof DirectoryPickResult>
+export const DirectoryPickResult = type.or(
+  { "+": "delete", kind: "'picked'", project: ProjectCard },
+  { "+": "delete", kind: "'cancelled'" },
+  { "+": "delete", kind: "'unavailable'", reason: "string" },
+)
+export type DirectoryPickResult = typeof DirectoryPickResult.infer
 
 /**
  * The chosen folder sits INSIDE another project root — a Git checkout or a manifest root — and so
@@ -8524,33 +8701,34 @@ export type DirectoryPickResult = z.infer<typeof DirectoryPickResult>
  * and navigated to its board, which read as "nothing happened". The page now asks — open the enclosing
  * root, or add the folder as a project of its own (`projectAdd` with `exact`).
  */
-export const ProjectEnclosed = z.object({
-  kind: z.literal("enclosed"),
+export const ProjectEnclosed = type({
+  "+": "delete",
+  kind: "'enclosed'",
   /** The folder that was chosen, resolved. */
-  path: z.string(),
+  path: "string",
   /**
    * The project it belongs to: the nearest REGISTERED project above it, else the root it would have
    * resolved to. A registered ancestor wins over a nearer unregistered root — `~/app/action/yes` names
    * `~/app`, not the `~/app/action` package the operator never added.
    */
-  root: z.string(),
+  root: "string",
   /** What the operator calls that root: the project's display name, or the folder's own name. */
-  rootName: z.string(),
+  rootName: "string",
   /** Whether that root is already a registered project (open it) or not yet (add it). */
-  rootRegistered: z.boolean(),
+  rootRegistered: "boolean",
 })
-export type ProjectEnclosed = z.infer<typeof ProjectEnclosed>
+export type ProjectEnclosed = typeof ProjectEnclosed.infer
 
 /** `projectAdd`'s answer: the project it registered, or the enclosing root it declined to take silently. */
-export const ProjectAddResult = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("added"), project: ProjectCard }),
+export const ProjectAddResult = type.or(
+  { "+": "delete", kind: "'added'", project: ProjectCard },
   ProjectEnclosed,
-])
-export type ProjectAddResult = z.infer<typeof ProjectAddResult>
+)
+export type ProjectAddResult = typeof ProjectAddResult.infer
 
 /** `projectPick`'s answer — the picker's own outcomes, plus the same enclosed case `projectAdd` has. */
-export const ProjectPickResult = z.discriminatedUnion("kind", [...DirectoryPickResult.options, ProjectEnclosed])
-export type ProjectPickResult = z.infer<typeof ProjectPickResult>
+export const ProjectPickResult = DirectoryPickResult.or(ProjectEnclosed)
+export type ProjectPickResult = typeof ProjectPickResult.infer
 
 /**
  * One project's slice of the machine-wide queues read (`projectsQueues`) — the All queues page's data.
@@ -8569,32 +8747,33 @@ export type ProjectPickResult = z.infer<typeof ProjectPickResult>
  * Foreign sessions (a project's own terminals) are left out; they are read-only and never queue. The
  * client bands every row with the same pure `groups.ts` functions the rail uses.
  */
-export const ProjectQueue = z.object({
-  projectId: z.string(),
+export const ProjectQueue = type({
+  "+": "delete",
+  projectId: "string",
   /** The registry slug — the `<slug>` in `/project/<slug>`. */
-  projectSlug: z.string(),
-  projectName: z.string(),
+  projectSlug: "string",
+  projectName: "string",
   /** What a relative path in this project's prose resolves against, and a `~` expands to. */
-  projectDir: z.string(),
-  homeDir: z.string().optional(),
+  projectDir: "string",
+  "homeDir?": "string",
   /** `owner/repo` for `#123` autolinks in this project's prose — never the page's. */
-  githubRepo: z.string().optional(),
-  threads: z.array(ThreadView),
-  doneCount: z.number().int().nonnegative(),
+  "githubRepo?": "string",
+  threads: ThreadView.array(),
+  doneCount: "number.integer >= 0",
   /** The Done threads that are PINNED, whole: the Pinned band lists them whatever their state, and they
    *  are few by construction (a pin is the human's shelf), so they ride the poll rather than wait for the
    *  project's board — a pinned Done thread in a project nobody had opened was rowless on All projects
    *  until it was. Absent when there are none; never in `doneCount`. */
-  pinnedDone: z.array(ThreadView).optional(),
+  "pinnedDone?": ThreadView.array(),
   /** The most recently rested Done threads, newest first, capped (`RECENT_DONE_THREADS`) — what the
    *  All projects `@` typeahead offers after the open ones (web lib/threadMentions.ts). Never drawn as
    *  rows: this page's Done band is still `doneCount`. */
-  recentDone: z.array(ThreadView).optional(),
+  "recentDone?": ThreadView.array(),
   /** The project's schedules — the row's fourth count, warning-toned when one was paused by ntwine or is
    *  a proposal waiting for Turn on. Absent when the project has none. */
-  schedules: ProjectSchedules.optional(),
+  "schedules?": ProjectSchedules,
 })
-export type ProjectQueue = z.infer<typeof ProjectQueue>
+export type ProjectQueue = typeof ProjectQueue.infer
 
 /**
  * One thread with the project it belongs to — a row of a list merged across projects (History, the
@@ -8602,13 +8781,14 @@ export type ProjectQueue = z.infer<typeof ProjectQueue>
  * gives: a slug is unique only within one project, so a merged row is only safe to act on while it says
  * whose it is.
  */
-export const ProjectThreadEntry = z.object({
-  projectId: z.string(),
-  projectSlug: z.string(),
-  projectName: z.string(),
+export const ProjectThreadEntry = type({
+  "+": "delete",
+  projectId: "string",
+  projectSlug: "string",
+  projectName: "string",
   thread: ThreadView,
 })
-export type ProjectThreadEntry = z.infer<typeof ProjectThreadEntry>
+export type ProjectThreadEntry = typeof ProjectThreadEntry.infer
 
 /**
  * `projectsDone` — Done threads across every open project, newest rest first, a page at a time.
@@ -8619,28 +8799,31 @@ export type ProjectThreadEntry = z.infer<typeof ProjectThreadEntry>
  * across a page boundary. `projectIds` is the lens (absent = every project); `external` adds the
  * project's foreign sessions (ones ntwine did not start) that are at rest.
  */
-export const ProjectsDoneInput = z.object({
-  before: z.string().min(1).optional(),
-  limit: z.number().int().min(1).max(200).optional(),
-  projectIds: z.array(z.string()).optional(),
-  external: z.boolean().optional(),
+export const ProjectsDoneInput = type({
+  "+": "delete",
+  "before?": "string > 0",
+  "limit?": "1 <= number.integer <= 200",
+  "projectIds?": "string[]",
+  "external?": "boolean",
 })
-export type ProjectsDoneInput = z.infer<typeof ProjectsDoneInput>
-export const ProjectsDonePage = z.object({
-  entries: z.array(ProjectThreadEntry),
+export type ProjectsDoneInput = typeof ProjectsDoneInput.infer
+export const ProjectsDonePage = type({
+  "+": "delete",
+  entries: ProjectThreadEntry.array(),
   /** Present when there may be more: pass it back as `before`. */
-  nextBefore: z.string().optional(),
+  "nextBefore?": "string",
 })
-export type ProjectsDonePage = z.infer<typeof ProjectsDonePage>
+export type ProjectsDonePage = typeof ProjectsDonePage.infer
 
 /** `threadsSearch` — every project's threads, open and Done, whose name or slug contains the query. */
-export const ThreadsSearchInput = z.object({
-  query: z.string(),
-  limit: z.number().int().min(1).max(200).optional(),
+export const ThreadsSearchInput = type({
+  "+": "delete",
+  query: "string",
+  "limit?": "1 <= number.integer <= 200",
 })
-export type ThreadsSearchInput = z.infer<typeof ThreadsSearchInput>
-export const ThreadSearchEntry = ProjectThreadEntry.extend({ done: z.boolean() })
-export type ThreadSearchEntry = z.infer<typeof ThreadSearchEntry>
+export type ThreadsSearchInput = typeof ThreadsSearchInput.infer
+export const ThreadSearchEntry = type({ "...": ProjectThreadEntry, "+": "delete", done: "boolean" })
+export type ThreadSearchEntry = typeof ThreadSearchEntry.infer
 
 /**
  * A resting thread's handoff, whole: the text a queue card is built around.
@@ -8653,18 +8836,19 @@ export type ThreadSearchEntry = z.infer<typeof ThreadSearchEntry>
  * `earlier` is every rest between `asked` and `text` that a card could have shown, oldest first, so a
  * newer rest never takes one back (router.ts `handoffOf`). Absent when `text` is the only one.
  */
-export const ThreadHandoff = z.object({
-  text: z.string().optional(),
-  earlier: z.array(z.object({ text: z.string(), at: z.string().optional() })).optional(),
-  at: z.string().optional(),
-  asked: z.string().optional(),
-  askedAt: z.string().optional(),
+export const ThreadHandoff = type({
+  "+": "delete",
+  "text?": "string",
+  "earlier?": type({ "+": "delete", text: "string", "at?": "string" }).array(),
+  "at?": "string",
+  "asked?": "string",
+  "askedAt?": "string",
 })
-export type ThreadHandoff = z.infer<typeof ThreadHandoff>
+export type ThreadHandoff = typeof ThreadHandoff.infer
 
 /** Where a thread slug actually lives, for a link that no longer says which project it belongs to. */
-export const ThreadLocation = z.object({ projectSlug: z.string(), projectName: z.string() })
-export type ThreadLocation = z.infer<typeof ThreadLocation>
+export const ThreadLocation = type({ "+": "delete", projectSlug: "string", projectName: "string" })
+export type ThreadLocation = typeof ThreadLocation.infer
 
 /**
  * Everything ntwine itself serves lives under this prefix, so the top level stays free for the project
@@ -8721,5 +8905,5 @@ export function fallbackPort(base: number): number {
 // A thread's stable identity string, `ntwine-<slug>`. It named a tmux session once; ntwine has no tmux,
 // and this survives as the integrity check on the session row's `thread_name` column — a row whose
 // stored name does not re-derive from its own slug has been tampered with or mis-keyed.
-export const threadIdentityName = (slug: string) => `ntwine-${ThreadSlug.parse(slug)}`
+export const threadIdentityName = (slug: string) => `ntwine-${ThreadSlug.assert(slug)}`
 export * from "./schedule-rule.ts"

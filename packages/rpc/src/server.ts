@@ -1,39 +1,44 @@
 import type { Hono } from "hono"
 import { streamSSE } from "hono/streaming"
-import { z } from "zod"
+import { type, type ArkErrors } from "arktype"
 
 // ---- Procedure definition helpers ----
 
-export type QueryDef<TInput extends z.ZodType | undefined, TOutput extends z.ZodType> = {
+// A procedure's schemas are arktype Types, from any scope (shared's configured `type` included). The
+// handler receives the validated OUTPUT of `input` — trimmed, defaulted, undeclared keys handled per the
+// schema — and returns the output side of `output`/`event`.
+type Schema = type.Any
+
+export type QueryDef<TInput extends Schema | undefined, TOutput extends Schema> = {
   _tag: "query"
   input?: TInput
   output: TOutput
   handler: (
-    args: TInput extends z.ZodType ? { input: z.infer<TInput> } : {}
-  ) => Promise<z.infer<TOutput>>
+    args: TInput extends Schema ? { input: TInput["infer"] } : {}
+  ) => Promise<TOutput["infer"]>
 }
 
-export type MutationDef<TInput extends z.ZodType, TOutput extends z.ZodType | undefined> = {
+export type MutationDef<TInput extends Schema, TOutput extends Schema | undefined> = {
   _tag: "mutation"
   input: TInput
   output?: TOutput
   handler: (args: {
-    input: z.infer<TInput>
-  }) => Promise<TOutput extends z.ZodType ? z.infer<TOutput> : void>
+    input: TInput["infer"]
+  }) => Promise<TOutput extends Schema ? TOutput["infer"] : void>
 }
 
-export type StreamDef<TInput extends z.ZodType | undefined, TEvent extends z.ZodType> = {
+export type StreamDef<TInput extends Schema | undefined, TEvent extends Schema> = {
   _tag: "stream"
   input?: TInput
   event: TEvent
   handler: (
-    args: TInput extends z.ZodType ? { input: z.infer<TInput> } : {}
-  ) => AsyncGenerator<z.infer<TEvent>>
+    args: TInput extends Schema ? { input: TInput["infer"] } : {}
+  ) => AsyncGenerator<TEvent["infer"]>
 }
 
 export function query<
-  TInput extends z.ZodType | undefined,
-  TOutput extends z.ZodType,
+  TInput extends Schema | undefined,
+  TOutput extends Schema,
 >(
   def: Omit<QueryDef<TInput, TOutput>, "_tag">
 ): QueryDef<TInput, TOutput> {
@@ -41,8 +46,8 @@ export function query<
 }
 
 export function mutation<
-  TInput extends z.ZodType,
-  TOutput extends z.ZodType | undefined = undefined,
+  TInput extends Schema,
+  TOutput extends Schema | undefined = undefined,
 >(
   def: Omit<MutationDef<TInput, TOutput>, "_tag">
 ): MutationDef<TInput, TOutput> {
@@ -50,8 +55,8 @@ export function mutation<
 }
 
 export function stream<
-  TInput extends z.ZodType | undefined,
-  TEvent extends z.ZodType,
+  TInput extends Schema | undefined,
+  TEvent extends Schema,
 >(
   def: Omit<StreamDef<TInput, TEvent>, "_tag">
 ): StreamDef<TInput, TEvent> {
@@ -76,9 +81,17 @@ export function extractProcedureMap(router: Router): Record<string, "query" | "m
 // A validation failure must travel as a READABLE STRING. Both clients surface `error` verbatim only
 // when it is a string — the web one otherwise falls back to an opaque "RPC <name> failed", which hid
 // a real timer-format bug behind a message naming nothing. Keep the field's type stable at `string`.
-function validationMessage(error: z.ZodError): string {
-  const issues = error.issues.map((i) => (i.path.length > 0 ? `${i.path.join(".")}: ${i.message}` : i.message))
-  return issues.length > 0 ? issues.join("; ") : "Invalid input"
+// One sentence per problem, as arktype words it with its location: `until must be an ISO-8601 UTC instant
+// (was "…")`. `message` rather than `path: problem`, because a union's problem already names the paths
+// inside it, and prefixing it again reads `kind: questions[0].kind must be …`.
+function validationMessage(errors: ArkErrors): string {
+  return errors.issues.length > 0 ? errors.issues.map((e) => e.message).join("; ") : "Invalid input"
+}
+
+// Validate `raw` against a procedure's input: the parsed value, or the 400 reply's readable message.
+function parseInput(schema: Schema, raw: unknown): { input: unknown } | { error: string } {
+  const out = schema(raw)
+  return out instanceof type.errors ? { error: validationMessage(out) } : { input: out }
 }
 
 // A handler may additionally mark its failure as safely REPLAYABLE by raising an error carrying
@@ -108,7 +121,10 @@ export function mountRouter(app: Hono, prefix: string, router: Router) {
   app.get(`${prefix}/__procedures`, (c) => c.json(procMap))
 
   for (const [name, proc] of Object.entries(router)) {
-    const path = `${prefix}/${name}`
+    // Annotated so arktype's precompiler (@ark/aot) can tell the key is not a Type it would have to
+    // stringify; it cannot infer that from `Object.entries` over a record holding Types.
+    const routeName: string = name
+    const path = `${prefix}/${routeName}`
 
     if (proc._tag === "query") {
       app.get(path, async (c) => {
@@ -122,11 +138,9 @@ export function mountRouter(app: Hono, prefix: string, router: Router) {
           }
         }
         if (proc.input) {
-          const parsed = proc.input.safeParse(input)
-          if (!parsed.success) {
-            return c.json({ error: validationMessage(parsed.error) }, 400)
-          }
-          input = parsed.data
+          const parsed = parseInput(proc.input, input)
+          if ("error" in parsed) return c.json({ error: parsed.error }, 400)
+          input = parsed.input
         }
         try {
           const result = await proc.handler(input !== undefined ? { input } : {} as any)
@@ -143,11 +157,9 @@ export function mountRouter(app: Hono, prefix: string, router: Router) {
           input = await c.req.json()
         }
         if (proc.input) {
-          const parsed = proc.input.safeParse(input)
-          if (!parsed.success) {
-            return c.json({ error: validationMessage(parsed.error) }, 400)
-          }
-          input = parsed.data
+          const parsed = parseInput(proc.input, input)
+          if ("error" in parsed) return c.json({ error: parsed.error }, 400)
+          input = parsed.input
         }
         try {
           const result = await proc.handler({ input } as any)
@@ -168,18 +180,18 @@ export function mountRouter(app: Hono, prefix: string, router: Router) {
           }
         }
         if (proc.input) {
-          const parsed = proc.input.safeParse(input)
-          if (!parsed.success) {
-            return c.json({ error: validationMessage(parsed.error) }, 400)
-          }
-          input = parsed.data
+          const parsed = parseInput(proc.input, input)
+          if ("error" in parsed) return c.json({ error: parsed.error }, 400)
+          input = parsed.input
         }
         return streamSSE(c, async (sseStream) => {
           let id = 0
           const gen = proc.handler(input !== undefined ? { input } : {} as any)
           for await (const event of gen) {
+            // Annotated for the same reason as `routeName`: the event is data, not a Type to serialize.
+            const payload: {} | null = event
             await sseStream.writeSSE({
-              data: JSON.stringify(event),
+              data: JSON.stringify(payload),
               id: String(id++),
             })
           }

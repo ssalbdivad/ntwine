@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { type } from "./ark.ts"
 import { checkSchedule, describeSchedule, formatOccurrence, type CompiledSchedule, type ScheduleResult } from "./schedule-rule.ts"
 import { threadHandle } from "./thread-handle.ts"
 import { ThreadSlug } from "./thread-slug.ts"
@@ -11,10 +11,10 @@ import { ThreadSlug } from "./thread-slug.ts"
 // a rule into instants on its own.
 //
 // Deliberately imports nothing from index.ts: index re-exports this module, and a value import the other
-// way would read a zod schema before index had built it.
+// way would read a schema before index had built it.
 
 export const SCHEDULE_ID_RE = /^sch_[0-9a-f]{12}$/
-export const ScheduleId = z.string().regex(SCHEDULE_ID_RE)
+export const ScheduleId = type(SCHEDULE_ID_RE)
 
 /** proposed + active + paused, per project. Each one starts a paid agent on its own clock. */
 export const SCHEDULES_PER_PROJECT_MAX = 25
@@ -27,16 +27,16 @@ export const SCHEDULE_FAILURES_MAX = 3
 /** Occurrences skipped in a row because the previous run was still working, before it pauses. */
 export const SCHEDULE_OVERLAPS_MAX = 3
 
-export const ScheduleState = z.enum(["proposed", "active", "paused", "ended"])
-export type ScheduleState = z.infer<typeof ScheduleState>
-export const SchedulePausedReason = z.enum(["human", "review", "failures", "stuck"])
-export type SchedulePausedReason = z.infer<typeof SchedulePausedReason>
-export const ScheduleRunState = z.enum(["starting", "started", "skipped", "failed"])
-export type ScheduleRunState = z.infer<typeof ScheduleRunState>
+export const ScheduleState = type("'proposed' | 'active' | 'paused' | 'ended'")
+export type ScheduleState = typeof ScheduleState.infer
+export const SchedulePausedReason = type("'human' | 'review' | 'failures' | 'stuck'")
+export type SchedulePausedReason = typeof SchedulePausedReason.infer
+export const ScheduleRunState = type("'starting' | 'started' | 'skipped' | 'failed'")
+export type ScheduleRunState = typeof ScheduleRunState.infer
 
 // Mirrors of Backend and Settings.effort in index.ts, kept local for the reason in the header comment.
-export const ScheduleBackend = z.enum(["claude", "codex", "acp"])
-export const ScheduleEffort = z.enum(["auto", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"])
+export const ScheduleBackend = type("'claude' | 'codex' | 'acp'")
+export const ScheduleEffort = type("'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra' | 'ultracode'")
 
 // ---- copy ------------------------------------------------------------------------------------------------
 
@@ -55,21 +55,22 @@ export function cityOfZone(tz: string): string {
 
 /** What the human confirms before a schedule is saved, built from the rule ntwine will fire — never from
  *  the model's summary of it. */
-export const ScheduleEcho = z.object({
+export const ScheduleEcho = type({
+  "+": "delete",
   /** The rule in words: "every Monday at 9am", plus "New York time" when the schedule's zone is not the
    *  viewer's. The short rule a schedule's row shows. */
-  describe: z.string(),
+  describe: "string",
   /** "Triage issues · every Monday at 9am", with the condition when there is one. */
-  echo: z.string(),
+  echo: "string",
   /** "Next: Mon Oct 12 · Mon Oct 19 · Mon Oct 26" — times appear only for a rule that runs more than once
    *  a day. Empty when the rule never runs again. */
-  nextLine: z.string(),
+  nextLine: "string",
   /** The next few occurrences, ISO instants. */
-  upcoming: z.array(z.string()),
+  upcoming: "string[]",
   /** Runs a day, for a rule that runs more than once a day. */
-  perDay: z.number().int().positive().optional(),
+  "perDay?": "number.integer > 0",
 })
-export type ScheduleEcho = z.infer<typeof ScheduleEcho>
+export type ScheduleEcho = typeof ScheduleEcho.infer
 
 export interface ScheduleEchoSpec {
   title: string
@@ -206,216 +207,229 @@ export function formatLateness(ms: number): string {
 
 /** What a thread row carries when it is a run of a schedule — enough for the repeat glyph and its
  *  tooltip ("From Triage issues · every Monday at 9am"). */
-export const ThreadScheduleRef = z.object({
-  id: z.string(),
-  title: z.string(),
-  describe: z.string(),
+export const ThreadScheduleRef = type({
+  "+": "delete",
+  id: "string",
+  title: "string",
+  describe: "string",
   /** True on the schedule's pending next run (a held row in Snoozed), false on a run that started. */
-  pending: z.boolean(),
+  pending: "boolean",
 })
-export type ThreadScheduleRef = z.infer<typeof ThreadScheduleRef>
+export type ThreadScheduleRef = typeof ThreadScheduleRef.infer
 
 /** One line of a schedule's history. */
-export const ScheduleRunView = z.object({
-  id: z.string(),
+export const ScheduleRunView = type({
+  "+": "delete",
+  id: "string",
   /** The occurrence the row is for, ISO. */
-  occurrenceAt: z.string(),
+  occurrenceAt: "string",
   /** "Mon Oct 12, 9am" in the schedule's zone — the line's date half. */
-  when: z.string(),
-  startedAt: z.string().optional(),
+  when: "string",
+  "startedAt?": "string",
   state: ScheduleRunState,
   /** Why it was skipped or did not start ("ntwine was off", "the last run was still working"), or a note
    *  on a started run ("ran 2h 10m late", "started by you"). */
-  reason: z.string().optional(),
+  "reason?": "string",
   /** A quiet finish's first line. */
-  summary: z.string().optional(),
-  threadSlug: ThreadSlug.optional(),
-  threadTitle: z.string().optional(),
+  "summary?": "string",
+  "threadSlug?": ThreadSlug,
+  "threadTitle?": "string",
   /** Where the run's thread is now. `deleted` once its row is gone. */
-  threadState: z.enum(["open", "archived", "deleted"]).optional(),
+  "threadState?": "'open' | 'archived' | 'deleted'",
   /** The line's text half, ready to render after `when`: "@triage-issues", "Nothing new — no issues since
    *  Oct 5", "Skipped: ntwine was off", "Didn't start: Claude is signed out". */
-  label: z.string(),
+  label: "string",
 })
-export type ScheduleRunView = z.infer<typeof ScheduleRunView>
+export type ScheduleRunView = typeof ScheduleRunView.infer
 
 /** The materialized next run: a held thread in the project's Snoozed band. */
-export const ScheduleNextRun = z.object({
+export const ScheduleNextRun = type({
+  "+": "delete",
   slug: ThreadSlug,
-  sessionId: z.string(),
+  sessionId: "string",
   /** When it starts — the held row's snooze instant, which the human may have moved. ISO. */
-  at: z.string(),
+  at: "string",
   /** The rule occurrence it stands for. ISO. */
-  occurrenceAt: z.string(),
+  occurrenceAt: "string",
   /** The human (or a run's `move_next`) moved it off its occurrence. */
-  moved: z.boolean(),
+  moved: "boolean",
 })
-export type ScheduleNextRun = z.infer<typeof ScheduleNextRun>
+export type ScheduleNextRun = typeof ScheduleNextRun.infer
 
-export const ScheduleView = z.object({
+export const ScheduleView = type({
+  "...": ScheduleEcho,
+  "+": "delete",
   id: ScheduleId,
-  projectId: z.string(),
-  projectSlug: z.string(),
-  projectName: z.string(),
-  title: z.string(),
+  projectId: "string",
+  projectSlug: "string",
+  projectName: "string",
+  title: "string",
   /** The human's words for when. */
-  whenText: z.string(),
+  whenText: "string",
   /** The saved prompt, verbatim. */
-  prompt: z.string(),
-  condition: z.string().optional(),
-  rrule: z.string(),
-  dtstart: z.string(),
-  tz: z.string(),
-  ...ScheduleEcho.shape,
-  model: z.string().optional(),
-  effort: ScheduleEffort.optional(),
+  prompt: "string",
+  "condition?": "string",
+  rrule: "string",
+  dtstart: "string",
+  tz: "string",
+  "model?": "string",
+  "effort?": ScheduleEffort,
   backend: ScheduleBackend,
   state: ScheduleState,
-  pausedReason: SchedulePausedReason.optional(),
+  "pausedReason?": SchedulePausedReason,
   /** The paused line when NTWINE paused it ("Paused until you review 3 runs"); absent for a human pause. */
-  pausedText: z.string().optional(),
+  "pausedText?": "string",
   /** Paused by ntwine, or a proposal waiting for Turn on — what turns the project row's count to warning. */
-  attention: z.boolean(),
-  nextRun: ScheduleNextRun.optional(),
-  lastRun: ScheduleRunView.optional(),
-  counts: z.object({
-    started: z.number().int().nonnegative(),
-    skipped: z.number().int().nonnegative(),
-    failed: z.number().int().nonnegative(),
+  attention: "boolean",
+  "nextRun?": ScheduleNextRun,
+  "lastRun?": ScheduleRunView,
+  counts: {
+    "+": "delete",
+    started: "number.integer >= 0",
+    skipped: "number.integer >= 0",
+    failed: "number.integer >= 0",
     /** Started runs whose thread is still open — what back-pressure counts. */
-    unreviewed: z.number().int().nonnegative(),
-  }),
+    unreviewed: "number.integer >= 0",
+  },
   /** `human`, or the slug of the thread that proposed it. */
-  createdBy: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  revision: z.number().int().nonnegative(),
+  createdBy: "string",
+  createdAt: "string",
+  updatedAt: "string",
+  revision: "number.integer >= 0",
 })
-export type ScheduleView = z.infer<typeof ScheduleView>
+export type ScheduleView = typeof ScheduleView.infer
 
 /** The project row's fourth count. */
-export const ProjectSchedules = z.object({
-  count: z.number().int().nonnegative(),
-  attention: z.boolean(),
+export const ProjectSchedules = type({
+  "+": "delete",
+  count: "number.integer >= 0",
+  attention: "boolean",
 })
-export type ProjectSchedules = z.infer<typeof ProjectSchedules>
+export type ProjectSchedules = typeof ProjectSchedules.infer
 
 // ---- the human's RPCs -----------------------------------------------------------------------------------
 
-export const ListSchedulesInput = z.object({
+export const ListSchedulesInput = type({
+  "+": "reject",
   /** Every open project's schedules (the command palette), not just this one's. */
-  allProjects: z.boolean().optional(),
-}).strict()
-export type ListSchedulesInput = z.infer<typeof ListSchedulesInput>
+  "allProjects?": "boolean",
+})
+export type ListSchedulesInput = typeof ListSchedulesInput.infer
 
-export const ScheduleIdInput = z.object({ id: ScheduleId }).strict()
-export type ScheduleIdInput = z.infer<typeof ScheduleIdInput>
+export const ScheduleIdInput = type({ "+": "reject", id: ScheduleId })
+export type ScheduleIdInput = typeof ScheduleIdInput.infer
 
-export const GetScheduleResult = z.object({
+export const GetScheduleResult = type({
+  "+": "reject",
   schedule: ScheduleView,
   /** Newest first. */
-  history: z.array(ScheduleRunView),
-}).strict()
-export type GetScheduleResult = z.infer<typeof GetScheduleResult>
+  history: ScheduleRunView.array(),
+})
+export type GetScheduleResult = typeof GetScheduleResult.infer
 
-export const InterpretScheduleInput = z.object({
+export const InterpretScheduleInput = type({
+  "+": "reject",
   /** What the human typed: the schedule phrase and the prompt together ("every Monday at 9am triage new
    *  issues"), or — with `scheduleId` — only the new WHEN ("Change when"). */
-  text: z.string().trim().min(1).max(20_000),
-  scheduleId: ScheduleId.optional(),
+  text: "string.trim |> 1 <= string <= 20000",
+  "scheduleId?": ScheduleId,
   /** The browser's zone; defaults to the last one reported (reportClientZone), then the server's. */
-  tz: z.string().min(1).max(64).optional(),
-}).strict()
-export type InterpretScheduleInput = z.infer<typeof InterpretScheduleInput>
+  "tz?": "1 <= string <= 64",
+})
+export type InterpretScheduleInput = typeof InterpretScheduleInput.infer
 
-export const InterpretScheduleResult = z.discriminatedUnion("ok", [
-  z.object({
-    ok: z.literal(true),
+export const InterpretScheduleResult = type.or(
+  {
+    "+": "reject",
+    ok: "true",
     /** The schedule phrase exactly as it appears in `text`, and where. */
-    phrase: z.string(),
-    phraseStart: z.number().int().nonnegative(),
-    phraseEnd: z.number().int().nonnegative(),
+    phrase: "string",
+    phraseStart: "number.integer >= 0",
+    phraseEnd: "number.integer >= 0",
     /** `text` with the phrase cut out, otherwise VERBATIM — never a model's rewrite. Empty for a
      *  "Change when". */
-    prompt: z.string(),
+    prompt: "string",
     /** The words to store as the schedule's WHEN. */
-    whenText: z.string(),
-    rrule: z.string(),
-    dtstart: z.string(),
-    tz: z.string(),
-    condition: z.string().optional(),
-    title: z.string(),
+    whenText: "string",
+    rrule: "string",
+    dtstart: "string",
+    tz: "string",
+    "condition?": "string",
+    title: "string",
     preview: ScheduleEcho,
-  }).strict(),
-  z.object({ ok: z.literal(false), error: z.string() }).strict(),
-])
-export type InterpretScheduleResult = z.infer<typeof InterpretScheduleResult>
+  },
+  { "+": "reject", ok: "false", error: "string" },
+)
+export type InterpretScheduleResult = typeof InterpretScheduleResult.infer
 
 const ScheduleFields = {
-  title: z.string().trim().min(1).max(60),
-  prompt: z.string().trim().min(1).max(100_000),
-  whenText: z.string().trim().min(1).max(500),
-  rrule: z.string().trim().min(1).max(500),
-  dtstart: z.string().trim().min(1).max(32),
-  tz: z.string().trim().min(1).max(64),
-  condition: z.string().trim().max(500),
-  model: z.string().trim().min(1).max(200),
+  title: type("string.trim |> 1 <= string <= 60"),
+  prompt: type("string.trim |> 1 <= string <= 100000"),
+  whenText: type("string.trim |> 1 <= string <= 500"),
+  rrule: type("string.trim |> 1 <= string <= 500"),
+  dtstart: type("string.trim |> 1 <= string <= 32"),
+  tz: type("string.trim |> 1 <= string <= 64"),
+  condition: type("string.trim |> string <= 500"),
+  model: type("string.trim |> 1 <= string <= 200"),
   effort: ScheduleEffort,
   backend: ScheduleBackend,
 }
 
 /** A human's new schedule — the interpreter's result, confirmed. `tz` defaults to the reported zone. */
-export const CreateScheduleInput = z.object({
+export const CreateScheduleInput = type({
+  "+": "reject",
   title: ScheduleFields.title,
   prompt: ScheduleFields.prompt,
   whenText: ScheduleFields.whenText,
   rrule: ScheduleFields.rrule,
   dtstart: ScheduleFields.dtstart,
-  tz: ScheduleFields.tz.optional(),
-  condition: ScheduleFields.condition.optional(),
+  "tz?": ScheduleFields.tz,
+  "condition?": ScheduleFields.condition,
   model: ScheduleFields.model,
-  effort: ScheduleFields.effort.optional(),
-  backend: ScheduleFields.backend.optional(),
+  "effort?": ScheduleFields.effort,
+  "backend?": ScheduleFields.backend,
   /** The title is the browser's provisional one (`provisionalScheduleTitle`) — the model named no task — so
    *  the server may rename it once through the thread namer, only while nobody has touched the row since
    *  (ARCHITECTURE.md § Scheduled threads). */
-  titleAuto: z.literal(true).optional(),
-}).strict()
-export type CreateScheduleInput = z.infer<typeof CreateScheduleInput>
+  "titleAuto?": "true",
+})
+export type CreateScheduleInput = typeof CreateScheduleInput.infer
 
 /** Any subset of a schedule's fields. `revision` guards against a concurrent edit; `condition: null`
  *  removes the condition. A change to the rule or its zone moves the next run to the new rule's next
  *  occurrence; a prompt change reaches the next run unless the human already edited that run's note. */
-export const UpdateScheduleInput = z.object({
+export const UpdateScheduleInput = type({
+  "+": "reject",
   id: ScheduleId,
-  revision: z.number().int().nonnegative().optional(),
-  title: ScheduleFields.title.optional(),
-  prompt: ScheduleFields.prompt.optional(),
-  whenText: ScheduleFields.whenText.optional(),
-  rrule: ScheduleFields.rrule.optional(),
-  dtstart: ScheduleFields.dtstart.optional(),
-  tz: ScheduleFields.tz.optional(),
-  condition: ScheduleFields.condition.nullable().optional(),
-  model: ScheduleFields.model.optional(),
-  effort: ScheduleFields.effort.optional(),
-  backend: ScheduleFields.backend.optional(),
-}).strict()
-export type UpdateScheduleInput = z.infer<typeof UpdateScheduleInput>
+  "revision?": "number.integer >= 0",
+  "title?": ScheduleFields.title,
+  "prompt?": ScheduleFields.prompt,
+  "whenText?": ScheduleFields.whenText,
+  "rrule?": ScheduleFields.rrule,
+  "dtstart?": ScheduleFields.dtstart,
+  "tz?": ScheduleFields.tz,
+  "condition?": ScheduleFields.condition.or("null"),
+  "model?": ScheduleFields.model,
+  "effort?": ScheduleFields.effort,
+  "backend?": ScheduleFields.backend,
+})
+export type UpdateScheduleInput = typeof UpdateScheduleInput.infer
 
 /** Pause, Resume, or Turn on a proposal (`active`). Resume never catches up: the next run is the first
  *  occurrence after now. */
-export const SetScheduleStateInput = z.object({
+export const SetScheduleStateInput = type({
+  "+": "reject",
   id: ScheduleId,
-  state: z.enum(["active", "paused"]),
-}).strict()
-export type SetScheduleStateInput = z.infer<typeof SetScheduleStateInput>
+  state: "'active' | 'paused'",
+})
+export type SetScheduleStateInput = typeof SetScheduleStateInput.infer
 
-export const RunScheduleNowResult = z.object({ slug: ThreadSlug, sessionId: z.string() }).strict()
-export type RunScheduleNowResult = z.infer<typeof RunScheduleNowResult>
+export const RunScheduleNowResult = type({ "+": "reject", slug: ThreadSlug, sessionId: "string" })
+export type RunScheduleNowResult = typeof RunScheduleNowResult.infer
 
 /** The browser's IANA zone, reported on load. The latest report is the default zone for new schedules. */
-export const ReportClientZoneInput = z.object({ tz: z.string().min(1).max(64) }).strict()
-export type ReportClientZoneInput = z.infer<typeof ReportClientZoneInput>
+export const ReportClientZoneInput = type({ "+": "reject", tz: "1 <= string <= 64" })
+export type ReportClientZoneInput = typeof ReportClientZoneInput.infer
 
 // ---- the worker's RPC (the `schedule` MCP tool) -------------------------------------------------------
 // One procedure with an `action`, like the tool. Keyed by the caller's own slug, which the MCP server
@@ -424,56 +438,59 @@ export type ReportClientZoneInput = z.infer<typeof ReportClientZoneInput>
 // Turn on), refine its own proposal, and on any schedule in the project skip or move the next run or pause
 // it. It cannot turn anything on, resume, edit an active schedule's rule, or delete.
 
-const WorkerScheduleSpec = {
+const WorkerScheduleSpec = type({
   title: ScheduleFields.title,
   prompt: ScheduleFields.prompt,
   /** The human's own words for when. */
   when: ScheduleFields.whenText,
   rrule: ScheduleFields.rrule,
   dtstart: ScheduleFields.dtstart,
-  tz: ScheduleFields.tz.optional(),
-  condition: ScheduleFields.condition.optional(),
+  "tz?": ScheduleFields.tz,
+  "condition?": ScheduleFields.condition,
   model: ScheduleFields.model,
-  effort: ScheduleFields.effort.optional(),
-  backend: ScheduleFields.backend.optional(),
-}
+  "effort?": ScheduleFields.effort,
+  "backend?": ScheduleFields.backend,
+})
 
-export const OwnScheduleInput = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), slug: ThreadSlug, ...WorkerScheduleSpec }).strict(),
-  z.object({ action: z.literal("dry_run"), slug: ThreadSlug, ...WorkerScheduleSpec }).strict(),
-  z.object({
-    action: z.literal("update"),
+export const OwnScheduleInput = type.or(
+  { "...": WorkerScheduleSpec, "+": "reject", action: "'create'", slug: ThreadSlug },
+  { "...": WorkerScheduleSpec, "+": "reject", action: "'dry_run'", slug: ThreadSlug },
+  {
+    "+": "reject",
+    action: "'update'",
     slug: ThreadSlug,
     id: ScheduleId,
-    title: WorkerScheduleSpec.title.optional(),
-    prompt: WorkerScheduleSpec.prompt.optional(),
-    when: WorkerScheduleSpec.when.optional(),
-    rrule: WorkerScheduleSpec.rrule.optional(),
-    dtstart: WorkerScheduleSpec.dtstart.optional(),
-    tz: ScheduleFields.tz.optional(),
-    condition: ScheduleFields.condition.nullable().optional(),
-    model: WorkerScheduleSpec.model.optional(),
-    effort: ScheduleFields.effort.optional(),
-    backend: ScheduleFields.backend.optional(),
-  }).strict(),
-  z.object({ action: z.literal("list"), slug: ThreadSlug }).strict(),
-  z.object({ action: z.literal("pause"), slug: ThreadSlug, id: ScheduleId }).strict(),
-  z.object({ action: z.literal("skip_next"), slug: ThreadSlug, id: ScheduleId, reason: z.string().trim().max(200).optional() }).strict(),
-  z.object({
-    action: z.literal("move_next"),
+    "title?": ScheduleFields.title,
+    "prompt?": ScheduleFields.prompt,
+    "when?": ScheduleFields.whenText,
+    "rrule?": ScheduleFields.rrule,
+    "dtstart?": ScheduleFields.dtstart,
+    "tz?": ScheduleFields.tz,
+    "condition?": ScheduleFields.condition.or("null"),
+    "model?": ScheduleFields.model,
+    "effort?": ScheduleFields.effort,
+    "backend?": ScheduleFields.backend,
+  },
+  { "+": "reject", action: "'list'", slug: ThreadSlug },
+  { "+": "reject", action: "'pause'", slug: ThreadSlug, id: ScheduleId },
+  { "+": "reject", action: "'skip_next'", slug: ThreadSlug, id: ScheduleId, "reason?": "string.trim |> string <= 200" },
+  {
+    "+": "reject",
+    action: "'move_next'",
     slug: ThreadSlug,
     id: ScheduleId,
     /** The new start: a local wall time in the schedule's zone (`2026-10-15T10:00`) or an ISO instant. */
-    to: z.string().trim().min(1).max(40),
-  }).strict(),
-])
-export type OwnScheduleInput = z.infer<typeof OwnScheduleInput>
+    to: "string.trim |> 1 <= string <= 40",
+  },
+)
+export type OwnScheduleInput = typeof OwnScheduleInput.infer
 
 /** `text` is the server-built reply the tool relays VERBATIM — the echo the worker must pass on to the
  *  human — so the shim has nothing to compose. */
-export const OwnScheduleResult = z.object({
-  text: z.string(),
-  schedule: ScheduleView.optional(),
-  schedules: z.array(ScheduleView).optional(),
-}).strict()
-export type OwnScheduleResult = z.infer<typeof OwnScheduleResult>
+export const OwnScheduleResult = type({
+  "+": "reject",
+  text: "string",
+  "schedule?": ScheduleView,
+  "schedules?": ScheduleView.array(),
+})
+export type OwnScheduleResult = typeof OwnScheduleResult.infer

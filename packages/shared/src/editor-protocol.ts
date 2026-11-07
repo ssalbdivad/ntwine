@@ -9,8 +9,8 @@
 // their queue counts. Everything else the extension does — dispatching a thread, a follow-up — goes
 // through the ordinary RPC surface, like any other client.
 //
-// Pure types and constants, no zod: the extension bundles this module and must not drag the shared
-// index in. The zod schemas the SERVER validates frames with live beside ServerEvent in index.ts, and
+// Pure types and constants, no schemas: the extension bundles this module and must not drag the shared
+// index in. The schemas the SERVER validates frames with live beside ServerEvent in index.ts, and
 // are pinned assignable to these types there.
 
 import type { FilePosition } from "./file-position.ts"
