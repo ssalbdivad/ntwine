@@ -224,6 +224,17 @@ export function claimRowAction(row: Pick<ThreadTerminalRow, "runs" | "exited_at"
   return row.runs === claim.runId && row.exited_at === null ? "none" : "rerun"
 }
 
+/** The handle a claim's rerun moves its row to, or undefined to keep it. The dev board reuses ONE row across
+ *  every start (dev-terminal.ts), so when its command changes the name has to follow: `nub run dev` became
+ *  `pnpm run dev` on 2026-11-07 and the reused row went on reading `@nub-run-dev` — through runs already made
+ *  under the new command, so the row's stored command cannot say which name is stale. A handle is only ever
+ *  minted from a command, so one that is not the new command's own (its base, or a `-2` of it) is re-minted. */
+export function claimRerunHandle(row: Pick<ThreadTerminalRow, "handle">, command: string, taken: Iterable<string> = []): string | undefined {
+  const base = terminalHandle(command)
+  if (!row.handle || row.handle === base || new RegExp(`^${base}-\\d+$`, "u").test(row.handle)) return undefined
+  return terminalHandle(command, [...taken].filter((h) => h.toLowerCase() !== row.handle!.toLowerCase()))
+}
+
 /** The screen an exit record leaves: the run's last screen, or why it never got a process. */
 function exitScreen(exit: TerminalExitRecord): string {
   return exit.startFailure ? exit.screen + startFailureScreen(exit.startFailure.what, exit.startFailure.message) : exit.screen
@@ -469,6 +480,10 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
           deps.storage.insertThreadTerminal({ slug: claim.id, parentSlug: null, startedBy: claim.startedBy, handle, command: claim.command, cwd: claim.cwd, shell: false, createdAtMs: startedAtMs })
           if (claim.runId !== 1) deps.storage.restartThreadTerminal(claim.id, startedAtMs, claim.command, claim.runId)
         } else if (action === "rerun") {
+          let taken: string[] = []
+          try { taken = [...(deps.takenHandles?.() ?? [])] } catch {}
+          const handle = claimRerunHandle(existing!, claim.command, [...openHandles(), ...taken])
+          if (handle) deps.storage.setThreadTerminalHandle(claim.id, handle)
           deps.storage.restartThreadTerminal(claim.id, startedAtMs, claim.command, claim.runId)
         }
         host.dropClaim(claim.id)

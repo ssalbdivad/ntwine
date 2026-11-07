@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createStorage, type Storage } from "./storage.ts"
 import { createTerminalHost, liveTerminalHostRecords, readTerminalClaims, type TerminalHost } from "./backend/terminal-host.ts"
-import { claimRowAction, createTerminalRunner, terminalThreadView, type TerminalRunner } from "./thread-terminals.ts"
+import { claimRerunHandle, claimRowAction, createTerminalRunner, terminalThreadView, type TerminalRunner } from "./thread-terminals.ts"
 import { endedReport, planDevTerminal, readDevTerminalMemo, startDevTerminal } from "./dev-terminal.ts"
 
 // The desktop window's dev board (dev-terminal.ts): a terminal daemon forked BEFORE any server, which the
@@ -148,6 +148,15 @@ test("a claim makes a row, reruns one on another run or one whose run is over, a
   assert.equal(claimRowAction({ runs: 2, exited_at: 5 }, { runId: 2 }), "rerun")
   // Made by a server that died before dropping the claim.
   assert.equal(claimRowAction({ runs: 2, exited_at: null }, { runId: 2 }), "none")
+})
+
+test("a rerun renames a row whose handle another command minted, and keeps one its own command did", () => {
+  // Its own old name is not in the way of itself; another thread's is.
+  assert.equal(claimRerunHandle({ handle: "nub-run-dev" }, "pnpm run dev", ["nub-run-dev"]), "pnpm-run-dev")
+  assert.equal(claimRerunHandle({ handle: "nub-run-dev" }, "pnpm run dev", ["pnpm-run-dev"]), "pnpm-run-dev-2")
+  // The same program with other flags, or a numbered copy of its name, stays.
+  assert.equal(claimRerunHandle({ handle: "pnpm-run-dev" }, "pnpm run dev -- --port 9400"), undefined)
+  assert.equal(claimRerunHandle({ handle: "pnpm-run-dev-2" }, "pnpm run dev"), undefined)
 })
 
 test("the starter defers to a running board, waits on a live terminal, and numbers a new run past every one it has seen", () => {
