@@ -161,10 +161,16 @@ export const QUESTION_PROSE =
   "md-inline break-words [&_p+*]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li+li]:mt-1 [&_pre]:overflow-x-auto [&_pre]:text-[0.85em] [&_code]:text-[0.9em] [&_a]:underline"
 
 /** THE BOTTOM BAR'S THIRD STATE (mockup v2 §2–3): on a thread with open questions the resting row is
- *  [keyboard] + "Answer N questions". The keyboard button is for a free reply instead — it switches the
- *  bar back to the prompt and focuses it inside the same tap, which is what makes iOS raise the keyboard
- *  (Composer's PhoneBarApi). Rendered through ThreadComposerBox's `phoneBarOverride`, so it shows only
- *  while the prompt is empty and blurred. */
+ *  [Reply… field] + "Answer N". The field is for a free reply instead — it switches the bar back to the
+ *  prompt and focuses it inside the same tap, which is what makes iOS raise the keyboard (Composer's
+ *  PhoneBarApi). A reply types past the questions (server: question-passed-over), so they stop holding
+ *  the thread and stay answerable on their cards. Rendered through ThreadComposerBox's
+ *  `phoneBarOverride`, so it shows only while the prompt is empty and blurred.
+ *
+ *  The reply was a bare keyboard icon until 2026-11-07, beside a full-width "Answer" pill that read as
+ *  the only way forward (maintainer: "there is no clear way to respond to a thread directly and ignore
+ *  active questions"). It now draws as the prompt box itself, at the prompt's shape and placeholder, so
+ *  it reads as the box it opens; Answer keeps the solid fill as the worker's ask. */
 export function PhoneAnswerBar({ count, onAnswer, onReply }: { count: number; onAnswer: () => void; onReply: () => void }) {
   return (
     <>
@@ -172,19 +178,17 @@ export function PhoneAnswerBar({ count, onAnswer, onReply }: { count: number; on
         type="button"
         data-phone-answer-reply
         onClick={onReply}
-        aria-label="Write a reply instead"
-        title="Write a reply instead"
-        className="flex size-[42px] shrink-0 items-center justify-center rounded-full border border-border-strong bg-panel text-fg active:bg-hover"
+        className="flex h-[42px] min-w-0 flex-1 items-center rounded-[21px] border border-border-strong bg-panel px-[14px] text-left text-[16px] text-faint active:bg-hover"
       >
-        <Keyboard aria-hidden size={19} strokeWidth={1.8} />
+        <span className="truncate">Reply…</span>
       </button>
       <button
         type="button"
         data-phone-answer-open
         onClick={onAnswer}
-        className="flex h-[42px] min-w-0 flex-1 items-center justify-center rounded-full bg-fg px-4 text-[15px] font-semibold text-bg active:opacity-90"
+        className="flex h-[42px] shrink-0 items-center justify-center rounded-full bg-fg px-4 text-[15px] font-semibold text-bg active:opacity-90"
       >
-        {count > 1 ? `Answer ${count} questions` : "Answer"}
+        {count > 1 ? `Answer ${count}` : "Answer"}
       </button>
     </>
   )
