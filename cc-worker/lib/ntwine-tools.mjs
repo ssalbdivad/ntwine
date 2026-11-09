@@ -1056,6 +1056,39 @@ const UNLINK = {
   },
 }
 
+// REACTIONS (2026-11-09). An emoji on the human's message, and the human's on yours — see
+// ThreadReactionView in packages/shared for the model. Neither side's reaction wakes the other.
+const REACT = {
+  name: "react",
+  description:
+    "React to the user's message with an emoji, the way a colleague would in chat. It shows under their message " +
+    "on the board. With no `--message` it lands on their LATEST message, which is almost always what you mean; " +
+    "`ntwinectl reactions` lists their recent messages with the ids `--message` takes. `--remove` takes one back.\n\n" +
+    "Use it sparingly and only where an emoji says something a reply would not need to: 👀 when you have picked up a " +
+    "request and are on it, 👍 to acknowledge a correction or a small instruction, 🎉 when they share good news. A " +
+    "reaction never replaces the answer or the write-up a message asks for, and never signs off a rest. It wakes nobody " +
+    "and changes nothing about your thread.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      emoji: { type: "string", description: "One emoji, such as 👍 👀 🎉 ❤️ 🙏 🤔." },
+      message: { type: "string", description: "The id of one of the user's recent messages (from `ntwinectl reactions`). Omit for their latest." },
+      remove: { type: "boolean", description: "Take back that emoji instead of adding it." },
+    },
+    required: ["emoji"],
+    additionalProperties: false,
+  },
+}
+const REACTIONS = {
+  name: "reactions",
+  description:
+    "Read the reactions on this thread: the user's emoji on your messages, and yours on theirs, each with the words " +
+    "it was put on. The user's reactions also reach you on their next message, as a line from ntwine, so you never " +
+    "need to poll this; read it when you want to know right now. Also lists the user's recent messages with their ids, " +
+    "for `ntwinectl react --message`. Takes nothing and changes nothing.",
+  inputSchema: { type: "object", properties: {}, required: [] },
+}
+
 // THE THREAD'S TIME LIMIT (2026-10-06, ARCHITECTURE.md § Time limits). Read it, or set one on a thread that has
 // none. Only the human may move or clear a deadline the human set — an agent moving its own goalposts
 // defeats the point — so `extend` and `clear` work on a deadline the worker set itself, and the server
@@ -1204,7 +1237,7 @@ const TERMINAL = {
 // (2026-10-02), SCHEDULE after EDITOR (2026-10-05), DEADLINE after SCHEDULE (2026-10-06), upstream's
 // SECRET after DEADLINE (2026-10-08), and upstream's WATCH_COMMAND after SECRET (2026-10-12). Upstream's STEER is not
 // here: MESSAGE_THREAD is the fork's thread-to-thread command (plans/upstream-superset.md).
-const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST, TERMINAL]
+const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, REACT, REACTIONS, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST, TERMINAL]
 
 // A COMMAND WHOSE FEATURE CAN BE ABSENT, and the capability the server reports for it (router
 // `workerCapabilities`, the same predicate that gates the contract's sections, dispatch.ts). Of the
@@ -1218,7 +1251,7 @@ const GATED_TOOLS = /** @type {Record<string, string>} */ ({ [EDITOR.name]: "edi
 // front-end is what Codex and ACP workers run, which load their own MCP servers themselves. `terminal`
 // (2026-10-15) came after the CLI cutover: only a worker taught the MCP tools mounts the front-end
 // (context.ts workerTaughtMcp), its contract never names terminals, and a listed tool costs every turn.
-const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name, TERMINAL.name])
+const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name, TERMINAL.name, REACT.name, REACTIONS.name])
 
 /** @type {Record<string, (args: Record<string, unknown>) => Promise<string>>} */
 const HANDLERS = {
@@ -1237,6 +1270,8 @@ const HANDLERS = {
   [ACTIVITY.name]: activity,
   [LINK.name]: link,
   [UNLINK.name]: unlink,
+  [REACT.name]: react,
+  [REACTIONS.name]: reactions,
   [EXTEND_SHELL.name]: extendShell,
   [READ_THREAD.name]: readThread,
   [MESSAGE_THREAD.name]: messageThread,
@@ -1396,6 +1431,46 @@ async function unlink(args) {
   if (!id) throw new Error("`id` is required — take it from `ntwinectl link` or `ntwinectl activity`")
   const result = (await callRpc("dropOwnLink", { slug: threadSlug(), id }))?.result
   return result?.dropped ? `Removed registration ${id}. No file was deleted and no server was stopped.` : `No registration ${id} on this thread.`
+}
+
+/** One line quoting what a reaction was put on. @param {string} excerpt */
+const quoted = (excerpt) => {
+  const flat = String(excerpt ?? "").replace(/\s+/g, " ").trim()
+  return `“${flat.length > 100 ? `${flat.slice(0, 99).trimEnd()}…` : flat}”`
+}
+
+/** @param {Record<string, unknown>} args @returns {Promise<string>} */
+async function react(args) {
+  const emoji = typeof args.emoji === "string" ? args.emoji.trim() : ""
+  if (!emoji) throw new Error("`emoji` is required — one emoji, such as 👍 or 👀")
+  const message = typeof args.message === "string" && args.message.trim() ? args.message.trim() : undefined
+  const result = (await callRpc("setOwnReaction", { slug: threadSlug(), emoji, ...(message ? { message } : {}), ...(args.remove === true ? { remove: true } : {}) }))?.result
+  const r = result?.reaction
+  if (!r) throw new Error("ntwine did not confirm the reaction")
+  return result.removed
+    ? `Took back ${r.emoji} from the user's message ${quoted(r.excerpt)}.`
+    : `Reacted ${r.emoji} to the user's message ${quoted(r.excerpt)} (${r.sourceId}). It shows under their message; it wakes nobody.`
+}
+
+/** @returns {Promise<string>} */
+async function reactions() {
+  const result = (await callRpc("listOwnReactions", { slug: threadSlug() }))?.result
+  const list = Array.isArray(result?.reactions) ? result.reactions : []
+  const messages = Array.isArray(result?.messages) ? result.messages : []
+  const theirs = list.filter((r) => r.by === "human")
+  const yours = list.filter((r) => r.by === "agent")
+  const lines = (/** @type {any[]} */ rs) => rs.map((r) => `  ${r.emoji} on ${quoted(r.excerpt)}`).join("\n")
+  const parts = [
+    theirs.length ? `The user's reactions to your messages, oldest first:\n${lines(theirs)}` : "The user has not reacted to any of your messages.",
+    yours.length ? `Your reactions to theirs:\n${lines(yours)}` : "You have not reacted to any of their messages.",
+  ]
+  if (messages.length) {
+    parts.push(
+      "The user's recent messages, newest last (`ntwinectl react <emoji> --message <id>`):\n" +
+      messages.map((m) => `  ${m.sourceId}  ${quoted(m.excerpt)}`).join("\n"),
+    )
+  }
+  return parts.join("\n\n")
 }
 
 /** The `title` handler: register this thread's considered name.
@@ -3114,6 +3189,17 @@ const CLI = {
     summary: "Remove a saved link or file",
     positional: ["id"],
     examples: ["ntwinectl unlink lnk_ab12cd34"],
+  },
+  react: {
+    group: "This thread",
+    summary: "React to the user's message with an emoji",
+    positional: ["emoji"],
+    examples: ["ntwinectl react 👀", "ntwinectl react 👍 --message claude:48213", "ntwinectl react 👍 --remove"],
+  },
+  reactions: {
+    group: "This thread",
+    summary: "Read the user's reactions to your messages, and yours to theirs",
+    examples: ["ntwinectl reactions"],
   },
   deadline: {
     group: "This thread",

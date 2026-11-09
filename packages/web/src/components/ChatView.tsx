@@ -38,6 +38,7 @@ import { questionsAboveNewestRest, questionsByAnchor } from "../lib/questionAnch
 import { fenceStandsFor, placedRestEnds, placeQuestions, registeredStandingAt, type QuestionPlacement } from "../lib/questionShadow.ts"
 import { settledQuestionPositions, type SettledPlacement } from "../lib/settledQuestions.ts"
 import { NtwineWake, ShellWakeText } from "./NtwineWake.tsx"
+import { AgentMessageReactions, ReactionsProvider, UserMessageReactions } from "./MessageReactions.tsx"
 import { RecurringPromptLine } from "./RecurringPromptLine.tsx"
 import { goalAwaitingFirstRest } from "../lib/goalLoop.ts"
 import { LinkifiedText } from "./LinkifiedText.tsx"
@@ -484,6 +485,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
 
   return (
     <ThreadSlugContext.Provider value={slug}>
+    <ReactionsProvider slug={slug} reactions={serverThread?.reactions}>
     <SendScopeContext.Provider value={sendScope}>
     <RegisteredAnsweringProvider thread={thread}>
     <PhoneQuestionsContext.Provider value={phoneQuestions}>
@@ -734,6 +736,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
     </PhoneQuestionsContext.Provider>
     </RegisteredAnsweringProvider>
     </SendScopeContext.Provider>
+    </ReactionsProvider>
     </ThreadSlugContext.Provider>
   )
 }
@@ -3782,6 +3785,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
       {unqueueable && unqueuePending && (
         <div aria-hidden className="h-0 overflow-visible text-[11px] text-muted">Taking it back…</div>
       )}
+      {!queued && <UserMessageReactions sourceId={sourceId} />}
     </div>
   )
 }
@@ -4157,8 +4161,10 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
   return (
     // `data-question-set`: this message's fence cards are one batch, which a card's Enter walks before
     // it sends (QuestionBlockCard advanceOrSubmit).
-    <div data-ntwine-msg={m.sourceId} data-question-set={answering ? "" : undefined} className="flex flex-col text-[13px] min-w-0">
+    <div data-ntwine-msg={m.sourceId} data-question-set={answering ? "" : undefined} className="group/msg flex flex-col text-[13px] min-w-0">
       {withSpacers(blocks, pictureAwareGap(pictureEdges, STEP))}
+      {/* The human's reactions, on a message with words to react to (a tool-only band has none). */}
+      {m.text.trim() !== "" && !m.queued && <AgentMessageReactions sourceId={m.sourceId} excerpt={m.text.slice(0, 400)} />}
       {answerSheetOpen && answering && askBlocks.length > 0 ? (
         <MobileAnswerSheet blocks={askBlocks} answering={answering} onClose={() => setAnswerSheetOpen(false)} />
       ) : null}

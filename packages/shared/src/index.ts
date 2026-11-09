@@ -4541,6 +4541,63 @@ export type DropOwnLinkInput = z.infer<typeof DropOwnLinkInput>
 export const DropOwnLinkResult = z.object({ dropped: z.boolean() }).strict()
 export type DropOwnLinkResult = z.infer<typeof DropOwnLinkResult>
 
+// REACTIONS (2026-11-09). An emoji one side of a conversation pins to the other side's message: the human
+// on an agent's message, the agent on the human's. A message is named by its transcript `sourceId`, the
+// same stable handle the chat keys and anchors on. A reaction is acknowledgement, not a turn: it never
+// wakes the agent. The agent reads the human's at its next follow-up (reactionsNote) or with
+// `ntwinectl reactions`; the human reads the agent's under their own bubble.
+export const REACTION_EMOJI = ["👍", "❤️", "😂", "🎉", "👀", "🙏", "🤔", "👎"] as const
+export const ReactionEmoji = z.string().trim().min(1).max(16).regex(/^[^\x00-\x7f]+$/, "a reaction is one emoji")
+export const ReactionAuthor = z.enum(["human", "agent"])
+export type ReactionAuthor = z.infer<typeof ReactionAuthor>
+export const ThreadReactionView = z.object({
+  sourceId: z.string(),
+  emoji: z.string(),
+  by: ReactionAuthor,
+  at: z.number(),
+}).strict()
+export type ThreadReactionView = z.infer<typeof ThreadReactionView>
+// The excerpt is what the OTHER side reads the reaction against ("👍 on “Fixed the lookup…”"), taken from
+// the message as it rendered, so it never needs the transcript to be re-read.
+const ReactionExcerpt = z.string().max(400)
+export const SetReactionInput = z.object({
+  slug: ThreadSlug,
+  sourceId: z.string().min(1).max(768),
+  emoji: ReactionEmoji,
+  excerpt: ReactionExcerpt,
+  on: z.boolean(),
+}).strict()
+export type SetReactionInput = z.infer<typeof SetReactionInput>
+export const SetReactionResult = z.object({ reactions: z.array(ThreadReactionView) }).strict()
+export type SetReactionResult = z.infer<typeof SetReactionResult>
+// The agent's own reaction, from `ntwinectl react`. With no `message` it lands on the human's latest
+// message, which is what an agent reacting almost always means.
+export const SetOwnReactionInput = z.object({
+  slug: ThreadSlug,
+  emoji: ReactionEmoji,
+  message: z.string().min(1).max(768).optional(),
+  remove: z.boolean().optional(),
+}).strict()
+export type SetOwnReactionInput = z.infer<typeof SetOwnReactionInput>
+export const ReactionLine = z.object({
+  sourceId: z.string(),
+  emoji: z.string(),
+  by: ReactionAuthor,
+  excerpt: z.string(),
+  at: z.number(),
+}).strict()
+export type ReactionLine = z.infer<typeof ReactionLine>
+export const SetOwnReactionResult = z.object({ reaction: ReactionLine, removed: z.boolean() }).strict()
+export type SetOwnReactionResult = z.infer<typeof SetOwnReactionResult>
+export const ListOwnReactionsInput = z.object({ slug: ThreadSlug }).strict()
+export type ListOwnReactionsInput = z.infer<typeof ListOwnReactionsInput>
+export const ListOwnReactionsResult = z.object({
+  reactions: z.array(ReactionLine),
+  /** The human's recent messages, newest last, so `react --message` has ids to name. */
+  messages: z.array(z.object({ sourceId: z.string(), excerpt: z.string(), at: z.string().optional() }).strict()),
+}).strict()
+export type ListOwnReactionsResult = z.infer<typeof ListOwnReactionsResult>
+
 // A TERMINAL THREAD's process — a live pty a human or an agent started (server thread-terminals.ts). Since
 // 2026-10-15 a terminal is a thread of its own (`ThreadView.kind: "terminal"`, carrying this as
 // `ThreadView.terminal`): a row in one of the six bands, a card when it needs the human, its own drawer.
@@ -4995,6 +5052,9 @@ export const ThreadView = z.object({
   checkout: WorkCheckout.optional(),
   // Optional for snapshots from a server that predates link registration.
   links: z.array(ThreadLinkView).optional(),
+  // Emoji either side pinned to the other's messages, keyed by sourceId (ThreadReactionView). Optional for
+  // an older server; capped server-side to the newest, so a long thread cannot grow every board frame.
+  reactions: z.array(ThreadReactionView).optional(),
   // SPINOFFS touching this thread, at either end: the ones it was asked for (parentSlug = this thread)
   // and the one it came from (childSlug = this thread). Optional for an older server.
   spinoffs: z.array(SpinoffView).optional(),
@@ -7065,7 +7125,32 @@ export function stripOpenQuestionsNote(text: string): string {
  *  the router appends them (the gap note, then the open-questions note). The one call every display and
  *  match key should make, so a rider added later cannot be stripped in one place and shown in another. */
 export function stripFollowUpRiders(text: string): string {
-  return stripHumanGapNote(stripOpenQuestionsNote(text))
+  return stripReactionsNote(stripHumanGapNote(stripOpenQuestionsNote(text)))
+}
+
+// THE HUMAN'S REACTIONS, TOLD TO THE AGENT ON THEIR NEXT MESSAGE (2026-11-09). A reaction never wakes the
+// agent — an emoji is not worth a turn — so the ones it has not heard of ride the next typed follow-up,
+// appended to the worker's copy exactly as humanGapNote is and stripped from the bubble the same way.
+// One line, so the stripper can anchor on its fixed opening and closing; an excerpt is flattened to one
+// line and loses its curly quotes so it cannot close the quote early.
+const REACTIONS_NOTE_EXCERPT_MAX = 80
+
+/** One line naming the human's reactions the agent has not been told about, or undefined for none. */
+export function reactionsNote(reactions: readonly { emoji: string; excerpt: string }[]): string | undefined {
+  if (!reactions.length) return undefined
+  const parts = reactions.map(({ emoji, excerpt }) => {
+    const flat = excerpt.replace(/[“”]/g, "\"").replace(/\s+/g, " ").trim()
+    const cut = flat.length > REACTIONS_NOTE_EXCERPT_MAX ? `${flat.slice(0, REACTIONS_NOTE_EXCERPT_MAX - 1).trimEnd()}…` : flat
+    return `${emoji} on “${cut || "your message"}”`
+  })
+  return `↩ ntwine: since your last turn the human reacted ${parts.join(", ")}.`
+}
+
+const REACTIONS_NOTE_TAIL = /\n+↩ ntwine: since your last turn the human reacted [^\n]* on “[^\n]*”\.[ \t]*$/
+
+/** Display projection: the human's message without the reactions line ntwine appended for the worker. */
+export function stripReactionsNote(text: string): string {
+  return text.replace(REACTIONS_NOTE_TAIL, "")
 }
 
 export function wakeDeliveryToken(id: string): string {

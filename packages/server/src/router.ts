@@ -178,6 +178,13 @@ import {
   OWN_WATCH_MAX_ARMED,
   type OwnWatchView,
   humanGapNote,
+  reactionsNote,
+  SetReactionInput,
+  SetReactionResult,
+  SetOwnReactionInput,
+  SetOwnReactionResult,
+  ListOwnReactionsInput,
+  ListOwnReactionsResult,
   questionPassedOver,
   SetOwnThreadTitleInput,
   SetOwnThreadTitleResult,
@@ -249,6 +256,7 @@ import { openableFileRoots, workDirOf } from "./project.ts"
 import { projectsNamedIn, resolveSpawnProject, spawnProjectList, type SpawnProject } from "./spawn-project.ts"
 import { dispatchCaller } from "./dispatch-caller.ts"
 import { resolveThreadLink, threadLinkView } from "./thread-links.ts"
+import { humanMessageText, isHumanMessage, reactionExcerpt, reactionLine, threadReactionViews } from "./thread-reactions.ts"
 import { ghInstalled, ghAuthed, ghRepo, gitGithubRemote } from "./github.ts"
 import { createGithubHovercardService } from "./github-hovercard.ts"
 import { resolveLegacyThreadFile, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, ntwineConfigBlock, coldResumePermission, scratchDirRelPath, workerScratchPath } from "./dispatch.ts"
@@ -1950,7 +1958,13 @@ export function createRouter(ctx: AppContext) {
       // question open when it lands (questionPassedOver), so there is nothing for the worker to name or
       // withdraw. The cards stay answerable where they were asked.
       const gapNote = humanGapNote(Date.now(), ctx.tailer.get(input.slug)?.lastAssistantAt)
-      const messageForWorker = gapNote !== undefined ? `${input.message}\n\n${gapNote}` : input.message
+      // THE HUMAN'S REACTIONS the agent has not heard of ride this message too, BEFORE the gap note (which
+      // stays last, where its stripper anchors). Marked told here, ahead of the transport: a send that then
+      // fails is retried by the human, and an emoji repeated on a retry is worth less than the bookkeeping.
+      const untold = ctx.storage.untoldHumanReactions(input.slug)
+      const reactNote = reactionsNote(untold)
+      if (untold.length) ctx.storage.markHumanReactionsTold(input.slug, Date.now())
+      const messageForWorker = [input.message, reactNote, gapNote].filter((part) => part !== undefined).join("\n\n")
       if (row) reopenArchivedThreadForFollowUp(ctx, row)
       // Un-park HERE, above the runtime branches, for the same reason the reopen is here: a broker
       // Claude row and an app-server Codex row both return from their own branch below, so anything
@@ -4745,6 +4759,59 @@ export function createRouter(ctx: AppContext) {
         const dropped = ctx.storage.dropThreadLink(input.slug, input.id)
         if (dropped) ctx.board.refresh()
         return { dropped }
+      },
+    }),
+
+    // ---- REACTIONS (2026-11-09) -----------------------------------------------------------------
+    // The human's, from the chat: toggles one emoji on an agent message. Never a wake — the agent hears
+    // of it on the human's next follow-up (reactionsNote, in followUp above) or from `ntwinectl reactions`.
+    setReaction: mutation({
+      input: SetReactionInput,
+      output: SetReactionResult,
+      handler: async ({ input }) => {
+        if (!ctx.storage.getSession(input.slug)) throw new Error(`thread ${input.slug} is not registered`)
+        const changed = ctx.storage.setThreadReaction({
+          slug: input.slug, sourceId: input.sourceId, author: "human", emoji: input.emoji,
+          excerpt: reactionExcerpt(input.excerpt), on: input.on, atMs: Date.now(),
+        })
+        if (changed) ctx.board.refresh()
+        return { reactions: threadReactionViews(ctx.storage.listThreadReactions(input.slug)) }
+      },
+    }),
+    // The agent's, from `ntwinectl react`: on the human's latest recorded message unless it names one.
+    setOwnReaction: mutation({
+      input: SetOwnReactionInput,
+      output: SetOwnReactionResult,
+      handler: async ({ input }) => {
+        if (!ctx.storage.getSession(input.slug)) throw new Error(`thread ${input.slug} is not registered`)
+        const human = readThreadTranscript(ctx.project, ctx.storage, input.slug, ctx.backendFor).filter(isHumanMessage)
+        const target = input.message ? human.find((m) => m.sourceId === input.message) : human.at(-1)
+        if (!target) {
+          throw new Error(input.message
+            ? `No recent message from the human has the id ${input.message}; \`ntwinectl reactions\` lists their recent messages with ids`
+            : "The human has no recorded message in this thread to react to yet")
+        }
+        const atMs = Date.now()
+        const excerpt = reactionExcerpt(humanMessageText(target))
+        const changed = ctx.storage.setThreadReaction({
+          slug: input.slug, sourceId: target.sourceId!, author: "agent", emoji: input.emoji, excerpt, on: !input.remove, atMs,
+        })
+        if (changed) ctx.board.refresh()
+        return { reaction: { sourceId: target.sourceId!, emoji: input.emoji, by: "agent" as const, excerpt, at: atMs }, removed: !!input.remove }
+      },
+    }),
+    listOwnReactions: mutation({
+      input: ListOwnReactionsInput,
+      output: ListOwnReactionsResult,
+      handler: async ({ input }) => {
+        if (!ctx.storage.getSession(input.slug)) throw new Error(`thread ${input.slug} is not registered`)
+        const human = readThreadTranscript(ctx.project, ctx.storage, input.slug, ctx.backendFor).filter(isHumanMessage).slice(-8)
+        // Read here, so the next follow-up need not repeat them.
+        ctx.storage.markHumanReactionsTold(input.slug, Date.now())
+        return {
+          reactions: ctx.storage.listThreadReactions(input.slug).slice(-50).map(reactionLine),
+          messages: human.map((m) => ({ sourceId: m.sourceId!, excerpt: reactionExcerpt(humanMessageText(m), 120), ...(m.at ? { at: m.at } : {}) })),
+        }
       },
     }),
 

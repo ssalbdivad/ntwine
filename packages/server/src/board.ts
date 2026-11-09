@@ -14,10 +14,11 @@ import type { Bus } from "./bus.ts"
 import { workDirOf, type Project } from "./project.ts"
 import { liftWorkingDir } from "./thread-cwd.ts"
 import { isHeadlessRow, isBrokerClaudeRow, isHeldRow, isTodoRow, sessionTitleLocked, type ThreadQuestionRow } from "./storage.ts"
-import type { Storage, SessionRow, PrWatchRow, ThreadTimerRow, ThreadWatchRow, ThreadLinkRow, ShellBudgetRow, ThreadSpinoffRow, CommandWatchRow } from "./storage.ts"
+import type { Storage, SessionRow, PrWatchRow, ThreadTimerRow, ThreadWatchRow, ThreadLinkRow, ThreadReactionRow, ShellBudgetRow, ThreadSpinoffRow, CommandWatchRow } from "./storage.ts"
 import { resolveShellBudget, shellBudgetRecordOf } from "./shell-budget.ts"
 import { deadlineViewOf, rowDeadline } from "./deadline.ts"
 import { threadLinkView } from "./thread-links.ts"
+import { threadReactionViews } from "./thread-reactions.ts"
 import { armedTimerKeys } from "./thread-mentions.ts"
 import { normalizeObservedThreadModel } from "./backend/thread-profiles.ts"
 import { claudeModelStanding } from "./backend/claude-model-upgrade.ts"
@@ -2162,6 +2163,7 @@ export function registeredDoneFence(
 // why every read below spells the fallback `?? []` — the empty array the per-thread call returned.
 interface ThreadRegistries {
   links: Map<string, ThreadLinkRow[]>
+  reactions: Map<string, ThreadReactionRow[]>
   prWatches: Map<string, PrWatchRow[]>
   timers: Map<string, ThreadTimerRow[]>
   commandWatches: Map<string, CommandWatchRow[]>
@@ -2177,6 +2179,7 @@ interface ThreadRegistries {
 function readThreadRegistries(storage: Storage): ThreadRegistries {
   return {
     links: storage.threadLinksBySlug(),
+    reactions: storage.threadReactionsBySlug(),
     prWatches: storage.armedPrWatchesBySlug(),
     timers: storage.armedThreadTimersBySlug(),
     commandWatches: storage.armedCommandWatchesBySlug(),
@@ -2457,6 +2460,7 @@ function sessionThreadView(
     // header's and the card's quiet checkout token. Each shell above already carries its own.
     ...(tele?.checkout ? { checkout: tele.checkout } : {}),
     links: (registries.links.get(row.slug) ?? []).map(threadLinkView),
+    ...(registries.reactions.get(row.slug)?.length ? { reactions: threadReactionViews(registries.reactions.get(row.slug)!) } : {}),
     spinoffs: (registries.spinoffs.get(row.slug) ?? []).map((o) => {
       // The end in ANOTHER project, named by its project (a cross-project spinoff).
       const childProject = o.child_project_id ?? o.project_id

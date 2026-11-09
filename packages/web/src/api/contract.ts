@@ -58,6 +58,12 @@ import type {
   UpsertOwnLinkResult,
   DropOwnLinkInput,
   DropOwnLinkResult,
+  SetReactionInput,
+  SetReactionResult,
+  SetOwnReactionInput,
+  SetOwnReactionResult,
+  ListOwnReactionsInput,
+  ListOwnReactionsResult,
   BoardSnapshot,
   Settings,
   DispatchInput,
@@ -337,6 +343,9 @@ export interface Api {
   setRunningDeadlines(input: SetRunningDeadlinesInput): Promise<SetRunningDeadlinesResult>
   upsertOwnLink(input: UpsertOwnLinkInput): Promise<UpsertOwnLinkResult>
   dropOwnLink(input: DropOwnLinkInput): Promise<DropOwnLinkResult>
+  setReaction(input: SetReactionInput): Promise<SetReactionResult>
+  setOwnReaction(input: SetOwnReactionInput): Promise<SetOwnReactionResult>
+  listOwnReactions(input: ListOwnReactionsInput): Promise<ListOwnReactionsResult>
   dropOwnWatch(input: DropOwnWatchInput): Promise<DropOwnWatchResult>
   // THE WORKER'S REGISTERED QUESTIONS. `ask`/`unask` are the worker's and are declared here for the
   // drift gate alone; the two below ARE called from the browser — they are what the question card does.
@@ -623,6 +632,9 @@ export const PROCEDURES = {
   setRunningDeadlines: "mutation",
   upsertOwnLink: "mutation",
   dropOwnLink: "mutation",
+  setReaction: "mutation",
+  setOwnReaction: "mutation",
+  listOwnReactions: "mutation",
   dropOwnWatch: "mutation",
   ask: "mutation",
   unask: "mutation",

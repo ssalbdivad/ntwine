@@ -11,9 +11,10 @@ const flat = (kind: BackendKind) => buildWorkerPrompt(kind).replace(/\s+/g, " ")
 
 // The contract regrew from ~3.7k to ~19k tokens by accretion between 2026-07-25 and 2026-10-14, each
 // paragraph earning its place on the day it was added. A ceiling makes every addition a conscious one:
-// raise it in the same commit as the rule that needs the room, and say which rule.
+// raise it in the same commit as the rule that needs the room, and say which rule. acp 26k → 26.5k for
+// the `ntwinectl react` line (2026-11-09).
 test("each backend's contract stays inside its size budget", () => {
-  const budget: Record<BackendKind, number> = { claude: 31_000, codex: 32_000, acp: 26_000 }
+  const budget: Record<BackendKind, number> = { claude: 31_000, codex: 32_000, acp: 26_500 }
   for (const kind of ALL) {
     const size = buildWorkerPrompt(kind).length
     assert.ok(size <= budget[kind], `${kind}: ${size} chars, over its ${budget[kind]} budget`)

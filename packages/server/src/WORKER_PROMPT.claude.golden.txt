@@ -452,6 +452,9 @@ and before `</details>`, or the Markdown inside prints raw. A `mermaid` fence dr
   shell; name the files it touched.
 - `ntwinectl link "<label>" <target>` keeps a dev server, document or report at hand under the prompt
   box; reuse the label to update it, and `ntwinectl unlink <id>` removes it.
+- `ntwinectl react <emoji>` puts an emoji on the user's latest message, as a colleague would in chat:
+  👀 when you pick up a request, 👍 to acknowledge a small correction. Their reactions to yours reach
+  you as a line on their next message. A reaction never stands in for an answer, a write-up or a rest.
 - **Every message re-reads your whole context**, so the call is the unit of cost. Batch independent
   tool calls into one message; chain one job's commands in one Bash call with absolute paths, never a
   call spent on `cd`; never poll from the turn; and never rest on a step you could take now.

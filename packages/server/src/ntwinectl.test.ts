@@ -35,6 +35,8 @@ function plausible(procedure: string, body: any): unknown {
     case "ownDeadline": return { deadline: body.action === "read" ? null : { at: "2026-10-11T20:00:00.000Z", setAt: "2026-10-11T18:00:00.000Z", setBy: "agent" } }
     case "upsertOwnLink": return { link: { id: "lnk_1", kind: "url", label: body.label, target: body.target } }
     case "dropOwnLink": return { dropped: true }
+    case "setOwnReaction": return { reaction: { sourceId: body.message ?? "claude:120", emoji: body.emoji, by: "agent", excerpt: "Fix the queue focus", at: 0 }, removed: !!body.remove }
+    case "listOwnReactions": return { reactions: [], messages: [] }
     case "setOwnThreadTitle": return { accepted: true, title: body.title }
     case "ask": return { registered: body.questions.map((q: any, i: number) => ({ id: `qst_${i}`, spec: q, ...(q.secret ? { secretPath: "/tmp/a dir/secret" } : {}) })) }
     case "unask": return { withdrawn: true }

@@ -640,6 +640,17 @@ export interface ThreadLinkRow {
   created_at: number
 }
 
+/** An emoji one side of a conversation pinned to the other side's message (2026-11-09). */
+export interface ThreadReactionRow {
+  thread_slug: string
+  source_id: string
+  author: "human" | "agent"
+  emoji: string
+  excerpt: string
+  created_at: number
+  agent_told_at: number | null
+}
+
 /** A worker's registered WATCH on its own running work — a background shell it launched or a sub-agent
  *  it dispatched (plans/rest-by-registration.md, 2026-08-26).
  *
@@ -937,6 +948,13 @@ export interface Storage extends ScheduleStore {
   listThreadLinks(slug: string): ThreadLinkRow[]
   threadLinksBySlug(): Map<string, ThreadLinkRow[]>
   dropThreadLink(slug: string, id: string): boolean
+  /** Add (idempotent) or remove one reaction; true when the table changed. */
+  setThreadReaction(r: { slug: string; sourceId: string; author: "human" | "agent"; emoji: string; excerpt: string; on: boolean; atMs: number }): boolean
+  listThreadReactions(slug: string): ThreadReactionRow[]
+  threadReactionsBySlug(): Map<string, ThreadReactionRow[]>
+  /** The human's reactions the agent has not been told about yet, oldest first. */
+  untoldHumanReactions(slug: string): ThreadReactionRow[]
+  markHumanReactionsTold(slug: string, atMs: number): void
   insertThreadTerminal(row: { slug: string; parentSlug?: string | null; startedBy: string; handle: string; command: string; cwd: string; shell: boolean; createdAtMs: number }): void
   listThreadTerminals(): ThreadTerminalRow[]
   /** A new run of the terminal: bumps `runs`, clears the previous outcome and reopens it. `command`
@@ -1523,6 +1541,20 @@ export const STORAGE_SCHEMA = `
       created_at  INTEGER NOT NULL,
       UNIQUE (project_id, thread_slug, label)
     );
+    -- REACTIONS (2026-11-09): an emoji one side pins to the other side's message, named by the
+    -- transcript's sourceId. AGENT_TOLD_AT marks a human reaction the agent has been told about (it rides
+    -- the next follow-up once, shared reactionsNote); an agent's own reaction is born told.
+    CREATE TABLE IF NOT EXISTS thread_reaction (
+      project_id    TEXT NOT NULL,
+      thread_slug   TEXT NOT NULL,
+      source_id     TEXT NOT NULL,
+      author        TEXT NOT NULL CHECK (author IN ('human', 'agent')),
+      emoji         TEXT NOT NULL,
+      excerpt       TEXT NOT NULL,
+      created_at    INTEGER NOT NULL,
+      agent_told_at INTEGER,
+      PRIMARY KEY (project_id, thread_slug, source_id, author, emoji)
+    );
     -- A worker's registered WATCHES on its own running work (2026-08-26). See
     -- plans/rest-by-registration.md: a wait stops being a line the worker re-writes at every rest and
     -- becomes a row it creates once, which the human sees in the queue and which wakes the thread itself.
@@ -1760,7 +1792,7 @@ export const STORAGE_SCHEMA = `
 export const STORAGE_TABLES = [
   "session", "settings", "tombstone", "retired_op",
   "thread_timer", "pr_watch", "thread_watch", "thread_question", "thread_done", "subagent_steer", "thread_link",
-  "thread_terminal", "shell_budget", "thread_spinoff", "thread_schedule", "thread_schedule_run", "command_watch",
+  "thread_reaction", "thread_terminal", "shell_budget", "thread_spinoff", "thread_schedule", "thread_schedule_run", "command_watch",
 ] as const
 
 /** Idempotent; run by every createStorage and by ntwine-db.ts before an import. */
@@ -2531,6 +2563,27 @@ export function createStorage(source: string | Database, projectId: string): Sto
   )
   const dropThreadLinkStmt = scope.prepare("DELETE FROM thread_link WHERE project_id = @project_id AND thread_slug = ? AND id = ?")
   const delThreadLinks = scope.prepare("DELETE FROM thread_link WHERE project_id = @project_id AND thread_slug = ?")
+  const addThreadReactionStmt = scope.prepare<{ slug: string; sourceId: string; author: string; emoji: string; excerpt: string; atMs: number; toldAt: number | null }>(`
+    INSERT INTO thread_reaction (project_id, thread_slug, source_id, author, emoji, excerpt, created_at, agent_told_at)
+    VALUES (@project_id, @slug, @sourceId, @author, @emoji, @excerpt, @atMs, @toldAt)
+    ON CONFLICT DO NOTHING
+  `)
+  const dropThreadReactionStmt = scope.prepare(
+    "DELETE FROM thread_reaction WHERE project_id = @project_id AND thread_slug = ? AND source_id = ? AND author = ? AND emoji = ?",
+  )
+  const threadReactionsStmt = scope.prepare<[], ThreadReactionRow>(
+    "SELECT * FROM thread_reaction WHERE project_id = @project_id ORDER BY created_at, rowid",
+  )
+  const threadReactionsBySlugStmt = scope.prepare<[string], ThreadReactionRow>(
+    "SELECT * FROM thread_reaction WHERE project_id = @project_id AND thread_slug = ? ORDER BY created_at, rowid",
+  )
+  const untoldHumanReactionsStmt = scope.prepare<[string], ThreadReactionRow>(
+    "SELECT * FROM thread_reaction WHERE project_id = @project_id AND thread_slug = ? AND author = 'human' AND agent_told_at IS NULL ORDER BY created_at, rowid",
+  )
+  const markHumanReactionsToldStmt = scope.prepare(
+    "UPDATE thread_reaction SET agent_told_at = ? WHERE project_id = @project_id AND thread_slug = ? AND author = 'human' AND agent_told_at IS NULL",
+  )
+  const delThreadReactions = scope.prepare("DELETE FROM thread_reaction WHERE project_id = @project_id AND thread_slug = ?")
   const insertThreadTerminalStmt = scope.prepare<{ slug: string; parentSlug: string | null; startedBy: string; handle: string; command: string; cwd: string; shell: number; createdAtMs: number }>(`
     INSERT INTO thread_terminal (project_id, slug, parent_slug, started_by, handle, command, cwd, shell, created_at, started_at)
     VALUES (@project_id, @slug, @parentSlug, @startedBy, @handle, @command, @cwd, @shell, @createdAtMs, @createdAtMs)
@@ -2820,6 +2873,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     delThreadWatches.run(existing.slug)
     delShellBudgets.run(existing.slug)
     delThreadLinks.run(existing.slug)
+    delThreadReactions.run(existing.slug)
     delSpinoffs.run(existing.slug)
     // …and the edge that makes it a spinoff CHILD (2026-09-30). The line above only ever dropped the
     // requests this thread made as a PARENT, which left a forgotten child's `child_slug` behind — and a
@@ -3221,6 +3275,13 @@ export function createStorage(source: string | Database, projectId: string): Sto
     listThreadLinks: (slug) => threadLinksBySlugStmt.all(slug),
     threadLinksBySlug: () => groupBySlug(threadLinksStmt.all()),
     dropThreadLink: (slug, id) => dropThreadLinkStmt.run(slug, id).changes === 1,
+    setThreadReaction: (r) => r.on
+      ? addThreadReactionStmt.run({ slug: r.slug, sourceId: r.sourceId, author: r.author, emoji: r.emoji, excerpt: r.excerpt, atMs: r.atMs, toldAt: r.author === "agent" ? r.atMs : null }).changes === 1
+      : dropThreadReactionStmt.run(r.slug, r.sourceId, r.author, r.emoji).changes === 1,
+    listThreadReactions: (slug) => threadReactionsBySlugStmt.all(slug),
+    threadReactionsBySlug: () => groupBySlug(threadReactionsStmt.all()),
+    untoldHumanReactions: (slug) => untoldHumanReactionsStmt.all(slug),
+    markHumanReactionsTold: (slug, atMs) => void markHumanReactionsToldStmt.run(atMs, slug),
     insertThreadTerminal: (row) => void insertThreadTerminalStmt.run({ ...row, parentSlug: row.parentSlug ?? null, shell: row.shell ? 1 : 0 }),
     listThreadTerminals: () => listThreadTerminalsStmt.all(),
     restartThreadTerminal: (slug, startedAtMs, command, runId) => void restartThreadTerminalStmt.run({ command: command ?? null, startedAtMs, slug, runId: runId ?? null }),
