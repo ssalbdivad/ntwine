@@ -17,9 +17,12 @@ export function reactionLine(r: ThreadReactionRow): ReactionLine {
   return { sourceId: r.source_id, emoji: r.emoji, by: r.author, excerpt: r.excerpt, at: r.created_at }
 }
 
-/** What a reaction is read against: the message's first words, on one line. */
+/** What a reaction is read against: the message's first words, on one line. A fenced block (an agent's
+ *  ```awaiting or ```done card, a code sample) is not words anyone reads it by, so it comes out first —
+ *  unless it is all the message has. */
 export function reactionExcerpt(text: string, max = 200): string {
-  const flat = text.replace(/\s+/g, " ").trim()
+  const prose = text.replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm, " ").trim()
+  const flat = (prose || text).replace(/\s+/g, " ").trim()
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat
 }
 

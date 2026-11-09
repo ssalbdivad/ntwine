@@ -4164,7 +4164,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     <div data-ntwine-msg={m.sourceId} data-question-set={answering ? "" : undefined} className="group/msg flex flex-col text-[13px] min-w-0">
       {withSpacers(blocks, pictureAwareGap(pictureEdges, STEP))}
       {/* The human's reactions, on a message with words to react to (a tool-only band has none). */}
-      {m.text.trim() !== "" && !m.queued && <AgentMessageReactions sourceId={m.sourceId} excerpt={m.text.slice(0, 400)} />}
+      {m.text.trim() !== "" && !m.queued && <AgentMessageReactions sourceId={m.sourceId} excerpt={m.text.slice(0, 8000)} />}
       {answerSheetOpen && answering && askBlocks.length > 0 ? (
         <MobileAnswerSheet blocks={askBlocks} answering={answering} onClose={() => setAnswerSheetOpen(false)} />
       ) : null}

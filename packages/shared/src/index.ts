@@ -4559,7 +4559,8 @@ export const ThreadReactionView = z.object({
 export type ThreadReactionView = z.infer<typeof ThreadReactionView>
 // The excerpt is what the OTHER side reads the reaction against ("👍 on “Fixed the lookup…”"), taken from
 // the message as it rendered, so it never needs the transcript to be re-read.
-const ReactionExcerpt = z.string().max(400)
+// The server trims it (thread-reactions.ts reactionExcerpt); this bound only keeps a request small.
+const ReactionExcerpt = z.string().max(8000)
 export const SetReactionInput = z.object({
   slug: ThreadSlug,
   sourceId: z.string().min(1).max(768),
@@ -7138,10 +7139,13 @@ const REACTIONS_NOTE_EXCERPT_MAX = 80
 /** One line naming the human's reactions the agent has not been told about, or undefined for none. */
 export function reactionsNote(reactions: readonly { emoji: string; excerpt: string }[]): string | undefined {
   if (!reactions.length) return undefined
-  const parts = reactions.map(({ emoji, excerpt }) => {
+  // Several emoji on one message name it once: "👍 ❤️ on “…”".
+  const byExcerpt = new Map<string, string[]>()
+  for (const { emoji, excerpt } of reactions) byExcerpt.set(excerpt, [...(byExcerpt.get(excerpt) ?? []), emoji])
+  const parts = [...byExcerpt].map(([excerpt, emoji]) => {
     const flat = excerpt.replace(/[“”]/g, "\"").replace(/\s+/g, " ").trim()
     const cut = flat.length > REACTIONS_NOTE_EXCERPT_MAX ? `${flat.slice(0, REACTIONS_NOTE_EXCERPT_MAX - 1).trimEnd()}…` : flat
-    return `${emoji} on “${cut || "your message"}”`
+    return `${emoji.join(" ")} on “${cut || "your message"}”`
   })
   return `↩ ntwine: since your last turn the human reacted ${parts.join(", ")}.`
 }

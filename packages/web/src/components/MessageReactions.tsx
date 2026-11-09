@@ -132,7 +132,8 @@ export function AgentMessageReactions({ sourceId, excerpt }: { sourceId?: string
   if (!mine.length) {
     return (
       <div data-message-reactions="human" className="relative h-0 overflow-visible">
-        <div className="absolute left-[-4px] top-[2px]">{picker}</div>
+        {/* -7px puts the glyph's INK, not its box, on the prose's left edge (see SMILE_INSET). */}
+        <div className="absolute left-[-7px] top-[2px]">{picker}</div>
       </div>
     )
   }
@@ -150,7 +151,9 @@ export function AgentMessageReactions({ sourceId, excerpt }: { sourceId?: string
           {e}
         </button>
       ))}
-      {picker}
+      {/* SMILE_INSET: SmilePlus paints ~12.5 of its 26px box, ~6.7px of air a side, so on the row's 4px gap
+          its ink sat ~11px off the last chip (measured at dsf 3, 2026-11-09). -4px brings it to ~7px. */}
+      <span className="-ml-1 inline-flex">{picker}</span>
     </div>
   )
 }

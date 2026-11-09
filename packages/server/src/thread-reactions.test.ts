@@ -6,7 +6,7 @@ import test from "node:test"
 import { humanGapNote, reactionsNote, stripFollowUpRiders, wakeDeliveryToken } from "@ntwine/shared"
 import { createStorage } from "./storage.ts"
 import { projectClaudeTranscript } from "./transcript.ts"
-import { humanMessageText, isHumanMessage } from "./thread-reactions.ts"
+import { humanMessageText, isHumanMessage, reactionExcerpt } from "./thread-reactions.ts"
 
 test("the reactions line rides the worker's copy and comes back off the human's bubble, gap note and all", () => {
   const note = reactionsNote([
@@ -22,6 +22,20 @@ test("the reactions line rides the worker's copy and comes back off the human's 
   const quoting = `why does ${note} show up here?`
   assert.equal(stripFollowUpRiders(quoting), quoting)
   assert.equal(reactionsNote([]), undefined)
+})
+
+test("several emoji on one message name it once", () => {
+  assert.equal(
+    reactionsNote([{ emoji: "👍", excerpt: "Done" }, { emoji: "🎉", excerpt: "Shipped" }, { emoji: "❤️", excerpt: "Done" }]),
+    "↩ ntwine: since your last turn the human reacted 👍 ❤️ on “Done”, 🎉 on “Shipped”.",
+  )
+})
+
+// Seen live: the human reacted to "Reacted and ready." and the agent was told it was on
+// "Reacted and ready. ```awaiting title: Reaction test --- ```".
+test("an excerpt reads by the prose, not the agent's fenced card", () => {
+  assert.equal(reactionExcerpt("Reacted and ready.\n\n```awaiting\ntitle: Reaction test\n---\n```"), "Reacted and ready.")
+  assert.equal(reactionExcerpt("```ts\nconst x = 1\n```"), "```ts const x = 1 ```", "a message that is only a fence keeps it")
 })
 
 test("a long excerpt is cut to one short line", () => {
