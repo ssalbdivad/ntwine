@@ -487,10 +487,6 @@ export const BgShellView = z.object({
   // That folder lifted to its checkout, present only when that checkout is NOT the project root — the
   // row's quiet folder hint. Absent ⇒ the root (see WorkCheckout), or no reading: see `atRoot`.
   checkout: WorkCheckout.optional(),
-  // MOVED TO ANOTHER MACHINE (plans/thread-handoff.md): set on the machine a thread LEFT, which keeps it
-  // as a read-only stub, and on the one it ARRIVED at. Optional for an older server.
-  movedTo: ThreadMoveStamp.optional(),
-  movedFrom: ThreadMoveStamp.optional(),
   // The server READ this row's folder and it is in the project's own checkout. `checkout` alone could not
   // say that: absent, it is the root and also "no reading" — a folder since deleted, a Codex exec whose
   // item named none — and a row that claimed the root on no reading said `root` beside a shell running in
@@ -5076,6 +5072,11 @@ export const ThreadView = z.object({
   // moment an agent moves into a worktree, and it is where a terminal opened on the thread starts. Absent
   // ⇒ the root, or no reading — both draw nothing (see WorkCheckout).
   checkout: WorkCheckout.optional(),
+  // MOVED TO ANOTHER MACHINE (plans/thread-handoff.md): `movedTo` on the machine a thread LEFT, which keeps
+  // it as a read-only stub (`pending` while the other machine has not confirmed); `movedFrom` on the one it
+  // ARRIVED at. Optional for an older server.
+  movedTo: ThreadMoveStamp.optional(),
+  movedFrom: ThreadMoveStamp.optional(),
   // Optional for snapshots from a server that predates link registration.
   links: z.array(ThreadLinkView).optional(),
   // Emoji either side pinned to the other's messages, keyed by sourceId (ThreadReactionView). Optional for
