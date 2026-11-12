@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { dirname, join, relative, sep } from "node:path"
 import { randomUUID } from "node:crypto"
 import { movedAwayRefusal, ThreadSlug, type ThreadMoveStamp } from "@ntwine/shared"
+import type { ProjectScope } from "./project-scope.ts"
 import type Database from "./sqlite.ts"
 import { BUNDLE_MAX_BYTES, packBundle, safeRelativePath, type BundleFile, type BundleRoot } from "./thread-bundle.ts"
 import { mapPrefix, relocateJsonl, relocateRecord, type PrefixMap, type RelocationRules } from "./transcript-relocate.ts"
@@ -196,9 +197,12 @@ export function exportThread(input: ExportInput): ExportedThread {
 // ---- the destination ----
 
 export interface ImportTarget {
-  db: Database
+  /** The destination project's OWN scope (`storage.scope`), never a fresh one: storage memoises its session
+   *  rows and re-reads them only when a write through this scope changed one, so a row written any other
+   *  way stays invisible to the board and to every guard reading `getSession` (project-scope.ts). */
+  scope: ProjectScope
   /** The destination's project: `dir` holds the board (and the scratch notes), `workDir` is the checkout. */
-  project: { id: string; dir: string; workDir: string; stateDir: string }
+  project: { dir: string; workDir: string; stateDir: string }
   home: string
   /** `cwdSlug(project.workDir)` on this machine. */
   bucket: string
@@ -281,7 +285,8 @@ export function movedNote(fromName: string, toName: string, maps: readonly Prefi
 
 export function importThread(target: ImportTarget, manifest: MoveManifest, files: readonly { file: BundleFile; data: Buffer }[], peer: ImportPeer, self: { name: string }, restoreGit: RestoreGit | undefined): ImportResult {
   const { slug, sessionId, transcriptIds } = manifest.thread
-  const standing = slugStanding(target.db, target.project.id, slug, sessionId, manifest.moveId)
+  const { scope } = target
+  const standing = slugStanding(scope.db, scope.projectId, slug, sessionId, manifest.moveId)
   if (standing === "duplicate") return { ok: true, slug, duplicate: true, notes: [] }
   if (standing === "taken") return { refused: `This machine already has a different thread named @${slug} in this project` }
 
@@ -354,18 +359,18 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
     moveId: manifest.moveId,
     note: movedNote(peer.name, self.name, cwdMaps),
   }
-  const insert = target.db.transaction(() => {
+  const insert = scope.db.transaction(() => {
     for (const { table, slugColumns } of MOVED_TABLES) {
       const where = slugColumns.map((column) => `${column} = @slug`).join(" OR ")
-      target.db.prepare(`DELETE FROM ${table} WHERE project_id = @project AND (${where})`).run({ project: target.project.id, slug })
+      scope.prepare(`DELETE FROM ${table} WHERE project_id = @project_id AND (${where})`).run({ slug })
     }
     // A cache keyed by the old path, and wakes queued for the stub: neither is this thread's any more.
-    target.db.prepare("DELETE FROM tail_state WHERE project_id = ? AND slug = ?").run(target.project.id, slug)
-    target.db.prepare("UPDATE wake_delivery SET state = 'superseded', lease_owner = NULL, lease_until = NULL WHERE project_id = ? AND thread_slug = ? AND state IN ('pending', 'leased')").run(target.project.id, slug)
+    scope.prepare("DELETE FROM tail_state WHERE project_id = @project_id AND slug = ?").run(slug)
+    scope.prepare("UPDATE wake_delivery SET state = 'superseded', lease_owner = NULL, lease_until = NULL WHERE project_id = @project_id AND thread_slug = ? AND state IN ('pending', 'leased')").run(slug)
     for (const { table } of MOVED_TABLES) {
-      const columns = columnsOf(target.db, table)
+      const columns = columnsOf(scope.db, table)
       for (const source of manifest.rows[table] ?? []) {
-        const row: Record<string, unknown> = { ...source, project_id: target.project.id }
+        const row: Record<string, unknown> = { ...source }
         if (table === "session") {
           row.moved_to = null
           row.moved_from = JSON.stringify(stamp)
@@ -375,12 +380,11 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
         if (table === "thread_link" && row.kind === "file" && typeof row.target === "string") row.target = mapPrefix(row.target, cwdMaps)
         // Columns this machine's schema does not have (a newer origin) are dropped; columns it has that the
         // origin did not send take their defaults.
-        const names = Object.keys(row).filter((name) => columns.has(name))
-        const values = names.map((name) => {
-          const value = row[name]
-          return value === undefined ? null : value
-        })
-        target.db.prepare(`INSERT OR REPLACE INTO ${table} (${names.join(", ")}) VALUES (${names.map(() => "?").join(", ")})`).run(...values)
+        // `project_id` is the scope's own binding, so every row lands in this machine's project.
+        const names = Object.keys(row).filter((name) => columns.has(name) && name !== "project_id")
+        const values: Record<string, unknown> = {}
+        names.forEach((name, i) => { values[`v${i}`] = row[name] === undefined ? null : row[name] })
+        scope.prepare(`INSERT OR REPLACE INTO ${table} (project_id, ${names.join(", ")}) VALUES (@project_id, ${names.map((_, i) => `@v${i}`).join(", ")})`).run(values)
       }
     }
   })
@@ -395,18 +399,22 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
  * Turn the thread into a read-only stub that names where it went, and settle every wait it had armed
  * here, so a timer or a PR watch fires on exactly one machine. One transaction.
  */
-export function markMovedAway(db: Database, projectId: string, slug: string, stamp: ThreadMoveStamp): void {
+export function markMovedAway(scope: ProjectScope, slug: string, stamp: ThreadMoveStamp): void {
   const now = Date.now()
-  db.transaction(() => {
-    db.prepare(`UPDATE session SET moved_to = ?, state = 'archived', snoozed_until = NULL, snooze_prompt = NULL,
+  scope.db.transaction(() => {
+    scope.prepare(`UPDATE session SET moved_to = @stamp, state = 'archived', snoozed_until = NULL, snooze_prompt = NULL,
       recurring_on_rest = 0, recurring_on_schedule = 0, recurring_on_compact = 0
-      WHERE project_id = ? AND slug = ?`).run(JSON.stringify(stamp), projectId, slug)
-    db.prepare("UPDATE thread_timer SET state = 'cancelled', settled_at = ? WHERE project_id = ? AND thread_slug = ? AND state = 'armed'").run(now, projectId, slug)
-    db.prepare("UPDATE pr_watch SET state = 'dropped', settled_at = ? WHERE project_id = ? AND thread_slug = ? AND state = 'armed'").run(now, projectId, slug)
-    db.prepare("UPDATE command_watch SET state = 'cancelled', settled_at = ? WHERE project_id = ? AND thread_slug = ? AND state = 'armed'").run(now, projectId, slug)
-    db.prepare("UPDATE thread_watch SET state = 'dropped', settled_at = ? WHERE project_id = ? AND thread_slug = ? AND state = 'armed'").run(now, projectId, slug)
-    db.prepare("UPDATE wake_delivery SET state = 'superseded', lease_owner = NULL, lease_until = NULL WHERE project_id = ? AND thread_slug = ? AND state IN ('pending', 'leased')").run(projectId, slug)
+      WHERE project_id = @project_id AND slug = @slug`).run({ stamp: JSON.stringify(stamp), slug })
+    for (const [table, settled] of [["thread_timer", "cancelled"], ["pr_watch", "dropped"], ["command_watch", "cancelled"], ["thread_watch", "dropped"]] as const) {
+      scope.prepare(`UPDATE ${table} SET state = '${settled}', settled_at = @now WHERE project_id = @project_id AND thread_slug = @slug AND state = 'armed'`).run({ now, slug })
+    }
+    scope.prepare("UPDATE wake_delivery SET state = 'superseded', lease_owner = NULL, lease_until = NULL WHERE project_id = @project_id AND thread_slug = ? AND state IN ('pending', 'leased')").run(slug)
   }).immediate()
+}
+
+/** Set or clear a thread's `moved_to` stamp, through the scope so the session memo sees it. */
+export function setMovedTo(scope: ProjectScope, slug: string, stamp: ThreadMoveStamp | null): void {
+  scope.prepare("UPDATE session SET moved_to = @stamp WHERE project_id = @project_id AND slug = @slug").run({ stamp: stamp ? JSON.stringify(stamp) : null, slug })
 }
 
 /** Wakes still on their way to this thread's worker. A move would drop them, so it waits instead. */
@@ -435,9 +443,9 @@ export function untoldMoveNote(raw: unknown): string | undefined {
   return stamp && typeof stamp.note === "string" && !stamp.noteToldAt ? stamp.note : undefined
 }
 
-export function markMoveNoteTold(db: Database, projectId: string, slug: string): void {
-  const row = db.prepare<[string, string], { moved_from: string | null }>("SELECT moved_from FROM session WHERE project_id = ? AND slug = ?").get(projectId, slug)
+export function markMoveNoteTold(scope: ProjectScope, slug: string): void {
+  const row = scope.prepare<[string], { moved_from: string | null }>("SELECT moved_from FROM session WHERE project_id = @project_id AND slug = ?").get(slug)
   const stamp = readStamp(row?.moved_from)
   if (!stamp) return
-  db.prepare("UPDATE session SET moved_from = ? WHERE project_id = ? AND slug = ?").run(JSON.stringify({ ...stamp, noteToldAt: new Date().toISOString() }), projectId, slug)
+  scope.prepare("UPDATE session SET moved_from = @stamp WHERE project_id = @project_id AND slug = @slug").run({ stamp: JSON.stringify({ ...stamp, noteToldAt: new Date().toISOString() }), slug })
 }

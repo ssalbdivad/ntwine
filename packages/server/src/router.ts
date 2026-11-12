@@ -1984,7 +1984,7 @@ export function createRouter(ctx: AppContext) {
       // came from and how that machine's paths map onto this one's, once. Marked told before the transport
       // for the reason the reactions are.
       const moveNote = untoldMoveNote(row?.moved_from)
-      if (moveNote) markMoveNoteTold(ctx.storage.db, ctx.project.id, input.slug)
+      if (moveNote) markMoveNoteTold(ctx.storage.scope, input.slug)
       const messageForWorker = [moveNote, input.message, reactNote, gapNote].filter((part) => part !== undefined).join("\n\n")
       if (row) reopenArchivedThreadForFollowUp(ctx, row)
       // Un-park HERE, above the runtime branches, for the same reason the reopen is here: a broker

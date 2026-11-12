@@ -54,6 +54,7 @@ import {
   exportThread,
   importThread,
   markMovedAway,
+  setMovedTo,
   movedAwayBlock,
   movedStamp,
   MoveRefusal,
@@ -450,19 +451,19 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       // From here the thread runs nowhere until the destination answers: a send, a wake or a reopen all
       // refuse on this stamp, and it survives a restart of this server.
       if (!resumeId) {
-        ctx.storage.db.prepare("UPDATE session SET moved_to = ? WHERE project_id = ? AND slug = ?").run(JSON.stringify(stampFor(record, moveId, true)), ctx.project.id, slug)
+        setMovedTo(ctx.storage.scope, slug, stampFor(record, moveId, true))
       }
       let imported: { slug: string; notes: string[] }
       try {
         imported = await call(record, "import", { identities, moveId }, { blob: exported.blob, timeoutMs: 15 * 60_000 }) as { slug: string; notes: string[] }
       } catch (error) {
         if (!(error instanceof UnconfirmedError)) {
-          ctx.storage.db.prepare("UPDATE session SET moved_to = NULL WHERE project_id = ? AND slug = ?").run(ctx.project.id, slug)
+          setMovedTo(ctx.storage.scope, slug, null)
         }
         throw error
       }
 
-      markMovedAway(ctx.storage.db, ctx.project.id, slug, stampFor(record, moveId))
+      markMovedAway(ctx.storage.scope, slug, stampFor(record, moveId))
       const notes = [...imported.notes]
       if (git && git.snapshot.paths.length) {
         try {
@@ -497,7 +498,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     const row = ctx.storage.getSession(slug)
     const stamp = movedStamp(row?.moved_to)
     if (!stamp?.pending) throw new Error("This thread has no unfinished move")
-    ctx.storage.db.prepare("UPDATE session SET moved_to = NULL WHERE project_id = ? AND slug = ?").run(ctx.project.id, slug)
+    setMovedTo(ctx.storage.scope, slug, null)
     audit("threadMoveOut", "refused", { project: { id: ctx.project.id, dir: workDirOf(ctx.project) }, thread: slug, error: "kept on this machine after an unconfirmed move", detail: { peer: { id: stamp.peerId, name: stamp.peerName }, moveId: stamp.moveId } })
     void ctx.board.rebuild().catch(() => {})
   }
@@ -548,7 +549,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       try {
         const workDir = workDirOf(ctx.project)
         const result = importThread(
-          { db: ctx.storage.db, project: { id: ctx.project.id, dir: ctx.project.dir, workDir, stateDir: ctx.project.stateDir }, home: deps.home, bucket: cwdSlug(workDir) },
+          { scope: ctx.storage.scope, project: { dir: ctx.project.dir, workDir, stateDir: ctx.project.stateDir }, home: deps.home, bucket: cwdSlug(workDir) },
           manifest,
           unpacked.files,
           { id: peer.id, name: peer.name },

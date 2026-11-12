@@ -84,7 +84,7 @@ function move(from: Machine, to: Machine, slug: string, moveId: string) {
   const manifest = parseManifest(unpacked.manifest)
   assert.ok(manifest, "the manifest parses on the other side")
   return importThread(
-    { db: to.db.db, project: to.project, home: to.home, bucket: to.bucket },
+    { scope: to.storage.scope, project: to.project, home: to.home, bucket: to.bucket },
     manifest, unpacked.files, { id: "a".repeat(32), name: "mac" }, { name: "desktop" }, undefined,
   )
 }
@@ -95,9 +95,11 @@ describe("moving a thread between two machines' data", () => {
   const { toolResult } = seedThread(mac, "fix-parser")
 
   it("arrives with its rows, transcript, notes and cited attachments, its paths mapped to this machine", () => {
+    assert.deepEqual(desktop.storage.allSessions(), [])
     const result = move(mac, desktop, "fix-parser", "move-0001-aaaa")
     assert.deepEqual(result, { ok: true, slug: "fix-parser", duplicate: false, notes: ["Its checkout did not move: it had no uncommitted work in this project's repository"] })
 
+    assert.deepEqual(desktop.storage.allSessions().map((row) => row.slug), ["fix-parser"])
     const arrived = desktop.storage.getSession("fix-parser")!
     assert.equal(arrived.session_id, SID)
     assert.equal(arrived.title, "Fix the parser")
@@ -128,9 +130,13 @@ describe("moving a thread between two machines' data", () => {
   })
 
   it("leaves a read-only stub behind whose waits are settled, so each fires on one machine", () => {
-    markMovedAway(mac.db.db, "proj-mac", "fix-parser", { peerId: "b".repeat(32), peerName: "desktop", at: "2026-11-12T11:00:00.000Z", moveId: "move-0001-aaaa" })
+    // Read through storage first: it memoises the session rows, and a stamp written around its scope
+    // would never be seen by the board or a guard (the first real move's stub stayed live this way).
+    assert.equal(mac.storage.allSessions().find((row) => row.slug === "fix-parser")?.moved_to ?? null, null)
+    markMovedAway(mac.storage.scope, "fix-parser", { peerId: "b".repeat(32), peerName: "desktop", at: "2026-11-12T11:00:00.000Z", moveId: "move-0001-aaaa" })
     const stub = mac.storage.getSession("fix-parser")!
     assert.equal(stub.state, "archived")
+    assert.equal(mac.storage.allSessions().find((row) => row.slug === "fix-parser")?.state, "archived")
     assert.deepEqual(movedStamp(stub.moved_to), { peerId: "b".repeat(32), peerName: "desktop", at: "2026-11-12T11:00:00.000Z", moveId: "move-0001-aaaa" })
     assert.equal(mac.db.db.prepare("SELECT state FROM thread_timer WHERE project_id = ? AND thread_slug = ?").get("proj-mac", "fix-parser")?.state, "cancelled")
   })
