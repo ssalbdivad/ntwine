@@ -29,7 +29,7 @@ import { ChevronRight } from "lucide-react"
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { useLocation } from "react-router"
 import { useSnapshot } from "valtio"
-import type { BoardSnapshot, ThreadView } from "@ntwine/shared"
+import { isIndefiniteSnooze, type BoardSnapshot, type ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { displayTitle, isPinned, isSnoozed, queued } from "../groups.ts"
@@ -135,6 +135,8 @@ export function TierList({
       waiting.push(...loud.waiting.map(entry))
       snoozed.push(...project.snoozed.filter((t) => !isPinned(t) && isSnoozed(t)).map(entry))
     }
+    // The backburner — snoozes with no end — lists last, under every snooze that will come back on its own.
+    snoozed.sort((a, b) => Number(isIndefiniteSnooze(a.t.snoozedUntil)) - Number(isIndefiniteSnooze(b.t.snoozedUntil)))
     pinned.sort((a, b) => (a.t.pinnedAt ?? "").localeCompare(b.t.pinnedAt ?? "") || a.key.localeCompare(b.key))
     const at = new Map(queueOrder.map((key, index) => [key, index]))
     ready.sort((a, b) => (at.get(a.key) ?? Infinity) - (at.get(b.key) ?? Infinity))

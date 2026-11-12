@@ -2,12 +2,14 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSnapshot } from "valtio"
 import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Loader2, Pencil, RefreshCw, RotateCcw } from "lucide-react"
-import { SNOOZE_PROMPT_MAX, type ThreadLinkView, type ThreadView } from "@ntwine/shared"
+import { SNOOZE_INDEFINITE, SNOOZE_PROMPT_MAX, isIndefiniteSnooze, type ThreadLinkView, type ThreadView } from "@ntwine/shared"
 import { ThreadProjectScope, useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
 import { showToast, store } from "../store.ts"
 import { displayTitle, futureSnoozedUntil, isActivelyRunning, offersRetry } from "../groups.ts"
 import { prefs } from "../lib/prefs.ts"
 import {
+  INDEFINITE_SNOOZE_LABEL,
+  SNOOZED_INDEFINITELY,
   SNOOZE_PRESETS,
   formatSnoozeWake,
   localDateTimeInputValue,
@@ -184,7 +186,7 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
           // A working thread cannot be snoozed (router.setThreadSnooze; the desktop clock disables the same
           // way, 2026-10-14). A snooze already set still opens, for its Wake now.
           disabled={!snoozedUntil && isActivelyRunning(thread)}
-          value={snoozedUntil ? formatSnoozeWake(snoozedUntil) : isActivelyRunning(thread) ? "Once it stops working" : snoozePresetLabel(snoozePreset)}
+          value={snoozedUntil ? (isIndefiniteSnooze(snoozedUntil) ? INDEFINITE_SNOOZE_LABEL : formatSnoozeWake(snoozedUntil)) : isActivelyRunning(thread) ? "Once it stops working" : snoozePresetLabel(snoozePreset)}
           chevron
           onClick={() => setView("snooze")}
         />
@@ -245,7 +247,7 @@ function useSnoozeApply(thread: ThreadView, dismiss: (then?: () => void) => void
     try {
       await api.setThreadSnooze({ slug: thread.id, sessionId: thread.sessionId ?? "", until, prompt: until ? prompt : null })
       afterWrite()
-      dismiss(() => showToast(until ? `${prompt ? "Bump scheduled" : "Snoozed"} · ${formatSnoozeWake(until)}` : "Snooze cleared"))
+      dismiss(() => showToast(!until ? "Snooze cleared" : isIndefiniteSnooze(until) ? SNOOZED_INDEFINITELY : `${prompt ? "Bump scheduled" : "Snoozed"} · ${formatSnoozeWake(until)}`))
     } catch (err) {
       const message = err instanceof Error ? err.message : "Snooze failed"
       showToast(message.slice(0, 100))
@@ -268,7 +270,11 @@ function SnoozeView({ thread, back, custom, dismiss }: { thread: ThreadView; bac
   return (
     <div data-thread-actions-snooze>
       <SubTitle back={back}>Snooze</SubTitle>
-      {snoozedUntil && <p className="px-[18px] pb-2 text-[13px] text-muted">Snoozed until {formatSnoozeWake(snoozedUntil).replace(/^(Today|Tomorrow)/, (d) => d.toLowerCase())}</p>}
+      {snoozedUntil && (
+        <p className="px-[18px] pb-2 text-[13px] text-muted">
+          {isIndefiniteSnooze(snoozedUntil) ? SNOOZED_INDEFINITELY : `Snoozed until ${formatSnoozeWake(snoozedUntil).replace(/^(Today|Tomorrow)/, (d) => d.toLowerCase())}`}
+        </p>
+      )}
       {SNOOZE_PRESETS.map((preset) => (
         <ActionRow
           key={preset.value}
@@ -281,6 +287,18 @@ function SnoozeView({ thread, back, custom, dismiss }: { thread: ThreadView; bac
           onClick={() => pick(preset.value)}
         />
       ))}
+      {/* The backburner: parked until you wake it. Not a Snooze length — the swipe always puts a time on it. */}
+      {thread.schedule?.pending !== true && !isIndefiniteSnooze(snoozedUntil) && (
+        <ActionRow
+          data="snooze-indefinite"
+          disabled={busy}
+          icon={<AlarmClock size={19} />}
+          label={INDEFINITE_SNOOZE_LABEL}
+          value="Until you wake it"
+          trailing={<span className="w-4" />}
+          onClick={() => void apply(SNOOZE_INDEFINITE)}
+        />
+      )}
       <div className="my-1 h-px bg-border" />
       <ActionRow data="snooze-custom" disabled={busy} icon={<Pencil size={19} />} label="Custom time & prompt…" chevron onClick={custom} />
       {snoozedUntil && <ActionRow data="snooze-wake" disabled={busy} icon={<RotateCcw size={19} />} label="Wake now" onClick={() => void apply(null)} />}
@@ -293,7 +311,7 @@ function CustomSnoozeView({ thread, back, dismiss }: { thread: ThreadView; back:
   const snoozedUntil = futureSnoozedUntil(thread)
   const { busy, error, setError, apply } = useSnoozeApply(thread, dismiss)
   // Opens on the snooze already set, else on the selected preset — the desktop dialog's seed.
-  const [value, setValue] = useState(() => localDateTimeInputValue(new Date(snoozedUntil ?? snoozePresetInstant(selected))))
+  const [value, setValue] = useState(() => localDateTimeInputValue(new Date(snoozedUntil && !isIndefiniteSnooze(snoozedUntil) ? snoozedUntil : snoozePresetInstant(selected))))
   const [prompt, setPrompt] = useState(thread.snoozePrompt ?? "")
   const min = useMemo(() => localDateTimeInputValue(new Date(Date.now() + 60_000)), [])
   const timeId = useId()

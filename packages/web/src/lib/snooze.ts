@@ -1,3 +1,4 @@
+import { isIndefiniteSnooze } from "@ntwine/shared"
 export type SnoozePreset = "1h" | "tomorrow" | "1d" | "3d" | "1w"
 // "Until tomorrow" is the default because it is what a human deferring a card almost always means: pick it
 // up at the start of the next working day. "1d" re-surfaces at this same hour tomorrow, so a card snoozed
@@ -105,6 +106,9 @@ export function parseLocalSnooze(value: string, nowMs = Date.now()): ParsedLocal
   return { ok: true, until: local.toISOString() }
 }
 
+/** The menu row and the phone's sheet offer a snooze with no end beside the timed presets. */
+export const INDEFINITE_SNOOZE_LABEL = "Indefinitely"
+
 export function formatSnoozeWake(until: string, nowMs = Date.now()): string {
   const date = new Date(until)
   if (!Number.isFinite(date.getTime())) return ""
@@ -147,9 +151,13 @@ function wakePhrase(until: string, nowMs: number): string | null {
   return wake.replace(/^(Today|Tomorrow)/, (day) => day.toLowerCase())
 }
 
+/** The one reading of a snooze with no end (SNOOZE_INDEFINITE), wherever a wake time would go. */
+export const SNOOZED_INDEFINITELY = "Snoozed indefinitely"
+
 /** A complete HUMAN-snooze sentence — the operator deferred the card's presentation until this instant.
  *  The agent is NOT resumed at the deadline; the card merely re-surfaces in the queue. */
 export function formatSnoozedUntil(until: string, nowMs = Date.now()): string | null {
+  if (isIndefiniteSnooze(until)) return SNOOZED_INDEFINITELY
   const wake = wakePhrase(until, nowMs)
   return wake ? `Snoozed until ${wake}` : null
 }
@@ -160,6 +168,7 @@ export function formatSnoozedUntil(until: string, nowMs = Date.now()): string | 
  *  went"). It waits under its project in the list, so the toast's second line says so whenever the
  *  project is known. */
 export function formatSnoozeConfirmation(until: string, prompt: string | null, projectName: string | undefined, nowMs = Date.now()): { text: string; detail: string | undefined } {
+  if (isIndefiniteSnooze(until)) return { text: SNOOZED_INDEFINITELY, detail: projectName ? `Under ${projectName} in Snoozed` : undefined }
   const wake = wakePhrase(until, nowMs)
   const what = prompt ? "Bump scheduled" : "Snoozed"
   return {

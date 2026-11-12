@@ -1,5 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
+import { SNOOZE_INDEFINITE, SnoozeUntil } from "@ntwine/shared"
+import { wakeAt } from "./mobileBoardRow.ts"
 import {
   DEFAULT_SNOOZE_PRESET,
   formatSnoozedUntil,
@@ -161,6 +163,17 @@ test("the snooze toast names the wake and the project the thread now waits under
     if (previousTz === undefined) delete process.env.TZ
     else process.env.TZ = previousTz
   }
+})
+
+test("a snooze with no end reads as indefinite everywhere a wake time would print, and promises no time", () => {
+  // It must pass the RPC boundary's own validation, or the menu row would only ever toast an error.
+  assert.equal(SnoozeUntil.safeParse(SNOOZE_INDEFINITE).success, true)
+  assert.equal(formatSnoozedUntil(SNOOZE_INDEFINITE), "Snoozed indefinitely")
+  assert.equal(formatUserSnooze(SNOOZE_INDEFINITE, undefined), "Snoozed indefinitely")
+  assert.deepEqual(formatSnoozeConfirmation(SNOOZE_INDEFINITE, null, "ntwine"), { text: "Snoozed indefinitely", detail: "Under ntwine in Snoozed" })
+  // The phone's Snoozed row prints a countdown off wakeAt: none, rather than "7973y", even beside an armed timer.
+  const timer = { kind: "timer", state: "armed", timer: { fireAt: new Date(Date.now() + 60_000).toISOString() } }
+  assert.equal(wakeAt({ snoozedUntil: SNOOZE_INDEFINITE, watches: [timer] } as never), undefined)
 })
 
 test("a snooze prompt preview collapses to one line and truncates without spilling the tooltip", () => {

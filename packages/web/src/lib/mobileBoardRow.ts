@@ -1,4 +1,4 @@
-import { futureSnoozedUntil, heldQuestionViews, type ThreadView } from "@ntwine/shared"
+import { futureSnoozedUntil, heldQuestionViews, isIndefiniteSnooze, type ThreadView } from "@ntwine/shared"
 import type { SessionIndicatorKind } from "../groups.ts"
 import { awaitingProse, awaitingWaitClause, hintGloss } from "./awaitingPresentation.ts"
 import { toolActivityLabel } from "./toolActivity.ts"
@@ -89,7 +89,10 @@ function armedTimerFireAt(t: Pick<ThreadView, "watches">, nowMs: number): string
  * watching) — those wake on an event, and inventing a time for them would be a promise nobody made.
  */
 export function wakeAt(t: Pick<ThreadView, "snoozedUntil" | "watches">, nowMs = Date.now()): string | undefined {
-  return futureSnoozedUntil(t, nowMs) ?? armedTimerFireAt(t, nowMs)
+  // A snooze with no end promises no time either, and outranks any timer: nothing wakes it but you.
+  const snoozed = futureSnoozedUntil(t, nowMs)
+  if (isIndefiniteSnooze(snoozed)) return undefined
+  return snoozed ?? armedTimerFireAt(t, nowMs)
 }
 
 /** How many sub-agents are running under the thread right now, at any depth — the count that replaced

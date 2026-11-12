@@ -290,7 +290,7 @@ import { clearProjectIcon, customIconPath, findById, forgetProject, listProjects
 import { HOME_WORKSPACE_NAME, isHomeWorkspace, listWorkspaces, reorderWorkspaces } from "./home-workspace.ts"
 import { basename, dirname, isAbsolute, relative } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, ProjectQueue, ProjectRailCounts, ProjectsDoneInput, ProjectsDonePage, ThreadSearchEntry, ThreadsSearchInput, isActivelyRunning, type ProjectThreadEntry, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, awaitingNeedsInput, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
+import { ProjectCard, ProjectQueue, ProjectRailCounts, ProjectsDoneInput, ProjectsDonePage, ThreadSearchEntry, ThreadsSearchInput, isActivelyRunning, isIndefiniteSnooze, type ProjectThreadEntry, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, awaitingNeedsInput, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
 import { EditorComposeInputSchema, EditorReviewTargetSchema, EditorSnapshotSchema, type EditorKind, type EditorReviewTarget, type EditorStateCheckout, type FilePosition } from "@ntwine/shared"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
@@ -4423,6 +4423,7 @@ export function createRouter(ctx: AppContext) {
             await startHeldThreadRow(row, row.lazy_prompt ?? "")
             return
           }
+          if (isIndefiniteSnooze(input.until)) throw new Error("A scheduled run can only be moved to a time")
           ctx.storage.setSnoozedUntil(input.slug, input.until, null)
           ctx.board.refresh()
           return
@@ -4432,6 +4433,7 @@ export function createRouter(ctx: AppContext) {
         // work lands (maintainer: "ensure active threads cant be hidden under snooze easily"). A park on the
         // world — a `watching` rest — is not motion (shared isActivelyRunning), and can be snoozed.
         if (input.until !== null && isActivelyRunning(thread)) throw new Error("Can't snooze while it's working")
+        if (isIndefiniteSnooze(input.until) && input.prompt?.trim()) throw new Error("A snooze with no end can't send a prompt")
         // `until: null` is Wake now: setSnoozedUntil clears the instant and the bump it owed together. The
         // stamp is what ends a plain snooze at the agent's next rest (board.futureSnooze).
         ctx.storage.setSnoozedUntil(input.slug, input.until, input.prompt ?? null, input.until === null ? null : new Date().toISOString())

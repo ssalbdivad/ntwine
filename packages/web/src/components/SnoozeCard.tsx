@@ -14,7 +14,7 @@
 // (the same rule showsRestingCard applied to the event-snooze until 2026-10-14).
 import { useEffect, useState } from "react"
 import { AlarmClock } from "lucide-react"
-import type { ThreadView } from "@ntwine/shared"
+import { isIndefiniteSnooze, type ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { futureSnoozedUntil } from "../groups.ts"
 import { formatCountdown } from "../lib/durationLabels.ts"
@@ -53,6 +53,7 @@ export function SnoozeCard({ thread }: {
   // The tick crossing the deadline unmounts the countdown on its own, without waiting for the server's
   // wake to land as a board delta — a card counting up past zero is the one state it must never show.
   if (!until) return null
+  const indefinite = isIndefiniteSnooze(until)
   const wakeAt = Date.parse(until)
   // Sentence-position wake phrase — formatSnoozeWake capitalizes "Today"/"Tomorrow" for label use, and
   // this is the same fold snooze.ts's wakePhrase applies for the rail popover's sentences.
@@ -81,6 +82,9 @@ export function SnoozeCard({ thread }: {
           holds the SHAPE (padded trailing unit), so the line ticks in place instead of reflowing. The
           title attribute carries the exact local instant for the reader who wants the precision the
           prose rounds off. */}
+      {indefinite ? (
+        <p className={CARD_BODY}>No end time. It stays out of your queue until you wake it.</p>
+      ) : (<>
       <div
         data-snooze-countdown
         title={new Date(wakeAt).toLocaleString()}
@@ -100,6 +104,7 @@ export function SnoozeCard({ thread }: {
           <>Returns to the queue {wake}.</>
         )}
       </p>
+      </>)}
       {/* A foreign session's snooze is not editable (router.setThreadSnooze refuses it), so the verb
           would be a lie there — the card states the park and offers nothing. */}
       {thread.foreign !== true && (

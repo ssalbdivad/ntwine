@@ -1,11 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { useSnapshot } from "valtio"
 import { AlarmClock, AlarmClockOff, Loader2 } from "lucide-react"
-import { SNOOZE_PROMPT_MAX, type ThreadView } from "@ntwine/shared"
+import { SNOOZE_INDEFINITE, SNOOZE_PROMPT_MAX, isIndefiniteSnooze, type ThreadView } from "@ntwine/shared"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { futureSnoozedUntil, isActivelyRunning } from "../groups.ts"
 import {
   DEFAULT_SNOOZE_PRESET,
+  INDEFINITE_SNOOZE_LABEL,
+  SNOOZED_INDEFINITELY,
   SNOOZE_PRESETS,
   formatSnoozeConfirmation,
   formatSnoozeWake,
@@ -95,7 +97,11 @@ export function SnoozeMenu({
   }), [open])
   // Two shapes: a plain park only re-surfaces the card, while an armed one resumes the agent with that
   // text — so naming the follow-up IS the detail.
-  const state = snoozedUntil ? (prompt ? `Bumps ${formatSnoozeWake(snoozedUntil)}` : `Snoozed until ${formatSnoozeWake(snoozedUntil)}`) : null
+  const state = snoozedUntil
+    ? isIndefiniteSnooze(snoozedUntil) ? SNOOZED_INDEFINITELY : prompt ? `Bumps ${formatSnoozeWake(snoozedUntil)}` : `Snoozed until ${formatSnoozeWake(snoozedUntil)}`
+    : null
+  // A schedule's next run is moved to a time, never put off for good (router.setThreadSnooze).
+  const offersIndefinite = thread.schedule?.pending !== true && !isIndefiniteSnooze(snoozedUntil)
   // Working, and nothing to wake: the verb waits for the thread to stop.
   const working = !snoozedUntil && isActivelyRunning(thread)
   const snoozeKeys = useShortcutLabel("thread.snooze")
@@ -175,7 +181,7 @@ export function SnoozeMenu({
   // An existing snooze re-opens as itself so editing the follow-up never silently moves the deadline;
   // otherwise the dialog starts a day out.
   function openCustom() {
-    setCustomValue(localDateTimeInputValue(new Date(snoozedUntil ?? snoozePresetInstant(DEFAULT_SNOOZE_PRESET))))
+    setCustomValue(localDateTimeInputValue(new Date(snoozedUntil && !isIndefiniteSnooze(snoozedUntil) ? snoozedUntil : snoozePresetInstant(DEFAULT_SNOOZE_PRESET))))
     setPromptValue(thread.snoozePrompt ?? "")
     setCustomError("")
     setCustomOpen(true)
@@ -244,6 +250,16 @@ export function SnoozeMenu({
               </span>
             </MenuItem>
           ))}
+          {/* THE BACKBURNER (2026-11-11): parked until you wake it. Its first letter is the typeahead, so
+              `s` then `i` puts the open thread away from the keyboard. */}
+          {offersIndefinite && (
+            <MenuItem value="indefinite" onSelect={() => void apply(SNOOZE_INDEFINITE)} icon={<AlarmClock size={12} />}>
+              <span data-snooze-preset="indefinite" className="flex min-w-0 flex-1 items-center justify-between gap-6">
+                <span>{INDEFINITE_SNOOZE_LABEL}</span>
+                <span className="text-[10.5px] text-muted-55">Until you wake it</span>
+              </span>
+            </MenuItem>
+          )}
           <MenuSeparator />
           <MenuItem onSelect={openCustom}>Custom time &amp; prompt…</MenuItem>
         </MenuContent>

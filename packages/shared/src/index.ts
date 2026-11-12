@@ -1380,6 +1380,19 @@ export const SnoozeUntil = z.string().regex(
 }, "Snooze time must be valid")
 export type SnoozeUntil = z.infer<typeof SnoozeUntil>
 
+// A SNOOZE WITH NO END: the backburner for a thread the human means to come back to but is not dealing
+// with now (maintainer 2026-11-11: "snooze with no time limit possible"). It is an instant like any other
+// rather than a second column, so every reader of a snooze — the board's park, the queue gate, the band,
+// Wake now, Undo — treats it exactly as a snooze that has not run out, and nothing new has to learn it.
+// Only the copy differs: a reading that would print this instant says it has no end instead (isIndefiniteSnooze).
+// The board's wake timer clamps its delay, so this deadline never arms a real timeout. Nothing schedules a
+// follow-up prompt against it (router.setThreadSnooze refuses one): a prompt that never fires is a lie.
+export const SNOOZE_INDEFINITE = "9999-12-31T23:59:59.999Z" satisfies SnoozeUntil
+
+export function isIndefiniteSnooze(until: string | null | undefined): boolean {
+  return until === SNOOZE_INDEFINITE
+}
+
 // The follow-up a snooze carries. Its presence is what turns a snooze from a passive reminder (the
 // card re-surfaces, you act) into a SCHEDULED BUMP (ntwine resumes the agent with this text at the
 // deadline). Trimmed at the boundary so whitespace can never arm a wake that delivers nothing, and
