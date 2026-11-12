@@ -14,7 +14,7 @@
 // it reads through its own project's client under a key that names the project, and polls at the
 // drawer's own fallback cadence while it runs (useTranscript's 1.5s interval when the socket is down).
 // Only held cards draw this, so the polling is bounded by what the human chose to hold.
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import type { ThreadView } from "@ntwine/shared"
 import { projectRpc } from "../api/rpc.ts"
@@ -29,30 +29,39 @@ import { focusedProject } from "./ThreadTerminals.tsx"
 /** The drawer's fallback poll for a running thread (hooks.ts useTranscript `refetchInterval`). */
 const LIVE_POLL_MS = 1_500
 
-export function HeldLiveTurn({ project, thread, running }: { project: QueuesProject; thread: ThreadView; running: boolean }) {
-  return focusedProject(project.slug)
-    ? <PageProjectTurn project={project} thread={thread} running={running} />
-    : <OtherProjectTurn project={project} thread={thread} running={running} />
+/** `onTools` hears the names of the tools the turn has called since the human's message, and when that
+ *  message was written, whenever they change — what tells an automatic hold that the reply became long
+ *  work (lib/foregroundTurn.ts). */
+type TurnProps = { project: QueuesProject; thread: ThreadView; running: boolean; onTools?: (names: readonly string[], humanAt: number) => void }
+
+export function HeldLiveTurn(props: TurnProps) {
+  return focusedProject(props.project.slug) ? <PageProjectTurn {...props} /> : <OtherProjectTurn {...props} />
 }
 
-function PageProjectTurn({ project, thread, running }: { project: QueuesProject; thread: ThreadView; running: boolean }) {
+function PageProjectTurn({ project, thread, running, onTools }: TurnProps) {
   const q = useTranscript(thread.id, { poll: running })
-  return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} running={running} />
+  return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} running={running} onTools={onTools} />
 }
 
-function OtherProjectTurn({ project, thread, running }: { project: QueuesProject; thread: ThreadView; running: boolean }) {
+function OtherProjectTurn({ project, thread, running, onTools }: TurnProps) {
   const q = useQuery({
     queryKey: ["ofProject", project.id, "transcript", thread.id, "live"],
     queryFn: async (): Promise<TranscriptData> => ({ ...(await projectRpc(project.id).threadTranscript({ slug: thread.id })) }),
     refetchInterval: running ? LIVE_POLL_MS : false,
     placeholderData: (previous) => previous,
   })
-  return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} running={running} />
+  return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} running={running} onTools={onTools} />
 }
 
-function Turn({ messages, projectDir, slug, running }: { messages: ChatMessage[] | undefined; projectDir: string | undefined; slug: string; running: boolean }) {
+function Turn({ messages, projectDir, slug, running, onTools }: { messages: ChatMessage[] | undefined; projectDir: string | undefined; slug: string; running: boolean; onTools?: (names: readonly string[], humanAt: number) => void }) {
   // From the human's last message on — where the card's handoff opens too (server handoffOf).
   const turn = useMemo(() => (messages ? messages.slice(lastHumanTurnIndex(messages)) : []), [messages])
+  const toolNames = useMemo(() => turn.flatMap((m) => (m.role === "assistant" ? m.tools.map((tool) => tool.name) : [])), [turn])
+  const toolNamesId = toolNames.join("\n")
+  useEffect(() => {
+    if (running && onTools) onTools(toolNames, Date.parse(turn[0]?.at ?? ""))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the names, not the array's identity
+  }, [toolNamesId, running, onTools])
   const coalesced = useMemo(() => coalesceToolActivityMessages(withoutLiveTranscriptBackgroundTools(turn)), [turn])
   const activity = useMemo(() => (running ? historicalToolActivityMessages(coalesced) : coalesced), [coalesced, running])
   const liveToolRun = running ? liveToolActivityRun(coalesced) : undefined

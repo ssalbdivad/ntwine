@@ -55,7 +55,8 @@ import { useBoard } from "../hooks.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
 import { stableQueue, type QueueSlot } from "../lib/stableQueue.ts"
-import { isHeldInQueue, placeHeld, setHeldInQueue, useQueueHolds, type QueueHolds } from "../lib/queueHold.ts"
+import { isHeldInQueue, placeHeld, setHeldInQueue, useAutoHolds, useQueueHolds, type AutoHolds, type QueueHolds } from "../lib/queueHold.ts"
+import { FOREGROUND_MS, longTurnReason } from "../lib/foregroundTurn.ts"
 import { actedOnHere } from "../lib/humanActs.ts"
 import { useSteeredAt } from "../lib/steering.ts"
 import { pinOverlayQueues, usePinOverrides } from "../lib/optimisticPin.ts"
@@ -350,6 +351,7 @@ export function AllQueuesPage() {
   )
   const workingHeld = new Set(heldWorking.map(entryKey))
   useReleaseFinishedHolds(projects, holds)
+  useReleaseLongTurns(projects, useAutoHolds(), leaving)
   const ordered = placeHeld([...mergedQueue(shown), ...heldWorking], holds, entryKey, (entry) => queueKeyAt(entry.thread))
     .filter(({ project, thread }) => !leaving.hidden(threadKey(project.id, thread.id)))
   const prevSlots = useRef<QueueSlot<QueueEntry>[]>([])
@@ -1341,6 +1343,38 @@ function useReleaseFinishedHolds(projects: readonly QueuesProject[], holds: Queu
       for (const key of holds.keys()) if (key.startsWith(`${project.id}/`) && !open.has(key)) setHeldInQueue(key, false)
     }
   }, [projects, holds])
+}
+
+/**
+ * An AUTOMATIC hold (a reply sent from the card, lib/foregroundTurn.ts) ends once its thread's turn reads as
+ * long work, and the card leaves as a replied-to card does. This is the half of the rule the thread alone
+ * can answer — the clock and a live sub-agent — so it holds for a card that is not drawing its turn (one
+ * scrolled far off, lib/cardVisibility.ts); the card itself reads the transcript's tool calls
+ * (AllQueuesCard `onTurnTools`). Re-reads itself when the earliest clock runs out, since nothing else is
+ * bound to re-render a quiet page then.
+ */
+function useReleaseLongTurns(projects: readonly QueuesProject[], autoHolds: AutoHolds, leaving: LeavingCards): void {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (autoHolds.size === 0) return
+    const now = Date.now()
+    let next = Number.POSITIVE_INFINITY
+    for (const project of projects) {
+      // Only a working thread: one queued mid-turn (a permission prompt) needs the human, card and all.
+      for (const thread of project.running) {
+        const key = threadKey(project.id, thread.id)
+        const sentAt = autoHolds.get(key)
+        if (sentAt === undefined) continue
+        if (longTurnReason(thread, sentAt, now) !== undefined) {
+          setHeldInQueue(key, false)
+          leaving.leave(key)()
+        } else next = Math.min(next, sentAt + FOREGROUND_MS)
+      }
+    }
+    if (next === Number.POSITIVE_INFINITY) return
+    const timer = window.setTimeout(() => tick((n) => n + 1), Math.max(0, next - now) + 50)
+    return () => window.clearTimeout(timer)
+  })
 }
 
 /** Below the page's stacking point (`max-[800px]`), where the columns stack. */

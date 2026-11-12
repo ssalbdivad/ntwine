@@ -27,7 +27,7 @@ import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { prefetchProjectTranscript } from "../hooks.ts"
 import { ThreadMenu, ThreadTerminalButton } from "./ThreadMenu.tsx"
-import { displayTitle, offersRetry, queueLabelAt, queueLabelWord } from "../groups.ts"
+import { displayTitle, offersRetry, queueKeyAt, queueLabelAt, queueLabelWord } from "../groups.ts"
 import { ScheduleMark } from "./ScheduleMark.tsx"
 import { useMentionCandidates, useOwnMention } from "../hooks/useMentionCandidates.ts"
 import { earlierProse, handoffParts, projectMarkdownScope, sameProjectAddress, squareCard, threadKey, type QueuesProject } from "../lib/allQueues.ts"
@@ -85,7 +85,8 @@ import { TerminalCardArticle } from "./TerminalQueueCard.tsx"
 import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
-import { setHeldInQueue, useHeldInQueue } from "../lib/queueHold.ts"
+import { autoHoldInQueue, autoHoldSentAt, setHeldInQueue, useAutoHolds, useHeldInQueue } from "../lib/queueHold.ts"
+import { longTurnReason } from "../lib/foregroundTurn.ts"
 import { HeldLiveTurn } from "./HeldLiveTurn.tsx"
 import { useShortcutLabel } from "../lib/keyboardRuntime.ts"
 import { BLOCK_RADIUS, BLOCK_RADIUS_INNER_BOTTOM, CardActions, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
@@ -437,6 +438,21 @@ function CardArticle({
   // to the old reply and then come back.
   const working = thread.runtime === "running" || thread.runtime === "spawning"
   const liveTurn = heldInQueue && thread.held === undefined && (working || handoff.isPlaceholderData)
+  // AN AUTOMATIC HOLD (a reply sent from this card, lib/foregroundTurn.ts) lets go once the streamed turn
+  // edits a file or dispatches a sub-agent, and the card leaves the way a replied-to card always did.
+  // AllQueues `useReleaseLongTurns` reads the same rule off the thread alone (the clock, a live sub-agent),
+  // for a card that is not drawing its turn; this is the transcript's half, which sees every tool call.
+  const autoSentAt = useAutoHolds().get(key)
+  const onTurnTools = useCallback((names: readonly string[], humanAt: number) => {
+    const sentAt = autoHoldSentAt(key)
+    if (sentAt === undefined) return
+    // Only the reply's own turn: until the transcript has the reply, "the turn" is still the one before
+    // it, whose tools say nothing about this one. The slack absorbs a server clock behind this browser's.
+    const own = humanAt >= sentAt - REPLY_CLOCK_SLACK_MS
+    if (longTurnReason(thread, sentAt, Date.now(), own ? names : []) === undefined) return
+    setHeldInQueue(key, false)
+    onLeave()
+  }, [key, thread, onLeave])
 
   // THE DOCK'S STICKY RANGE STOPS AT THE HEADER (upstream 01953049, on its board card). The dock's
   // containing block is the whole card, and `bottom-0` alone let it rise to the card's top edge: a card
@@ -644,7 +660,7 @@ function CardArticle({
           </a>
           {/* A question from a rest older than the human's bubble, flushed first as upstream's window
               flushes it — everything below the bubble is newer than it. */}
-          {liveTurn && <HeldLiveTurn project={project} thread={thread} running={working} />}
+          {liveTurn && <HeldLiveTurn project={project} thread={thread} running={working} onTools={autoSentAt === undefined ? undefined : onTurnTools} />}
           {!liveTurn && <>
           {slots && <RegisteredQuestionStack key={`above-${restKey}`} thread={thread} questions={slots.above} keepAnswered />}
           {/* A scheduled run's first message opens with ntwine's header for the worker; the card shows only the
@@ -1292,6 +1308,9 @@ function ClampedBody({ children }: { children: ReactNode }) {
  * the other way round. An attachment uploads to the THREAD's project (`attachBase`), not the page's,
  * which on this page is the focused project.
  */
+/** How far the server's stamp on a reply may run behind the sending browser's clock (onTurnTools). */
+const REPLY_CLOCK_SLACK_MS = 30_000
+
 function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fileDrop }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onLanded: () => void; onFailed: () => void; onTerminal: (terminalId: string) => void; fileDrop?: SurfaceFileDrop }) {
   const queryClient = useQueryClient()
   const key = draftKey.followUp(project.projectDir, thread.id, thread.sessionId)
@@ -1331,6 +1350,9 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fil
     onError: (cause, { typed, staged }) => {
       // A reload aborting the send: the next page replays it (lib/pendingSends.ts), so no rollback.
       if (pageUnloading()) return
+      // The reply never reached the worker, so there is no turn for its automatic hold to judge.
+      const holdKey = threadKey(project.id, thread.id)
+      if (autoHoldSentAt(holdKey) !== undefined) setHeldInQueue(holdKey, false)
       // The card faded on send; the message did not land, so bring it back with the text still in it —
       // unless something new was typed meanwhile, which is not ours to overwrite — and its chips with it.
       if (!draftStore.get(key)) draftStore.set(key, typed)
@@ -1376,6 +1398,9 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fil
       // Local truth first, then the network — the order every send on the board's card obeyed.
       const staged = takeContextItems(key)
       draftStore.set(key, "")
+      // A reply keeps its card where it is while the answer is short (lib/foregroundTurn.ts); `onSent` then
+      // finds the card held and leaves it in place.
+      autoHoldInQueue(threadKey(project.id, thread.id), queueKeyAt(thread), Date.now())
       onSent()
       const expanded = expandUserCommandDraft(message, userCommands ?? []) ?? message
       send.mutate({ outgoing: buildMessageWithContext(expanded, staged, project.projectDir), typed: message, staged })

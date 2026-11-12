@@ -16,9 +16,15 @@ import { useSyncExternalStore } from "react"
 // It ends on `h` again, on Mark as done or snooze from the card (AllQueuesCard.tsx releases it before
 // the card fades), and once the page sees the thread snoozed or finished by any other hand.
 //
+// AN AUTOMATIC HOLD is the same hold, taken by a reply sent from the card rather than by `h`
+// (`autoHoldInQueue`, maintainer 2026-11-11): it keeps a short answer in the foreground, and lets go on
+// its own once the turn reads as long work (lib/foregroundTurn.ts). It remembers when the reply went, the
+// clock that reading needs. `h` on an automatic hold ends it; `h` again then holds the card for good.
+//
 // Keyed by `threadKey(projectId, slug)` (lib/allQueues.ts): a slug is unique only within one project.
 
 const STORAGE_KEY = "ntwine:queueHolds"
+const AUTO_STORAGE_KEY = "ntwine:queueAutoHolds"
 
 /** Every hold, by key, with its PLACE: the queue-order stamp (groups.ts queueKeyAt) its thread had when the
  *  hold began. A fresh draw — a reload — sorts the queue by each thread's live stamp, and a held thread
@@ -45,17 +51,42 @@ function read(): QueueHolds {
   }
 }
 
+/** The automatic holds among `holds`, by key, with when the reply that took each was sent (epoch ms). */
+export type AutoHolds = ReadonlyMap<string, number>
+
+function readAuto(): AutoHolds {
+  try {
+    const raw = typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(AUTO_STORAGE_KEY)
+    const parsed: unknown = raw ? JSON.parse(raw) : []
+    const out = new Map<string, number>()
+    if (Array.isArray(parsed)) {
+      for (const entry of parsed) if (Array.isArray(entry) && typeof entry[0] === "string" && typeof entry[1] === "number") out.set(entry[0], entry[1])
+    }
+    return out
+  } catch {
+    return new Map()
+  }
+}
+
 let holds: QueueHolds = read()
+// Only keys `holds` also has: an automatic hold is a hold with a reply clock beside it.
+let autoHolds: AutoHolds = new Map([...readAuto()].filter(([key]) => holds.has(key)))
 const listeners = new Set<() => void>()
 
-function write(next: QueueHolds): void {
-  holds = next
+function store(storageKey: string, entries: ReadonlyMap<string, number>): void {
   try {
-    if (next.size === 0) sessionStorage.removeItem(STORAGE_KEY)
-    else sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...next]))
+    if (entries.size === 0) sessionStorage.removeItem(storageKey)
+    else sessionStorage.setItem(storageKey, JSON.stringify([...entries]))
   } catch {
     // Storage full or blocked: the hold still lasts for this page load.
   }
+}
+
+function write(next: QueueHolds, nextAuto: AutoHolds = autoHolds): void {
+  holds = next
+  autoHolds = new Map([...nextAuto].filter(([key]) => next.has(key)))
+  store(STORAGE_KEY, holds)
+  store(AUTO_STORAGE_KEY, autoHolds)
   for (const listener of listeners) listener()
 }
 
@@ -78,6 +109,27 @@ export function setHeldInQueue(key: string, held: boolean, at?: number): void {
 export function toggleHeldInQueue(key: string, at: number): void {
   if (holds.has(key)) setHeldInQueue(key, false)
   else setHeldInQueue(key, true, at)
+}
+
+/**
+ * A reply sent from the card at `sentAt`: hold it at the queue place `at`, automatically. A card already
+ * held by `h` stays held for good; one already held automatically keeps its place and takes the new reply's
+ * clock, since the turn being judged is now this one.
+ */
+export function autoHoldInQueue(key: string, at: number, sentAt: number): void {
+  if (holds.has(key) && !autoHolds.has(key)) return
+  const next = holds.has(key) ? holds : new Map(holds).set(key, at)
+  write(next, new Map(autoHolds).set(key, sentAt))
+}
+
+/** When the reply behind `key`'s automatic hold was sent, or undefined for a card held by `h` or not held. */
+export function autoHoldSentAt(key: string): number | undefined {
+  return autoHolds.get(key)
+}
+
+/** Every automatic hold; a new map on every change. */
+export function useAutoHolds(): AutoHolds {
+  return useSyncExternalStore(subscribe, () => autoHolds, () => autoHolds)
 }
 
 const subscribe = (listener: () => void) => {
