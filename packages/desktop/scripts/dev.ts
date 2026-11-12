@@ -13,7 +13,8 @@
 // CommonJS because a sandboxed preload cannot be an ES module.
 //
 // On WSL it runs the WINDOWS build of Electron, natively, rather than the Linux one through WSLg
-// (scripts/windows.ts); `--wslg` runs the Linux one there instead.
+// (scripts/windows.ts); `--wslg` runs the Linux one there instead. On macOS it runs ~/Applications/ntwine.app,
+// a copy of the same Electron the Dock can keep (scripts/mac.ts).
 //
 // Pass `--url=http://127.0.0.1:<port>` to show a particular board (NTWINE_DESKTOP_URL); without it the
 // window joins whichever board of ours answers (server.ts), and starts one when none does (launch.ts).
@@ -27,6 +28,7 @@ import { fileURLToPath } from "node:url"
 import { context, type BuildOptions, type Plugin } from "esbuild"
 import { ntwinePathsNow } from "@ntwine/server/ntwine-paths"
 import type { ServerLaunch } from "../src/launch.ts"
+import { prepareMacApp } from "./mac.ts"
 import { isWsl, prepareWindowsElectron, toWindowsPath } from "./windows.ts"
 
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -47,6 +49,9 @@ const env: NodeJS.ProcessEnv = { ...process.env, ...(pinnedUrl ? { NTWINE_DESKTO
 delete env.ELECTRON_RUN_AS_NODE
 
 const windows = onWindows ? await prepareWindowsElectron() : undefined
+const mac = process.platform === "darwin"
+  ? prepareMacApp(electronBinary, (createRequire(import.meta.url)("electron/package.json") as { version: string }).version)
+  : undefined
 if (windows) console.log(`[desktop] Windows Electron onto ${pinnedUrl ?? "whichever board of ours answers"}`)
 
 rmSync(dist, { recursive: true, force: true })
@@ -80,7 +85,9 @@ let pendingRestart: NodeJS.Timeout | undefined
 function launch(): void {
   const child = windows
     ? windows.start(dist, [...(pinnedUrl ? [`--ntwine-url=${pinnedUrl}`] : []), ...electronArgs])
-    : spawn(electronBinary, [pkg, ...electronArgs], { env, stdio: "inherit" })
+    : mac
+      ? mac.start(dist, electronArgs, env)
+      : spawn(electronBinary, [pkg, ...electronArgs], { env, stdio: "inherit" })
   electron = child
   child.on("exit", (code, signal) => {
     if (electron !== child) return
