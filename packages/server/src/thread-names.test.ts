@@ -236,6 +236,22 @@ test("a handle the request @-mentions is taken, even when no open thread carries
   s.close()
 })
 
+// 2026-11-12: two "start planning <Linear URL>" dispatches whose mints missed the window were named
+// "Planning https://linear.app/slash/issue/EFF-…" — two words at the spaces, no handle at all.
+test("a name with no handle is refused, so the request-words fallback never names a thread after a URL", async () => {
+  const url = "https://linear.app/slash/issue/EFF-278/investigate-a-single-source-of-truth-for-request-validation-schemas"
+  assert.match(threadNameProblem(`Planning ${url}`) ?? "", /not one or two plain words/)
+  assert.equal(cleanThreadName(`Planning ${url}`), undefined)
+  const s = store()
+  s.upsertSession(row("first"))
+  s.upsertSession(row("second"))
+  const namer = createThreadNamer({ storage: s }) // no model: the fallback names the thread at once
+  await namer.mint("first", "sid-first", `start planning ${url}`)
+  await namer.mint("second", "sid-second", `start planning ${url.replace("278", "231")}`)
+  assert.deepEqual([s.getSession("first")?.title, s.getSession("second")?.title], ["Planning", "Planning 2"])
+  s.close()
+})
+
 test("mints are serial, so the second of two near-identical dispatches is ASKED with the first's name taken", async () => {
   const s = store()
   s.upsertSession(row("first"))

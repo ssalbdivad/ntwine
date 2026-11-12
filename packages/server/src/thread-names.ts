@@ -324,7 +324,12 @@ export function sentenceCaseName(name: string, source: string): string {
 export function threadNameProblem(name: string): string | undefined {
   if (name.trim().split(/\s+/).length > THREAD_NAME_MAX_WORDS) return "is longer than two words"
   const handle = threadHandle(name)
-  if (handle && handle.length > THREAD_HANDLE_MAX_CHARS) {
+  // Words are counted at the spaces, but a handle splits at every mark, so two "words" can still make no
+  // handle at all: the request-words fallback named two threads "Planning https://linear.app/slash/issue/
+  // EFF-278/investigate-a-single-source-of-truth-…" (2026-11-12), which is two words here and seventeen to
+  // threadHandle, past its sentence cutoff — a name nobody could @-mention, shown as the URL.
+  if (!handle) return "is not one or two plain words"
+  if (handle.length > THREAD_HANDLE_MAX_CHARS) {
     return `is too long to type: its handle @${handle} is ${handle.length} characters, past the limit of ${THREAD_HANDLE_MAX_CHARS}`
   }
   return undefined
