@@ -56,6 +56,22 @@ describe("the peer envelope", () => {
     assert.throws(() => sent.openResponse(answerToOther), PeerCryptoError)
   })
 
+  it("answers one request twice without reusing a keystream", () => {
+    // A replayed body is answered again under the same response key (the "replayed request" refusal).
+    // Two answers of equal length: under a reused nonce, XOR of the ciphertexts equals XOR of the plaintexts.
+    const sent = sealRequest(alice, bob.publicKey, Buffer.from("import"))
+    const received = openRequest(bob, sent.body, pairedWithAlice)
+    const first = Buffer.from('{"ok":true,"result":{}}')
+    const second = Buffer.from('{"ok":false,"error":""}')
+    const a = received.sealResponse(first)
+    const b = received.sealResponse(second)
+    const xor = (x: Buffer, y: Buffer) => Buffer.from(x.map((byte, i) => byte ^ y[i]!))
+    assert.notDeepEqual(xor(a.subarray(12, 12 + first.length), b.subarray(12, 12 + first.length)), xor(first, second))
+    assert.notDeepEqual(xor(a.subarray(0, first.length), b.subarray(0, first.length)), xor(first, second))
+    assert.equal(sent.openResponse(a).toString(), first.toString())
+    assert.equal(sent.openResponse(b).toString(), second.toString())
+  })
+
   it("refuses a body that is not an envelope at all", () => {
     assert.throws(() => openRequest(bob, Buffer.from("POST / HTTP/1.1"), pairedWithAlice), { message: "not an ntwine peer request" })
   })

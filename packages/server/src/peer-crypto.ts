@@ -26,14 +26,24 @@ import {
 //   machine holding a paired static key can produce a request the receiver opens (`ss`), the key is
 //   fresh per request (`es`), and the response is sealed under a sibling key that only the receiver
 //   could also derive, so the sender knows who answered.
-// - AES-256-GCM with the header as associated data, and a nonce of zero: every key encrypts exactly
-//   one message in each direction, because each request brings its own ephemeral key.
+// - AES-256-GCM with the header as associated data. A REQUEST uses a nonce of zero: its key is fresh per
+//   ephemeral and the sender seals exactly one message under it. A RESPONSE carries a fresh random 96-bit
+//   nonce in front of it, because the receiver does NOT seal exactly once per request key: a re-sent
+//   (replayed) body opens to the same key and is answered again — "replayed request", a clock refusal, a
+//   malformed refusal. Under a fixed nonce, two answers under one key reuse the GCM keystream (XOR of the
+//   ciphertexts leaks the plaintexts) and two tags give away the GHASH key, after which whoever re-sent the
+//   body can forge an answer the origin accepts — a forged "refused" to an import is two live copies of a
+//   thread. Random 96-bit nonces stay collision-free far past the handful of answers one key ever sees.
 //
-// What it does NOT give: forward secrecy against theft of the RECEIVER's static key (the one-way K
-// pattern cannot). Whoever holds a recorded transfer and that machine's `peer.key` could read it — and
-// could just as well read the transcripts on that same disk, where they sit in the clear. Replay is the
-// caller's job (a timestamp window and a cache of request ids, peer-service.ts), because only the caller
-// keeps state across requests.
+// What it does NOT give: protection against theft of a machine's static key. In the K pattern `ss` and
+// `es` are both computable from the RECEIVER's private key alone, so whoever holds a machine's `peer.key`
+// can read any recorded transfer to it AND forge requests to it that open as coming from any machine it
+// is paired with (key-compromise impersonation) — which, for `import`, is writing a thread into it. So a
+// leaked `peer.key` (a stolen state-dir backup included) is a compromise of that machine: remove it on
+// the machines it was paired with (they go on trusting the old key), delete its `peer.key`, pair again.
+//
+// Replay is the caller's job (a timestamp window and a persisted cache of request ids, peer-service.ts),
+// because only the caller keeps state across requests.
 
 const KEY_BYTES = 32
 const TAG_BYTES = 16
@@ -41,6 +51,7 @@ const ZERO_NONCE = Buffer.alloc(12)
 /** `ntwP` + protocol version 1. Anything else is refused before any key is touched. */
 export const ENVELOPE_MAGIC = Buffer.from([0x6e, 0x74, 0x77, 0x50, 0x01])
 export const ENVELOPE_HEADER_BYTES = ENVELOPE_MAGIC.length + KEY_BYTES * 2
+const NONCE_BYTES = 12
 const LABEL = "ntwine-peer-v1"
 
 export interface PeerKeyPair {
@@ -118,16 +129,16 @@ function channelKeys(es: Buffer, ss: Buffer, header: Buffer, recipient: Buffer):
   return { request: derive("request"), response: derive("response") }
 }
 
-function seal(key: Buffer, aad: Buffer, plaintext: Buffer): Buffer {
-  const cipher = createCipheriv("aes-256-gcm", key, ZERO_NONCE)
+function seal(key: Buffer, aad: Buffer, plaintext: Buffer, nonce: Buffer = ZERO_NONCE): Buffer {
+  const cipher = createCipheriv("aes-256-gcm", key, nonce)
   cipher.setAAD(aad)
   const body = Buffer.concat([cipher.update(plaintext), cipher.final()])
   return Buffer.concat([body, cipher.getAuthTag()])
 }
 
-function open(key: Buffer, aad: Buffer, sealed: Buffer): Buffer {
+function open(key: Buffer, aad: Buffer, sealed: Buffer, nonce: Buffer = ZERO_NONCE): Buffer {
   if (sealed.length < TAG_BYTES) throw new PeerCryptoError("truncated message")
-  const decipher = createDecipheriv("aes-256-gcm", key, ZERO_NONCE)
+  const decipher = createDecipheriv("aes-256-gcm", key, nonce)
   decipher.setAAD(aad)
   decipher.setAuthTag(sealed.subarray(sealed.length - TAG_BYTES))
   try {
@@ -151,13 +162,17 @@ export function sealRequest(sender: PeerKeyPair, recipient: Buffer, plaintext: B
   const keys = channelKeys(dh(ephemeral.privateKey, recipient), dh(sender.privateKey, recipient), header, recipient)
   return {
     body: Buffer.concat([header, seal(keys.request, header, plaintext)]),
-    openResponse: (sealed) => open(keys.response, responseAad(header), sealed),
+    openResponse: (sealed) => {
+      if (sealed.length < NONCE_BYTES + TAG_BYTES) throw new PeerCryptoError("truncated message")
+      return open(keys.response, responseAad(header), sealed.subarray(NONCE_BYTES), sealed.subarray(0, NONCE_BYTES))
+    },
   }
 }
 
 /** The sender's public key out of a request body, before anything is decrypted — or undefined. */
 export function requestSender(body: Buffer): Buffer | undefined {
-  if (body.length < ENVELOPE_HEADER_BYTES + TAG_BYTES) return undefined
+  // The header alone: the call route judges the sender from it before reading the rest of the body.
+  if (body.length < ENVELOPE_HEADER_BYTES) return undefined
   if (!body.subarray(0, ENVELOPE_MAGIC.length).equals(ENVELOPE_MAGIC)) return undefined
   return Buffer.from(body.subarray(ENVELOPE_MAGIC.length, ENVELOPE_MAGIC.length + KEY_BYTES))
 }
@@ -181,7 +196,15 @@ export function openRequest(recipient: PeerKeyPair, body: Buffer, isPaired: (sen
   const ephemeral = Buffer.from(body.subarray(ENVELOPE_MAGIC.length + KEY_BYTES, ENVELOPE_HEADER_BYTES))
   const keys = channelKeys(dh(recipient.privateKey, ephemeral), dh(recipient.privateKey, sender), header, recipient.publicKey)
   const plaintext = open(keys.request, header, body.subarray(ENVELOPE_HEADER_BYTES))
-  return { sender, plaintext, sealResponse: (reply) => seal(keys.response, responseAad(header), reply) }
+  return {
+    sender,
+    plaintext,
+    // `[random nonce][ciphertext][tag]`: safe to call more than once for one request (see the header).
+    sealResponse: (reply) => {
+      const nonce = randomBytes(NONCE_BYTES)
+      return Buffer.concat([nonce, seal(keys.response, responseAad(header), reply, nonce)])
+    },
+  }
 }
 
 function responseAad(header: Buffer): Buffer {

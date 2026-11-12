@@ -167,6 +167,61 @@ export function peerView(record: PeerRecord): PeerView {
   }
 }
 
+// ---- request ids already answered: the replay cache, kept across a restart ----
+
+/** Beside `peers.json` (and so in the state root in production), 0600 like it. */
+export function seenRequestsPath(peersFile: string): string {
+  return join(dirname(peersFile), "peer-seen.json")
+}
+
+export interface SeenRequests {
+  /**
+   * True when `id` is already recorded and not yet expired. Otherwise records it until `untilMs` — on
+   * disk before returning, so a request is never acted on before its id would survive a crash — and
+   * returns false. Throws when it cannot write: the caller refuses rather than act unrecorded.
+   */
+  seenOrRecord(id: string, untilMs: number, nowMs?: number): boolean
+}
+
+/**
+ * The replay cache lived in memory until 2026-11-12, so a restart reopened the whole timestamp window:
+ * a body recorded minutes earlier was answered, and acted on, again. The harmful case is an `import`
+ * the destination REFUSED (say, a diverged branch): the origin saw the refusal and kept running the
+ * thread; after the human fixed the cause and the destination restarted, the same recorded body
+ * imported it — two live copies. So the ids are written through to a small file, every entry carrying
+ * its own expiry, and pruned to the window on load and on every write. The file holds only ids that
+ * authenticated as a paired machine's, a handful per move, so rewriting it whole (tmp + rename, as
+ * `peers.json` is written) stays cheap.
+ */
+export function openSeenRequests(path: string, nowMs = Date.now()): SeenRequests {
+  const seen = new Map<string, number>()
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as { v?: unknown; ids?: unknown }
+    if (parsed?.v === 1 && parsed.ids && typeof parsed.ids === "object") {
+      for (const [id, until] of Object.entries(parsed.ids)) if (typeof until === "number" && until > nowMs) seen.set(id, until)
+    }
+  } catch {
+    // Absent is the first run. Unreadable is a corrupt file; starting empty only reopens the window this
+    // cache closes, and the clock window still bounds it.
+  }
+  const prune = (now: number) => {
+    for (const [id, until] of seen) if (until <= now) seen.delete(id)
+  }
+  return {
+    seenOrRecord: (id, untilMs, now = Date.now()) => {
+      prune(now)
+      if (seen.has(id)) return true
+      const next = new Map(seen).set(id, untilMs)
+      mkdirSync(dirname(path), { recursive: true })
+      const tmp = `${path}.${process.pid}.tmp`
+      writeFileSync(tmp, `${JSON.stringify({ v: 1, ids: Object.fromEntries(next) })}\n`, { mode: 0o600 })
+      renameSync(tmp, path)
+      seen.set(id, untilMs)
+      return false
+    },
+  }
+}
+
 // ---- pairing codes: held in memory only, single use, short lived ----
 
 export const PAIR_CODE_TTL_MS = 10 * 60_000

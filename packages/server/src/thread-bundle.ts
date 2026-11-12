@@ -1,4 +1,5 @@
-import { gunzipSync, gzipSync } from "node:zlib"
+import { promisify } from "node:util"
+import { gunzip, gzipSync } from "node:zlib"
 import { isAbsolute, normalize } from "node:path"
 
 // THE MOVED THREAD AS ONE BLOB (plans/thread-handoff.md § 5): a manifest and the files it lists, gzipped,
@@ -31,11 +32,20 @@ export function packBundle(manifest: { files: readonly BundleFile[] }, contents:
 
 export class BundleError extends Error {}
 
-/** Unpack and check the container's own consistency. The manifest's MEANING is the importer's to check. */
-export function unpackBundle(blob: Buffer, maxBytes = BUNDLE_MAX_BYTES): { manifest: Record<string, unknown>; files: { file: BundleFile; data: Buffer }[] } {
+const inflate = promisify(gunzip)
+
+/**
+ * Unpack and check the container's own consistency. The manifest's MEANING is the importer's to check.
+ *
+ * Inflated on libuv's thread pool, not the event loop: a bundle at the limit is hundreds of MB, and
+ * `gunzipSync` (until 2026-11-12) froze the whole server — every project's board — for the seconds that
+ * took, on a request any paired machine can send. `maxOutputLength` still stops a bomb at the ceiling.
+ * Memory is the caller's to bound (peer-service.ts lets one import unpack at a time).
+ */
+export async function unpackBundle(blob: Buffer, maxBytes = BUNDLE_MAX_BYTES): Promise<{ manifest: Record<string, unknown>; files: { file: BundleFile; data: Buffer }[] }> {
   let raw: Buffer
   try {
-    raw = gunzipSync(blob, { maxOutputLength: maxBytes })
+    raw = await inflate(blob, { maxOutputLength: maxBytes })
   } catch (error) {
     throw new BundleError(`the thread's bundle could not be read (${error instanceof Error ? error.message : String(error)})`)
   }

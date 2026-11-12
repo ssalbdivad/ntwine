@@ -21,6 +21,7 @@ import { discoverTranscriptDir } from "./discover.ts"
 import { editedFilesOf } from "./edited-files.ts"
 import { log } from "./logging.ts"
 import {
+  ENVELOPE_HEADER_BYTES,
   frameMessage,
   macsMatch,
   normalizePairCode,
@@ -40,8 +41,10 @@ import {
   DEFAULT_PEER_PORT,
   loadOrCreatePeerKey,
   openPeerStore,
+  openSeenRequests,
   peersFilePath,
   peerView,
+  seenRequestsPath,
   type PeerRecord,
   type PeerStore,
 } from "./peer-store.ts"
@@ -117,8 +120,19 @@ export interface PeerService {
   close(): Promise<void>
 }
 
-/** Thrown when a request was sent and no answer came: the other machine may or may not have acted. */
+/**
+ * Thrown when a request was sent and no answer this machine can AUTHENTICATE came back: the other machine
+ * may or may not have acted. That covers no answer at all, a plain HTTP error, a body that is not a sealed
+ * answer, and one that fails to open: anyone on the path (a relay, a tunnel, the LAN) can produce those,
+ * so none of them is evidence of what the other machine did.
+ */
 class UnconfirmedError extends Error {}
+
+/**
+ * The other machine's own sealed `{ ok: false }`: it authenticated, so it is the other machine saying it
+ * did not act. The ONLY failure a move may treat as "nothing happened there" and undo its stamp on.
+ */
+class PeerRefusal extends Error {}
 
 // ---- git remotes: how two machines agree they hold the same project ----
 
@@ -196,24 +210,45 @@ function normalizeUrl(url: string): string {
   return `${parsed.protocol}//${parsed.host}`
 }
 
-async function readBody(request: Request, max: number): Promise<Buffer | undefined> {
+interface BodyReader {
+  /** What has arrived once at least `n` bytes have (or the body ended first); undefined past the limit. */
+  readAtLeast(n: number): Promise<Buffer | undefined>
+  /** The whole body; undefined past the limit. */
+  readAll(): Promise<Buffer | undefined>
+}
+
+/**
+ * A request body pulled only as far as it is asked for. The call route reads the envelope header, judges
+ * the sender, and only then reads the rest: before 2026-11-12 it read up to MAX_CALL_BYTES first, so
+ * anyone who could reach the route — no session needed, unbounded concurrency — could make the server
+ * hold 400 MB (twice that once concatenated) per request before it said "not paired".
+ */
+function bodyReader(request: Request, max: number): BodyReader {
   const declared = Number(request.headers.get("content-length") ?? "NaN")
-  if (Number.isFinite(declared) && declared > max) return undefined
-  if (!request.body) return Buffer.alloc(0)
-  const reader = request.body.getReader()
+  const tooLarge = Number.isFinite(declared) && declared > max
+  const reader = request.body?.getReader()
   const chunks: Buffer[] = []
   let total = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    total += value.byteLength
-    if (total > max) {
-      await reader.cancel().catch(() => {})
-      return undefined
+  let ended = !reader
+  const readAtLeast = async (n: number): Promise<Buffer | undefined> => {
+    if (tooLarge) return undefined
+    while (total < n && !ended) {
+      const { done, value } = await reader!.read()
+      if (done) {
+        ended = true
+        break
+      }
+      total += value.byteLength
+      if (total > max) {
+        await reader!.cancel().catch(() => {})
+        return undefined
+      }
+      chunks.push(Buffer.from(value))
     }
-    chunks.push(Buffer.from(value))
+    if (chunks.length > 1) chunks.splice(0, chunks.length, Buffer.concat(chunks))
+    return chunks[0] ?? Buffer.alloc(0)
   }
-  return Buffer.concat(chunks)
+  return { readAtLeast, readAll: () => readAtLeast(Number.POSITIVE_INFINITY) }
 }
 
 const plain = (status: number, text: string) => new Response(text, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } })
@@ -225,11 +260,16 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
   const name = deps.name ?? machineName()
   const store: PeerStore = openPeerStore(deps.storePath ?? peersFilePath(deps.home))
   const codes = createPairCodes()
-  const seen = new Map<string, number>()
+  const seen = openSeenRequests(seenRequestsPath(deps.storePath ?? peersFilePath(deps.home)))
   /** Threads with a move in flight on this machine, `<projectId>:<slug>`, to the destination's name. */
   const moving = new Map<string, string>()
-  /** Imports in flight here, so two deliveries of one move never interleave. */
-  const importing = new Set<string>()
+  /**
+   * The move id of the ONE import running here, server-wide. Taken before the bundle is unpacked: an
+   * import holds its body, its decrypted copy and up to BUNDLE_MAX_BYTES inflated, about 2 GB at the
+   * limits, so two at once must not stack. It also keeps two deliveries of one move from interleaving,
+   * which a per-thread lock did until 2026-11-12.
+   */
+  let arriving: string | undefined
   const identityCache = new Map<string, { at: number; ids: string[] }>()
   let listener: { server: Server; port: number } | undefined
   let listenerError: string | undefined
@@ -255,7 +295,17 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
 
   // ---- outbound ----
 
-  async function call(peer: PeerRecord, op: string, args: unknown, options: { blob?: Buffer; timeoutMs?: number } = {}): Promise<unknown> {
+  /**
+   * One request to a paired machine. `acts`: the request may change the other machine's state (an import),
+   * so every failure that is not the other machine's own sealed refusal is an UnconfirmedError, and the
+   * caller must not read it as "nothing happened there". Without `acts` there is nothing to confirm and
+   * every failure is a plain Error.
+   */
+  async function call(peer: PeerRecord, op: string, args: unknown, options: { blob?: Buffer; timeoutMs?: number; acts?: boolean } = {}): Promise<unknown> {
+    const failed = (message: string) => {
+      store.update(peer.id, { lastError: message })
+      return options.acts ? new UnconfirmedError(message) : new Error(message)
+    }
     const plaintext = frameMessage({ op, id: randomUUID(), ts: Date.now(), from: { name }, args }, options.blob)
     const sent = sealRequest(key, Buffer.from(peer.publicKey, "base64url"), plaintext)
     let response: Response
@@ -267,31 +317,39 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
         signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
       })
     } catch (error) {
-      const message = `${peer.name} did not answer at ${peer.url} (${error instanceof Error ? error.message : String(error)})`
-      store.update(peer.id, { lastError: message })
-      // A request that was never sent cannot have been acted on; one that timed out might have been.
-      throw options.blob ? new UnconfirmedError(message) : new Error(message)
+      // A timeout may have been acted on, and a refused connection is indistinguishable from one cut
+      // after delivery by anything on the path.
+      throw failed(`${peer.name} did not answer at ${peer.url} (${error instanceof Error ? error.message : String(error)})`)
     }
-    const body = Buffer.from(await response.arrayBuffer())
+    let body: Buffer
+    try {
+      body = Buffer.from(await response.arrayBuffer())
+    } catch (error) {
+      throw failed(`${peer.name}'s answer was cut off (${error instanceof Error ? error.message : String(error)})`)
+    }
     if (response.status !== 200) {
+      // Unsealed, so unauthenticated whatever it says: the other machine's own pre-envelope refusals
+      // ("not paired") travel this way, and so does anything a relay or the LAN path makes up. Before
+      // 2026-11-12 a plain 4xx to an import counted as a refusal and cleared the move's stamp — a forged
+      // one left the thread running here while it was already imported there.
       const text = body.toString("utf8").slice(0, 300).trim()
-      const message = response.status === 403 && text
+      throw failed(response.status === 403 && text
         ? `${peer.name} refused this machine: ${text}`
-        : `${peer.name} answered ${response.status} at ${peer.url}${text ? ` (${text})` : ""}`
-      store.update(peer.id, { lastError: message })
-      if (options.blob && response.status >= 500) throw new UnconfirmedError(message)
-      throw new Error(message)
+        : `${peer.name} answered ${response.status} at ${peer.url}${text ? ` (${text})` : ""}`)
     }
-    let head: { ok?: boolean; result?: unknown; error?: string }
+    let head: { ok?: boolean; result?: unknown; error?: string; unconfirmed?: boolean }
     try {
       head = unframeMessage(sent.openResponse(body)).head as typeof head
     } catch {
-      const message = `${peer.name}'s answer could not be verified`
-      store.update(peer.id, { lastError: message })
-      throw options.blob ? new UnconfirmedError(message) : new Error(message)
+      throw failed(`${peer.name}'s answer could not be verified`)
     }
     store.update(peer.id, { lastSeenAt: new Date().toISOString(), lastError: undefined })
-    if (!head.ok) throw new Error(head.error ?? `${peer.name} refused`)
+    if (!head.ok) {
+      const message = head.error ?? `${peer.name} refused`
+      // Sealed, but the other machine saying it cannot tell yet (the same move still arriving there).
+      if (options.acts && head.unconfirmed === true) throw new UnconfirmedError(message)
+      throw options.acts ? new PeerRefusal(message) : new Error(message)
+    }
     return head.result
   }
 
@@ -455,12 +513,16 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       }
       let imported: { slug: string; notes: string[] }
       try {
-        imported = await call(record, "import", { identities, moveId }, { blob: exported.blob, timeoutMs: 15 * 60_000 }) as { slug: string; notes: string[] }
+        imported = await call(record, "import", { identities, moveId }, { blob: exported.blob, timeoutMs: 15 * 60_000, acts: true }) as { slug: string; notes: string[] }
       } catch (error) {
-        if (!(error instanceof UnconfirmedError)) {
+        // Only the destination's own sealed refusal says it did not import. Anything else — however
+        // definite it looks — leaves the stamp pending: two live copies is the one outcome a move must
+        // never produce, and a retry under the same id is safe.
+        if (error instanceof PeerRefusal) {
           setMovedTo(ctx.storage.scope, slug, null)
+          throw error
         }
-        throw error
+        throw error instanceof UnconfirmedError ? error : new UnconfirmedError(error instanceof Error ? error.message : String(error))
       }
 
       markMovedAway(ctx.storage.scope, slug, stampFor(record, moveId))
@@ -524,7 +586,23 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     return { project: project.name, dir: workDirOf(ctx.project), peer: peer.name }
   }
 
+  /** A refusal the origin must read as "not decided": its stamp stays pending (see `call`). */
+  const notYet = (message: string) => Object.assign(new Error(message), { unconfirmed: true })
+
   async function onImport(peer: PeerRecord, args: { identities?: unknown; moveId?: unknown }, blob: Buffer): Promise<unknown> {
+    if (typeof args.moveId !== "string") throw new Error("malformed request")
+    // Server-wide, and before anything is unpacked (see `arriving`).
+    if (arriving === args.moveId) throw notYet("This thread is already arriving")
+    if (arriving) throw new Error(`${name} is taking in another thread; try again in a moment`)
+    arriving = args.moveId
+    try {
+      return await importOne(peer, args, blob)
+    } finally {
+      arriving = undefined
+    }
+  }
+
+  async function importOne(peer: PeerRecord, args: { identities?: unknown; moveId?: unknown }, blob: Buffer): Promise<unknown> {
     const identities = Array.isArray(args.identities) ? args.identities.filter((id): id is string => typeof id === "string") : []
     const project = projectFor(identities)
     if (!project) throw new Error(`${name} has no copy of this project`)
@@ -535,7 +613,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     try {
       let unpacked
       try {
-        unpacked = unpackBundle(blob)
+        unpacked = await unpackBundle(blob)
       } catch (error) {
         throw new Error(error instanceof BundleError ? error.message : "the thread's bundle could not be read")
       }
@@ -543,31 +621,24 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       if (!manifest || manifest.moveId !== args.moveId) throw new Error("the thread's bundle is malformed")
       slug = manifest.thread.slug
       if (manifest.thread.backend !== "claude") throw new Error("Only a Claude thread can move to another machine for now")
-      const lock = `${ctx.project.id}:${slug}`
-      if (importing.has(lock)) throw new Error("This thread is already arriving")
-      importing.add(lock)
-      try {
-        const workDir = workDirOf(ctx.project)
-        const result = importThread(
-          { scope: ctx.storage.scope, project: { dir: ctx.project.dir, workDir, stateDir: ctx.project.stateDir }, home: deps.home, bucket: cwdSlug(workDir) },
-          manifest,
-          unpacked.files,
-          { id: peer.id, name: peer.name },
-          { name },
-          (git) => restoreWip({ mainCheckout: workDir, ...git }),
-        )
-        if ("refused" in result) throw new Error(result.refused)
-        ctx.board.refresh()
-        void ctx.board.rebuild().catch(() => {})
-        ctx.tailer.nudge?.()
-        audit("threadMoveIn", "ok", {
-          project: auditProject, thread: slug,
-          detail: { peer: peerRef(peer), moveId: manifest.moveId, duplicate: result.duplicate, compressed: blob.length, files: unpacked.files.length, wipPaths: manifest.git?.paths.length ?? 0, checkout: manifest.git?.rel ?? null },
-        })
-        return { slug: result.slug, notes: result.notes }
-      } finally {
-        importing.delete(lock)
-      }
+      const workDir = workDirOf(ctx.project)
+      const result = importThread(
+        { scope: ctx.storage.scope, project: { dir: ctx.project.dir, workDir, stateDir: ctx.project.stateDir }, home: deps.home, bucket: cwdSlug(workDir) },
+        manifest,
+        unpacked.files,
+        { id: peer.id, name: peer.name },
+        { name },
+        (git) => restoreWip({ mainCheckout: workDir, ...git }),
+      )
+      if ("refused" in result) throw new Error(result.refused)
+      ctx.board.refresh()
+      void ctx.board.rebuild().catch(() => {})
+      ctx.tailer.nudge?.()
+      audit("threadMoveIn", "ok", {
+        project: auditProject, thread: slug,
+        detail: { peer: peerRef(peer), moveId: manifest.moveId, duplicate: result.duplicate, compressed: blob.length, files: unpacked.files.length, wipPaths: manifest.git?.paths.length ?? 0, checkout: manifest.git?.rel ?? null },
+      })
+      return { slug: result.slug, notes: result.notes }
     } catch (error) {
       audit("threadMoveIn", "refused", { project: auditProject, ...(slug ? { thread: slug } : {}), error: error instanceof Error ? error.message : String(error), detail: { peer: peerRef(peer), compressed: blob.length } })
       throw error
@@ -577,18 +648,26 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
   // ---- inbound ----
 
   async function handleCall(request: Request): Promise<Response> {
-    const body = await readBody(request, MAX_CALL_BYTES)
+    const reader = bodyReader(request, MAX_CALL_BYTES)
+    // The sender first, from the fixed-length header: a stranger is refused having sent 69 bytes. The
+    // rest of its body is never pulled (cancelling it would cut the connection before the 403 is read).
+    const start = await reader.readAtLeast(ENVELOPE_HEADER_BYTES)
+    if (!start) return plain(413, "too large")
+    const senderKey = requestSender(start)
+    if (!senderKey) return plain(403, "not an ntwine peer request")
+    const sender = store.byPublicKey(senderKey)
+    if (!sender) return plain(403, "this machine is not paired with the sender")
+    const body = await reader.readAll()
     if (!body) return plain(413, "too large")
-    const senderKey = requestSender(body)
-    const sender = senderKey ? store.byPublicKey(senderKey) : undefined
     let opened
     try {
-      opened = openRequest(key, body, () => sender !== undefined)
+      opened = openRequest(key, body, (candidate) => candidate.equals(senderKey))
     } catch (error) {
-      if (senderKey && !sender) return plain(403, "this machine is not paired with the sender")
       return plain(403, error instanceof PeerCryptoError ? error.message : "refused")
     }
-    const peer = sender!
+    const peer = sender
+    // Sealed under a fresh nonce each time (peer-crypto.ts), so answering one request id more than once
+    // — the replay refusal below — reuses no keystream.
     const reply = (head: unknown) => new Response(new Uint8Array(opened.sealResponse(frameMessage(head))), { status: 200, headers: { "content-type": "application/octet-stream", "cache-control": "no-store" } })
     let message: { op?: unknown; id?: unknown; ts?: unknown; args?: unknown }
     let blob: Buffer
@@ -600,12 +679,19 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       return reply({ ok: false, error: "malformed request" })
     }
     const now = Date.now()
-    for (const [id, until] of seen) if (until < now) seen.delete(id)
     if (typeof message.ts !== "number" || Math.abs(now - message.ts) > REPLAY_WINDOW_MS) {
       return reply({ ok: false, error: `the two machines' clocks disagree by more than ${REPLAY_WINDOW_MS / 60_000}m` })
     }
-    if (typeof message.id !== "string" || seen.has(message.id)) return reply({ ok: false, error: "replayed request" })
-    seen.set(message.id, now + REPLAY_WINDOW_MS * 2)
+    if (typeof message.id !== "string" || message.id.length > 200) return reply({ ok: false, error: "malformed request" })
+    // Recorded on disk before anything is acted on, so a restart cannot answer it twice (peer-store.ts).
+    let replayed: boolean
+    try {
+      replayed = seen.seenOrRecord(message.id, now + REPLAY_WINDOW_MS * 2, now)
+    } catch (error) {
+      log.warn("peer", `could not record a request id: ${error instanceof Error ? error.message : String(error)}`)
+      return reply({ ok: false, error: `${name} could not save its state; try again` })
+    }
+    if (replayed) return reply({ ok: false, error: "replayed request" })
     store.update(peer.id, { lastSeenAt: new Date(now).toISOString() })
     const args = (message.args && typeof message.args === "object" ? message.args : {}) as Record<string, unknown>
     try {
@@ -624,7 +710,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
           return reply({ ok: false, error: `${name}'s ntwine does not understand this request; update it` })
       }
     } catch (error) {
-      return reply({ ok: false, error: error instanceof Error ? error.message : String(error) })
+      const unconfirmed = (error as { unconfirmed?: unknown } | null)?.unconfirmed === true
+      return reply({ ok: false, error: error instanceof Error ? error.message : String(error), ...(unconfirmed ? { unconfirmed: true } : {}) })
     }
   }
 
@@ -643,7 +730,9 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
   }
 
   async function handlePair(request: Request): Promise<Response> {
-    const body = await readBody(request, MAX_PAIR_BYTES)
+    // Nothing to check a pairing against until a code is showing, so nothing is read until one is.
+    if (!codes.live().length) return plain(403, `${name} is not showing a pairing code. Show one in Settings → Other machines`)
+    const body = await bodyReader(request, MAX_PAIR_BYTES).readAll()
     if (!body) return plain(413, "too large")
     let parsed: { hello?: unknown; mac?: unknown }
     try {

@@ -136,10 +136,25 @@ on node:crypto, with no new dependency:
   ephemeral key head the body; the key is HKDF-SHA256 over `X25519(e, s_R) ‖ X25519(s_I, s_R)`, salted with
   both static keys and the ephemeral key; the payload is AES-256-GCM with that header as associated data. Only
   a paired machine can produce a request the receiver opens, and only the receiver can produce the response
-  (sealed under a sibling key). A timestamp window and a cache of seen request ids refuse replays. An unknown
-  sender key is refused before anything else. This gives no forward secrecy against theft of the receiver's
-  key; the threat that buys is someone holding a recorded transfer AND that machine's `peer.key`, who could
-  read the transcripts straight off the same disk.
+  (sealed under a sibling key). A request is sealed once under its key, with a zero nonce; a response carries a
+  fresh random 96-bit nonce in front of it, because a re-sent request is answered again under the same key
+  (the replay refusal) and a fixed nonce would then reuse the GCM keystream and let whoever re-sent it forge
+  an answer. A timestamp window (±5m) and a cache of seen request ids refuse replays; the ids are written to
+  `<data>/peer-seen.json` (0600) before the request is acted on and pruned to the window, so a restart does
+  not reopen it. An unknown sender key is refused from the 69-byte header, before the rest of the body is read
+  and before any DH.
+- **What the origin believes.** Only the destination's own sealed `{ok: false}` counts as "it did not act".
+  A plain HTTP error, a body that is not a sealed answer, one that fails to open, or no answer at all is
+  *unconfirmed*: anything on the path (the relay, a tunnel, the LAN) can produce those. An unconfirmed import
+  leaves the thread stamped as moving (§5), never back in play here.
+- **Key theft is a compromise of that machine.** In the K pattern both DH results are computable from the
+  RECEIVER's private key alone. So whoever holds a machine's `peer.key` can read every recorded transfer to it,
+  and can also forge requests to it that open as coming from any machine it is paired with (key-compromise
+  impersonation). That includes `import`, which writes a thread, its transcript and its files into that
+  machine without anyone there confirming it. A stolen or leaked copy of the state dir (a backup included) is
+  therefore to be treated as a compromise of that machine: remove it on every machine it was paired with (each
+  keeps trusting the old key until it does; a new key pairs as a new machine and replaces nothing), delete its
+  `peer.key`, and pair again.
 - **Transport.** Requests go to `/_ntwine/peer/v1/*` at the peer's address. Two ways to reach a peer: its public
   origin (Tailscale serve, a tunnel, or its ntwine.app name — the relay then carries ciphertext it cannot open),
   or an opt-in **network listener** (Settings, off by default) that serves only those routes on a port of its
