@@ -143,6 +143,11 @@ export type AuditAction =
   | "messageThread"
   | "answerQuestions"
   | "interactionResolve"
+  // Moving a thread to another machine (peer-service.ts): pairing, unpairing, and each side of a move.
+  | "peerPair"
+  | "peerUnpair"
+  | "threadMoveOut"
+  | "threadMoveIn"
 
 export interface AuditRecord {
   /** UTC, ISO 8601. */
