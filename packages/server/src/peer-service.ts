@@ -6,7 +6,6 @@ import { Readable } from "node:stream"
 import { hostname, networkInterfaces, tmpdir } from "node:os"
 import { basename, isAbsolute, join, resolve } from "node:path"
 import {
-  movedAwayRefusal,
   type PeerListener,
   type PeerPairCode,
   type PeerPingResult,
@@ -55,6 +54,7 @@ import {
   exportThread,
   importThread,
   markMovedAway,
+  movedAwayBlock,
   movedStamp,
   MoveRefusal,
   parseManifest,
@@ -503,11 +503,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     if (!row) return undefined
     const inFlight = moving.get(`${projectId}:${row.slug}`)
     if (inFlight) return `This thread is moving to ${inFlight}`
-    const stamp = movedStamp(row.moved_to)
-    if (!stamp) return undefined
-    return stamp.pending
-      ? `This thread's move to ${stamp.peerName} did not finish. Retry the move, or keep it on this machine`
-      : movedAwayRefusal(stamp.peerName)
+    return movedAwayBlock(row.moved_to)
   }
 
   // ---- the destination side ----

@@ -59,6 +59,9 @@ import { announceProjectListChanges } from "./projects-changed.ts"
 import { backfillRegistry } from "./project-registry.ts"
 import { claimProjectServing, projectServedElsewhere } from "./project-serving.ts"
 import { deleteProjectState, stopProjectWorkers } from "./project-teardown.ts"
+import { createPeerService, PEER_ROUTE_PREFIX, type PeerService } from "./peer-service.ts"
+import { auditLogPathForStateDir, fileAuditLog } from "./audit.ts"
+import { homedir as peerHome } from "node:os"
 
 export const SERVER_SHUTDOWN_TIMEOUT_MS = 4_000
 export const SERVER_FORCE_EXIT_MS = 5_000
@@ -670,6 +673,27 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     // Where a thread needing the human is heard, for the one window that shows it (editor-bridge.ts § attention).
     openProjects: () => tenants.active().map(({ project: open, ctx: openCtx }) => ({ id: open.id, dir: workDirOf(open), bus: openCtx.bus, board: openCtx.board })),
   })
+  // Moving threads to and from paired machines (peer-service.ts): ONE for the machine, like the editor
+  // bridge, handed to every project's context as it is built (so a saved network listener starts at
+  // boot). A machine key that will not load is logged and leaves moving unavailable — it never fails
+  // the boot, and it is never replaced (peer-store.ts says why).
+  let peerService: PeerService | undefined
+  let peerFailure: string | undefined
+  const peers = (): PeerService | undefined => {
+    if (peerService || peerFailure) return peerService
+    try {
+      peerService = createPeerService({
+        home: peerHome(),
+        audit: fileAuditLog(auditLogPathForStateDir(project.stateDir)),
+        workspaces: () => listWorkspaces(),
+        openProject,
+      })
+    } catch (error) {
+      peerFailure = error instanceof Error ? error.message : String(error)
+      ntwineLog.warn("peer", `moving threads between machines is unavailable: ${peerFailure}`)
+    }
+    return peerService
+  }
   /**
    * Take one project apart while the rest keep serving — the resource half of deleting a project.
    *
@@ -721,6 +745,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       teardownProject,
       launchProjectId: project.id,
       editors,
+      get peers() { return peers() },
       get database() { return ntwineDb?.db },
     },
     // Each project's app carries ITS OWN owner proof, so /health stays honest per project rather than
@@ -853,6 +878,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
   const cleanupTerminal = createRetryableCleanup(async () => { await terminal?.close() })
   const cleanupAppSocket = createRetryableCleanup(async () => { await appSocket?.close() })
   const cleanupEditorBridge = createRetryableCleanup(() => editors.close())
+  const cleanupPeers = createRetryableCleanup(async () => { await peerService?.close() })
   const cleanupWakeLock = createRetryableCleanup(() => wakeLock?.stop())
   const cleanupWorktreeSweep = createRetryableCleanup(async () => { await worktreeSweep?.stop() })
   // The per-project half, from context.ts, so one project can be torn down without the server —
@@ -907,6 +933,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
       },
       // Beside the application socket: a live transport, cut so every window reconnects to the next server.
       { name: "editor bridge", run: cleanupEditorBridge },
+      { name: "peer listener", run: cleanupPeers },
       // Before the tenants close: it reads their tailers, and a stopping server holds nothing awake.
       { name: "wake lock", run: cleanupWakeLock },
       // Before the tenants close too: a pass in flight reads their boards.
@@ -1067,6 +1094,7 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
         teardownProject,
         launchProjectId: project.id,
         editors,
+        get peers() { return peers() },
         startup: {
           afterPhase: (p) => {
             bootProgress(`context: ${p}`)
@@ -1170,6 +1198,8 @@ export async function startServer(opts: StartOptions = {}): Promise<StartedServe
     const routeToTenant = async (
       url: string,
     ): Promise<{ surfaces: TenantSurfaces; url: string } | undefined> => {
+      // Machine-scoped, so never a project's — even one registered as `peer` before the name was reserved.
+      if (url.startsWith(PEER_ROUTE_PREFIX)) return undefined
       const split = splitTenantRequest(url, (segment) => findWorkspaceBySegment(segment) !== undefined)
       if (!split) return undefined
       const entry = findWorkspaceBySegment(split.slug)

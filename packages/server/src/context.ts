@@ -100,6 +100,9 @@ import { log as ntwineLog } from "./logging.ts"
 import { RETENTION_FIRST_SWEEP_MS, RETENTION_SWEEP_INTERVAL_MS } from "./thread-retention.ts"
 import { projectScopedEnvironment } from "./project-launch.ts"
 import { homedir } from "node:os"
+import type { PeerService } from "./peer-service.ts"
+import { TerminalDeliveryError } from "./resume.ts"
+import { movedAwayBlock } from "./thread-move.ts"
 
 export const CONTEXT_STARTUP_CLEANUP_TIMEOUT_MS = 4_000
 
@@ -287,6 +290,11 @@ export interface AppContext {
    */
   editors?: EditorBridge
   /**
+   * Moving threads to and from paired machines (peer-service.ts) — ONE for the machine, like `editors`.
+   * Absent under a test context, where nothing pairs.
+   */
+  peers?: PeerService
+  /**
    * Where high-impact board actions are recorded (audit.ts): project add and remove, dispatch,
    * follow-ups and answers, each with the request origin and board session behind it. The real
    * context writes the machine's `audit.jsonl`; a test context leaves it out and records nothing.
@@ -362,6 +370,8 @@ export interface ContextOptions {
   launchProjectId?: string
   /** See AppContext.editors — supplied by the server, which owns the one bridge. */
   editors?: EditorBridge
+  /** See AppContext.peers — supplied by the server, which owns the one service. */
+  peers?: PeerService
   /** Internal deterministic construction/rollback seam. */
   startup?: {
     afterPhase?: (phase: ContextStartupPhase) => void
@@ -871,6 +881,11 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   const claudeRuntimeIngest = claudeBrokerBridgeEnabled() ? createClaudeRuntimeIngest({ nudge: () => tailer.nudge?.() }) : undefined
   resources.claudeRuntimeIngest = claudeRuntimeIngest
 
+  const threadMoveBlock = (slug: string): string | undefined => {
+    const row = storage.getSession(slug)
+    return opts.peers?.blocked(project.id, row) ?? movedAwayBlock(row?.moved_to)
+  }
+
   // Claude session-broker bridge — the detached daemon that owns every claude thread's SDK session,
   // and the only claude transport. NTWINE_CLAUDE_BROKER_BRIDGE="0" turns it off, which leaves a claude
   // dispatch with nothing to run on rather than a second path. Permissions auto-allow for
@@ -962,6 +977,18 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
       })
     : undefined
   resources.claudeBroker = claudeBroker
+  // A THREAD THAT MOVED TO ANOTHER MACHINE NEVER RUNS HERE AGAIN (plans/thread-handoff.md). Every input a
+  // Claude thread receives — a follow-up, an answer, a timer, a Goal, a message from another thread — goes
+  // through this one call, so the guard sits here rather than at each of them. Terminal, so a wake is
+  // abandoned with its reason instead of retried.
+  if (claudeBroker) {
+    const deliver = claudeBroker.followUp.bind(claudeBroker)
+    claudeBroker.followUp = async (input) => {
+      const refusal = threadMoveBlock(input.threadSlug)
+      if (refusal) throw new TerminalDeliveryError(refusal)
+      return deliver(input)
+    }
+  }
   if (claudeBroker) {
     contextUnsubscribers.push(storage.subscribeSessionLifecycle((event) => {
       claudeBroker.releaseSession(
@@ -1474,6 +1501,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     teardownProject: opts.teardownProject,
     launchProjectId: opts.launchProjectId,
     editors: opts.editors,
+    peers: opts.peers,
     // Derived from the state dir, never from `homedir()`, so a sandboxed server audits into its own
     // sandbox (the reason serverAddressPathForStateDir exists).
     audit: fileAuditLog(auditLogPathForStateDir(project.stateDir)),

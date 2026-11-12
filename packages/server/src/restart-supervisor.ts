@@ -257,6 +257,18 @@ function isControlRequest(req: IncomingMessage): boolean {
 // which carries the project slug on every prefixed board. Matching only the unprefixed spelling meant
 // a prefixed board's inline screenshots were answered with the recovery HTML during a restart while an
 // unprefixed one's still rendered.
+/**
+ * Another ntwine sending this machine a thread, or pairing with it (peer-service.ts, plans/thread-handoff.md).
+ * It reaches the board through whatever public origin this machine has — a tailnet name, a tunnel, its
+ * ntwine.app name — and carries no session cookie, because it is a server, not a browser. So it passes
+ * the session gate: each request authenticates itself, a pairing request by a MAC over a code shown on
+ * this machine's screen, every other one by an envelope only a paired machine's key can seal.
+ */
+function isPeerRequest(req: IncomingMessage): boolean {
+  if (req.method !== "POST") return false
+  return new URL(req.url ?? "/", "http://ntwine.invalid").pathname.startsWith(`${NTWINE_ROUTE_PREFIX}/peer/v1/`)
+}
+
 function isLocalImageRequest(req: IncomingMessage): boolean {
   if (req.method !== "GET" && req.method !== "HEAD") return false
   const { pathname } = new URL(req.url ?? "/", "http://ntwine.invalid")
@@ -872,8 +884,9 @@ export class RestartSupervisorProxy {
     }
     // Exchange FIRST: the arriving link carries the credential, so judging before redeeming would
     // reject the very request that is meant to establish the session.
-    if (this.arrivedPublicly(req) && this.exchangeCode(req, res)) return
-    if (this.arrivedPublicly(req) && !this.sessionAccepted(req)) {
+    const peer = isPeerRequest(req)
+    if (!peer && this.arrivedPublicly(req) && this.exchangeCode(req, res)) return
+    if (!peer && this.arrivedPublicly(req) && !this.sessionAccepted(req)) {
       res.writeHead(401, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
       res.end(unauthorizedPage())
       return

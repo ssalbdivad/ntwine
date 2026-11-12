@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { tmpdir } from "node:os"
 import { dirname, join, relative, sep } from "node:path"
 import { randomUUID } from "node:crypto"
-import { ThreadSlug, type ThreadMoveStamp } from "@ntwine/shared"
+import { movedAwayRefusal, ThreadSlug, type ThreadMoveStamp } from "@ntwine/shared"
 import type Database from "./sqlite.ts"
 import { BUNDLE_MAX_BYTES, packBundle, safeRelativePath, type BundleFile, type BundleRoot } from "./thread-bundle.ts"
 import { mapPrefix, relocateJsonl, relocateRecord, type PrefixMap, type RelocationRules } from "./transcript-relocate.ts"
@@ -417,7 +417,16 @@ export function pendingWakes(db: Database, projectId: string, slug: string): num
 export function movedStamp(raw: unknown): ThreadMoveStamp | undefined {
   const stamp = readStamp(raw)
   if (!stamp || typeof stamp.peerId !== "string" || typeof stamp.peerName !== "string" || typeof stamp.at !== "string") return undefined
-  return { peerId: stamp.peerId, peerName: stamp.peerName, at: stamp.at, moveId: stamp.moveId }
+  return { peerId: stamp.peerId, peerName: stamp.peerName, at: stamp.at, moveId: stamp.moveId, ...(stamp.pending === true ? { pending: true } : {}) }
+}
+
+/** Why a row stamped `moved_to` may not run here — the refusal every path that would run it gives. */
+export function movedAwayBlock(raw: unknown): string | undefined {
+  const stamp = movedStamp(raw)
+  if (!stamp) return undefined
+  return stamp.pending
+    ? `This thread's move to ${stamp.peerName} did not finish. Retry the move, or keep it on this machine`
+    : movedAwayRefusal(stamp.peerName)
 }
 
 /** The arrival note, if the worker has not been told yet. */

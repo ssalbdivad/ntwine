@@ -4,6 +4,7 @@ import {
   watch as fsWatch,
   type FSWatcher,
 } from "node:fs"
+import { movedStamp } from "./thread-move.ts"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import watcher from "@parcel/watcher"
@@ -2459,6 +2460,9 @@ function sessionThreadView(
     // Where the agent is working when that is off the project root (tailer workingDirTelemetry) — the
     // header's and the card's quiet checkout token. Each shell above already carries its own.
     ...(tele?.checkout ? { checkout: tele.checkout } : {}),
+    // Moved to or from another machine (thread-move.ts): the stub names where it went, the arrival where it came from.
+    ...(movedStamp(row.moved_to) ? { movedTo: movedStamp(row.moved_to) } : {}),
+    ...(movedStamp(row.moved_from) ? { movedFrom: movedStamp(row.moved_from) } : {}),
     links: (registries.links.get(row.slug) ?? []).map(threadLinkView),
     ...(registries.reactions.get(row.slug)?.length ? { reactions: threadReactionViews(registries.reactions.get(row.slug)!) } : {}),
     spinoffs: (registries.spinoffs.get(row.slug) ?? []).map((o) => {
