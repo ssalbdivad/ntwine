@@ -7,7 +7,7 @@
 import { after, describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { locateThreadCheckout, movedRef, restoreWip, revertMovedPaths, snapshotWip, threadCheckout, writeWipBundle, type WipSnapshot } from "./thread-wip.ts"
@@ -129,12 +129,14 @@ describe("a worktree thread", () => {
 })
 
 describe("a main-checkout thread", () => {
-  /** A is one unpushed commit ahead of B; the thread edited x.txt and z.txt, another agent y.txt. */
+  /** A is one commit ahead of B, pushed but not yet fetched by B; the thread edited x.txt and z.txt,
+   *  another agent y.txt. */
   function mainMove() {
     const m = machines()
     put(join(m.A, "x.txt"), "x\n")
     put(join(m.A, "y.txt"), "y\n")
     commitAll(m.A, "ahead of B")
+    git(m.A, "push", "-q", "origin", "main")
     put(join(m.A, "x.txt"), "x, edited\n")
     put(join(m.A, "y.txt"), "y, someone else's\n")
     put(join(m.A, "z.txt"), "z\n")
@@ -166,6 +168,18 @@ describe("a main-checkout thread", () => {
     assert.deepEqual(restoreInto(B, ".", snap), { refused: "This checkout has its own uncommitted changes to z.txt" })
     assert.equal(git(B, "rev-parse", "HEAD"), head)
     assert.equal(status(B), "?? z.txt\n")
+  })
+
+  it("never fast-forwards the main checkout to commits only the other machine has", () => {
+    const { dir, A, B } = machines()
+    put(join(A, "local.txt"), "never pushed\n")
+    commitAll(A, "not pushed")
+    put(join(A, "a.txt"), "a, edited\n")
+    const snap = pack(dir, A, "main", [join(A, "a.txt")])
+    const before = git(B, "rev-parse", "HEAD")
+    assert.deepEqual(restoreInto(B, ".", snap), { refused: "The other machine's main has commits this clone's remotes don't; push them from there and retry" })
+    assert.equal(git(B, "rev-parse", "HEAD"), before)
+    assert.equal(status(B), "")
   })
 
   it("is refused when the destination's branch has diverged", () => {
@@ -219,12 +233,10 @@ it("work moved to B moves back into A's existing worktree, fast-forwarding it", 
 
 it("a bundle built on commits the destination lacks is refused until its remote is fetched", () => {
   const { dir, A, B } = machines()
-  // A pushes a commit B has not fetched, then builds unpushed work on it: the bundle needs that commit.
+  // A pushes a commit B has not fetched, then builds uncommitted work on it: the bundle needs that commit.
   put(join(A, "pushed.txt"), "pushed\n")
   commitAll(A, "pushed after B cloned")
   git(A, "push", "-q", "origin", "main")
-  put(join(A, "local.txt"), "local\n")
-  commitAll(A, "not pushed")
   put(join(A, "a.txt"), "a, edited\n")
   const snap = pack(dir, A, "main", [join(A, "a.txt")])
 
@@ -235,4 +247,86 @@ it("a bundle built on commits the destination lacks is refused until its remote 
   // Positive control: the same bundle goes through once the remote is fetched.
   assert.deepEqual(restoreInto(B, ".", snap), { ok: true, root: realpathSync(B), created: false, fastForwarded: true })
   assert.equal(status(B), " M a.txt\n")
+})
+
+describe("work from another machine is not trusted", () => {
+  /** A snapshot whose W A's own snapshot could never produce: whatever `make` stages in A, committed over H. */
+  function forged(make: (A: string) => string[]) {
+    const m = machines()
+    const head = git(m.A, "rev-parse", "HEAD").trim()
+    const paths = make(m.A)
+    git(m.A, "add", "-f", "--", ...paths)
+    git(m.A, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "forged")
+    const wip = git(m.A, "rev-parse", "HEAD").trim()
+    const bundleFile = join(m.dir, "forged.bundle")
+    writeWipBundle({ root: m.A, wip, file: bundleFile })
+    return { ...m, snap: { head, branch: "main", wip, paths, leftBehind: [], bundleFile } }
+  }
+
+  it("refuses work inside ntwine's own folder, and a symlink anywhere, before writing", () => {
+    const outside = join(scratch, `outside-${++n}`)
+    mkdirSync(outside)
+    const own = forged((A) => {
+      mkdirSync(join(A, ".ntwine"), { recursive: true })
+      symlinkSync(outside, join(A, ".ntwine", "threads"))
+      return [".ntwine/threads"]
+    })
+    assert.deepEqual(restoreInto(own.B, ".", own.snap), { refused: "The moved work writes inside ntwine's own folder: .ntwine/threads" })
+    assert.equal(existsSync(join(own.B, ".ntwine", "threads")), false)
+
+    const link = forged((A) => {
+      symlinkSync(outside, join(A, "docs"))
+      return ["docs"]
+    })
+    assert.deepEqual(restoreInto(link.B, ".", link.snap), { refused: "The moved work adds a symlink or submodule, which cannot move: docs" })
+    assert.equal(existsSync(join(link.B, "docs")), false)
+  })
+
+  it("runs none of the repository's hooks, even ones the incoming commits bring", () => {
+    const { dir, A, B } = machines()
+    const marker = join(dir, "hook-ran")
+    put(join(A, "scripts/githooks/post-merge"), `#!/bin/sh\ntouch '${marker}'\n`)
+    chmodSync(join(A, "scripts/githooks/post-merge"), 0o755)
+    commitAll(A, "a hook")
+    git(A, "push", "-q", "origin", "main")
+    git(B, "config", "core.hooksPath", "scripts/githooks")
+    put(join(A, "a.txt"), "a, edited\n")
+    const snap = pack(dir, A, "main", [join(A, "a.txt")])
+    assert.deepEqual(restoreInto(B, ".", snap), { ok: true, root: realpathSync(B), created: false, fastForwarded: true })
+    assert.equal(existsSync(marker), false)
+    // Negative control: the same hook does run for git's own fast-forward in B.
+    git(B, "reset", "-q", "--hard", "HEAD~1")
+    git(B, "merge", "-q", "--ff-only", "origin/main")
+    assert.equal(existsSync(marker), true)
+  })
+
+  it("never moves a branch this clone already has, and keeps a worktree name to plain characters", () => {
+    const { dir, A, B } = machines()
+    git(A, "worktree", "add", "-q", ".ntwine/worktrees/feat", "-b", "feat")
+    const wt = join(A, ".ntwine/worktrees/feat")
+    put(join(wt, "f.txt"), "on feat\n")
+    commitAll(wt, "feat commit")
+    put(join(wt, "a.txt"), "a, edited\n")
+    const snap = pack(dir, wt, "worktree")
+    git(B, "branch", "feat")
+    const before = git(B, "rev-parse", "refs/heads/feat")
+    assert.deepEqual(restoreInto(B, ".ntwine/worktrees/feat", snap), { refused: "This clone already has a branch feat at another commit; delete or rename it and retry" })
+    assert.equal(git(B, "rev-parse", "refs/heads/feat"), before)
+    assert.equal(existsSync(join(B, ".ntwine/worktrees/feat")), false)
+    assert.deepEqual(restoreInto(B, ".ntwine/worktrees/..\\..\\x", snap), { refused: ".ntwine/worktrees/..\\..\\x is not a folder a thread can move into" })
+  })
+
+  it("will not create a worktree through a symlinked folder", () => {
+    const { dir, A, B } = machines()
+    git(A, "worktree", "add", "-q", ".ntwine/worktrees/feat", "-b", "feat")
+    const wt = join(A, ".ntwine/worktrees/feat")
+    put(join(wt, "a.txt"), "a, edited\n")
+    const snap = pack(dir, wt, "worktree")
+    const elsewhere = join(dir, "elsewhere")
+    mkdirSync(elsewhere)
+    mkdirSync(join(B, ".ntwine"))
+    symlinkSync(elsewhere, join(B, ".ntwine", "worktrees"))
+    assert.deepEqual(restoreInto(B, ".ntwine/worktrees/feat", snap), { refused: ".ntwine/worktrees is a symlink, so the thread's checkout cannot be created there" })
+    assert.equal(existsSync(join(elsewhere, "feat")), false)
+  })
 })

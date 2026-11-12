@@ -247,7 +247,22 @@ export function restoreWip(opts: {
 }): RestoreResult {
   const { mainCheckout, rel, branch, head, wip, bundleFile, slug } = opts
   const main = canonical(mainCheckout)
-  if (rel !== "." && !/^\.ntwine\/worktrees\/(?!\.\.?$)[^/]+$/.test(rel)) return { refused: `${rel} is not a folder a thread can move into` }
+  // Everything below came from another machine. A worktree name of plain characters only: a `\` would be a
+  // separator on Windows and walk out of the project.
+  if (rel !== "." && !WORKTREE_REL.test(rel)) return { refused: `${rel} is not a folder a thread can move into` }
+  if (!/^[0-9a-f]{40,64}$/.test(head) || !/^[0-9a-f]{40,64}$/.test(wip)) return { refused: "The moved work does not name its commits" }
+  if (branch !== null) {
+    try {
+      if (branch.startsWith("-")) throw new Error()
+      git(main, ["check-ref-format", "--branch", branch])
+    } catch {
+      return { refused: `${branch} is not a branch name` }
+    }
+  }
+  // ntwine's own folder never moves as work: a path there (a symlinked `.ntwine/threads`, say) would steer
+  // where this import writes the thread's notes.
+  const reserved = opts.paths.filter((p) => p === ".ntwine" || p.startsWith(".ntwine/"))
+  if (reserved.length) return { refused: `The moved work writes inside ntwine's own folder: ${nameList(reserved)}` }
   const ref = movedRef(slug)
   try {
     git(main, ["check-ref-format", ref])
@@ -283,6 +298,10 @@ export function restoreWip(opts: {
   }
   const paths = changedPaths(main, head, wip)
   if (paths.join("\0") !== [...opts.paths].sort().join("\0")) return { refused: "The moved work does not match its snapshot" }
+  // A symlink in the moved work could point anywhere on this machine, and a submodule entry names another
+  // repository; neither is uncommitted work worth that. The thread commits them, or leaves them behind.
+  const linked = specialEntries(main, wip, paths)
+  if (linked.length) return { refused: `The moved work adds a symlink or submodule, which cannot move: ${nameList(linked)}` }
 
   const root = rel === "." ? main : path.join(main, ...rel.split("/"))
   const worktrees = parseWorktreeList(git(main, ["worktree", "list", "--porcelain"]))
@@ -293,21 +312,26 @@ export function restoreWip(opts: {
     const registered = worktrees.find((w) => canonical(w.path) === root)
     if (registered && !registered.prunable) return { refused: `${rel} is registered as a worktree but its folder is gone; run git worktree prune and retry` }
     if (registered) prune = true
+    // The folder it goes in must be a real one all the way down: a symlinked `.ntwine/worktrees` would
+    // put the checkout, and the moved work, wherever it points.
+    const linkedDir = symlinkedComponent(main, rel)
+    if (linkedDir) return { refused: `${linkedDir} is a symlink, so the thread's checkout cannot be created there` }
     let add: string[]
-    let moveBranch = false
     if (branch === null) add = ["--detach", root, head]
     else if (!hasRef(main, `refs/heads/${branch}`)) add = ["-b", branch, root, head]
     else {
+      // An existing branch is used only where it already is: an import never moves a branch, since the one
+      // named could be any branch of this clone's (a release branch, say).
       const holder = worktrees.find((w) => w.branch === `refs/heads/${branch}`)
       if (holder && !holder.prunable) return { refused: `The branch ${branch} is checked out in ${holder.path}; switch that checkout off it and retry` }
       if (holder) prune = true
-      if (!isAncestor(main, `refs/heads/${branch}`, head)) return { refused: `This clone's ${branch} has diverged from the thread's; sync it first` }
-      moveBranch = true
+      if (git(main, ["rev-parse", `refs/heads/${branch}`]).trim() !== head) {
+        return { refused: `This clone already has a branch ${branch} at another commit; delete or rename it and retry` }
+      }
       add = [root, branch]
     }
     // APPLY: nothing above wrote to a checkout.
     if (prune) git(main, ["worktree", "prune"])
-    if (moveBranch) git(main, ["branch", "-f", branch!, head])
     mkdirSync(path.dirname(root), { recursive: true })
     git(main, ["worktree", "add", "--quiet", ...add])
     applyDiff(root, head, wip, paths)
@@ -331,6 +355,12 @@ export function restoreWip(opts: {
   let fastForward = false
   if (tip !== head) {
     if (isAncestor(root, tip, head)) {
+      // The main checkout is the one every agent here commits on and autosync pushes from, so it only moves
+      // forward to commits this clone's own remotes already hold, never to ones only the other machine has.
+      // A thread's worktree branch is its own, and takes the other machine's commits.
+      if (rel === "." && !onARemote(main, head, opts.fetchRemote !== false)) {
+        return { refused: `The other machine's ${branch ?? "HEAD"} has commits this clone's remotes don't; push them from there and retry` }
+      }
       fastForward = true
       // git would refuse the fast-forward over these anyway; asking first keeps the refusal ahead of every write.
       const moving = new Set(changedPaths(root, tip, head))
@@ -423,6 +453,53 @@ export function revertMovedPaths(opts: { root: string; head: string; wip: string
   return { reverted, kept }
 }
 
+/** `.ntwine/worktrees/<name>`, the name plain characters. */
+const WORKTREE_REL = /^\.ntwine\/worktrees\/[A-Za-z0-9][A-Za-z0-9._-]{0,100}$/
+
+/** The paths at which `rev` holds a symlink (mode 120000) or a submodule (160000). */
+function specialEntries(cwd: string, rev: string, paths: readonly string[]): string[] {
+  if (!paths.length) return []
+  const out: string[] = []
+  for (const entry of git(cwd, ["ls-tree", "-z", "--full-tree", rev, "--", ...paths]).split("\0")) {
+    const tab = entry.indexOf("\t")
+    if (tab < 0) continue
+    const mode = entry.slice(0, entry.indexOf(" "))
+    if (mode === "120000" || mode === "160000") out.push(entry.slice(tab + 1))
+  }
+  return out
+}
+
+/** The first existing component of `rel` under `root` that is a symlink, as `root`-relative text. */
+export function symlinkedComponent(root: string, rel: string): string | undefined {
+  let at = root
+  for (const part of rel.split("/").filter((p) => p && p !== ".")) {
+    at = path.join(at, part)
+    let stat
+    try {
+      stat = lstatSync(at)
+    } catch {
+      return undefined
+    }
+    if (stat.isSymbolicLink()) return path.relative(root, at).split(path.sep).join("/")
+  }
+  return undefined
+}
+
+/** Whether any remote-tracking ref of this clone contains `sha`, fetching the remotes once if none does. */
+function onARemote(cwd: string, sha: string, fetch: boolean): boolean {
+  const held = () => git(cwd, ["for-each-ref", "--count=1", "--contains", sha, "--format=%(refname)", "refs/remotes"]).trim() !== ""
+  if (held()) return true
+  if (!fetch) return false
+  for (const remote of git(cwd, ["remote"]).split("\n").filter(Boolean)) {
+    try {
+      git(cwd, ["fetch", "--quiet", remote])
+    } catch {
+      // Unreachable: one source fewer.
+    }
+  }
+  return held()
+}
+
 // ── GIT ──────────────────────────────────────────────────────────────────────────────────────────────────
 
 const NTWINE_IDENTITY = {
@@ -441,6 +518,13 @@ function gitEnv(extra?: Record<string, string>): NodeJS.ProcessEnv {
     GIT_LITERAL_PATHSPECS: "1",
     // `git status` would otherwise refresh the index under a lock, colliding with an agent committing.
     GIT_OPTIONAL_LOCKS: "0",
+    // NO HOOKS, ever. The destination runs these commands over commits a paired machine sent, and a repo
+    // whose `core.hooksPath` is a tracked folder (this one's is `scripts/githooks`) would run the sender's
+    // own post-merge after a fast-forward — the security review reproduced exactly that, and the stock
+    // hook here pushes `main` to origin. Nothing in this module needs a hook on either machine.
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "core.hooksPath",
+    GIT_CONFIG_VALUE_0: process.platform === "win32" ? "NUL" : "/dev/null",
     ...extra,
   }
   // Inherited from a hook or a wrapper, these would point every command at some other repository.
