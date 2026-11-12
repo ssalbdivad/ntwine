@@ -124,7 +124,7 @@ describe("a worktree thread", () => {
     })
     // Its newest edit back in the main checkout makes that its checkout again; a cwd in a worktree decides outright.
     assert.deepEqual(threadCheckout({ cwd: A, mainCheckout: A, editedPaths: [...edited, join(A, "b.txt")] }).location, { kind: "main", rel: ".", root: A })
-    assert.deepEqual(threadCheckout({ cwd: join(A, ".ntwine/worktrees/old"), mainCheckout: A, editedPaths: edited }).location.rel, ".ntwine/worktrees/old")
+    assert.deepEqual(threadCheckout({ cwd: join(A, ".ntwine/worktrees/old"), mainCheckout: A, editedPaths: edited }).location, { kind: "worktree", rel: ".ntwine/worktrees/old", root: join(A, ".ntwine/worktrees/old") })
   })
 })
 
