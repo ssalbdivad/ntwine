@@ -310,9 +310,10 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
 
   // ---- the origin side ----
 
-  function localRefusal(ctx: AppContext, row: SessionRow | undefined): string | undefined {
+  /** `ownMove`: asked from inside the move that holds this thread's in-flight slot, which must not refuse itself. */
+  function localRefusal(ctx: AppContext, row: SessionRow | undefined, ownMove = false): string | undefined {
     if (!row) return "No such thread in this project"
-    const away = blocked(ctx.project.id, row)
+    const away = ownMove ? movedAwayBlock(row.moved_to) : blocked(ctx.project.id, row)
     if (away) return away
     if (isHeldRow(row)) return "Start this thread before moving it"
     if (!isBrokerClaudeRow(row)) return "Only a Claude thread can move to another machine for now"
@@ -413,7 +414,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     try {
       const row = ctx.storage.getSession(slug)
       // A retry reads the thread as it was before its unfinished move stamped it.
-      const refusal = localRefusal(ctx, row && resumeId ? { ...row, moved_to: null } : row)
+      const refusal = localRefusal(ctx, row && resumeId ? { ...row, moved_to: null } : row, true)
       if (refusal) throw new MoveRefusal(refusal)
       if (!row) throw new MoveRefusal("No such thread in this project")
       const identities = remoteIdentities(workDirOf(ctx.project))
