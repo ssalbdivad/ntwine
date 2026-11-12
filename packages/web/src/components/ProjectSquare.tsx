@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import { House, Layers } from "lucide-react"
 import type { ProjectCard } from "@ntwine/shared"
 import { useMonogram } from "../lib/monograms.ts"
@@ -76,10 +76,32 @@ export function warmProjectIcon(project: ProjectCard): void {
   const img = new Image()
   iconWarming.set(src, img)
   img.src = src
+  // A failed warm records NOTHING: it cannot tell a missing icon from a server mid-restart, and the
+  // square that mounts for this URL makes that call itself (iconMissing).
   img.decode().then(
     () => iconOutcomes.set(src, { fills: fillsTile(img) }),
-    () => { if (!img.complete || img.naturalWidth === 0) iconOutcomes.set(src, "failed") },
+    () => {},
   ).finally(() => iconWarming.delete(src))
+}
+
+/**
+ * Whether a failed icon is really ABSENT — the route's 404 — rather than a request that failed for
+ * now. An `<img>` error carries no status, and the difference decides everything: while the server
+ * restarts, the proxy answers every icon with a 503 recovery page, and a square that took that as
+ * final drew monograms for the rest of the page's life (2026-11-12: a restart blanked every icon on
+ * the board until a reload). Only the 404 is final; anything else is retried.
+ */
+async function iconMissing(src: string): Promise<boolean> {
+  try {
+    return (await fetch(src, { method: "HEAD", cache: "no-store" })).status === 404
+  } catch {
+    return false
+  }
+}
+
+/** Back off from 2s to 30s between retries of an icon that failed for now. */
+function iconRetryDelay(attempt: number): number {
+  return Math.min(2000 * 2 ** attempt, 30_000)
 }
 
 // A near-square mark fills the tile; a genuinely letterboxed one is contained and padded. Measured:
@@ -115,7 +137,19 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
   // never showed until a reload. A new `iconVersion` is a new URL, and gets its own request.
   const [failedSrc, setFailedSrc] = useState(known === "failed" ? src : undefined)
   const failed = failedSrc === src
-  const showMonogram = !hasIcon || failed
+  // A failure that was not a 404 (iconMissing) is retried under a fresh URL, so the browser asks
+  // again rather than replaying the failed answer; the monogram stands in meanwhile.
+  const [attempt, setAttempt] = useState(0)
+  const [retrying, setRetrying] = useState(false)
+  useEffect(() => {
+    if (!retrying) return
+    const timer = setTimeout(() => {
+      setRetrying(false)
+      setAttempt((n) => n + 1)
+    }, iconRetryDelay(attempt))
+    return () => clearTimeout(timer)
+  }, [retrying, attempt])
+  const showMonogram = !hasIcon || failed || retrying
   // Already on screen once: no fade, and a synchronous decode so the first frame has the pixels.
   const [instant] = useState(loaded)
   return (
@@ -127,7 +161,7 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
         // Low saturation and lightness: these sit against a near-black surface and must read as a
         // surface with a letter on it, not as a colour chip. The letter carries the same hue at full
         // brightness so the pairing stays legible at any hue.
-        background: hasIcon && !failed ? undefined : `hsl(${hue} 32% 24%)`,
+        background: showMonogram ? `hsl(${hue} 32% 24%)` : undefined,
       }}
     >
       {showMonogram && (
@@ -155,9 +189,9 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
           </span>
         </span>
       )}
-      {hasIcon && !failed && (
+      {hasIcon && !failed && !retrying && (
       <img
-        src={src}
+        src={attempt === 0 ? src : `${src}&retry=${attempt}`}
         alt=""
         width={size}
         height={size}
@@ -172,8 +206,14 @@ function IconSquare({ project, size }: { project: ProjectCard; size: number }) {
           setLoaded(true)
         }}
         onError={() => {
-          iconOutcomes.set(src, "failed")
-          setFailedSrc(src)
+          void iconMissing(src).then((missing) => {
+            if (missing) {
+              iconOutcomes.set(src, "failed")
+              setFailedSrc(src)
+            } else {
+              setRetrying(true)
+            }
+          })
         }}
         // object-contain, never cover: a logo cropped to fill its square is a mangled logo, and the
         // scan admits some non-square marks (a 300×331 `.github/logo.webp` is a real case). The
