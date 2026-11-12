@@ -320,8 +320,8 @@ export function Composer({
   minHeight?: number
   maxHeight?: number
   autoFocus?: boolean
-  // While busy the textarea is locked and the send button spins — used for the New-thread dispatch
-  // round-trip so the composer commits instantly instead of sitting live during the spawn.
+  // While busy the textarea is locked and the send button spins. The New-thread box no longer locks for its
+  // dispatch round-trip (NewThreadModal `pendingDispatches`): a thread starting must not stop the next being typed.
   busy?: boolean
   // Rendered INSIDE the box along its bottom edge (the dispatch form's inline mode/model/effort
   // readouts). The textarea auto-grows above it; the footer strip is always reserved.

@@ -108,6 +108,46 @@ test("a pick is for the next thread: sending it puts the box back on the default
   }
 })
 
+// The box stays live while a thread starts (NewThreadModal `pendingDispatches`): it used to be disabled for
+// the whole round-trip, so the next task could not be typed until the server answered.
+test("the box stays live while a thread starts: the next one can be typed and sent at once", { skip: !baseUrl, timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await launch()
+  try {
+    await send(page, "first task")
+    await dispatchCount(page, 1)
+    assert.ok(await page.$("[data-pending-dispatch]"), "the first is still starting")
+    assert.equal(await page.$eval("textarea", (el) => (el as HTMLTextAreaElement).disabled), false)
+    assert.equal(await page.evaluate(() => document.activeElement?.tagName), "TEXTAREA", "the caret never left the box")
+    await page.keyboard.type("second task")
+    await page.keyboard.press("Enter")
+    await dispatchCount(page, 2)
+    assert.equal((await page.$$("[data-pending-dispatch]")).length, 2, "one card per thread on its way")
+    assert.deepEqual((await recorded(page)).dispatches.map((d) => d.prompt), ["first task", "second task"])
+    await settled(page)
+    assert.equal(await page.$eval("textarea", (el) => (el as HTMLTextAreaElement).value), "")
+    assert.deepEqual(errors, [])
+  } finally {
+    await browser.close()
+  }
+})
+
+test("two failed dispatches both come back, and neither displaces what is being typed", { skip: !baseUrl, timeout: 60_000 }, async () => {
+  const { browser, page, errors } = await launch("?outcome=failure")
+  try {
+    await send(page, "first task")
+    await dispatchCount(page, 1)
+    await page.keyboard.type("second task")
+    await page.keyboard.press("Enter")
+    await dispatchCount(page, 2)
+    await page.keyboard.type("third, unsent")
+    await settled(page)
+    assert.equal(await page.$eval("textarea", (el) => (el as HTMLTextAreaElement).value), "second task\n\nfirst task\n\nthird, unsent")
+    assert.deepEqual(errors, [])
+  } finally {
+    await browser.close()
+  }
+})
+
 test("Make default writes the pick once, and the box stays on it after sending", { skip: !baseUrl, timeout: 60_000 }, async () => {
   const { browser, page, errors } = await launch()
   try {

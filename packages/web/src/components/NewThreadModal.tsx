@@ -17,7 +17,7 @@ import { SETTINGS_WRITE_KEY } from "../hooks/useSettingsAutosave.tsx"
 import { AcpModelSelect } from "./AcpModelSelect.tsx"
 import { MakeDefaultButton } from "./MakeDefaultButton.tsx"
 import { LogoutConfirmModal, SignInModal } from "./SignInModal.tsx"
-import { dispatchProfileGroups } from "../lib/dispatchPreferences.ts"
+import { dispatchProfileGroups, type DispatchPick } from "../lib/dispatchPreferences.ts"
 import { stepProfileGridEffort } from "../lib/profileGrid.ts"
 import { useDispatchProfile, useDraftDispatchPick } from "../hooks/useDispatchProfile.ts"
 import { focusedEscapeClaim, handleDialogEscape, registerEscapeClaim } from "../lib/selectOverlay.ts"
@@ -89,6 +89,15 @@ export function DispatchForm({
   )
 }
 
+/** What one dispatch took out of the box at its Enter, so a failed one hands back exactly its own draft. */
+type Submitted = {
+  draft: string
+  pick: DispatchPick | undefined
+  schedule: string
+  limit: string
+  items: ComposerContextItem[]
+}
+
 // The prompt form — composer + quiet selects row. There is no title field — the server derives a
 // fallback and Claude names the session itself (ai-title), which the UI prefers for display.
 function PromptForm({
@@ -137,39 +146,39 @@ function PromptForm({
     if (dir !== projectDir) handedTo.current = dir
     return true
   })
-  const submittedDraftRef = useRef("")
   // SELECTED CONTEXT in a new thread's prompt — a selection sent from an editor window lands here as an
   // `@a.ts:12-20` chip (lib/editorCompose.ts), staged under this box's own draft key and serialized into
   // the prompt on dispatch exactly as a reply box serializes it (composerContext.ts), so the new thread's
   // first message renders its chips like any later one. The box had no chips until 2026-10-01.
   const contextTokens = useStagedContextTokens(promptKey, prompt)
   const contextSources = useStagedContextSources(promptKey, projectDir)
-  const submittedContextRef = useRef<ComposerContextItem[]>([])
-  const [pendingDispatch, setPendingDispatch] = useState<string | null>(null)
+  // THE BOX STAYS LIVE WHILE A THREAD STARTS (2026-11-12, maintainer: the box "shouldnt be disabled when a
+  // thread is being initialized"). It was `busy` for the whole round-trip — the server waits out session
+  // startup, seconds — so the next task could not even be typed. Now the words leave at Enter, the box is
+  // free at once, and a second Enter starts a second thread beside the first. That is why everything a
+  // failed dispatch hands back rides in the dispatch's own `Submitted` rather than in refs one later
+  // submit would overwrite, and why the "Starting thread…" card is a list.
+  const [pendingDispatches, setPendingDispatches] = useState<readonly { id: number; prompt: string }[]>([])
+  const nextDispatchId = useRef(0)
   // The new-thread default with this prompt's own pick over it. The pick is part of the draft: it
   // lasts until this prompt is dispatched, then the box is back on the default — escalating one task to max no longer leaves every later thread on max.
   const pickKey = draftKey.dispatchProfile(projectDir)
   const pickState = useDraftDispatchPick(pickKey)
   const [pick, setPick] = pickState
-  const submittedPickRef = useRef(pick)
   // What was said about the draft's schedule ("not a schedule", an Undo) is part of the draft too
   // (lib/scheduleDraftState.ts): a submit that fails puts it back with the words.
   const scheduleKey = draftKey.dispatchSchedule(projectDir)
-  const submittedScheduleRef = useRef("")
   // THE TIME LIMIT typed for this prompt (DeadlineControl DispatchTimeLimit): raw text in the draft, beside
   // the pick, resolved to an instant only at the Enter that starts the thread (startNow). It leaves the box
   // with the dispatch and comes back with a failed one, on the pick's terms.
   const limitKey = draftKey.dispatchDeadline(projectDir)
-  const submittedLimitRef = useRef("")
-  const restoreLimit = () => {
-    if (submittedLimitRef.current && !draftStore.get(limitKey)) draftStore.set(limitKey, submittedLimitRef.current)
-  }
   /** A failed submit's words back into a still-empty box — and, in the same commit, what was said about their
    *  schedule. Without it the strip and ↻ came back over words the human had said were not a schedule (or had
-   *  just undone), and the retry Enter created it (fix round 2026-10-06, H). */
-  const restoreSubmitted = (prompt: string) => {
-    if (draftStore.get(promptKey)) return
-    const schedule = submittedScheduleRef.current
+   *  just undone), and the retry Enter created it (fix round 2026-10-06, H). A box that already holds the next
+   *  task — it stays live while a thread starts — gets the words merged in ahead of it (`mergeIntoDraft`)
+   *  rather than dropped, and keeps its own schedule state, which belongs to the words it holds. */
+  const restoreSubmitted = (prompt: string, schedule = "") => {
+    if (draftStore.get(promptKey)) return mergeIntoDraft(promptKey, prompt)
     draftStore.setMany({ [promptKey]: prompt, ...(schedule && !draftStore.get(scheduleKey) ? { [scheduleKey]: schedule } : {}) })
   }
   // A file on its way into the box: a held Enter waits for no answer while it uploads (ScheduleComposer.tsx).
@@ -234,30 +243,29 @@ function PromptForm({
   // `note`: why words with a schedule word in them started as a thread (ScheduleComposer `defer`) — said on the
   // toast, never sent.
   const dispatch = useMutation({
-    mutationFn: ({ note: _note, ...input }: DispatchInput & { note?: string }) => {
+    mutationFn: ({ input }: { input: DispatchInput; submitted: Submitted; id: number; note?: string }) => {
       const project = projectSlug()
       return rpc.dispatch(input).then((res) => ({ ...res, project }))
     },
     onMutate: ({ note }) => showToast("Starting thread…", { spinner: true, sticky: true, ...(note ? { detail: note } : {}) }),
-    onSuccess: (res, { note }) => {
+    onSuccess: (res, { note, id }) => {
       // The board stream now owns the durable thread row. Drop our local bridge as soon as the
       // server acknowledges it, preventing an optimistic card + server card duplicate.
-      setPendingDispatch(null)
+      settlePending(id)
       onDispatched?.()
       showToast("Thread started", { link: { label: "Open thread", slug: res.slug, project: res.project }, ...(note ? { detail: note } : {}) })
     },
-    onError: (e, input) => {
+    onError: (e, { input, submitted, id }) => {
       // A submit clears before the RPC starts. Restore only into a still-empty field so retry is
       // effortless without overwriting text typed during the failed request.
-      restoreSubmitted(submittedDraftRef.current || input.prompt)
+      restoreSubmitted(submitted.draft || input.prompt, submitted.schedule)
       // Its chips come back with it, or the restored token would be bare text with nothing behind it.
-      restoreContextItems(promptKey, submittedContextRef.current)
-      submittedContextRef.current = []
+      restoreContextItems(promptKey, submitted.items)
       // The pick comes back with its prompt, on the same terms: a retry must not quietly run on the
       // default, and a pick made during the failed request is not overwritten.
-      if (!draftStore.get(pickKey)) setPick(submittedPickRef.current)
-      restoreLimit()
-      setPendingDispatch(null)
+      if (!draftStore.get(pickKey)) setPick(submitted.pick)
+      if (submitted.limit && !draftStore.get(limitKey)) draftStore.set(limitKey, submitted.limit)
+      settlePending(id)
       // Server-side auth preflight rejection (the client gate can miss on a stale snapshot): open the
       // same sign-in modal with the dispatch stashed, instead of a dead-end failure toast. The server
       // created no thread state, and the draft was restored above.
@@ -276,17 +284,28 @@ function PromptForm({
   // on a clean submit and after the sign-in gate is cleared, so the prompt is only cleared once the
   // thread is actually being started — a gated submit leaves the draft intact.
   function runDispatch(input: DispatchInput) {
-    submittedDraftRef.current = prompt
-    submittedPickRef.current = pick
-    submittedScheduleRef.current = draftStore.get(scheduleKey)
-    submittedLimitRef.current = draftStore.get(limitKey)
-    // Taken here, not in submit: a submit the sign-in gate holds keeps its draft, and so its chips.
-    submittedContextRef.current = takeContextItems(promptKey)
+    const submitted: Submitted = {
+      draft: prompt,
+      pick,
+      schedule: draftStore.get(scheduleKey),
+      limit: draftStore.get(limitKey),
+      // Taken here, not in submit: a submit the sign-in gate holds keeps its draft, and so its chips.
+      items: takeContextItems(promptKey),
+    }
     // The prompt, its pick and what was said about its schedule in ONE commit (lib/scheduleDraftState.ts):
     // no subscriber ever renders this text with another draft's dismissal, or the reverse.
     clearDispatchDraft(projectDir)
-    setPendingDispatch(input.prompt)
-    dispatch.mutate(input)
+    startDispatch(input, submitted)
+  }
+
+  function startDispatch(input: DispatchInput, submitted: Submitted, note?: string) {
+    const id = nextDispatchId.current++
+    setPendingDispatches((all) => [...all, { id, prompt: input.prompt }])
+    dispatch.mutate({ input, submitted, id, ...(note ? { note } : {}) })
+  }
+
+  function settlePending(id: number) {
+    setPendingDispatches((all) => all.filter((p) => p.id !== id))
   }
 
   // THE SCHEDULE IN THE WORDS (ARCHITECTURE.md § Scheduled threads, ScheduleComposer.tsx): there is no schedule button
@@ -374,8 +393,6 @@ function PromptForm({
   function submit() {
     // A `$` line runs, whatever the model picker says: it needs no model, no sign-in and no schedule.
     if (terminalLine) {
-      if (startTerminal.isPending) return
-      submittedScheduleRef.current = ""
       clearDispatchDraft(projectDir, { keepPick: true })
       startTerminal.mutate({ ...(terminalLine.command ? { command: terminalLine.command } : {}), ...(terminalDir ? { cwd: terminalDir } : {}) })
       return
@@ -387,7 +404,6 @@ function PromptForm({
       const items = takeContextItems(promptKey)
       // Its chips ride as text, without the editor's live context: that is read when it starts, not now.
       const task = outgoingMessage(joinComposerValue(todoLine.task, promptAttachments.map((a) => a.path)), items, projectDir, false).trim()
-      submittedScheduleRef.current = ""
       clearDispatchDraft(projectDir, { keepPick: true })
       createTodo.mutate({
         draft,
@@ -514,13 +530,7 @@ function PromptForm({
           return
         }
         // What a failed dispatch puts back (`restoreSubmitted`), as it was at the Enter.
-        submittedDraftRef.current = value
-        submittedPickRef.current = pickNow
-        submittedScheduleRef.current = scheduleRaw
-        submittedLimitRef.current = limitRaw
-        submittedContextRef.current = items
-        setPendingDispatch(input.prompt)
-        dispatch.mutate({ ...input, ...(note ? { note } : {}) })
+        startDispatch(input, { draft: value, pick: pickNow, schedule: scheduleRaw, limit: limitRaw, items }, note)
       },
       promptOf: (cut) => {
         const joined = joinComposerValue(cut, attachments.map((a) => a.path))
@@ -638,7 +648,9 @@ function PromptForm({
         slashSuggestVersion={userCommandsQuery.dataUpdatedAt}
         minHeight={96}
         maxHeight={340}
-        busy={dispatch.isPending || startTerminal.isPending || savingSettings}
+        // Only a settings write locks the box (it must land before the dispatch that reads it); a thread
+        // or terminal on its way to starting does not (`pendingDispatches`).
+        busy={savingSettings}
         onUploadingChange={setUploading}
         footer={footer}
         onEffortStep={stepEffort}
@@ -661,15 +673,15 @@ function PromptForm({
       {dispatch.isError && (
         <span className="px-0.5 text-[11px] text-danger truncate">{(dispatch.error as Error).message}</span>
       )}
-      {pendingDispatch && (
-        <div data-pending-dispatch role="status" className="rounded-lg border border-border bg-panel-2 px-3 py-2.5">
+      {pendingDispatches.map(({ id, prompt: pending }) => (
+        <div key={id} data-pending-dispatch role="status" className="rounded-lg border border-border bg-panel-2 px-3 py-2.5">
           <div className="flex items-center gap-2 text-[11px] text-muted">
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden="true" />
             <span>Starting thread…</span>
           </div>
-          <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] leading-relaxed text-fg">{pendingDispatch}</p>
+          <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] leading-relaxed text-fg">{pending}</p>
         </div>
-      )}
+      ))}
       {signInFor && (
         <SignInModal
           backend={signInFor}
