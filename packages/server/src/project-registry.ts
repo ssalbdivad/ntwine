@@ -135,6 +135,8 @@ const RESERVED = new Set([
   "editor",
   // `/_ntwine/vite-hmr`, the dev board's Vite HMR socket (index.ts VITE_HMR_PATH).
   "vite-hmr",
+  // `/_ntwine/peer/v1/*`, where a paired machine sends a thread (peer-service.ts).
+  "peer",
 ])
 
 export function registryPath(home = homedir()): string {

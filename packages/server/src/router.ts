@@ -269,7 +269,23 @@ import { log as ntwineLog } from "./logging.ts"
 import { expiredDoneThreads } from "./thread-retention.ts"
 import type { FolderInUse } from "./worktree-sweep.ts"
 import { readProjectInstructions, writeProjectInstructions } from "./project-instructions.ts"
-import { audited, textDigest, type AuditAction, type AuditFields } from "./audit.ts"
+import { audited, currentRequestOrigin, textDigest, type AuditAction, type AuditFields } from "./audit.ts"
+import {
+  PeerIdInput,
+  PeerListener,
+  PeerListenerInput,
+  PeerPairCode,
+  PeerPairJoinInput,
+  PeerPingResult,
+  PeerSetAddressInput,
+  PeersState,
+  PeerView,
+  ThreadMoveInput,
+  ThreadMovePreview,
+  ThreadMoveResult,
+  ThreadMoveSlugInput,
+} from "@ntwine/shared"
+import { markMoveNoteTold, movedAwayBlock, untoldMoveNote } from "./thread-move.ts"
 import { codexSandbox } from "./backend/codex.ts"
 import type { CodexSandboxMode } from "./backend/codex-app-server.ts"
 import { readQuota } from "./quota.ts"
@@ -1964,7 +1980,12 @@ export function createRouter(ctx: AppContext) {
       const untold = ctx.storage.untoldHumanReactions(input.slug)
       const reactNote = reactionsNote(untold)
       if (untold.length) ctx.storage.markHumanReactionsTold(input.slug, Date.now())
-      const messageForWorker = [input.message, reactNote, gapNote].filter((part) => part !== undefined).join("\n\n")
+      // A THREAD THAT JUST ARRIVED FROM ANOTHER MACHINE (thread-move.ts): its first message here says where it
+      // came from and how that machine's paths map onto this one's, once. Marked told before the transport
+      // for the reason the reactions are.
+      const moveNote = untoldMoveNote(row?.moved_from)
+      if (moveNote) markMoveNoteTold(ctx.storage.scope, input.slug)
+      const messageForWorker = [moveNote, input.message, reactNote, gapNote].filter((part) => part !== undefined).join("\n\n")
       if (row) reopenArchivedThreadForFollowUp(ctx, row)
       // Un-park HERE, above the runtime branches, for the same reason the reopen is here: a broker
       // Claude row and an app-server Codex row both return from their own branch below, so anything
@@ -3267,6 +3288,14 @@ export function createRouter(ctx: AppContext) {
       ...(opening ? { request: clipText(saidOf(opening), 4_000) } : {}),
       ...(handoff ? { handoff: clipText(handoff, 8_000) } : {}),
     }
+  }
+
+  const peerService = () => {
+    if (!ctx.peers) throw new Error("Moving threads between machines is unavailable on this machine; its log says why")
+    return ctx.peers
+  }
+  const refusePublicPairing = () => {
+    if (currentRequestOrigin().via === "public") throw new Error("Pair machines from a browser on this machine, not through its remote address")
   }
 
   const router = {
@@ -7150,6 +7179,95 @@ export function createRouter(ctx: AppContext) {
     // SCHEDULED THREADS (ARCHITECTURE.md § Scheduled threads): the human's schedule surface and the worker's
     // `schedule` tool — schedule-router.ts.
     ...scheduleProcedures(ctx),
+
+    // ---- OTHER MACHINES (plans/thread-handoff.md): pairing, and moving a resting thread to one ----
+    // Machine-wide like projectsList: every project's router answers the same, from the one service.
+    peersState: query({
+      output: PeersState,
+      handler: async () => peerService().state(),
+    }),
+    // Pairing lets another machine send threads INTO this one, so both halves need a person at THIS
+    // machine — the same rule as minting a sign-in code (restart-supervisor SUPERVISOR_ACCESS_CODE_PATH):
+    // a phone signed in through the public origin can do nearly anything else, but not this.
+    peerPairCode: mutation({
+      input: z.object({}).strict(),
+      output: PeerPairCode,
+      handler: async () => {
+        refusePublicPairing()
+        return peerService().mintPairCode()
+      },
+    }),
+    peerPairJoin: mutation({
+      input: PeerPairJoinInput,
+      output: PeerView,
+      handler: async ({ input }) => {
+        refusePublicPairing()
+        return peerService().join(input.url, input.code)
+      },
+    }),
+    peerUnpair: mutation({
+      input: PeerIdInput,
+      handler: async ({ input }) => {
+        await peerService().unpair(input.id)
+      },
+    }),
+    peerSetAddress: mutation({
+      input: PeerSetAddressInput,
+      output: PeerView,
+      handler: async ({ input }) => peerService().setAddress(input.id, input.url),
+    }),
+    peerSetListener: mutation({
+      input: PeerListenerInput,
+      output: PeerListener,
+      handler: async ({ input }) => {
+        refusePublicPairing()
+        return peerService().setListener(input.enabled, input.port)
+      },
+    }),
+    peerPing: mutation({
+      input: PeerIdInput,
+      output: PeerPingResult,
+      handler: async ({ input }) => peerService().ping(input.id),
+    }),
+    // A mutation, not a query: it asks the other machine, and must never be served from a cache.
+    threadMovePreview: mutation({
+      input: ThreadMoveInput,
+      output: ThreadMovePreview,
+      handler: async ({ input }) => peerService().preview(ctx, input.slug, input.peerId),
+    }),
+    threadMove: mutation({
+      input: ThreadMoveInput,
+      output: ThreadMoveResult,
+      handler: async ({ input }) => {
+        const result = await peerService().move(ctx, input.slug, input.peerId)
+        ctx.board.refresh()
+        return result
+      },
+    }),
+    // A move whose answer never came back holds the thread on neither machine; this keeps it here.
+    threadMoveKeepHere: mutation({
+      input: ThreadMoveSlugInput,
+      handler: async ({ input }) => {
+        peerService().keepHere(ctx, input.slug)
+        ctx.board.refresh()
+      },
+    }),
+  }
+  // A THREAD THAT MOVED TO ANOTHER MACHINE IS READ-ONLY HERE (plans/thread-handoff.md): every human verb
+  // that would run it, reopen it or change what it does refuses, naming where it went. The broker's own
+  // guard (context.ts) is the backstop for anything that reaches a worker by another road.
+  for (const name of MOVED_THREAD_REFUSES) {
+    const proc = router[name] as { handler: (args: { input: unknown }) => Promise<unknown> }
+    const inner = proc.handler
+    proc.handler = (args) => {
+      const slug = (args.input as { slug?: unknown } | null)?.slug
+      if (typeof slug === "string") {
+        const row = ctx.storage.getSession(slug)
+        const refusal = ctx.peers?.blocked(ctx.project.id, row) ?? movedAwayBlock(row?.moved_to)
+        if (refusal) throw new Error(refusal)
+      }
+      return inner(args)
+    }
   }
   // Every verb the HUMAN performs on a thread stamps `interacted_at` before it runs — what deleting old
   // threads counts from (thread-retention.ts). One wrapper over a named list rather than a line in each
@@ -7167,6 +7285,17 @@ export function createRouter(ctx: AppContext) {
   routersByContext.set(ctx, router)
   return router
 }
+
+/** The human verbs a moved-away thread refuses (see the wrapper at the end of createRouter). Reading it,
+ *  pinning it, archiving it and deleting it stay open: the stub is the human's to put away. */
+const MOVED_THREAD_REFUSES = [
+  "followUp", "deliverQueuedNow", "setThreadPermission", "setThreadProfile", "upgradeThreadModel",
+  "setThreadState", "completeThread", "markComplete", "setThreadStatus", "dismissThread", "setThreadSnooze",
+  "setThreadRecurringPrompt", "setThreadHeartbeat", "watchDoneRef", "requestParkCheckIn", "answerQuestions",
+  "dismissQuestions", "holdQuestionDefault", "renameThread", "killAgent", "subAgentSteer", "subAgentStop",
+  "stopBackgroundOp", "interactionResolve", "interactionCancel", "terminalStart", "terminalRun",
+  "updateHeldPrompt", "startHeldThread", "setThreadDeadline",
+] as const
 
 /** The thread verbs only the human's own surfaces call (see the wrapper at the end of createRouter). */
 const HUMAN_THREAD_ACTS = [

@@ -2,6 +2,7 @@ import { parse as parseYaml } from "yaml"
 import { z } from "zod"
 import { InteractionLifecycle, InteractionOpaqueId, InteractionRevision, InteractionThreadSlug } from "./interactions.ts"
 import { ThreadSlug } from "./thread-slug.ts"
+import { ThreadMoveStamp } from "./thread-handoff.ts"
 import { insideCodeFence } from "./code-fences.ts"
 import { ProjectSchedules, ThreadScheduleRef } from "./schedules.ts"
 import { formatDeadlineLeft, ThreadDeadlineView } from "./deadline.ts"
@@ -5071,6 +5072,11 @@ export const ThreadView = z.object({
   // moment an agent moves into a worktree, and it is where a terminal opened on the thread starts. Absent
   // ⇒ the root, or no reading — both draw nothing (see WorkCheckout).
   checkout: WorkCheckout.optional(),
+  // MOVED TO ANOTHER MACHINE (plans/thread-handoff.md): `movedTo` on the machine a thread LEFT, which keeps
+  // it as a read-only stub (`pending` while the other machine has not confirmed); `movedFrom` on the one it
+  // ARRIVED at. Optional for an older server.
+  movedTo: ThreadMoveStamp.optional(),
+  movedFrom: ThreadMoveStamp.optional(),
   // Optional for snapshots from a server that predates link registration.
   links: z.array(ThreadLinkView).optional(),
   // Emoji either side pinned to the other's messages, keyed by sourceId (ThreadReactionView). Optional for
@@ -8030,6 +8036,7 @@ export * from "./schedule-trigger.ts"
 export * from "./schedules.ts"
 export * from "./shell-writes.ts"
 export * from "./thread-handle.ts"
+export * from "./thread-handoff.ts"
 export * from "./thread-slug.ts"
 
 // ---- Rendered conversation (parsed mechanically from the session JSONL — no AI) ----

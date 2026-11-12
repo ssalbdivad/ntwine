@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Loader2, Pencil, RefreshCw, RotateCcw } from "lucide-react"
+import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Loader2, MonitorUp, Pencil, RefreshCw, RotateCcw } from "lucide-react"
 import { SNOOZE_INDEFINITE, SNOOZE_PROMPT_MAX, isIndefiniteSnooze, type ThreadLinkView, type ThreadView } from "@ntwine/shared"
 import { ThreadProjectScope, useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
 import { showToast, store } from "../store.ts"
@@ -36,6 +36,8 @@ import { MobileBottomSheet } from "./MobileBottomSheet.tsx"
 import { GoalMark, PromptPanel } from "./RecurringPromptControl.tsx"
 import { StateButton } from "./ThreadLifecycle.tsx"
 import { crossProjectThreadHref } from "./AllQueuesCard.tsx"
+import { usePeersState } from "../api/peers.ts"
+import { MoveThreadDialog, moveMenuLabel, offersMove } from "./ThreadMove.tsx"
 
 // THE PHONE'S ⋯ SHEET — everything a thread can do that is not the bottom bar's one verb.
 //
@@ -157,6 +159,10 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
   const modelEffort = useModelEffortLabel(thread)
   const context = contextLine(thread.context)
   const foot = [context, modelEffort].filter(Boolean).join(" · ")
+  // Move to another machine, as the desktop ⋯ menu offers it (ThreadMenu.tsx). Its dialog opens OVER the
+  // sheet — a nested Radix dialog, so Escape and the scrim reach it first — and a finished move closes both.
+  const peers = usePeersState({ enabled: owned }).data?.peers
+  const [moving, setMoving] = useState(false)
 
   const retryNow = (): Promise<void> => {
     if (!project) return retrySession(queryClient, thread.id)
@@ -225,6 +231,12 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
       )}
       {restart && (
         <ActionRow data="restart-worker" icon={<RefreshCw size={19} />} label="Restart agent" onClick={() => dismiss(() => void restartWorker(queryClient, thread.id))} />
+      )}
+      {owned && offersMove(thread, peers) && peers && (
+        <ActionRow data="move" icon={<MonitorUp size={19} />} label={moveMenuLabel(peers)} onClick={() => setMoving(true)} />
+      )}
+      {moving && peers && peers.length > 0 && (
+        <MoveThreadDialog thread={thread} peers={peers} onClose={() => setMoving(false)} onMoved={() => dismiss()} />
       )}
       {foot && <div data-thread-actions-foot className="px-[18px] pt-2.5 text-[12.5px] leading-[17px] text-muted">{foot}</div>}
     </div>

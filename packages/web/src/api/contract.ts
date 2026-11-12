@@ -14,6 +14,19 @@
 // nothing but the `PROCEDURES` data table as a value. Transport concerns (fetch, RpcCallOpts, the
 // Proxy) live in rpc.ts, which is browser-only and never enters the server program.
 import type {
+  PeerIdInput,
+  PeerListener,
+  PeerListenerInput,
+  PeerPairCode,
+  PeerPairJoinInput,
+  PeerPingResult,
+  PeerSetAddressInput,
+  PeersState,
+  PeerView,
+  ThreadMoveInput,
+  ThreadMovePreview,
+  ThreadMoveResult,
+  ThreadMoveSlugInput,
   CreateScheduleInput,
   GetScheduleResult,
   InterpretScheduleInput,
@@ -468,6 +481,17 @@ export interface Api {
   // server — this is how the page finds the thread instead of reporting it missing.
   threadLocate(input: { slug: string }): Promise<ThreadLocation[]>
   projectsList(): Promise<ProjectCard[]>
+  // Other machines (plans/thread-handoff.md): pairing, and moving a resting thread to one.
+  peersState(): Promise<PeersState>
+  peerPairCode(input: Record<string, never>): Promise<PeerPairCode>
+  peerPairJoin(input: PeerPairJoinInput): Promise<PeerView>
+  peerUnpair(input: PeerIdInput): Promise<void>
+  peerSetAddress(input: PeerSetAddressInput): Promise<PeerView>
+  peerSetListener(input: PeerListenerInput): Promise<PeerListener>
+  peerPing(input: PeerIdInput): Promise<PeerPingResult>
+  threadMovePreview(input: ThreadMoveInput): Promise<ThreadMovePreview>
+  threadMove(input: ThreadMoveInput): Promise<ThreadMoveResult>
+  threadMoveKeepHere(input: ThreadMoveSlugInput): Promise<void>
   // Registering a folder as a project — the add-project dialog. Same authority as running `ntwine`
   // there and strictly less: it resolves an id and writes the index, and dispatches nothing.
   // Opens the machine NATIVE folder picker, server-side, and adds what comes back. The browser API
@@ -694,6 +718,16 @@ export const PROCEDURES = {
   terminalRemove: "mutation",
   threadLocate: "query",
   projectsList: "query",
+  peersState: "query",
+  peerPairCode: "mutation",
+  peerPairJoin: "mutation",
+  peerUnpair: "mutation",
+  peerSetAddress: "mutation",
+  peerSetListener: "mutation",
+  peerPing: "mutation",
+  threadMovePreview: "mutation",
+  threadMove: "mutation",
+  threadMoveKeepHere: "mutation",
   projectPick: "mutation",
   projectPickWarm: "mutation",
   projectAdd: "mutation",

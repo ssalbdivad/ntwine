@@ -20,6 +20,7 @@ import { CALLER_HEADER, requestOriginFrom, withRequestOrigin } from "./audit.ts"
 import { LAUNCH_ROUTE_PATH, LAUNCH_ROUTE_PROTOCOL, LAUNCH_TOKEN_HEADER, parseLaunchRouteRequest, routeLaunch } from "./launch-routing.ts"
 import { resolveProject } from "./project.ts"
 import { ProjectServedElsewhereError, projectServedElsewhere } from "./project-serving.ts"
+import { PEER_ROUTE_PREFIX } from "./peer-service.ts"
 
 export { resolveLocalImage } from "./local-image.ts"
 export { resolveLocalVisualization } from "./local-visualization.ts"
@@ -59,6 +60,9 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
       (c.req.method === "GET" && c.req.path === ntwineRoute("/health")) ||
       (c.req.method === "POST" && c.req.path === ntwineRoute("/control/stop")) ||
       (c.req.method === "POST" && c.req.path === ntwineRoute(LAUNCH_ROUTE_PATH)) ||
+      // Another ntwine, server to server: it sends no Origin, and every request authenticates itself
+      // inside its encrypted envelope or pairing MAC (peer-service.ts), not by where it came from.
+      (c.req.method === "POST" && c.req.path.startsWith(PEER_ROUTE_PREFIX)) ||
       c.req.header("sec-fetch-site") === "same-origin"
     )
     if (!isTrustedLocalHttpRequest({
@@ -310,6 +314,18 @@ export function createApp(ctx: AppContext, options: AppOptions = {}) {
       )
     }),
   )
+
+  // A paired machine moving a thread here, or pairing (plans/thread-handoff.md). Machine-scoped: it lands
+  // on the launching project's app, and the service finds the project the request names by its git remotes.
+  app.post(`${PEER_ROUTE_PREFIX}*`, (c) => {
+    const peers = ctx.peers
+    if (!peers) return c.text("Moving threads is unavailable on this machine", 503)
+    return peers.handle(c.req.raw, requestOriginFrom({
+      caller: c.req.header(CALLER_HEADER),
+      userAgent: c.req.header("user-agent"),
+      socketRemote: (c.env as { remoteAddress?: string } | undefined)?.remoteAddress,
+    }))
+  })
 
   mountRouter(app, ntwineRoute("/rpc"), createRouter(ctx))
   return app

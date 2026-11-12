@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Anchor, ChartColumn, Code, Ellipsis, FileDiff, FileText, Folder, Loader2, Pin, PinOff, RefreshCw, SquareTerminal, Timer, Trash2 } from "lucide-react"
+import { Anchor, ChartColumn, Code, Ellipsis, FileDiff, FileText, Folder, Loader2, MonitorUp, Pin, PinOff, RefreshCw, SquareTerminal, Timer, Trash2 } from "lucide-react"
 import { useSnapshot } from "valtio"
 import type { ThreadView } from "@ntwine/shared"
 import type { Api, ThreadFolderChoice } from "../api/contract.ts"
@@ -25,6 +25,8 @@ import { reviewChanges, reviewLabel } from "../lib/reviewChanges.ts"
 import { usePinToggle } from "../lib/pinThread.ts"
 import { toggleHeldInQueue, useHeldInQueue } from "../lib/queueHold.ts"
 import { threadKey } from "../lib/allQueues.ts"
+import { usePeersState } from "../api/peers.ts"
+import { MoveThreadDialog, moveMenuLabel, offersMove } from "./ThreadMove.tsx"
 
 // THE HEADER'S OPEN TERMINAL ICON. A terminal belongs to the thread you are reading (ThreadTerminals.tsx),
 // so it opens from that thread's header, in the folder its agent is working in; `t` is its key. It was an
@@ -168,6 +170,13 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
   // connected (lib/reviewChanges.ts says why only there).
   const { editorWindows } = useSnapshot(store)
   const review = ownSession ? reviewLabel(editorWindows, embedded()) : null
+  // MOVE TO ANOTHER MACHINE (ThreadMove.tsx): only once a machine is paired (Settings → Other machines), and
+  // not for a thread that already left — a move whose answer was lost is settled from its drawer's notice.
+  // The reading is machine-wide and shared by every menu on the page (api/peers.ts), so a queue full of
+  // cards asks once.
+  const peers = usePeersState({ enabled: ownSession }).data?.peers
+  const offersMoveHere = ownSession && offersMove(thread, peers)
+  const [moving, setMoving] = useState(false)
   return (
     <>
     <Menu open={open} onOpenChange={onOpenChange}>
@@ -228,6 +237,11 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
             Restart agent
           </MenuItem>
         )}
+        {offersMoveHere && peers && (
+          <MenuItem value="move-thread" onSelect={() => setMoving(true)} icon={<MonitorUp size={12} aria-hidden />}>
+            {moveMenuLabel(peers)}
+          </MenuItem>
+        )}
         {ownSession && (
           <>
             <MenuSeparator />
@@ -251,6 +265,7 @@ export function ThreadMenu({ thread, onDoc, restart = true, card = false, classN
     {deleting && <DeleteThreadDialog thread={thread} onClose={() => setDeleting(false)} />}
     {info && <ThreadInfoDialog thread={thread} onClose={() => setInfo(false)} />}
     {timeLimit && <TimeLimitDialog thread={thread} onClose={() => setTimeLimit(false)} />}
+    {moving && peers && peers.length > 0 && <MoveThreadDialog thread={thread} peers={peers} onClose={() => setMoving(false)} />}
     </>
   )
 }
