@@ -80,6 +80,8 @@ import { restoreWip, revertMovedPaths, snapshotWip, threadCheckout, writeWipBund
 export const PEER_ROUTE_PREFIX = "/_ntwine/peer/v1/"
 /** A paired machine's whole request: the bundle plus its envelope. Matches BUNDLE limits with room. */
 const MAX_CALL_BYTES = 400 * 1024 * 1024
+/** Call bodies read at once, from paired machines (see handleCall). */
+const MAX_BODIES_READING = 2
 const MAX_PAIR_BYTES = 16 * 1024
 /** How far a request's own clock may be from ours, and how long its id is remembered against a replay. */
 const REPLAY_WINDOW_MS = 5 * 60_000
@@ -631,9 +633,15 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
         (git) => restoreWip({ mainCheckout: workDir, ...git }),
       )
       if ("refused" in result) throw new Error(result.refused)
-      ctx.board.refresh()
-      void ctx.board.rebuild().catch(() => {})
-      ctx.tailer.nudge?.()
+      // The rows are committed: from here the thread lives on this machine, and nothing may turn that into
+      // a refusal, which would have the other machine clear its stamp and keep running it too.
+      try {
+        ctx.board.refresh()
+        void ctx.board.rebuild().catch(() => {})
+        ctx.tailer.nudge?.()
+      } catch (error) {
+        log.warn("peer", `the board did not refresh after @${slug} arrived: ${error instanceof Error ? error.message : String(error)}`)
+      }
       audit("threadMoveIn", "ok", {
         project: auditProject, thread: slug,
         detail: { peer: peerRef(peer), moveId: manifest.moveId, duplicate: result.duplicate, compressed: blob.length, files: unpacked.files.length, wipPaths: manifest.git?.paths.length ?? 0, checkout: manifest.git?.rel ?? null },
@@ -647,6 +655,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
 
   // ---- inbound ----
 
+  let readingBodies = 0
+
   async function handleCall(request: Request): Promise<Response> {
     const reader = bodyReader(request, MAX_CALL_BYTES)
     // The sender first, from the fixed-length header: a stranger is refused having sent 69 bytes. The
@@ -657,7 +667,17 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     if (!senderKey) return plain(403, "not an ntwine peer request")
     const sender = store.byPublicKey(senderKey)
     if (!sender) return plain(403, "this machine is not paired with the sender")
-    const body = await reader.readAll()
+    // Even a paired machine reads one body at a time beside a ping: a call body may be 400 MB, and the
+    // server cannot tell an import from a ping until it has read and opened it. A busy answer is plain, so
+    // the sender keeps a move pending and retries (it never reads an unsealed answer as a refusal).
+    if (readingBodies >= MAX_BODIES_READING) return plain(503, "busy taking in another request; try again in a moment")
+    readingBodies++
+    let body: Buffer | undefined
+    try {
+      body = await reader.readAll()
+    } finally {
+      readingBodies--
+    }
     if (!body) return plain(413, "too large")
     let opened
     try {

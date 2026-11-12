@@ -475,7 +475,21 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
       }
     }
   })
-  insert.immediate()
+  try {
+    insert.immediate()
+  } catch (error) {
+    // Rolled back, so the thread is not here. A thread arriving fresh takes back the files it just wrote,
+    // or a retry would find a conversation on disk with no thread and refuse it. (One coming home has
+    // already replaced its stub's files; the stub's rows are intact and it stays read-only.)
+    if (standing === "free") {
+      for (const id of transcriptIds) {
+        rmSync(join(bucketDir, `${id}.jsonl`), { force: true })
+        rmSync(join(bucketDir, id), { recursive: true, force: true })
+      }
+      rmSync(scratchDir, { recursive: true, force: true })
+    }
+    return { refused: `The thread's records could not be written here (${error instanceof Error ? error.message : String(error)})` }
+  }
   if (!manifest.git) notes.push("Its checkout did not move: it had no uncommitted work in this project's repository")
   if (notRearmed.length) notes.push(`Not re-armed on ${self.name}: ${notRearmed.join(", ")}`)
   return { ok: true, slug, duplicate: false, notes }
