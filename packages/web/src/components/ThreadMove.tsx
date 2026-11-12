@@ -20,8 +20,9 @@ import { Select } from "./ui/Select.tsx"
 //     which stay. A refusal is shown in the server's words with Move disabled.
 //   · MovedThreadNotice — in place of the prompt box (ThreadComposerBox.tsx) on the machine a thread LEFT:
 //     the stub here can be read but not continued, so the one useful thing to say is where it went. A move
-//     whose answer never came back (`movedTo.pending`) holds the thread on neither machine, so the notice
-//     carries the two ways out: retry the move (idempotent on the other side) or keep it here.
+//     whose answer never came back (`movedTo.pending`) is held here, and the other machine may or may not
+//     have committed it, so the notice says so and carries the two ways out: retry the move (idempotent
+//     there: it answers a move it already holds without writing again) or keep it here.
 //   · MovedFromFact — on the machine it ARRIVED at, a quiet "From <machine>" on the header's facts line
 //     (ThreadHeaderFacts.tsx), with when on hover.
 //
@@ -213,7 +214,7 @@ export function MovedThreadNotice({ thread }: { thread: ThreadView }) {
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-bg px-3.5 py-3 text-[12.5px] leading-[18px] text-muted" data-moved-notice="pending">
       <p className="m-0">
-        The move to <span className="text-fg">{stamp.peerName}</span> didn't finish, so this thread runs on neither machine.
+        The move to <span className="text-fg">{stamp.peerName}</span> wasn't confirmed, and it may already be there. Retry to finish it, or keep it here.
       </p>
       <div className="flex items-center gap-2">
         <button type="button" className={PRIMARY_BUTTON} disabled={busy} onClick={() => retry.mutate()} data-moved-retry>
