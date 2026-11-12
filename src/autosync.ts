@@ -365,7 +365,6 @@ function syncOnce(root: string, env: NodeJS.ProcessEnv, log: Log): SyncOutcome {
       return result("failed", `can't push main: ${firstLines(push.err)}`)
     }
     pushed += ahead
-    log(`pushed ${ahead} commit${ahead === 1 ? "" : "s"}`)
     // The push moved origin/main to main. If main moved again meanwhile, the next round pushes that too.
     if (git(root, ["rev-parse", LOCAL_REF], env).out === git(root, ["rev-parse", REMOTE_REF], env).out) {
       return result("in-sync", describeMoves({ pulled, pushed }))
