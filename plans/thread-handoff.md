@@ -1,6 +1,6 @@
 # Moving a thread to another machine
 
-Design plan, 2026-11-12. Status: **BEING BUILT.** The maintainer runs ntwine on a Mac (`/Users/ssalb`) and on a
+Design plan, 2026-11-12. Status: **BUILT** (2026-11-12; ARCHITECTURE.md § Moving a thread to another machine). The maintainer runs ntwine on a Mac (`/Users/ssalb`) and on a
 Windows desktop in WSL (`/home/ssalb`, mDNS `ssalb-xps.local`), with the same projects cloned on both. He wants
 to pick a resting thread up on the other machine. The design he approved is an explicit **move**, not a sync:
 exactly one machine owns a thread at a time, so there is nothing to reconcile, and `ui.db` (SQLite in WAL mode)
@@ -84,9 +84,12 @@ supplies `Hd`, `Pd`, `Sd`, `Bd = cwdSlug(Pd)`.
 
 ## 3. Work in progress
 
-The thread's checkout is the newest `cwd` in its transcript, lifted to its git top level: the project's main
-checkout, or a linked worktree under `<main>/.ntwine/worktrees/<name>`. A checkout anywhere else refuses the
-move by name.
+The thread's checkout is the newest `cwd` in its transcript, lifted to its git top level, when that is a
+linked worktree under `<main>/.ntwine/worktrees/<name>`; otherwise the checkout holding the newest file the
+thread edited (`threadCheckout`). A worker often runs `git worktree add` and then writes by absolute path
+without ever `cd`-ing in, so its cwd stays at the root: the first real-worker run did exactly that, and the cwd
+alone would have moved nothing. A checkout anywhere else refuses the move by name. The thread's own
+uncommitted edits in any other checkout stay, and the preview and the result name them.
 
 - **What counts as the thread's WIP.** In a worktree: every uncommitted path (tracked and untracked, not
   ignored). In the main checkout, which other agents share: only the uncommitted paths this thread edited

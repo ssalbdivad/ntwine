@@ -141,3 +141,14 @@ ssh -L 9393:127.0.0.1:9393 you@your-machine
 ```
 
 Nothing is exposed and no sign-in link is involved. The cost is that the tunnel lives as long as the SSH session, which makes it awkward from a phone.
+
+## Moving a thread to your other machine
+
+Two machines running ntwine can hand a resting thread from one to the other: its conversation, its notes and its uncommitted work, in a project both machines have cloned. Pair them once, in **Settings → Other machines**: **Pair a machine** on one shows a code and its addresses, and **Enter a code** on the other takes the address and the code. Then a thread's menu offers **Move to <machine>**.
+
+The other machine has to be reachable from this one, by either of:
+
+- **Its board's public address**, any of the options above (an ntwine.app name, Cloudflare, Tailscale). Moves travel encrypted end to end between the two machines, so a relay in between carries nothing it can read, and moving needs no sign-in link.
+- **Its network listener**, off until you turn it on in the same section: it answers only machines it is paired with, on port 9394 by default, at an address such as `http://ssalb-xps.local:9394` or its tailnet name. Under WSL's default networking, another machine on the LAN reaches it only once Windows forwards the port (mirrored networking, or `netsh interface portproxy`); a tailnet address needs nothing.
+
+Pairing needs someone at both machines: neither the code nor its entry works through a public address.
