@@ -64,13 +64,27 @@ should be roughly what it was before, not collapsed to the size of your change.
 
 `scripts/githooks/pre-commit` backstops this — it refuses any commit that records files as deleted
 while they still exist on disk, which a genuine `git rm` cannot trigger because that removes the file
-from disk too. It is wired through `core.hooksPath`, which is LOCAL config, so in a fresh clone run:
+from disk too. It is wired through `core.hooksPath`, which is LOCAL config, so in a fresh clone run `pnpm run autosync:on` (below), or on its own:
 
 ```sh
 git config core.hooksPath scripts/githooks
 ```
 
 **Keep that value RELATIVE, and re-check it whenever the checkout moves.** Git accepts an absolute `core.hooksPath`, and this machine had one — `/Users/me/Documents/projects/fray/scripts/githooks`, left from before the directory was renamed to `.../ntwine`. Git does not warn when `core.hooksPath` names a directory that does not exist; it simply runs no hooks. Measured 2026-08-11 with a control pair: pointed at a real dir, a failing hook blocks the commit (exit 1); pointed at a missing dir, the identical commit succeeds (exit 0). So the backstop above was silently OFF for every agent commit between the rename and 2026-08-11 — the one guard against a tree-collapsing commit, gone exactly while nobody could tell. `git config core.hooksPath` must print `scripts/githooks`; if it prints an absolute path, reset it.
+
+# Running from source on a second machine
+
+The maintainer runs ntwine from source on more than one machine (this WSL box and a Mac), each with its own checkout whose `main` agents commit to all day. Autosync keeps those `main`s together through `origin`: a commit or merge on `main` pushes itself in the background (`post-commit` / `post-merge` in `scripts/githooks`), and the dev server pulls on start and every 5m, so the other machine's work arrives and the dev server and desktop window restart onto it (the VS Code extension does not: rerun `pnpm run vscode:install` after a change there). Setting up a machine:
+
+```sh
+git clone https://github.com/ssalbdivad/ntwine.git && cd ntwine
+pnpm install
+pnpm run autosync:on      # wires core.hooksPath, opts this clone in, checks it can push
+pnpm run dd               # dev server + desktop window
+pnpm run vscode:install   # the VS Code extension
+```
+
+A pull merges (never rebases) and never touches a dirty file or leaves conflict markers: when origin's commits clash with local work it logs why and leaves both alone until someone merges by hand. `pnpm run autosync:status` shows the state and the last runs (`.git/ntwine-sync.log`), `pnpm run autosync` syncs now, `pnpm run autosync:off` stops it for the clone, `NTWINE_AUTOSYNC=0` for a process. The source and the reasoning are in `src/autosync.ts`.
 
 # Come to rest in as few words as the answer needs
 

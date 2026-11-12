@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# A commit on main pushes itself to origin in the background, when this clone opted into autosync.
+. "$(dirname "$0")/autosync.sh" post-commit

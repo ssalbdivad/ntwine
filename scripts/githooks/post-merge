@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# A merge into main (workers land worktree branches this way, which fires no post-commit) pushes itself
+# to origin in the background, when this clone opted into autosync.
+. "$(dirname "$0")/autosync.sh" post-merge
