@@ -63,7 +63,7 @@ import {
   type MoveGit,
 } from "./thread-move.ts"
 import { readThreadTranscript } from "./transcript.ts"
-import { locateThreadCheckout, restoreWip, revertMovedPaths, snapshotWip, writeWipBundle } from "./thread-wip.ts"
+import { restoreWip, revertMovedPaths, snapshotWip, threadCheckout, writeWipBundle } from "./thread-wip.ts"
 
 // MOVING A THREAD BETWEEN TWO PAIRED MACHINES — the machine-level service (plans/thread-handoff.md).
 //
@@ -346,6 +346,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
   interface GitPlan {
     location: { kind: "main" | "worktree"; rel: string; root: string }
     snapshot: ReturnType<typeof snapshotWip>
+    /** This thread's own uncommitted edits in the project's OTHER checkouts, relative to the main one: they stay. */
+    elsewhere: string[]
   }
 
   function planGit(ctx: AppContext, row: SessionRow, bucket: string, peerName: string): GitPlan | { refused: string } | undefined {
@@ -353,16 +355,15 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     if (!existsSync(join(workDir, ".git"))) return undefined
     const transcript = join(deps.home, ".claude", "projects", bucket, `${row.transcript_id ?? row.session_id}.jsonl`)
     const cwd = (existsSync(transcript) ? newestTranscriptCwd(transcript) : undefined) ?? workDir
-    const location = locateThreadCheckout(cwd, workDir)
+    // Every file it wrote, oldest first: they say which checkout its work is in when its cwd does not, and
+    // in the shared main checkout they are the only files that move.
+    const editedPaths = editedFilesOf(readThreadTranscript(ctx.project, ctx.storage, row.slug, ctx.backendFor), workDir)
+      .map((file) => (isAbsolute(file.path) ? file.path : join(workDir, file.path)))
+    const { location, elsewhere } = threadCheckout({ cwd, mainCheckout: workDir, editedPaths })
     if ("refused" in location) return location
-    let editedPaths: string[] | undefined
-    if (location.kind === "main") {
-      editedPaths = editedFilesOf(readThreadTranscript(ctx.project, ctx.storage, row.slug, ctx.backendFor), workDir)
-        .map((file) => (isAbsolute(file.path) ? file.path : join(workDir, file.path)))
-    }
     try {
-      const snapshot = snapshotWip({ root: location.root, kind: location.kind, ...(editedPaths ? { editedPaths } : {}), message: `ntwine: uncommitted work of @${row.slug}, moved to ${peerName}` })
-      return { location, snapshot }
+      const snapshot = snapshotWip({ root: location.root, kind: location.kind, editedPaths, message: `ntwine: uncommitted work of @${row.slug}, moved to ${peerName}` })
+      return { location, snapshot, elsewhere }
     } catch (error) {
       return { refused: `This thread's checkout could not be read (${error instanceof Error ? error.message : String(error)})` }
     }
@@ -382,7 +383,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     if (git) {
       out.checkout = { rel: git.location.rel, branch: git.snapshot.branch }
       out.wipPaths = git.snapshot.paths
-      out.leftBehind = git.snapshot.leftBehind
+      out.leftBehind = [...git.snapshot.leftBehind, ...git.elsewhere]
     }
     try {
       const prepared = await call(record, "prepare", { identities, slug, sessionId: row!.session_id }) as { project: string; dir: string }
@@ -471,6 +472,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
         }
       }
       if (git?.snapshot.leftBehind.length) notes.push(`${git.snapshot.leftBehind.length} uncommitted file(s) in the main checkout were not this thread's edits and stayed here`)
+      if (git?.elsewhere.length) notes.push(`Its uncommitted edits outside ${git.location.rel === "." ? "the main checkout" : git.location.rel} stayed here: ${git.elsewhere.join(", ")}`)
       void ctx.board.rebuild().catch(() => {})
       audit("threadMoveOut", "ok", {
         project: auditProject, thread: slug,

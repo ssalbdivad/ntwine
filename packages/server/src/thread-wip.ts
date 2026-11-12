@@ -65,6 +65,59 @@ export function locateThreadCheckout(cwd: string, mainCheckout: string): Checkou
   }
 }
 
+/** The checkout a thread's work is in, and the files it edited that are uncommitted in ANOTHER of the
+ *  project's checkouts (paths relative to the main checkout), which stay behind.
+ *
+ *  Its newest `cwd` decides when that is a linked worktree. Otherwise its newest edit inside the project
+ *  does (`editedPaths`, absolute, oldest first, as `editedFilesOf` orders them): a worker often runs
+ *  `git worktree add` and then writes by absolute path without ever `cd`-ing in, so its cwd stays at the
+ *  root while all its work is in the worktree — what the real-worker e2e did on its first run (2026-11-12),
+ *  where reading the cwd alone would have moved nothing. Else the main checkout. */
+export function threadCheckout(opts: { cwd: string; mainCheckout: string; editedPaths: readonly string[] }): { location: CheckoutLocation; elsewhere: string[] } {
+  const main = canonical(opts.mainCheckout)
+  const checkoutOf = (file: string): { rel: string; inCheckout: string } | undefined => {
+    const rel = path.relative(main, canonicalFile(file)).split(path.sep).join("/")
+    if (!rel || rel.startsWith("../") || rel === ".." || path.isAbsolute(rel)) return undefined
+    const worktree = /^(\.ntwine\/worktrees\/[^/]+)\/(.+)$/.exec(rel)
+    if (worktree) return { rel: worktree[1]!, inCheckout: worktree[2]! }
+    return rel.startsWith(".ntwine/") ? undefined : { rel: ".", inCheckout: rel }
+  }
+  let location = locateThreadCheckout(opts.cwd, opts.mainCheckout)
+  if (!("refused" in location) && location.kind === "main") {
+    for (let i = opts.editedPaths.length - 1; i >= 0; i--) {
+      const hit = checkoutOf(opts.editedPaths[i]!)
+      if (!hit) continue
+      if (hit.rel !== ".") {
+        const root = path.join(main, hit.rel)
+        const found = existsSync(root) ? locateThreadCheckout(root, opts.mainCheckout) : undefined
+        if (found && !("refused" in found) && found.kind === "worktree") location = found
+      }
+      break
+    }
+  }
+  if ("refused" in location) return { location, elsewhere: [] }
+  // The thread's own edits in the checkouts it is NOT moving from, that are still uncommitted there.
+  const byCheckout = new Map<string, Set<string>>()
+  for (const file of opts.editedPaths) {
+    const hit = checkoutOf(file)
+    if (!hit || hit.rel === location.rel) continue
+    byCheckout.set(hit.rel, (byCheckout.get(hit.rel) ?? new Set()).add(hit.inCheckout))
+  }
+  const elsewhere: string[] = []
+  for (const [rel, files] of byCheckout) {
+    const root = path.join(main, rel)
+    if (!existsSync(root)) continue
+    let dirty: string[]
+    try {
+      dirty = dirtyPaths(root)
+    } catch {
+      continue
+    }
+    for (const p of dirty) if (files.has(p)) elsewhere.push(rel === "." ? p : `${rel}/${p}`)
+  }
+  return { location, elsewhere: elsewhere.sort() }
+}
+
 // ── THE SNAPSHOT ─────────────────────────────────────────────────────────────────────────────────────────
 
 /** Snapshot a checkout's work in progress as a commit W on top of HEAD, without touching the checkout, its

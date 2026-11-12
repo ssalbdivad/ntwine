@@ -10,7 +10,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { locateThreadCheckout, movedRef, restoreWip, revertMovedPaths, snapshotWip, writeWipBundle, type WipSnapshot } from "./thread-wip.ts"
+import { locateThreadCheckout, movedRef, restoreWip, revertMovedPaths, snapshotWip, threadCheckout, writeWipBundle, type WipSnapshot } from "./thread-wip.ts"
 
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-wip-test-")))
 after(() => rmSync(scratch, { recursive: true, force: true }))
@@ -105,6 +105,26 @@ describe("a worktree thread", () => {
     // Gone, or not this repository at all: the main checkout.
     assert.deepEqual(locateThreadCheckout(join(dir, "gone"), A), { kind: "main", rel: ".", root: A })
     assert.deepEqual(locateThreadCheckout(join(dir, "B"), A), { kind: "main", rel: ".", root: A })
+  })
+
+  it("is found by the files it edited when it never cd'd into its worktree, and its other edits stay", () => {
+    const { A } = machines()
+    git(A, "worktree", "add", "-q", ".ntwine/worktrees/feat", "-b", "feat")
+    git(A, "worktree", "add", "-q", ".ntwine/worktrees/old", "-b", "old")
+    const feat = join(A, ".ntwine/worktrees/feat")
+    put(join(feat, "a.txt"), "a, edited\n")
+    put(join(A, ".ntwine/worktrees/old/b.txt"), "b, edited earlier\n")
+    put(join(A, "b.txt"), "b, edited in main\n")
+    put(join(A, "c.txt"), "another agent's\n")
+    // Oldest first, as editedFilesOf orders them; the scratch note is not a checkout's file.
+    const edited = [join(A, ".ntwine/worktrees/old/b.txt"), join(A, "b.txt"), join(A, ".ntwine/threads/s/notes.md"), join(feat, "a.txt")]
+    assert.deepEqual(threadCheckout({ cwd: A, mainCheckout: A, editedPaths: edited }), {
+      location: { kind: "worktree", rel: ".ntwine/worktrees/feat", root: feat },
+      elsewhere: [".ntwine/worktrees/old/b.txt", "b.txt"],
+    })
+    // Its newest edit back in the main checkout makes that its checkout again; a cwd in a worktree decides outright.
+    assert.deepEqual(threadCheckout({ cwd: A, mainCheckout: A, editedPaths: [...edited, join(A, "b.txt")] }).location, { kind: "main", rel: ".", root: A })
+    assert.deepEqual(threadCheckout({ cwd: join(A, ".ntwine/worktrees/old"), mainCheckout: A, editedPaths: edited }).location.rel, ".ntwine/worktrees/old")
   })
 })
 
