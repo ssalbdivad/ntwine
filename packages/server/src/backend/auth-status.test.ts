@@ -1,10 +1,16 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { CodexExecutableNotFoundError } from "./codex-executable.ts"
 import { parseClaudeAuthStatusJson, readAuthSnapshot, readClaudeAccountEmail, readClaudeAuthState, readClaudeAuthStatusCli, readClaudePreflightAuth, readCodexAccountEmail, readCodexAccountId, readCodexAuthState, readCodexBinaryState, resetClaudeCliConfirm } from "./auth-status.ts"
+
+// The Anthropic profile store is a Claude credential source, and a developer machine signed in through
+// it (this repo's maintainer's is) would turn every signed-out case below into "authed". Point it at an
+// empty store for the whole file; the profile tests pass their own.
+process.env.ANTHROPIC_CONFIG_DIR = mkdtempSync(join(tmpdir(), "ntwine-anthropic-empty-"))
+delete process.env.ANTHROPIC_PROFILE
 
 // Codex reads env keys BEFORE the file, so a file-based test must run with those keys cleared or an
 // ambient OPENAI_API_KEY in the dev shell would mask the file logic. Clears + restores around fn.
@@ -125,6 +131,38 @@ test("claude: file present but tokenless + Keychain disabled → signed-out", as
     await withTmpAsync(async (dir) => {
       writeFileSync(join(dir, ".credentials.json"), JSON.stringify({ claudeAiOauth: {} }))
       assert.equal(await readClaudeAuthState(dir), "signed-out")
+    })
+  } finally {
+    if (prev === undefined) delete process.env.NTWINE_KEYCHAIN_DISABLED
+    else process.env.NTWINE_KEYCHAIN_DISABLED = prev
+  }
+})
+
+// A machine signed in only through the Anthropic profile store: no `.credentials.json`, no Keychain item.
+// Each case is the store's layout, then the environment that selects from it.
+test("claude: the Anthropic profile store's credential → authed, from the profile Claude Code would pick", async () => {
+  const prev = process.env.NTWINE_KEYCHAIN_DISABLED
+  process.env.NTWINE_KEYCHAIN_DISABLED = "1"
+  try {
+    await withTmpAsync(async (dir) => {
+      const store = join(dir, "anthropic")
+      const config = join(dir, "claude") // no .credentials.json
+      mkdirSync(join(store, "credentials"), { recursive: true })
+      const credential = (name: string, doc: object) => writeFileSync(join(store, "credentials", `${name}.json`), JSON.stringify(doc))
+      const state = (env: NodeJS.ProcessEnv = {}) => readClaudeAuthState(config, { ANTHROPIC_CONFIG_DIR: store, ...env })
+
+      assert.equal(await state(), "signed-out", "an empty store")
+      credential("default", { access_token: "tok" })
+      assert.equal(await state(), "authed", "no active_config reads the default profile")
+      writeFileSync(join(store, "active_config"), "work\n")
+      assert.equal(await state(), "signed-out", "active_config names a profile with no credential")
+      credential("work", { refresh_token: "ref" })
+      assert.equal(await state(), "authed", "a refresh token alone signs the CLI in")
+      credential("tokenless", { access_token: "  " })
+      assert.equal(await state({ ANTHROPIC_PROFILE: "tokenless" }), "signed-out", "ANTHROPIC_PROFILE outranks active_config")
+      assert.equal(await state({ ANTHROPIC_PROFILE: "../escape" }), "unknown", "a profile name that is a path")
+      writeFileSync(join(store, "credentials", "broken.json"), "{")
+      assert.equal(await state({ ANTHROPIC_PROFILE: "broken" }), "unknown", "an unparseable credential fails open")
     })
   } finally {
     if (prev === undefined) delete process.env.NTWINE_KEYCHAIN_DISABLED

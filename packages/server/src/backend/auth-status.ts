@@ -61,16 +61,66 @@ async function claudeKeychainState(): Promise<CredState> {
   }
 }
 
-// The Claude credential state, resolved in the order Claude Code itself resolves it: the on-disk file
-// first, then the macOS Keychain. A token from EITHER source ⇒ authed. When neither yields a token, we
-// distinguish a clean "no credential anywhere" (signed-out) from a source that errored (unknown).
-export async function readClaudeAuthState(configDir = claudeConfigDir()): Promise<ProviderAuth> {
+// THE ANTHROPIC PROFILE, Claude Code's third credential source: the store the Anthropic CLIs share,
+// `credentials/<profile>.json` under `$ANTHROPIC_CONFIG_DIR`, else `~/.config/anthropic`
+// (`%APPDATA%\Anthropic` on Windows), the profile named by `$ANTHROPIC_PROFILE`, else the store's
+// `active_config` file, else "default" (read out of the 2.1.321 binary). A CLI signed in this way logs
+// "Using Anthropic profile auth (profile-implicit)" and has neither a `.credentials.json` nor a Keychain
+// item, so before this reader the local verdict on such a machine was a positive "signed-out", and every
+// dispatch preflight confirmed it by running `claude auth status --json`.
+//
+// That confirmation is not free here. Measured 2026-11-12 against 2.1.321 and 2.1.322: `auth status`
+// exits 0 and LEAVES `credentials.lock` (a directory) behind in the profile store. Every Claude process
+// that reads the profile credential then fails "Could not acquire credentials lock … after 5 retries"
+// until the lock goes stale about a minute later — so the Auto-effort completion each dispatch starts
+// right after the preflight timed out at 20s on every dispatch that day (10 of 10), the name mint
+// missed its 30s window on 8 of 14, and its request-words fallback named two threads "Planning
+// https://linear.app/…". Reading the file instead starts no process and takes no lock.
+function anthropicProfileState(env: NodeJS.ProcessEnv = process.env): CredState {
+  const override = env.ANTHROPIC_CONFIG_DIR?.trim()
+  const dir = override
+    ? override
+    : platform() === "win32" && env.APPDATA ? join(env.APPDATA, "Anthropic") : join(homedir(), ".config", "anthropic")
+  let profile = env.ANTHROPIC_PROFILE?.trim()
+  if (!profile) {
+    try {
+      profile = readFileSync(join(dir, "active_config"), "utf8").trim()
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") return "error"
+    }
+  }
+  profile ||= "default"
+  // A name is a file name in the store, never a path out of it.
+  if (/[\\/]|^\.\.?$/.test(profile)) return "error"
+  let raw: string
+  try {
+    raw = readFileSync(join(dir, "credentials", `${profile}.json`), "utf8")
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "ENOENT" ? "absent" : "error"
+  }
+  try {
+    const doc = JSON.parse(raw) as Record<string, unknown>
+    const present = (key: string) => typeof doc[key] === "string" && (doc[key] as string).trim() !== ""
+    // A refresh token alone still signs the CLI in: it mints the access token on first use.
+    return present("access_token") || present("refresh_token") ? "token" : "empty"
+  } catch {
+    return "error"
+  }
+}
+
+// The Claude credential state, from every source Claude Code signs in with: the on-disk file, the
+// Anthropic profile, then the macOS Keychain (last, because it is the one that costs a process). A token
+// from ANY source ⇒ authed. When none yields a token, we distinguish a clean "no credential anywhere"
+// (signed-out) from a source that errored (unknown).
+export async function readClaudeAuthState(configDir = claudeConfigDir(), env: NodeJS.ProcessEnv = process.env): Promise<ProviderAuth> {
   const file = claudeFileState(configDir)
   if (file === "token") return "authed"
+  const profile = anthropicProfileState(env)
+  if (profile === "token") return "authed"
   const keychain = await claudeKeychainState()
   if (keychain === "token") return "authed"
-  if (file === "error" || keychain === "error") return "unknown"
-  // Both sources cleanly reported absent/empty → genuinely signed out.
+  if (file === "error" || profile === "error" || keychain === "error") return "unknown"
+  // Every source cleanly reported absent/empty → genuinely signed out.
   return "signed-out"
 }
 
