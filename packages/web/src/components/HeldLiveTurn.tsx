@@ -22,6 +22,7 @@ import { useTranscript, type ChatMessage, type TranscriptData } from "../hooks.t
 import { lastHumanTurnIndex } from "../lib/messagePresentation.ts"
 import { coalesceToolActivityMessages, historicalToolActivityMessages, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, toolActivityLabel } from "../lib/toolActivity.ts"
 import type { QueuesProject } from "../lib/allQueues.ts"
+import type { HeldReply } from "../lib/queueHold.ts"
 import { Message, VSpace, WorkingIndicator, withMessageSpacers, withoutLiveTranscriptBackgroundTools, workingIndicatorGap } from "./ChatView.tsx"
 import { ThreadSlugContext } from "./threadSlugContext.ts"
 import { focusedProject } from "./ThreadTerminals.tsx"
@@ -29,33 +30,51 @@ import { focusedProject } from "./ThreadTerminals.tsx"
 /** The drawer's fallback poll for a running thread (hooks.ts useTranscript `refetchInterval`). */
 const LIVE_POLL_MS = 1_500
 
-/** `onTools` hears the names of the tools the turn has called since the human's message, and when that
- *  message was written, whenever they change — what tells an automatic hold that the reply became long
- *  work (lib/foregroundTurn.ts). */
-type TurnProps = { project: QueuesProject; thread: ThreadView; running: boolean; onTools?: (names: readonly string[], humanAt: number) => void }
+/** How far the transcript's stamp on a reply may run behind the sending browser's clock and still be that
+ *  reply (`sent`); the text match is what settles it in the ordinary case. */
+const SENT_CLOCK_SLACK_MS = 2_000
+
+/** What both transcript sources hand the turn. `sent` is the reply this card just sent (lib/queueHold.ts
+ *  noteHeldReply): until the transcript has it, the turn is that reply alone, drawn at once, and
+ *  `onSentSeen` fires once the transcript catches up. `onTools` hears the names of the tools the turn has
+ *  called since the human's message, and when that message was written, whenever they change — what tells
+ *  an automatic hold that the reply became long work (lib/foregroundTurn.ts). */
+type Hooks = { running: boolean; sent?: HeldReply; onSentSeen?: () => void; onTools?: (names: readonly string[], humanAt: number) => void }
+type TurnProps = Hooks & { project: QueuesProject; thread: ThreadView }
 
 export function HeldLiveTurn(props: TurnProps) {
   return focusedProject(props.project.slug) ? <PageProjectTurn {...props} /> : <OtherProjectTurn {...props} />
 }
 
-function PageProjectTurn({ project, thread, running, onTools }: TurnProps) {
-  const q = useTranscript(thread.id, { poll: running })
-  return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} running={running} onTools={onTools} />
+function PageProjectTurn({ project, thread, ...hooks }: TurnProps) {
+  const q = useTranscript(thread.id, { poll: hooks.running })
+  return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} {...hooks} />
 }
 
-function OtherProjectTurn({ project, thread, running, onTools }: TurnProps) {
+function OtherProjectTurn({ project, thread, ...hooks }: TurnProps) {
+  const { running } = hooks
   const q = useQuery({
     queryKey: ["ofProject", project.id, "transcript", thread.id, "live"],
     queryFn: async (): Promise<TranscriptData> => ({ ...(await projectRpc(project.id).threadTranscript({ slug: thread.id })) }),
     refetchInterval: running ? LIVE_POLL_MS : false,
     placeholderData: (previous) => previous,
   })
-  return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} running={running} onTools={onTools} />
+  return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} {...hooks} />
 }
 
-function Turn({ messages, projectDir, slug, running, onTools }: { messages: ChatMessage[] | undefined; projectDir: string | undefined; slug: string; running: boolean; onTools?: (names: readonly string[], humanAt: number) => void }) {
+function Turn({ messages, projectDir, slug, running, sent, onSentSeen, onTools }: Hooks & { messages: ChatMessage[] | undefined; projectDir: string | undefined; slug: string }) {
   // From the human's last message on — where the card's handoff opens too (server handoffOf).
-  const turn = useMemo(() => (messages ? messages.slice(lastHumanTurnIndex(messages)) : []), [messages])
+  const latest = useMemo(() => (messages ? messages.slice(lastHumanTurnIndex(messages)) : []), [messages])
+  const human = latest[0]
+  const sentSeen = sent !== undefined && human?.role === "user" &&
+    (human.text.includes(sent.text.trim()) || Date.parse(human.at ?? "") >= sent.at - SENT_CLOCK_SLACK_MS)
+  useEffect(() => {
+    if (sentSeen) onSentSeen?.()
+  }, [sentSeen, onSentSeen])
+  const turn = useMemo<ChatMessage[]>(
+    () => (sent && !sentSeen ? [{ role: "user", text: sent.text, tools: [], parts: [], at: new Date(sent.at).toISOString() }] : latest),
+    [sent, sentSeen, latest],
+  )
   const toolNames = useMemo(() => turn.flatMap((m) => (m.role === "assistant" ? m.tools.map((tool) => tool.name) : [])), [turn])
   const toolNamesId = toolNames.join("\n")
   useEffect(() => {

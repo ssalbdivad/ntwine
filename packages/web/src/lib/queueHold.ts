@@ -127,6 +127,32 @@ export function autoHoldSentAt(key: string): number | undefined {
   return autoHolds.get(key)
 }
 
+// THE REPLY A HELD CARD JUST SENT, until the card's transcript has it (maintainer 2026-11-11: "I don't
+// see my message right away after I've sent it"). A held card draws the worker's turn only once its
+// thread reads as running, a second or more after the send (a 3s poll for another project's card), and
+// until then it stood on the old reply as though nothing had been typed. The card draws this as the
+// turn's first bubble meanwhile (HeldLiveTurn `sent`). Memory only: a reload replays an unsent reply
+// itself (lib/pendingSends.ts), and the transcript has it by then.
+export type HeldReply = { readonly text: string; readonly at: number }
+let heldReplies: ReadonlyMap<string, HeldReply> = new Map()
+
+export function noteHeldReply(key: string, text: string, at: number): void {
+  heldReplies = new Map(heldReplies).set(key, { text, at })
+  for (const listener of listeners) listener()
+}
+
+export function clearHeldReply(key: string): void {
+  if (!heldReplies.has(key)) return
+  const next = new Map(heldReplies)
+  next.delete(key)
+  heldReplies = next
+  for (const listener of listeners) listener()
+}
+
+export function useHeldReply(key: string): HeldReply | undefined {
+  return useSyncExternalStore(subscribe, () => heldReplies.get(key), () => undefined)
+}
+
 /** Every automatic hold; a new map on every change. */
 export function useAutoHolds(): AutoHolds {
   return useSyncExternalStore(subscribe, () => autoHolds, () => autoHolds)

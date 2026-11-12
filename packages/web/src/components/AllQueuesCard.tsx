@@ -85,7 +85,7 @@ import { TerminalCardArticle } from "./TerminalQueueCard.tsx"
 import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
-import { autoHoldInQueue, autoHoldSentAt, setHeldInQueue, useAutoHolds, useHeldInQueue } from "../lib/queueHold.ts"
+import { autoHoldInQueue, autoHoldSentAt, clearHeldReply, noteHeldReply, setHeldInQueue, useAutoHolds, useHeldInQueue, useHeldReply } from "../lib/queueHold.ts"
 import { longTurnReason } from "../lib/foregroundTurn.ts"
 import { HeldLiveTurn } from "./HeldLiveTurn.tsx"
 import { useShortcutLabel } from "../lib/keyboardRuntime.ts"
@@ -437,7 +437,12 @@ function CardArticle({
   // still loading (the previous one is only a placeholder), so the words just streamed do not give way
   // to the old reply and then come back.
   const working = thread.runtime === "running" || thread.runtime === "spawning"
-  const liveTurn = heldInQueue && thread.held === undefined && (working || handoff.isPlaceholderData)
+  // The reply this card just sent, until its transcript has it: the turn is drawn from the send on, with
+  // that reply as its first bubble, rather than from when the thread first reads as running.
+  const sentReply = useHeldReply(key)
+  const sending = heldInQueue && sentReply !== undefined
+  const clearSentReply = useCallback(() => clearHeldReply(key), [key])
+  const liveTurn = heldInQueue && thread.held === undefined && (working || sending || handoff.isPlaceholderData)
   // AN AUTOMATIC HOLD (a reply sent from this card, lib/foregroundTurn.ts) lets go once the streamed turn
   // edits a file or dispatches a sub-agent, and the card leaves the way a replied-to card always did.
   // AllQueues `useReleaseLongTurns` reads the same rule off the thread alone (the clock, a live sub-agent),
@@ -660,7 +665,7 @@ function CardArticle({
           </a>
           {/* A question from a rest older than the human's bubble, flushed first as upstream's window
               flushes it — everything below the bubble is newer than it. */}
-          {liveTurn && <HeldLiveTurn project={project} thread={thread} running={working} onTools={autoSentAt === undefined ? undefined : onTurnTools} />}
+          {liveTurn && <HeldLiveTurn project={project} thread={thread} running={working || sending} sent={sending ? sentReply : undefined} onSentSeen={clearSentReply} onTools={autoSentAt === undefined ? undefined : onTurnTools} />}
           {!liveTurn && <>
           {slots && <RegisteredQuestionStack key={`above-${restKey}`} thread={thread} questions={slots.above} keepAnswered />}
           {/* A scheduled run's first message opens with ntwine's header for the worker; the card shows only the
@@ -1352,6 +1357,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fil
       if (pageUnloading()) return
       // The reply never reached the worker, so there is no turn for its automatic hold to judge.
       const holdKey = threadKey(project.id, thread.id)
+      clearHeldReply(holdKey)
       if (autoHoldSentAt(holdKey) !== undefined) setHeldInQueue(holdKey, false)
       // The card faded on send; the message did not land, so bring it back with the text still in it —
       // unless something new was typed meanwhile, which is not ours to overwrite — and its chips with it.
@@ -1400,7 +1406,10 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fil
       draftStore.set(key, "")
       // A reply keeps its card where it is while the answer is short (lib/foregroundTurn.ts); `onSent` then
       // finds the card held and leaves it in place.
-      autoHoldInQueue(threadKey(project.id, thread.id), queueKeyAt(thread), Date.now())
+      const holdKey = threadKey(project.id, thread.id)
+      const sentAt = Date.now()
+      autoHoldInQueue(holdKey, queueKeyAt(thread), sentAt)
+      noteHeldReply(holdKey, message, sentAt)
       onSent()
       const expanded = expandUserCommandDraft(message, userCommands ?? []) ?? message
       send.mutate({ outgoing: buildMessageWithContext(expanded, staged, project.projectDir), typed: message, staged })
