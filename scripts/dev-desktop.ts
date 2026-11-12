@@ -9,7 +9,9 @@ import { spawn, type ChildProcess } from "node:child_process"
 import { DEFAULT_DEV_PORT } from "@ntwine/shared"
 
 const extra = process.argv.slice(2).filter((arg) => arg !== "--")
-const server = spawn("pnpm", ["run", "dev"], { stdio: "inherit" })
+// The server gets the same port the window is pinned to: `pnpm run dev` alone defaults to DEFAULT_PORT,
+// so without this the window waits on a port nothing serves unless a dev board is already up there.
+const server = spawn("pnpm", ["run", "dev", "--", "--port", String(DEFAULT_DEV_PORT)], { stdio: "inherit" })
 const desktop = spawn("pnpm", ["run", "desktop", "--", `--url=http://127.0.0.1:${DEFAULT_DEV_PORT}`, ...extra], { stdio: "inherit" })
 const children: ChildProcess[] = [server, desktop]
 
