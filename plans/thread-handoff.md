@@ -101,6 +101,11 @@ uncommitted edits in any other checkout stay, and the preview and the result nam
   machines: no uncommitted work on a public repo's remote (ntwine is open source), no push credentials needed,
   and no stray branches for anyone to clean up. The bundle excludes what the origin's remote-tracking refs
   already hold; the destination fetches its own remote first when a prerequisite is missing.
+- **On the destination, nothing from the other machine is trusted further than it must be** (added after the
+  security review): no git hook runs; nothing under `.ntwine/`, and no symlink or submodule, moves as work; an
+  existing branch is never moved; the main checkout fast-forwards only to commits its own remotes hold; nothing
+  is written through a symlinked folder; and every row must be the moved thread's own. Timers, command watches,
+  a recurring prompt, a time limit and the thread's permission mode are not re-armed on arrival.
 - **On the destination, nothing is overwritten.** It fetches `W` into `refs/ntwine/moved/<slug>`, then, in the
   matching checkout (the same relative worktree path, created on `B` at `H` if absent; else the main checkout):
   the checkout must be on `B`; its `HEAD` must equal `H`, fast-forward to it (`git merge --ff-only`), or
