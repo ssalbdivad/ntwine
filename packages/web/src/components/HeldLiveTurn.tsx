@@ -35,11 +35,11 @@ const LIVE_POLL_MS = 1_500
 const SENT_CLOCK_SLACK_MS = 2_000
 
 /** What both transcript sources hand the turn. `sent` is the reply this card just sent (lib/queueHold.ts
- *  noteHeldReply): until the transcript has it, the turn is that reply alone, drawn at once, and
- *  `onSentSeen` fires once the transcript catches up. `onTools` hears the names of the tools the turn has
+ *  noteHeldReply): until the transcript has it, the turn is that reply alone, drawn at once, with the
+ *  working shimmer under it. `onTools` hears the names of the tools the turn has
  *  called since the human's message, and when that message was written, whenever they change — what tells
  *  an automatic hold that the reply became long work (lib/foregroundTurn.ts). */
-type Hooks = { running: boolean; sent?: HeldReply; onSentSeen?: () => void; onTools?: (names: readonly string[], humanAt: number) => void }
+type Hooks = { running: boolean; sent?: HeldReply; onTools?: (names: readonly string[], humanAt: number) => void }
 type TurnProps = Hooks & { project: QueuesProject; thread: ThreadView }
 
 export function HeldLiveTurn(props: TurnProps) {
@@ -47,12 +47,13 @@ export function HeldLiveTurn(props: TurnProps) {
 }
 
 function PageProjectTurn({ project, thread, ...hooks }: TurnProps) {
-  const q = useTranscript(thread.id, { poll: hooks.running })
+  // Read live from the send on: the board can still say "at rest" while the reply is already in.
+  const q = useTranscript(thread.id, { poll: hooks.running || hooks.sent !== undefined })
   return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} {...hooks} />
 }
 
 function OtherProjectTurn({ project, thread, ...hooks }: TurnProps) {
-  const { running } = hooks
+  const running = hooks.running || hooks.sent !== undefined
   const q = useQuery({
     queryKey: ["ofProject", project.id, "transcript", thread.id, "live"],
     queryFn: async (): Promise<TranscriptData> => ({ ...(await projectRpc(project.id).threadTranscript({ slug: thread.id })) }),
@@ -62,15 +63,14 @@ function OtherProjectTurn({ project, thread, ...hooks }: TurnProps) {
   return <Turn messages={q.data?.messages} projectDir={project.projectDir} slug={thread.id} {...hooks} />
 }
 
-function Turn({ messages, projectDir, slug, running, sent, onSentSeen, onTools }: Hooks & { messages: ChatMessage[] | undefined; projectDir: string | undefined; slug: string }) {
+function Turn({ messages, projectDir, slug, running: threadRunning, sent, onTools }: Hooks & { messages: ChatMessage[] | undefined; projectDir: string | undefined; slug: string }) {
   // From the human's last message on — where the card's handoff opens too (server handoffOf).
   const latest = useMemo(() => (messages ? messages.slice(lastHumanTurnIndex(messages)) : []), [messages])
   const human = latest[0]
   const sentSeen = sent !== undefined && human?.role === "user" &&
     (human.text.includes(sent.text.trim()) || Date.parse(human.at ?? "") >= sent.at - SENT_CLOCK_SLACK_MS)
-  useEffect(() => {
-    if (sentSeen) onSentSeen?.()
-  }, [sentSeen, onSentSeen])
+  // Working from the send on, not from when the board first reads the thread as running.
+  const running = threadRunning || (sent !== undefined && !sentSeen)
   const turn = useMemo<ChatMessage[]>(
     () => (sent && !sentSeen ? [{ role: "user", text: sent.text, tools: [], parts: [], at: new Date(sent.at).toISOString() }] : latest),
     [sent, sentSeen, latest],

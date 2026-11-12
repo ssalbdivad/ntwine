@@ -85,7 +85,7 @@ import { TerminalCardArticle } from "./TerminalQueueCard.tsx"
 import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
-import { autoHoldInQueue, autoHoldSentAt, clearHeldReply, noteHeldReply, setHeldInQueue, useAutoHolds, useHeldInQueue, useHeldReply } from "../lib/queueHold.ts"
+import { autoHoldInQueue, autoHoldSentAt, clearHeldReply, noteHeldReply, setHeldInQueue, useAutoHolds, useHeldInQueue, useHeldReply, type HeldReply } from "../lib/queueHold.ts"
 import { longTurnReason } from "../lib/foregroundTurn.ts"
 import { HeldLiveTurn } from "./HeldLiveTurn.tsx"
 import { useShortcutLabel } from "../lib/keyboardRuntime.ts"
@@ -357,6 +357,7 @@ function CardArticle({
   chip = false,
   onChoose,
   status,
+  leaving,
 }: AllQueuesCardProps) {
   const api = projectRpc(project.id)
   const chipNode = chip ? <ProjectChip project={project} onChoose={onChoose} square={false} /> : undefined
@@ -439,10 +440,21 @@ function CardArticle({
   const working = thread.runtime === "running" || thread.runtime === "spawning"
   // The reply this card just sent, until its transcript has it: the turn is drawn from the send on, with
   // that reply as its first bubble, rather than from when the thread first reads as running.
+  //
+  // ONE SWITCH, BACK TO THE HANDOFF, AND ONLY ONCE THE REST THAT ANSWERS THE REPLY HAS LOADED. The reply,
+  // the transcript and the board each arrive on their own clock, and every earlier moment the card could
+  // pick to switch back was one where the handoff it held was still the one BEFORE the reply: the message
+  // blinked out and back (maintainer 2026-11-12: "flashes where the message appears and disappears").
+  // Measured frame by frame before this: when an automatic hold let go on a Write, the card drew the old
+  // handoff for 40ms before it faded. So the sent reply is kept until a loaded handoff, at rest, was
+  // asked by it, and a card fading out after its hold let go keeps drawing the turn it was drawing.
   const sentReply = useHeldReply(key)
-  const sending = heldInQueue && sentReply !== undefined
-  const clearSentReply = useCallback(() => clearHeldReply(key), [key])
-  const liveTurn = heldInQueue && thread.held === undefined && (working || sending || handoff.isPlaceholderData)
+  const answered = sentReply !== undefined && !working && !handoff.isPlaceholderData && handoff.data !== undefined && answersReply(handoff.data, sentReply)
+  useEffect(() => {
+    if (answered) clearHeldReply(key)
+  }, [answered, key])
+  const sending = sentReply !== undefined && !answered
+  const liveTurn = thread.held === undefined && (heldInQueue ? working || sending || handoff.isPlaceholderData : leaving && (working || sending))
   // AN AUTOMATIC HOLD (a reply sent from this card, lib/foregroundTurn.ts) lets go once the streamed turn
   // edits a file or dispatches a sub-agent, and the card leaves the way a replied-to card always did.
   // AllQueues `useReleaseLongTurns` reads the same rule off the thread alone (the clock, a live sub-agent),
@@ -665,7 +677,7 @@ function CardArticle({
           </a>
           {/* A question from a rest older than the human's bubble, flushed first as upstream's window
               flushes it — everything below the bubble is newer than it. */}
-          {liveTurn && <HeldLiveTurn project={project} thread={thread} running={working || sending} sent={sending ? sentReply : undefined} onSentSeen={clearSentReply} onTools={autoSentAt === undefined ? undefined : onTurnTools} />}
+          {liveTurn && <HeldLiveTurn project={project} thread={thread} running={working} sent={sending ? sentReply : undefined} onTools={autoSentAt === undefined ? undefined : onTurnTools} />}
           {!liveTurn && <>
           {slots && <RegisteredQuestionStack key={`above-${restKey}`} thread={thread} questions={slots.above} keepAnswered />}
           {/* A scheduled run's first message opens with ntwine's header for the worker; the card shows only the
@@ -1315,6 +1327,16 @@ function ClampedBody({ children }: { children: ReactNode }) {
  */
 /** How far the server's stamp on a reply may run behind the sending browser's clock (onTurnTools). */
 const REPLY_CLOCK_SLACK_MS = 30_000
+
+/** Whether `handoff` is the rest that answers `reply`: it was asked by that message. The text settles it
+ *  (the transcript may append staged context to it); the stamp covers a reply the send expanded. */
+function answersReply(handoff: { asked?: string; askedAt?: string }, reply: HeldReply): boolean {
+  if (handoff.asked?.includes(reply.text.trim())) return true
+  return Date.parse(handoff.askedAt ?? "") >= reply.at - SENT_CLOCK_SLACK_MS
+}
+
+/** How far the server's stamp on a reply may run behind the sending browser's clock (answersReply). */
+const SENT_CLOCK_SLACK_MS = 2_000
 
 function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fileDrop }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onLanded: () => void; onFailed: () => void; onTerminal: (terminalId: string) => void; fileDrop?: SurfaceFileDrop }) {
   const queryClient = useQueryClient()
