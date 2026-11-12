@@ -11,6 +11,7 @@ import { createPeerService, PEER_ROUTE_PREFIX, remoteIdentity, type PeerService 
 import { ENVELOPE_MAGIC, frameMessage, generatePeerKey, openRequest, sealRequest, unframeMessage, type PeerKeyPair } from "./peer-crypto.ts"
 import { loadOrCreatePeerKey, openPeerStore, peerKeyPath } from "./peer-store.ts"
 import { cwdSlug } from "./project.ts"
+import { unpackBundle } from "./thread-bundle.ts"
 import { createStorage } from "./storage.ts"
 
 // Two peer services in one process, each with its own home, whose `fetch` is the other's `handle`:
@@ -266,5 +267,55 @@ describe("moving a thread when the answer to its import cannot be authenticated"
     answerImport = (sealed) => sealed({ ok: false, error: "Its branch has diverged here" })
     await assert.rejects(origin.move(ctx, "fix-parser", peerId), { message: "Its branch has diverged here" })
     assert.equal(stamp(), null)
+  })
+})
+
+describe("moving a main-checkout thread with nothing uncommitted", () => {
+  it("sends no checkout, so the other clone's own main never refuses it", async () => {
+    const home = join(root, "clean-home")
+    const dir = join(root, "clean", "repo")
+    mkdirSync(dir, { recursive: true })
+    git(dir, "init", "-q")
+    git(dir, "remote", "add", "origin", "https://github.com/example/clean.git")
+    writeFileSync(join(dir, "a.txt"), "a\n")
+    git(dir, "add", "-A")
+    git(dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
+    const stateDir = join(root, "clean", "state")
+    mkdirSync(stateDir, { recursive: true })
+    const sid = "1b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+    const bucket = join(home, ".claude", "projects", cwdSlug(dir))
+    mkdirSync(bucket, { recursive: true })
+    writeFileSync(join(bucket, `${sid}.jsonl`), `${JSON.stringify({ type: "user", cwd: dir, message: { role: "user", content: "look around" } })}\n`)
+    const db = openNtwineDatabase({ path: join(root, "clean", "ui.db") })
+    after(() => db.db.close())
+    const storage = createStorage(db.db, "proj-clean")
+    storage.upsertSession({
+      slug: "look-around", session_id: sid, thread_name: "ntwine-look-around", spawned_at: "2026-11-12T10:00:00.000Z",
+      last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: "2026-11-12T10:05:00.000Z", title_auto: 0,
+      title: "Look around", state: "open", meta: null, seen_at: null, transcript_id: null,
+    })
+    storage.setBackend("look-around", "claude")
+    storage.setClaudeRuntime("look-around", "broker")
+    const ctx = {
+      project: { id: "proj-clean", name: "clean", dir, workDir: dir, stateDir, cwdSlug: cwdSlug(dir) },
+      storage,
+      tailer: { get: () => ({ turn: "idle", subAgents: [], bgShells: [] }) },
+      board: { rebuild: async () => {} },
+    } as unknown as AppContext
+    const destKey = generatePeerKey()
+    let sentGit: unknown = "never sent"
+    const fakeFetch: typeof fetch = async (_input, init) => {
+      const received = openRequest(destKey, Buffer.from(init?.body as Uint8Array), () => true)
+      const { head, blob } = unframeMessage(received.plaintext) as { head: { op: string }; blob?: Buffer }
+      const sealed = (answer: unknown) => new Response(new Uint8Array(received.sealResponse(frameMessage(answer))), { status: 200 })
+      if (head.op === "prepare") return sealed({ ok: true, result: { project: "clean", dir: "/dest/clean" } })
+      sentGit = (await unpackBundle(blob!)).manifest.git
+      return sealed({ ok: true, result: { slug: "look-around", notes: [] } })
+    }
+    const service = createPeerService({ home, name: "origin", fetch: fakeFetch, startListener: false, storePath: join(home, "peers.json"), workspaces: () => [], openProject: async () => undefined })
+    const peerId = openPeerStore(join(home, "peers.json")).upsert({ name: "dest", url: "http://dest.test", publicKey: destKey.publicKey.toString("base64url"), pairedAt: new Date().toISOString() }).id
+    assert.equal((await service.preview(ctx, "look-around", peerId)).checkout, undefined)
+    await service.move(ctx, "look-around", peerId)
+    assert.equal(sentGit, null)
   })
 })

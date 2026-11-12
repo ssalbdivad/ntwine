@@ -412,6 +412,14 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     elsewhere: string[]
   }
 
+  /** Whether the checkout goes with the thread. A worktree does, even clean: the other machine gets its
+   *  branch. The main checkout does only with uncommitted work of the thread's in it; with none there is
+   *  nothing to carry, and sending its HEAD would only refuse the move wherever that clone's main has
+   *  moved on its own. */
+  function carriesCheckout(git: GitPlan): boolean {
+    return git.location.kind === "worktree" || git.snapshot.paths.length > 0
+  }
+
   function planGit(ctx: AppContext, row: SessionRow, bucket: string, peerName: string): GitPlan | { refused: string } | undefined {
     const workDir = workDirOf(ctx.project)
     if (!existsSync(join(workDir, ".git"))) return undefined
@@ -443,7 +451,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     const git = planGit(ctx, row!, transcriptBucket(ctx, row!.session_id), record.name)
     if (git && "refused" in git) return { ...out, refusal: git.refused }
     if (git) {
-      out.checkout = { rel: git.location.rel, branch: git.snapshot.branch }
+      if (carriesCheckout(git)) out.checkout = { rel: git.location.rel, branch: git.snapshot.branch }
       out.wipPaths = git.snapshot.paths
       out.leftBehind = [...git.snapshot.leftBehind, ...git.elsewhere]
     }
@@ -492,7 +500,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       const git = planGit(ctx, row, bucket, record.name)
       if (git && "refused" in git) throw new MoveRefusal(git.refused)
       let gitPayload: (MoveGit & { bundle: Buffer }) | null = null
-      if (git) {
+      if (git && carriesCheckout(git)) {
         const file = join(workRoot, "wip.bundle")
         writeWipBundle({ root: git.location.root, wip: git.snapshot.wip, file })
         gitPayload = { rel: git.location.rel, branch: git.snapshot.branch, head: git.snapshot.head, wip: git.snapshot.wip, paths: git.snapshot.paths, bundle: readFileSync(file) }
