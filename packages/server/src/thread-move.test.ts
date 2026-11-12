@@ -1,12 +1,12 @@
 import assert from "node:assert/strict"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { after, describe, it } from "node:test"
 import { openNtwineDatabase, type NtwineDatabase } from "./ntwine-db.ts"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
 import { unpackBundle } from "./thread-bundle.ts"
-import { exportThread, importThread, markMovedAway, movedStamp, parseManifest, untoldMoveNote } from "./thread-move.ts"
+import { exportThread, importThread, markMovedAway, movedStamp, parseManifest, untoldMoveNote, type MoveManifest } from "./thread-move.ts"
 
 // Two "machines" on one disk: each its own home, checkout, state dir and database, as the real move
 // sees them. The git half is thread-wip.test.ts's; here a thread with no repository moves without one.
@@ -38,18 +38,22 @@ function machine(name: string, projectId: string, checkout: string): Machine {
 }
 
 const SID = "0b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+let tags = 0
+const randomTag = () => `${++tags}`
 
 function row(slug: string, sessionId = SID): SessionRow {
   return {
     slug, session_id: sessionId, thread_name: `ntwine-${slug}`, spawned_at: "2026-11-12T10:00:00.000Z",
     last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: "2026-11-12T10:05:00.000Z", title_auto: 0,
     title: "Fix the parser", state: "open", meta: null, seen_at: null, transcript_id: null, backend: "claude", claude_runtime: "broker",
+    permission_mode: "bypassPermissions",
   }
 }
 
 /** A resting thread on `m`: its row, a question, a done card, an armed timer, a transcript, notes and an attachment. */
 function seedThread(m: Machine, slug: string) {
   m.storage.upsertSession(row(slug))
+  m.db.db.prepare("UPDATE session SET recurring_prompt = 'keep going', recurring_on_rest = 1 WHERE project_id = ? AND slug = ?").run(m.project.id, slug)
   m.storage.markThreadDone(slug, "**Fixed** the parser", 1)
   m.db.db.prepare("INSERT INTO thread_timer (id, project_id, thread_slug, prompt, fire_at, state, created_at) VALUES (?, ?, ?, ?, ?, 'armed', ?)")
     .run(`tmr-${slug}`, m.project.id, slug, "check CI", Date.now() + 60_000, Date.now())
@@ -78,11 +82,13 @@ function seedThread(m: Machine, slug: string) {
   return { toolResult }
 }
 
-function move(from: Machine, to: Machine, slug: string, moveId: string) {
+/** Export from one machine and import into the other; `tamper` plays a paired machine that lies. */
+async function move(from: Machine, to: Machine, slug: string, moveId: string, tamper?: (manifest: MoveManifest) => void) {
   const exported = exportThread({ db: from.db.db, project: from.project, bucket: from.bucket, slug, home: from.home, moveId, git: null })
-  const unpacked = unpackBundle(exported.blob)
+  const unpacked = await unpackBundle(exported.blob)
   const manifest = parseManifest(unpacked.manifest)
   assert.ok(manifest, "the manifest parses on the other side")
+  tamper?.(manifest)
   return importThread(
     { scope: to.storage.scope, project: to.project, home: to.home, bucket: to.bucket },
     manifest, unpacked.files, { id: "a".repeat(32), name: "mac" }, { name: "desktop" }, undefined,
@@ -94,10 +100,13 @@ describe("moving a thread between two machines' data", () => {
   const desktop = machine("desktop", "proj-desktop", "app")
   const { toolResult } = seedThread(mac, "fix-parser")
 
-  it("arrives with its rows, transcript, notes and cited attachments, its paths mapped to this machine", () => {
+  it("arrives with its rows, transcript, notes and cited attachments, its paths mapped to this machine", async () => {
     assert.deepEqual(desktop.storage.allSessions(), [])
-    const result = move(mac, desktop, "fix-parser", "move-0001-aaaa")
-    assert.deepEqual(result, { ok: true, slug: "fix-parser", duplicate: false, notes: ["Its checkout did not move: it had no uncommitted work in this project's repository"] })
+    const result = await move(mac, desktop, "fix-parser", "move-0001-aaaa")
+    assert.deepEqual(result, { ok: true, slug: "fix-parser", duplicate: false, notes: [
+      "Its checkout did not move: it had no uncommitted work in this project's repository",
+      "Not re-armed on desktop: 1 timer, its recurring prompt",
+    ] })
 
     assert.deepEqual(desktop.storage.allSessions().map((row) => row.slug), ["fix-parser"])
     const arrived = desktop.storage.getSession("fix-parser")!
@@ -105,7 +114,9 @@ describe("moving a thread between two machines' data", () => {
     assert.equal(arrived.title, "Fix the parser")
     assert.equal(movedStamp(arrived.moved_from)?.peerName, "mac")
     assert.equal(desktop.storage.getThreadDone("fix-parser")?.body, "**Fixed** the parser")
-    assert.equal(desktop.db.db.prepare("SELECT state FROM thread_timer WHERE project_id = ? AND thread_slug = ?").get("proj-desktop", "fix-parser")?.state, "armed")
+    // What would run it here without the human arrives settled, at this machine's defaults.
+    assert.equal(desktop.db.db.prepare("SELECT state FROM thread_timer WHERE project_id = ? AND thread_slug = ?").get("proj-desktop", "fix-parser")?.state, "cancelled")
+    assert.deepEqual([arrived.permission_mode, arrived.recurring_prompt, arrived.recurring_on_rest], [null, null, 0])
 
     const bucket = join(desktop.home, ".claude", "projects", desktop.bucket)
     const lines = readFileSync(join(bucket, `${SID}.jsonl`), "utf8").trim().split("\n").map((line) => JSON.parse(line))
@@ -141,15 +152,15 @@ describe("moving a thread between two machines' data", () => {
     assert.equal(mac.db.db.prepare("SELECT state FROM thread_timer WHERE project_id = ? AND thread_slug = ?").get("proj-mac", "fix-parser")?.state, "cancelled")
   })
 
-  it("answers a repeat of the same move without writing again", () => {
+  it("answers a repeat of the same move without writing again", async () => {
     desktop.storage.markThreadDone("fix-parser", "changed on the desktop", 2)
-    const again = move(mac, desktop, "fix-parser", "move-0001-aaaa")
+    const again = await move(mac, desktop, "fix-parser", "move-0001-aaaa")
     assert.deepEqual(again, { ok: true, slug: "fix-parser", duplicate: true, notes: [] })
     assert.equal(desktop.storage.getThreadDone("fix-parser")?.body, "changed on the desktop")
   })
 
-  it("comes home over its own stub, and refuses a different thread that happens to share the name", () => {
-    const back = move(desktop, mac, "fix-parser", "move-0002-bbbb")
+  it("comes home over its own stub, and refuses a different thread that happens to share the name", async () => {
+    const back = await move(desktop, mac, "fix-parser", "move-0002-bbbb")
     assert.equal("ok" in back && back.ok, true)
     const home = mac.storage.getSession("fix-parser")!
     assert.equal(home.moved_to, null)
@@ -161,6 +172,62 @@ describe("moving a thread between two machines' data", () => {
     const bucket = join(stranger.home, ".claude", "projects", stranger.bucket)
     mkdirSync(bucket, { recursive: true })
     writeFileSync(join(bucket, "11111111-2222-4333-8444-555555555555.jsonl"), `${JSON.stringify({ type: "user", cwd: stranger.project.workDir })}\n`)
-    assert.deepEqual(move(stranger, desktop, "fix-parser", "move-0003-cccc"), { refused: "This machine already has a different thread named @fix-parser in this project" })
+    assert.deepEqual(await move(stranger, desktop, "fix-parser", "move-0003-cccc"), { refused: "This machine already has a different thread named @fix-parser in this project" })
+  })
+})
+
+describe("an import from a machine that lies", () => {
+  const VICTIM = "22222222-3333-4444-8555-666666666666"
+  /** A desktop holding its own thread @victim, and another project's timer, each something a lie could hit. */
+  function scene() {
+    const mac = machine(`mac-${randomTag()}`, "proj-mac", "code/app")
+    const desktop = machine(`desktop-${randomTag()}`, "proj-desktop", "app")
+    seedThread(mac, "fix-parser")
+    desktop.storage.upsertSession(row("victim", VICTIM))
+    desktop.storage.markThreadDone("victim", "the real done card", 1)
+    desktop.db.db.prepare("INSERT INTO thread_timer (id, project_id, thread_slug, prompt, fire_at, state, created_at) VALUES ('tmr-other', 'proj-other', 'theirs', 'p', 1, 'armed', 1)").run()
+    const nothingWritten = () => {
+      assert.equal(desktop.storage.getSession("fix-parser"), undefined)
+      assert.equal(existsSync(join(desktop.home, ".claude", "projects", desktop.bucket, `${SID}.jsonl`)), false)
+      assert.equal(desktop.storage.getThreadDone("victim")?.body, "the real done card")
+      assert.deepEqual({ ...desktop.db.db.prepare("SELECT project_id, thread_slug, state FROM thread_timer WHERE id = 'tmr-other'").get() }, { project_id: "proj-other", thread_slug: "theirs", state: "armed" })
+    }
+    return { mac, desktop, nothingWritten }
+  }
+
+  it("refuses a record of another thread, or one another project holds by its id", async () => {
+    const { mac, desktop, nothingWritten } = scene()
+    assert.deepEqual(await move(mac, desktop, "fix-parser", "move-1000-aaaa", (m) => {
+      m.rows.thread_done = [{ thread_slug: "victim", body: "FORGED", done_at: 2 }]
+    }), { refused: "The thread's bundle carries a record of another thread" })
+    nothingWritten()
+    assert.deepEqual(await move(mac, desktop, "fix-parser", "move-1001-aaaa", (m) => {
+      m.rows.thread_timer = [{ id: "tmr-other", thread_slug: "fix-parser", prompt: "x", fire_at: 1, state: "armed", created_at: 1 }]
+    }), { refused: "The thread's bundle carries a record that belongs to another thread on this machine" })
+    nothingWritten()
+  })
+
+  it("refuses a conversation that is not the thread's own, or that another thread here has", async () => {
+    const { mac, desktop, nothingWritten } = scene()
+    assert.deepEqual(await move(mac, desktop, "fix-parser", "move-1002-aaaa", (m) => {
+      m.thread.transcriptIds = [SID, VICTIM]
+    }), { refused: "The thread's bundle names a conversation that is not its own" })
+    nothingWritten()
+    assert.deepEqual(await move(mac, desktop, "fix-parser", "move-1003-aaaa", (m) => {
+      m.thread.transcriptIds = [SID, VICTIM]
+      m.rows.session[0]!.transcript_id = VICTIM
+    }), { refused: "The thread's conversation belongs to another thread on this machine" })
+    nothingWritten()
+  })
+
+  it("will not place the notes through a symlinked folder", async () => {
+    const { mac, desktop, nothingWritten } = scene()
+    const outside = join(root, `outside-${randomTag()}`)
+    mkdirSync(outside)
+    mkdirSync(join(desktop.project.dir, ".ntwine"), { recursive: true })
+    symlinkSync(outside, join(desktop.project.dir, ".ntwine", "threads"))
+    assert.deepEqual(await move(mac, desktop, "fix-parser", "move-1004-aaaa"), { refused: ".ntwine/threads is a symlink, so the thread's notes cannot be placed" })
+    nothingWritten()
+    assert.deepEqual(readdirSync(outside), [])
   })
 })

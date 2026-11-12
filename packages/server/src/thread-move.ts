@@ -2,11 +2,12 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { tmpdir } from "node:os"
 import { dirname, join, relative, sep } from "node:path"
 import { randomUUID } from "node:crypto"
-import { movedAwayRefusal, ThreadSlug, type ThreadMoveStamp } from "@ntwine/shared"
+import { movedAwayRefusal, ThreadSlug, threadIdentityName, type ThreadMoveStamp } from "@ntwine/shared"
 import type { ProjectScope } from "./project-scope.ts"
 import type Database from "./sqlite.ts"
 import { BUNDLE_MAX_BYTES, packBundle, safeRelativePath, type BundleFile, type BundleRoot } from "./thread-bundle.ts"
 import { mapPrefix, relocateJsonl, relocateRecord, type PrefixMap, type RelocationRules } from "./transcript-relocate.ts"
+import { symlinkedComponent } from "./thread-wip.ts"
 
 // A THREAD'S STATE, OUT OF ONE MACHINE AND INTO ANOTHER (plans/thread-handoff.md §§ 1, 2, 5).
 //
@@ -274,13 +275,79 @@ function writeFile(path: string, data: Buffer | string, mode: number): void {
 }
 
 /** The one-time note the worker reads in its first message on this machine. */
-export function movedNote(fromName: string, toName: string, maps: readonly PrefixMap[]): string {
+export function movedNote(fromName: string, toName: string, maps: readonly PrefixMap[], notRearmed: readonly string[] = []): string {
   const moved = maps.filter((map) => map.from !== map.to).map((map) => `\`${map.from}\` is now \`${map.to}\``)
   return [
     `⟦ntwine⟧ This thread moved from ${fromName} to ${toName}.`,
     moved.length ? `Paths in the conversation above are ${fromName}'s: ${moved.join("; ")}.` : "",
     "Nothing it had running came along: background shells, sub-agents, dev servers and timers that were not registered with ntwine are gone. Its uncommitted work and notes are here.",
+    notRearmed.length ? `Not re-armed here: ${notRearmed.join(", ")}. Set again whatever still matters.` : "",
   ].filter(Boolean).join(" ")
+}
+
+/**
+ * Session fields that would run the thread, or decide what it may do, without the human on THIS machine:
+ * a recurring prompt, a snooze's follow-up, a held prompt, a time limit's check-ins, and its own
+ * permission mode. A paired machine wrote them, so they arrive at this machine's defaults; the human or the
+ * worker sets them again here (security review, finding 3).
+ */
+const SESSION_RESET: Record<string, unknown> = {
+  permission_mode: null, permission_pending: null, permission_set_at: null,
+  recurring_prompt: null, recurring_on_rest: 0, recurring_on_schedule: 0, recurring_on_compact: 0, recurring_armed_at: null,
+  snoozed_until: null, snooze_prompt: null, snooze_set_at: null,
+  lazy_prompt: null, held_by: null,
+  deadline_at: null, deadline_set_at: null, deadline_set_by: null, deadline_stage: null,
+}
+
+/** What a move would have armed here, which the import leaves settled instead (for the notes). */
+function notRearmedOf(manifest: MoveManifest): string[] {
+  const armed = (table: string) => (manifest.rows[table] ?? []).filter((row) => row.state === "armed").length
+  const session = manifest.rows.session[0]!
+  const out: string[] = []
+  const count = (n: number, one: string, many: string) => (n ? out.push(`${n} ${n === 1 ? one : many}`) : 0)
+  count(armed("thread_timer"), "timer", "timers")
+  count(armed("command_watch"), "command watch", "command watches")
+  if (session.recurring_on_rest || session.recurring_on_schedule || session.recurring_on_compact) out.push("its recurring prompt")
+  if (session.deadline_at) out.push("its time limit")
+  return out
+}
+
+/**
+ * Everything in a manifest must be the moved thread's own and nothing else's here: a paired machine could
+ * otherwise arm a timer on another thread, replace another thread's done card, take over another
+ * project's row by its global id, or overwrite another thread's conversation by naming its session
+ * (security review, findings 3 and 4). Read-only; runs before anything is written.
+ */
+function foreignContent(scope: ProjectScope, manifest: MoveManifest, standing: "free" | "home", bucketDir: string): string | undefined {
+  const { slug, transcriptIds } = manifest.thread
+  const session = manifest.rows.session[0]!
+  const own = new Set([session.session_id, session.transcript_id].filter((id): id is string => typeof id === "string" && id !== ""))
+  if (!transcriptIds.every((id) => own.has(id))) return "The thread's bundle names a conversation that is not its own"
+  const holders = scope.db.prepare<[string, string], { project_id: string; slug: string }>("SELECT project_id, slug FROM session WHERE session_id = ? OR transcript_id = ?")
+  for (const id of transcriptIds) {
+    if (holders.all(id, id).some((row) => row.project_id !== scope.projectId || row.slug !== slug)) return "The thread's conversation belongs to another thread on this machine"
+    // With no stub of it here, a transcript already on disk under its id is some other session's.
+    if (standing === "free" && (existsSync(join(bucketDir, `${id}.jsonl`)) || existsSync(join(bucketDir, id)))) return "This machine already has a conversation with this thread's id"
+  }
+  for (const { table, slugColumns } of MOVED_TABLES) {
+    const rows = manifest.rows[table] ?? []
+    if (!Array.isArray(rows)) return "The thread's bundle is malformed"
+    const byId = columnsOf(scope.db, table).has("id") ? scope.db.prepare<[string], Record<string, unknown>>(`SELECT * FROM ${table} WHERE id = ?`) : undefined
+    for (const row of rows) {
+      if (!row || typeof row !== "object") return "The thread's bundle is malformed"
+      // A spinoff joins two threads, and only one end has to be this one.
+      const mine = table === "thread_spinoff" ? slugColumns.some((column) => row[column] === slug) : slugColumns.every((column) => row[column] === slug)
+      if (!mine) return "The thread's bundle carries a record of another thread"
+      if (byId) {
+        if (typeof row.id !== "string" || !row.id) return "The thread's bundle is malformed"
+        const existing = byId.get(row.id)
+        if (existing && !(existing.project_id === scope.projectId && slugColumns.some((column) => existing[column] === slug))) {
+          return "The thread's bundle carries a record that belongs to another thread on this machine"
+        }
+      }
+    }
+  }
+  return undefined
 }
 
 export function importThread(target: ImportTarget, manifest: MoveManifest, files: readonly { file: BundleFile; data: Buffer }[], peer: ImportPeer, self: { name: string }, restoreGit: RestoreGit | undefined): ImportResult {
@@ -289,6 +356,14 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
   const standing = slugStanding(scope.db, scope.projectId, slug, sessionId, manifest.moveId)
   if (standing === "duplicate") return { ok: true, slug, duplicate: true, notes: [] }
   if (standing === "taken") return { refused: `This machine already has a different thread named @${slug} in this project` }
+
+  const bucketDir = join(target.home, ".claude", "projects", target.bucket)
+  const foreign = foreignContent(scope, manifest, standing, bucketDir)
+  if (foreign) return { refused: foreign }
+  // The notes folder must be a real folder down from the checkout: a symlink there (one committed into the
+  // project, say) would send the delete and the writes below wherever it points.
+  const linkedNotes = symlinkedComponent(target.project.dir, `.ntwine/threads/${sessionId}`)
+  if (linkedNotes) return { refused: `${linkedNotes} is a symlink, so the thread's notes cannot be placed` }
 
   // Every file must land inside the root it names, and the claude files must belong to this session.
   for (const { file } of files) {
@@ -333,7 +408,6 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
 
   // Files. The thread's own session dir and scratch dir are replaced whole: on a thread coming home they
   // hold the copy it left with, which the bundle supersedes.
-  const bucketDir = join(target.home, ".claude", "projects", target.bucket)
   const scratchDir = join(target.project.dir, ".ntwine", "threads", sessionId)
   for (const id of transcriptIds) rmSync(join(bucketDir, id), { recursive: true, force: true })
   rmSync(scratchDir, { recursive: true, force: true })
@@ -352,13 +426,15 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
   }
 
   // Rows, in one transaction: the stub (if this is a thread coming home) goes, the moved rows come in.
+  const notRearmed = notRearmedOf(manifest)
   const stamp: ThreadMoveStamp & { note: string } = {
     peerId: peer.id,
     peerName: peer.name,
     at: new Date().toISOString(),
     moveId: manifest.moveId,
-    note: movedNote(peer.name, self.name, cwdMaps),
+    note: movedNote(peer.name, self.name, cwdMaps, notRearmed),
   }
+  const now = Date.now()
   const insert = scope.db.transaction(() => {
     for (const { table, slugColumns } of MOVED_TABLES) {
       const where = slugColumns.map((column) => `${column} = @slug`).join(" OR ")
@@ -372,11 +448,21 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
       for (const source of manifest.rows[table] ?? []) {
         const row: Record<string, unknown> = { ...source }
         if (table === "session") {
+          Object.assign(row, SESSION_RESET)
+          row.thread_name = threadIdentityName(slug)
           row.moved_to = null
           row.moved_from = JSON.stringify(stamp)
           // The schedule stays on the machine that has it; a run that moved is just a thread here.
           row.schedule_id = null
         }
+        // A timer delivers its own prompt and a command watch runs its own command: from another machine,
+        // neither is armed here. They arrive settled, as the record of what the thread had.
+        if ((table === "thread_timer" || table === "command_watch") && row.state === "armed") {
+          row.state = "cancelled"
+          row.settled_at = now
+        }
+        // Both ends of a moved spinoff are in this project.
+        if (table === "thread_spinoff") row.child_project_id = null
         if (table === "thread_link" && row.kind === "file" && typeof row.target === "string") row.target = mapPrefix(row.target, cwdMaps)
         // Columns this machine's schema does not have (a newer origin) are dropped; columns it has that the
         // origin did not send take their defaults.
@@ -384,12 +470,14 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
         const names = Object.keys(row).filter((name) => columns.has(name) && name !== "project_id")
         const values: Record<string, unknown> = {}
         names.forEach((name, i) => { values[`v${i}`] = row[name] === undefined ? null : row[name] })
-        scope.prepare(`INSERT OR REPLACE INTO ${table} (project_id, ${names.join(", ")}) VALUES (@project_id, ${names.map((_, i) => `@v${i}`).join(", ")})`).run(values)
+        // A plain INSERT: the stub's rows went above, so a conflict here is some other row's, and fails the move.
+        scope.prepare(`INSERT INTO ${table} (project_id, ${names.join(", ")}) VALUES (@project_id, ${names.map((_, i) => `@v${i}`).join(", ")})`).run(values)
       }
     }
   })
   insert.immediate()
   if (!manifest.git) notes.push("Its checkout did not move: it had no uncommitted work in this project's repository")
+  if (notRearmed.length) notes.push(`Not re-armed on ${self.name}: ${notRearmed.join(", ")}`)
   return { ok: true, slug, duplicate: false, notes }
 }
 
