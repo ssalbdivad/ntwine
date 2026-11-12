@@ -21,6 +21,11 @@ import { join, resolve } from "node:path"
 
 /** main.ts's APP_ID: the bundle identifier, so macOS keeps the Dock pin, notifications and permissions on it. */
 const BUNDLE_ID = "dev.ntwine.window"
+/**
+ * What this script puts in the bundle beyond Electron, as a number in its Info.plist: raise it when that
+ * changes (the icon, the plist), so a bundle already in the Dock is rebuilt without waiting for an electron bump.
+ */
+const BUNDLE_REVISION = "2"
 
 export interface MacApp {
   bundle: string
@@ -30,8 +35,8 @@ export interface MacApp {
 export function prepareMacApp(electronBinary: string, electronVersion: string): MacApp {
   const bundle = join(homedir(), "Applications", "ntwine.app")
   const plist = join(bundle, "Contents", "Info.plist")
-  const built = existsSync(plist) ? plistValue(plist, "CFBundleVersion") : undefined
-  if (built !== electronVersion) {
+  const current = existsSync(plist) && plistValue(plist, "CFBundleVersion") === electronVersion && plistValue(plist, "NtwineBundleRevision") === BUNDLE_REVISION
+  if (!current) {
     console.log(`[desktop] building ${bundle} on Electron ${electronVersion}`)
     buildBundle(resolve(electronBinary, "..", "..", ".."), bundle)
   }
@@ -42,7 +47,10 @@ export function prepareMacApp(electronBinary: string, electronVersion: string): 
     start(dist, args, env) {
       mkdirSync(appDir, { recursive: true })
       writeFileSync(join(appDir, "package.json"), JSON.stringify({ name: "ntwine-desktop-dev", productName: "ntwine", main: "main.mjs" }))
-      for (const file of ["main.mjs", "preload.cjs", "icon.png"]) copyFileSync(join(dist, file), join(appDir, file))
+      for (const file of ["main.mjs", "preload.cjs"]) copyFileSync(join(dist, file), join(appDir, file))
+      // No icon.png: main.ts hands one beside it to app.dock.setIcon, which would swap the bundle's inset
+      // icon for the full-bleed PNG whenever the app runs. The bundle carries the Dock icon here.
+      rmSync(join(appDir, "icon.png"), { force: true })
       // Kept rather than deleted when this run wrote none: the Dock opens this folder too, and without the
       // record its window cannot start the board (windows.ts has the 2026-10-22 incident behind this).
       if (existsSync(join(dist, "server.json"))) copyFileSync(join(dist, "server.json"), join(appDir, "server.json"))
@@ -60,10 +68,17 @@ function buildBundle(electronApp: string, bundle: string): void {
   // ditto, not cp: the frameworks are symlink trees that a plain copy flattens or breaks.
   execFileSync("ditto", [electronApp, partial])
   const plist = join(partial, "Contents", "Info.plist")
-  for (const [key, value] of [["CFBundleName", "ntwine"], ["CFBundleDisplayName", "ntwine"], ["CFBundleIdentifier", BUNDLE_ID], ["CFBundleIconFile", "ntwine.icns"]]) {
+  for (const [key, value] of [["CFBundleName", "ntwine"], ["CFBundleDisplayName", "ntwine"], ["CFBundleIdentifier", BUNDLE_ID], ["CFBundleIconFile", "ntwine.icns"], ["NtwineBundleRevision", BUNDLE_REVISION]]) {
     execFileSync("plutil", ["-replace", key, "-string", value!, plist])
   }
   writeIcns(join(import.meta.dirname, "..", "..", "web", "public", "icon-512.png"), join(partial, "Contents", "Resources", "ntwine.icns"))
+  // The app the last launch put here goes with it: until the next one, the Dock opens THIS bundle, and an
+  // empty Resources/app is Electron's default app under ntwine's name.
+  const app = join(bundle, "Contents", "Resources", "app")
+  if (existsSync(app)) {
+    execFileSync("ditto", [app, join(partial, "Contents", "Resources", "app")])
+    rmSync(join(partial, "Contents", "Resources", "app", "icon.png"), { force: true })
+  }
   sign(partial, true)
   // Whole or not at all, as windows.ts unpacks: a build killed halfway must not pass the version check.
   rmSync(bundle, { recursive: true, force: true })
@@ -72,15 +87,25 @@ function buildBundle(electronApp: string, bundle: string): void {
   execFileSync("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", ["-f", bundle])
 }
 
-/** The 512px PNG every other platform uses, as the icon set macOS wants (sips and iconutil ship with macOS). */
+/**
+ * The 512px PNG every other platform uses, as the icon set macOS wants (sips and iconutil ship with macOS).
+ *
+ * Inset first: that PNG's rounded square fills its canvas edge to edge, as a web icon's does, while a macOS
+ * icon draws its shape at 824 of 1024px and leaves the rest transparent (Apple's app icon grid). Unpadded,
+ * ntwine stood a fifth taller than every other app in the Dock.
+ */
 function writeIcns(png: string, icns: string): void {
   const work = mkdtempSync(join(tmpdir(), "ntwine-icns-"))
   try {
+    const inset = join(work, "inset.png")
+    const master = join(work, "master.png")
+    execFileSync("sips", ["-z", "824", "824", png, "--out", inset], { stdio: "ignore" })
+    execFileSync("sips", ["--padToHeightWidth", "1024", "1024", inset, "--out", master], { stdio: "ignore" })
     const iconset = join(work, "ntwine.iconset")
     mkdirSync(iconset)
     for (const size of [16, 32, 128, 256, 512]) {
-      execFileSync("sips", ["-z", String(size), String(size), png, "--out", join(iconset, `icon_${size}x${size}.png`)], { stdio: "ignore" })
-      if (size <= 256) execFileSync("sips", ["-z", String(size * 2), String(size * 2), png, "--out", join(iconset, `icon_${size}x${size}@2x.png`)], { stdio: "ignore" })
+      execFileSync("sips", ["-z", String(size), String(size), master, "--out", join(iconset, `icon_${size}x${size}.png`)], { stdio: "ignore" })
+      execFileSync("sips", ["-z", String(size * 2), String(size * 2), master, "--out", join(iconset, `icon_${size}x${size}@2x.png`)], { stdio: "ignore" })
     }
     execFileSync("iconutil", ["-c", "icns", iconset, "-o", icns])
   } finally {
@@ -95,7 +120,7 @@ function sign(bundle: string, deep: boolean): void {
 
 function plistValue(plist: string, key: string): string | undefined {
   try {
-    return execFileSync("plutil", ["-extract", key, "raw", plist], { encoding: "utf8" }).trim()
+    return execFileSync("plutil", ["-extract", key, "raw", plist], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
   } catch {
     return undefined
   }
