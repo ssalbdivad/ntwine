@@ -18,6 +18,7 @@ import { isRemoteSession } from "../api/signOut.ts"
 import { RestartFailureNotice, useUpdateRestart } from "./RestartNtwineButton.tsx"
 import { SignOutThisDeviceRow } from "./SignOutThisDeviceRow.tsx"
 import { RemoteAccessField } from "./RemoteAccessField.tsx"
+import { OtherMachinesField } from "./OtherMachinesField.tsx"
 import { QuotaMeters } from "./QuotaBar.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 import { OverDrawersFocusLayer } from "./ui/Sheet.tsx"
@@ -224,6 +225,11 @@ export function SettingsDrawer({ offerUpdate = false }: {
             {/* Renders nothing on a page reached through the public origin: the supervisor answers it
                 over loopback only (RemoteAccessField.tsx). */}
             <RemoteAccessField />
+
+            {/* The machines this one is paired with, for moving a thread between them, and the network
+                listener they can reach it on (OtherMachinesField.tsx). Machine-wide, beside remote
+                access, which is the other way another machine reaches this one. */}
+            <OtherMachinesField />
 
             {/* LAST, on purpose: which app a vetted local path opens in is the one power-user knob in the
                 drawer, so it sits below everything an ordinary operator adjusts. Upstream's row; the

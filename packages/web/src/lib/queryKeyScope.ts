@@ -45,8 +45,10 @@ import { projectSlug } from "./base-path.ts"
  * `quota` and `authStatus` are the provider ACCOUNT's — the server reads both through its one Claude
  * binary and the machine's credentials, whichever project asks. Scoped, the status row's quota chips
  * started empty every time the cross-project page's focus moved to a project not yet asked.
+ * `peersState` is the machine's paired machines (api/peers.ts): one peer store per machine, which every
+ * project's router answers alike, read by Settings and by the ⋯ menu on every project's threads.
  */
-const MACHINE_WIDE = new Set(["projectsList", "projectsRailCounts", "projectsQueues", "ofProject", "threadLocate", "dispatchPreferencesGet", "codexModels", "supervisorStatus", "quota", "authStatus"])
+const MACHINE_WIDE = new Set(["projectsList", "projectsRailCounts", "projectsQueues", "ofProject", "threadLocate", "dispatchPreferencesGet", "codexModels", "supervisorStatus", "quota", "authStatus", "peersState"])
 
 /** The `queryKeyHashFn` for this app's QueryClient. Nothing else should need to call it. */
 export function projectScopedQueryKeyHash(key: readonly unknown[]): string {

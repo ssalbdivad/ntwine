@@ -26,6 +26,7 @@ import { composerTodoLine, TODO_SLASH_ITEM } from "../lib/todoLine.ts"
 import { useThreadApi } from "../api/threadApi.tsx"
 import { startComposerTerminal } from "./ThreadTerminals.tsx"
 import { HeldThreadComposer } from "./HeldThreadBox.tsx"
+import { MovedThreadNotice } from "./ThreadMove.tsx"
 import { useIsMobile } from "../lib/mobile.ts"
 import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
 import { PhoneDoneButton } from "./PhoneDoneButton.tsx"
@@ -289,7 +290,7 @@ export function ThreadComposerBox({
   // held thread's early return below, so the hooks run in one order on every render.
   const sendRef = useRef(send)
   sendRef.current = send
-  const composerHandle = phoneBar || thread?.held !== undefined ? undefined : scope?.composer
+  const composerHandle = phoneBar || thread?.held !== undefined || thread?.movedTo !== undefined ? undefined : scope?.composer
   useEffect(() => {
     if (!composerHandle) return
     const run = () => sendRef.current()
@@ -303,6 +304,17 @@ export function ThreadComposerBox({
     return (
       <div {...(surface === "chatComposer" ? { "data-thread-action-bar": "" } : {})} className={className}>
         <HeldThreadComposer thread={thread as ThreadView} surface={surface} id={id} />
+      </div>
+    )
+  }
+
+  // A THREAD THAT MOVED TO ANOTHER MACHINE cannot be continued here — the server refuses every send — so
+  // the box gives its place to where it went, or, when the move's answer never came back, to the two ways
+  // out of that (ThreadMove.tsx). Phone and desktop alike, and above the phone bar for that reason.
+  if (thread?.movedTo !== undefined) {
+    return (
+      <div {...(surface === "chatComposer" ? { "data-thread-action-bar": "" } : {})} className={className}>
+        <MovedThreadNotice thread={thread as ThreadView} />
       </div>
     )
   }

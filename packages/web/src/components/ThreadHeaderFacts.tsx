@@ -7,6 +7,7 @@ import { LastActive } from "./LastActive.tsx"
 import { ContextMeter, hasContextReading } from "./ContextMeter.tsx"
 import { GoalMark } from "./RecurringPromptControl.tsx"
 import { DeadlineFact } from "./DeadlineControl.tsx"
+import { MovedFromFact } from "./ThreadMove.tsx"
 
 // A THREAD HEADER'S SECOND LINE: the facts about the thread as a whole, in words — "Last active 2m ago ·
 // ◔ 74% context · ◎ run 7 of 20". The drawer's thread header renders it; the context reading
@@ -55,6 +56,10 @@ export function ThreadHeaderFacts({ thread, lead, children }: { thread: ThreadVi
       <Fact><DeadlineFact thread={thread} slot="quiet" lead={<FactSep />} keepOverrun /></Fact>
       <Fact><ContextFact thread={thread} lead={<FactSep />} /></Fact>
       <Fact><GoalLoopFact thread={thread} lead={<FactSep />} /></Fact>
+      {/* A thread that arrived from another machine says which (ThreadMove.tsx), after the readings about
+          its work: a line short of room wraps a later fact out before an earlier one, and this one never
+          changes. */}
+      <Fact><MovedFromFact thread={thread} lead={<FactSep />} /></Fact>
       {children}
     </div>
   )
