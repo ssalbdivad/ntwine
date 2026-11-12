@@ -84,6 +84,10 @@ async function rpc<T>(s: Stack, proc: string, input?: unknown, kind: "query" | "
 
 interface ThreadRow { id: string; sessionId?: string; runtime: string; state?: "open" | "archived"; lastAssistant?: string; lastAssistantAt?: string; movedTo?: { peerName: string; pending?: boolean }; movedFrom?: { peerName: string } }
 const thread = async (s: Stack, slug: string) => (await rpc<{ threads: ThreadRow[] }>(s, "board", undefined, "query")).threads.find((t) => t.id === slug)
+/** The transcript read as a session ntwine did not start (keyed by its session id): what a moved thread's
+ *  files look like to the tailer when its rows are not visible beside them. */
+const foreignCopy = async (s: Stack, sessionId: string) =>
+  (await rpc<{ threads: ThreadRow[] }>(s, "board", undefined, "query")).threads.some((t) => t.id === sessionId)
 /** The board as soon as it satisfies `ok` (a move rebuilds it asynchronously), or as it stands after 15s. */
 async function threadWhen(s: Stack, slug: string, ok: (t: ThreadRow | undefined) => unknown): Promise<ThreadRow | undefined> {
   let t = await thread(s, slug)
@@ -194,6 +198,7 @@ async function main() {
   check(movedLines.some((l) => l.cwd?.startsWith(projectB)) && !movedLines.some((l) => l.cwd?.startsWith(projectA)), "the transcript sits in the desktop's Claude bucket with its cwd fields mapped")
   const arrived = await threadWhen(b, slug, (t) => t?.movedFrom)
   check(arrived?.movedFrom?.peerName && arrived.state !== "archived", `the desktop's board shows it open, from ${arrived?.movedFrom?.peerName}`)
+  check(!(await foreignCopy(b, dispatched.sessionId)), "and not a second time as a session ntwine did not start")
 
   step("continuing it on the desktop")
   const t1 = Date.now()
@@ -209,6 +214,7 @@ async function main() {
   check(back.slug === slug, "moved back")
   const live = (t?: ThreadRow) => t && !t.movedTo && t.movedFrom && t.state !== "archived"
   check(live(await threadWhen(a, slug, live)), "the mac's stub is a live thread again")
+  check(!(await foreignCopy(a, dispatched.sessionId)), "and not a second time as a session ntwine did not start")
   check(readFileSync(join(wtA, "README.md"), "utf8").includes("continued on the second machine"), "the mac's worktree has the desktop's work")
   check(stubDone(await threadWhen(b, slug, stubDone)), "the desktop now keeps the stub")
   const t2 = Date.now()
