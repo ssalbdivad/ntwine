@@ -231,6 +231,7 @@ test("a terminal's handle is its command's first words, `shell` for a bare shell
   assert.equal(terminalHandle("nub run dev"), "nub-run-dev")
   assert.equal(terminalHandle("printf 'Continue? '; read x"), "printf-continue-read")
   assert.equal(terminalHandle(undefined), "shell")
+  assert.equal(terminalHandle("source ~/.nvm/nvm.sh && nvm use 22 && VGS_DISABLED=1 yarn dev"), "yarn-dev")
   assert.equal(terminalHandle("nub run dev", ["nub-run-dev", "nub-run-dev-2"]), "nub-run-dev-3")
   // Held to a handle's length at a word boundary; a single overlong word is cut.
   assert.equal(terminalHandle("supercalifragilistic expialidocious"), "supercalifragilistic")

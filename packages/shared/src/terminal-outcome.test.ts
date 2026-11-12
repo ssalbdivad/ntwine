@@ -40,3 +40,12 @@ test("a terminal command's leading cds are set aside to the last directory's nam
   assert.deepEqual(terminalCommandCore("cd /a/b"), { command: "cd /a/b" })
   assert.deepEqual(terminalCommandCore("cd '/a b' && ls"), { command: "cd '/a b' && ls" })
 })
+
+test("shell setup steps before the command are set aside with the cds", () => {
+  assert.deepEqual(terminalCommandCore("source ~/.nvm/nvm.sh && nvm use 22 && VGS_DISABLED=1 yarn dev"), { command: "VGS_DISABLED=1 yarn dev" })
+  assert.deepEqual(terminalCommandCore(". .env; cd web && export PORT=3001 && pnpm dev"), { command: "pnpm dev", dir: "web" })
+  // A real command ahead of the setup is the command: only LEADING setup goes.
+  assert.deepEqual(terminalCommandCore("pnpm build && nvm use 22 && pnpm start"), { command: "pnpm build && nvm use 22 && pnpm start" })
+  // Setup alone runs nothing else, so it stays whole.
+  assert.deepEqual(terminalCommandCore("nvm use 22"), { command: "nvm use 22" })
+})

@@ -253,7 +253,10 @@ const HANDLE_WORDS = 3
 export function terminalHandle(command: string | undefined, taken: Iterable<string> = []): string {
   // A program named by its path is named by its file: `./node_modules/.bin/vite --port 3000` → `vite-port-3000`.
   // A leading `cd <dir> &&` names nothing: `cd ~/look4 && pnpm start` is `pnpm-start`.
+  // So does a leading `VAR=value` (the status line keeps it; it matters to how the command runs, not what it is):
+  // `VGS_DISABLED=1 yarn dev` → `yarn-dev`.
   const tokens = command === undefined ? [] : terminalCommandCore(command).command.split(/\s+/)
+  while (tokens.length > 1 && /^[A-Za-z_][A-Za-z0-9_]*=\S*$/.test(tokens[0]!)) tokens.shift()
   if (tokens[0]) tokens[0] = tokens[0].slice(tokens[0].lastIndexOf("/") + 1)
   const words = tokens.join(" ").normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
   let base = ""

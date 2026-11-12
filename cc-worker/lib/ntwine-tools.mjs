@@ -1202,10 +1202,10 @@ const TERMINAL = {
     "refused (exit 2) otherwise. You drive a terminal you start until the user takes control or you " +
     "`release` it; the user can hand one to you. A terminal still running when you sign off keeps running; " +
     "the user's Done dialog offers to stop it.\n\n" +
-    "A FAILED START IS YOURS TO CLEAN UP. `start` waits a moment before it answers, so a command that dies at " +
-    "once comes back with its exit code and screen. Fix the cause and `restart` it (or start the corrected " +
-    "command), and `stop` the failed one: on a terminal that already ended, `stop` marks it done so it does " +
-    "not sit in the user's queue.",
+    "A FAILED START IS YOURS TO FIX. `start` waits a moment before it answers, so a command that dies at " +
+    "once comes back with its exit code and screen, already marked done so it does not sit in the user's " +
+    "queue. Fix the cause and `restart` it, which reuses its handle, rather than starting a second terminal. " +
+    "A terminal that fails later is the user's to see; `stop` marks it done once you have handled it.",
   inputSchema: {
     type: "object",
     properties: {

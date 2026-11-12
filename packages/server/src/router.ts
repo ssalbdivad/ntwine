@@ -6450,6 +6450,14 @@ export function createRouter(ctx: AppContext) {
           const settleBy = Date.now() + TERMINAL_START_SETTLE_MS
           while (Date.now() < settleBy && terminalByHandle(started.id)?.terminal?.state === "running") await new Promise((r) => setTimeout(r, 100))
           const t = terminalByHandle(started.id)
+          // A start that already FAILED is filed under Done here, as `stop` would: this reply is how its agent
+          // learns of it, so a Ready card would only tell the user what the agent is already fixing. Agents
+          // told to `stop` it did, but the card sat in the queue until they got to it, and the retry next to
+          // it read as a graveyard of fails (maintainer 2026-11-12). `restart` reopens it.
+          if (t?.terminal && terminalOutcome(t.terminal) === "failed") {
+            await ctx.terminalRunner.setState(t.id, "archived")
+            return { ...ownTerminalReading(terminalByHandle(t.id) ?? t, input.slug, 40), handle: started.handle, id: started.id, filed: true }
+          }
           return { ...ownTerminalReading(t, input.slug, 40), handle: started.handle, id: started.id }
         }
         const t = terminalByHandle(input.handle)

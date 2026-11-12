@@ -4683,11 +4683,18 @@ export type TerminalOutcome = "running" | "prompt" | "failed" | "interrupted" | 
  * `@cd-home-me` and spends the whole status line on the path (maintainer 2026-10-20). A line that is ONLY a
  * cd, or whose dir is quoted, is left whole.
  */
+// The other leading steps that only prepare a shell — load a version manager, pick a Node, set a variable —
+// and so name nothing either: `source ~/.nvm/nvm.sh && nvm use 22 && yarn dev` named itself `@source-nvm-nvm`
+// (maintainer 2026-11-12). Each is matched as one whole `&&`/`;` segment with no quote in it.
+const TERMINAL_SETUP_STEP = /^(?:(?:source|\.)\s+\S+|(?:nvm|fnm)\s+use(?:\s+\S+)?|(?:export|unset)\s+[^&;|'"]+|set\s+[-+]\S+)$/
 export function terminalCommandCore(command: string): { command: string; dir?: string } {
   let rest = command.trim()
   let dir: string | undefined
-  for (let m; (m = /^cd\s+([^\s'"&;|]+)\s*(?:&&|;)\s*/.exec(rest)) && rest.length > m[0].length; ) {
-    dir = m[1]!.replace(/\/+$/, "").split("/").pop() || m[1]
+  for (let m; (m = /^([^&;|'"]+?)\s*(?:&&|;)\s*/.exec(rest)) && rest.length > m[0].length; ) {
+    const step = m[1]!.trim()
+    const cd = /^cd\s+(\S+)$/.exec(step)
+    if (cd) dir = cd[1]!.replace(/\/+$/, "").split("/").pop() || cd[1]
+    else if (!TERMINAL_SETUP_STEP.test(step)) break
     rest = rest.slice(m[0].length)
   }
   return dir === undefined ? { command: rest } : { command: rest, dir }
