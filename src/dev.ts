@@ -5,14 +5,31 @@
 //
 // The wiring lives here, not in the server package, because the transports it drives (the ntwine.app
 // relay, cloudflared) belong to the launcher package, which depends on the server and not the reverse.
+import { DEFAULT_PORT } from "@ntwine/shared";
 import { runDev } from "@ntwine/server/dev";
 import { startAutosyncPoller } from "./autosync.ts";
+import { choosePort } from "./launcher.ts";
 import { wireRemote } from "./remote-wiring.ts";
 
-// `pnpm run dev -- --port 9400` runs a second board beside the usual one.
+// `pnpm run dev -- --port 9400` runs a second board beside the usual one, and fails if that port is taken.
 const portFlag = process.argv.indexOf("--port");
-const port = portFlag > 0 ? Number(process.argv[portFlag + 1]) : undefined;
-if (port !== undefined && !(Number.isInteger(port) && port > 0 && port < 65_536)) throw new Error("--port needs a port number");
+const explicitPort = portFlag > 0 ? Number(process.argv[portFlag + 1]) : undefined;
+if (explicitPort !== undefined && !(Number.isInteger(explicitPort) && explicitPort > 0 && explicitPort < 65_536)) throw new Error("--port needs a port number");
+
+// Without --port, the well-known port when it binds, else the published launcher's fallback band
+// (DEFAULT_PORT + 10000 and up), whose first port the desktop window also looks on (locateServer).
+//
+// Waiting the holder out or killing it is not an option, because on WSL there is often no holder. Under
+// `networkingMode=mirrored` Linux shares Windows' port table, and a connection the Windows Electron window
+// made to the board leaves a Windows-side TIME_WAIT on 127.0.0.1:9393 that fails a Linux bind with
+// EADDRINUSE while `ss` and `/proc/net/tcp` show nothing on the port at all and `netstat.exe` shows only
+// the TIME_WAITs (2026-11-12: the board would not start for minutes after a restart; the bind succeeded
+// once they expired). Another of our own boards cannot be the holder either: runDev takes the project's
+// launch lock before it binds, so a second board of ours stops there. Anything that does listen is
+// someone else's, which ntwine has no business killing.
+const port = await choosePort(explicitPort, undefined);
+if (explicitPort === undefined && port !== DEFAULT_PORT)
+  console.log(`[ntwine] port ${DEFAULT_PORT} is taken; using ${port}`);
 
 await runDev({
   port,
