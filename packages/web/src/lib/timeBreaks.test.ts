@@ -15,13 +15,21 @@ test("a pause of 20m or more draws a time break; 19m does not", () => {
   assert.deepEqual(run([{ start: at(9, 10, 0) }, { start: at(9, 10, 19) }, { start: at(9, 10, 39) }]), ["day", null, "time"])
 })
 
+test("a stretch with no pause still draws a time break every 30m, counted from the last one drawn", () => {
+  // Rows every 10m from 10:00: the 10:30 row is 30m after the day break, 11:00 30m after that.
+  const steady = [0, 10, 20, 30, 40, 50, 60].map((m) => ({ start: at(9, 10 + Math.floor(m / 60), m % 60) }))
+  assert.deepEqual(run(steady), ["day", null, null, "time", null, null, "time"])
+  // A pause break resets the count: 10:25 breaks on the pause, so 10:50 (25m after it) does not, 10:55 does.
+  assert.deepEqual(run([{ start: at(9, 10, 0) }, { start: at(9, 10, 25) }, { start: at(9, 10, 40) }, { start: at(9, 10, 50) }, { start: at(9, 10, 55) }]), ["day", "time", null, null, "time"])
+})
+
 test("a new calendar day draws a day break even after a short pause", () => {
   assert.deepEqual(run([{ start: at(8, 23, 55) }, { start: at(9, 0, 5) }]), ["day", "day"])
 })
 
 test("the pause runs from the previous row's END, so a long tool run is not read as a pause", () => {
-  // A run opened 10:00 and folded batches through 10:30; the prose after it at 10:31 is one minute on.
-  assert.deepEqual(run([{ start: at(9, 10, 0), end: at(9, 10, 30) }, { start: at(9, 10, 31) }]), ["day", null])
+  // A run opened 10:00 and folded batches through 10:25; the prose after it at 10:26 is one minute on.
+  assert.deepEqual(run([{ start: at(9, 10, 0), end: at(9, 10, 25) }, { start: at(9, 10, 26) }]), ["day", null])
 })
 
 test("an undated row draws nothing and does not reset the clock", () => {

@@ -10,9 +10,24 @@
 // A burst shares one reading on purpose. An ntwine thread is read in bursts separated by long parks —
 // a worker can sit on a PR watcher for days — so what a reader needs is where the stretches begin, not
 // the minute of every line.
+//
+// But a burst that never pauses — a worker busy for three hours straight — used to read as ONE stamp at
+// its top, so nothing below said how old it was (maintainer 2026-11-12: "add subtle timestamps
+// periodically … so i know approximately how old stuff is"). So a stamp also falls at the first row
+// TIME_BREAK_EVERY_MS after the last one drawn: a busy stretch reads its clock every half hour or so,
+// and a quiet one draws no more than before.
 
 /** A pause at least this long between two messages draws a break before the second. */
 export const TIME_BREAK_GAP_MS = 20 * 60_000
+/** With no pause, the first row this long after the last drawn break draws another. */
+export const TIME_BREAK_EVERY_MS = 30 * 60_000
+
+/** The fold's state between rows: when the rows so far last moved, and when the last break was drawn. */
+export interface BreakClock {
+  end: number | null
+  mark: number | null
+}
+export const START_CLOCK: BreakClock = { end: null, mark: null }
 
 /** `day` — the first reading of a calendar day, so it names the day. `time` — a pause inside one day. */
 export type TimeBreak = "day" | "time"
@@ -63,23 +78,24 @@ function sameLocalDay(a: number, b: number): boolean {
  * row always draws a `day` break, so the top of what is loaded says when it is from.
  */
 export function timeBreaks<T>(rows: readonly T[], startAt: (row: T) => string | undefined, endAt: (row: T) => string | undefined): (TimeBreak | null)[] {
-  let previousEnd: number | null = null
+  let clock = START_CLOCK
   return rows.map((row) => {
     const start = breakInstant(startAt(row))
-    const end = breakInstant(endAt(row)) ?? start
     if (start === null) return null
-    const brk = breakBetween(previousEnd, start)
-    previousEnd = Math.max(previousEnd ?? 0, end ?? start)
-    return brk
+    const step = breakStep(clock, start, breakInstant(endAt(row)) ?? start)
+    clock = step.clock
+    return step.timeBreak
   })
 }
 
-/** The break before a row that starts at `start`, after rows that last moved at `previousEnd`. One step
- *  of timeBreaks, for a caller that keeps the fold's clock itself (lib/virtualTranscript). */
-export function breakBetween(previousEnd: number | null, start: number): TimeBreak | null {
-  return previousEnd === null || !sameLocalDay(previousEnd, start)
+/** One step of timeBreaks — the break before a row that starts at `start` and last moved at `end`, and
+ *  the clock after it — for a caller that keeps the fold's clock itself (lib/virtualTranscript). */
+export function breakStep(clock: BreakClock, start: number, end: number): { timeBreak: TimeBreak | null; clock: BreakClock } {
+  const { end: previousEnd, mark } = clock
+  const timeBreak: TimeBreak | null = previousEnd === null || !sameLocalDay(previousEnd, start)
     ? "day"
-    : start - previousEnd >= TIME_BREAK_GAP_MS ? "time" : null
+    : start - previousEnd >= TIME_BREAK_GAP_MS || (mark !== null && start - mark >= TIME_BREAK_EVERY_MS) ? "time" : null
+  return { timeBreak, clock: { end: Math.max(previousEnd ?? 0, end), mark: timeBreak ? start : mark } }
 }
 
 /**

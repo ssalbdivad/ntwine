@@ -1,5 +1,5 @@
 import type { ChatMessage } from "../hooks.ts"
-import { breakBetween, breakInstant, timeBreaks, type TimeBreak } from "./timeBreaks.ts"
+import { breakInstant, breakStep, START_CLOCK, timeBreaks, type BreakClock, type TimeBreak } from "./timeBreaks.ts"
 
 // USER_TAIL_EXTRA lived here for one reason — ChatView imports this module, so it could not be declared
 // beside STEP in ChatView — and that reason ended when the rhythm moved into components/rhythm.tsx,
@@ -199,9 +199,9 @@ interface RowsRun {
   rendersNothing: TranscriptRowRules["rendersNothing"]
   gapBetween: TranscriptRowRules["gapBetween"]
   rows: TimedTranscriptRow[]
-  /** After entries[i]: how many rows, and the time-break clock (timeBreaks's `previousEnd`). */
+  /** After entries[i]: how many rows, and the time-break clock (lib/timeBreaks `breakStep`). */
   rowCount: number[]
-  clock: (number | null)[]
+  clock: BreakClock[]
   /** Where each render key and each message object sits (row index; entry position). Carried forward
    *  from run to run and never pruned: a recorded position that no longer holds its key or object is left
    *  over from a suffix an older run discarded, and is told apart by looking (see rowsFrom). */
@@ -246,7 +246,7 @@ function rowsFrom(previous: RowsRun | undefined, entries: readonly TranscriptRow
   const clock = shared > 0 ? previous!.clock.slice(0, shared) : []
   const keyAt = shared > 0 ? previous!.keyAt : new Map<string, number>()
   const objectAt = shared > 0 ? previous!.objectAt : new WeakMap<ChatMessage, number>()
-  let previousEnd = shared > 0 ? clock[shared - 1]! : null
+  let breakClock = shared > 0 ? clock[shared - 1]! : START_CLOCK
   let previousMessage = rows.length > 0 ? rows[rows.length - 1]!.message : null
   for (let i = shared; i < entries.length; i++) {
     const entry = entries[i]!
@@ -267,14 +267,15 @@ function rowsFrom(previous: RowsRun | undefined, entries: readonly TranscriptRow
       const start = breakInstant(startAt)
       let timeBreak: TimeBreak | null = null
       if (start !== null) {
-        timeBreak = breakBetween(previousEnd, start)
-        previousEnd = Math.max(previousEnd ?? 0, breakInstant(message.at) ?? start)
+        const step = breakStep(breakClock, start, breakInstant(message.at) ?? start)
+        timeBreak = step.timeBreak
+        breakClock = step.clock
       }
       rows.push({ key, message, messageIndex: entry.messageIndex, gap: previousMessage === null ? 0 : gapBetween(previousMessage, message), timeBreak, timeBreakAt: startAt })
       previousMessage = message
     }
     rowCount.push(rows.length)
-    clock.push(previousEnd)
+    clock.push(breakClock)
   }
   return { entries, awaitingCut, restingShown, rendersNothing, gapBetween, rows, rowCount, clock, keyAt, objectAt }
 }
