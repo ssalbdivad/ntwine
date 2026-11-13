@@ -26,7 +26,7 @@
 import { createContext, Fragment, useContext, useEffect, useState, type ReactNode } from "react"
 import { Bot, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleDot, CircleSlash, CircleX, Clock, GitMerge, GitPullRequestClosed, Hourglass, ListTodo, MessageSquare, TerminalSquare } from "lucide-react"
 import type { AwaitingHint, GithubIssueStatus, GithubWatchStatus, ThreadView, ThreadWatchView } from "@ntwine/shared"
-import { awaitingFenceTitle, awaitingSteps, isDirectSubAgent, replyWaitOf } from "@ntwine/shared"
+import { awaitingFenceTitle, awaitingMachine, awaitingSteps, isDirectSubAgent, replyWaitOf } from "@ntwine/shared"
 import { subAgentName } from "../groups.ts"
 import { githubRefUrl } from "../lib/githubRef.ts"
 import { noteGithubRefs } from "../lib/githubHovercards.ts"
@@ -46,9 +46,10 @@ import { offersKeepWorking } from "../lib/keepWorking.ts"
 import { PRIMER, PRIMER_DANGER_LINK } from "../lib/primer.ts"
 import { LinkedHtml } from "./LinkedHtml.tsx"
 import { StepsDone, StepsList } from "./AwaitingSteps.tsx"
+import { SuggestedMoveButton, SuggestedPeer } from "./ThreadMove.tsx"
 import { KeepWorkingButton } from "./KeepWorking.tsx"
 import { useShellFolderHint } from "./ThreadTerminals.tsx"
-import { CARD_ACTION_EXPLAINER, CARD_ACTION_RADIUS, CardActions, CARD_BODY, CARD_LINK, CARD_PRIMARY_ACTION, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
+import { CARD_ACTION_EXPLAINER, CARD_ACTION_RADIUS, CardActions, CARD_BODY, CARD_LINK, CARD_PRIMARY_ACTION, CARD_SECONDARY_ACTION, QUEUE_WRAP, TranscriptCard } from "./TranscriptCard.tsx"
 
 // Name what the thread is ACTUALLY waiting on. Three real cases, and the sentence has to be true in all
 // of them: "sub-agents" is wrong for a shell-only thread (a launched dev server is not a child whose
@@ -1131,7 +1132,7 @@ function AwaitingAskUpdate({ thread }: { thread: Pick<ThreadView, "id" | "sessio
       disabled={state !== "idle"}
       onMouseDown={(e) => e.preventDefault()}
       title="Wake the agent now to check on its work and report back"
-      className={`shrink-0 ${CARD_ACTION_RADIUS} border border-border-strong px-2 py-[3px] text-[11px] font-medium text-fg/90 outline-none transition-colors hover:bg-fg/[0.06] focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-45`}
+      className={CARD_SECONDARY_ACTION}
     >
       {state === "asked" ? "Update requested" : state === "pending" ? "Asking…" : "Ask for update"}
     </button>
@@ -1151,7 +1152,7 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // OPTIONAL since 2026-09-04: a fence card in a SUB-AGENT's own transcript has no owning thread, so it
   // has no rows and no verb — but it is still this card, at this heading, with this prose.
   // `checkout` joined on 2026-09-30: an agent terminal's row names its folder where the strip would.
-  thread?: Pick<ThreadView, "id" | "sessionId" | "kind" | "foreign" | "state" | "archived" | "awaitingBackground" | "waitStatus" | "runtime" | "bgSnoozed" | "subAgents" | "bgShells" | "watches" | "lastFence" | "checkout" | "lastAssistantAt">
+  thread?: Pick<ThreadView, "id" | "sessionId" | "kind" | "foreign" | "state" | "archived" | "awaitingBackground" | "waitStatus" | "runtime" | "bgSnoozed" | "subAgents" | "bgShells" | "watches" | "lastFence" | "checkout" | "lastAssistantAt" | "title" | "aiTitle" | "titleAuto" | "titleLocked" | "titleNamed" | "spawnedAt" | "backend" | "held" | "movedTo">
   /** The fence this card STATES, when it is not the one the board is holding. Defaults to the thread's
    *  own `lastFence` — which is the at-rest case, and the only one until 2026-09-04.
    *
@@ -1181,8 +1182,13 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // `steps:` — the fence is waiting on the HUMAN to perform these (2026-10-03). Drawn under the prose on
   // every surface; the verbs that answer them only while the thread rests on them (restingOnSteps).
   const steps = awaitingSteps(hints)
-  const stepsTitle = steps.length > 0 ? awaitingFenceTitle(hints) : null
+  const stepsTitle = steps.length > 0 || awaitingMachine(hints) !== null ? awaitingFenceTitle(hints) : null
   const stepsLive = thread !== undefined && restingOnSteps(thread, steps)
+  // `machine:` — the paired machine the rest of the work belongs on (2026-11-12). Its move leads the
+  // footer, white, while the thread rests on THIS fence — on a stale fence the move is no longer what was
+  // asked — and only when the name matches a paired machine (useSuggestedPeer).
+  const machine = awaitingMachine(hints)
+  const machineLive = machine !== null && thread !== undefined && thread.runtime === "turn-idle" && thread.lastFence?.kind === "awaiting" && awaitingMachine(thread.lastFence.hints) === machine && threadLifecycleAvailability(thread).archive
   const waiting = awaitsResults(work)
   // THE WORKER'S OWN HANDOFF, opening the card (maintainer 2026-08-24: "the rendered message at the
   // top of the card, followed by a horizontal divider, followed by all of the awaited items"). Until
@@ -1211,7 +1217,7 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // working, which no snooze may hide (maintainer: "ensure active threads cant be hidden under snooze").
   //
   // `restOwned`: a parked rest the human owns, on which "Ask for update" can wake it early.
-  const restOwned = thread !== undefined && steps.length === 0 && showsRestingCard(thread) && threadLifecycleAvailability(thread).snooze
+  const restOwned = thread !== undefined && steps.length === 0 && machine === null && showsRestingCard(thread) && threadLifecycleAvailability(thread).snooze
   // THE STOP IS NOT GATED ON THE REST. Ending a shell is valid whenever one is running and the server can
   // reach it — a thread drawn through ChatView's fence block (an event-snoozed one, until 2026-10-14)
   // still has live shells worth stopping, even though it has no rest left to park. Owned and not archived, though: a foreign thread
@@ -1227,7 +1233,19 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // the card's one white verb, and the first: it is the answer to what the card is asking, where the two
   // beside it are about the work.
   const keepWorking = restOwned && fence === undefined && offersKeepWorking(thread!)
-  const footer = keepWorking || askable || stopIds.length > 0
+  const otherVerbs = keepWorking || askable || stopIds.length > 0
+  // `moveVerb` is the suggested move, or null: the peers reading is asked only under a live `machine:`
+  // (SuggestedPeer), so a card with none — every card in a sub-agent transcript or a test — mounts no query.
+  const footerBand = (moveVerb: ReactNode) => stepsLive ? (
+    <StepsDone slug={thread!.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} lead={moveVerb ?? undefined} />
+  ) : moveVerb || otherVerbs ? (
+    <CardActions data-awaiting-actions>
+      {moveVerb}
+      {keepWorking && <KeepWorkingButton key={`keep-working:${thread!.lastAssistantAt ?? ""}`} slug={thread!.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />}
+      {askable && <AwaitingAskUpdate key={thread!.lastAssistantAt ?? ""} thread={thread!} />}
+      {stopIds.length > 0 && <AwaitingStopShells key={stopIds.join(" ")} slug={thread!.id} ids={stopIds} />}
+    </CardActions>
+  ) : null
   return (
     // The SAME shell as every transcript card (TranscriptCard). This card stacks directly under an
     // awaiting fence card on a queue card, and it used to be a visibly different object there —
@@ -1243,14 +1261,14 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
       // being waited on, so the card is a to-do rather than a status. It rides a KIND CHIP rather than
       // the title (2026-10-05, TranscriptCard's KindChip): "Awaiting human" over the worker's own title, which is
       // left out when the worker named none — the chip already says what the card is for.
-      icon={steps.length > 0 ? ListTodo : shellsAlone(work) ? TerminalSquare : Hourglass}
-      chip={steps.length > 0 ? STEPS_CHIP : undefined}
+      icon={steps.length > 0 || machine !== null ? ListTodo : shellsAlone(work) ? TerminalSquare : Hourglass}
+      chip={steps.length > 0 || machine !== null ? STEPS_CHIP : undefined}
       // WRAPPED AT ANY CHARACTER, because this heading can now be WORKER-AUTHORED. Every other card in
       // the family carries a code-authored label, so the header's wrap-don't-truncate rule never had to
       // survive an unbreakable token; a `title:` naming a branch, a URL or a base64 id is one. Measured
       // at the queue card's narrowest (368px content box, sans): a 40-character single token bled 135.64px
       // PAST the card's right edge without this, and wraps inside it with it.
-      label={steps.length > 0
+      label={steps.length > 0 || machine !== null
         ? (stepsTitle ? <span className="[overflow-wrap:anywhere]">{stepsTitle}</span> : null)
         : <span className="[overflow-wrap:anywhere]">{awaitingBackgroundLabel(work, hints)}</span>}
       // ONE watched PR the table does not already row rides the title, as the GitHub wake card's ref
@@ -1271,7 +1289,7 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
         // lines, which never reach the reader — has no handoff to open on, and if it has no rows either
         // the card would be a bare heading. That is reachable only off a thread with nothing live (a
         // sub-agent's own transcript above all), and the sentence below is what it says instead.
-        : groups.length === 0 && !hasUnrowedWork(work) && steps.length === 0 ? <p className={CARD_BODY}>{AWAITING_NO_PROSE}</p>
+        : groups.length === 0 && !hasUnrowedWork(work) && steps.length === 0 && machine === null ? <p className={CARD_BODY}>{AWAITING_NO_PROSE}</p>
         : null}
       {steps.length > 0 && <StepsList steps={steps} live={stepsLive} />}
       {unrowed.length > 1 && (
@@ -1327,15 +1345,11 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
       {/* THE FOOTER BAND — the card's verbs, in the family's shared action footer (CardActions), so they
           read as chrome under the content rather than as one more row of it: Keep working, Ask for update,
           then Stop. */}
-      {stepsLive ? (
-        <StepsDone slug={thread.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />
-      ) : footer ? (
-        <CardActions data-awaiting-actions>
-          {keepWorking && <KeepWorkingButton key={`keep-working:${thread!.lastAssistantAt ?? ""}`} slug={thread!.id} onReplied={onReplied} onReplyFailed={onReplyFailed} send={reply} />}
-          {askable && <AwaitingAskUpdate key={thread!.lastAssistantAt ?? ""} thread={thread!} />}
-          {stopIds.length > 0 && <AwaitingStopShells key={stopIds.join(" ")} slug={thread!.id} ids={stopIds} />}
-        </CardActions>
-      ) : null}
+      {machineLive ? (
+        <SuggestedPeer thread={thread!} machine={machine!}>
+          {(peer) => footerBand(peer ? <SuggestedMoveButton thread={thread!} peer={peer} className={`${CARD_PRIMARY_ACTION} disabled:opacity-60`} /> : null)}
+        </SuggestedPeer>
+      ) : footerBand(null)}
     </TranscriptCard>
   )
 }

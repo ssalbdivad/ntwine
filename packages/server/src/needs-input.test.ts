@@ -4,9 +4,9 @@
 // declared-park.test.ts for the scheduler's correction of a fence that gives no answer.
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { AWAITING_QUESTIONS_MAX, AWAITING_STEP_VALUE_MAX, AWAITING_STEPS_MAX, awaitingNeedsInput, awaitingQuestions, awaitingSteps, NEEDS_INPUT_REQUIRED_AT, needsInputRequired, RETIRED_AWAITING_REPLACEMENT, splitAwaitingFrontmatter, type AwaitingHint } from "@ntwine/shared"
+import { AWAITING_QUESTIONS_MAX, AWAITING_STEP_VALUE_MAX, AWAITING_STEPS_MAX, awaitingMachine, awaitingNeedsInput, awaitingQuestions, awaitingSteps, NEEDS_INPUT_REQUIRED_AT, needsInputRequired, RETIRED_AWAITING_REPLACEMENT, splitAwaitingFrontmatter, type AwaitingHint } from "@ntwine/shared"
 import { deriveAwaitingBackground, deriveNeedsYou, hasDeclaredWait, type RegisteredWatch } from "./board.ts"
-import type { GithubStatusBook } from "./awaiting.ts"
+import { parkIsHonoured, readAwaitingPark, type GithubStatusBook } from "./awaiting.ts"
 import { armedTimerKeys, replyWaitPrompt } from "./thread-mentions.ts"
 import type { SessionRow } from "./storage.ts"
 import type { SessionTelemetry } from "./tailer.ts"
@@ -274,6 +274,23 @@ test("a steps fence queues the thread — new contract, legacy, and with a false
   assert.equal(hasDeclaredWait(tele(stepsFence()), NOW), true)
   // A question still outranks it, exactly as it outranks every awaiting card.
   assert.equal(deriveAwaitingBackground(row(), tele(stepsFence()), "turn-idle", false, NOW, undefined, false, {}, new Set(), new Set(), [], 1), false)
+})
+
+// `machine:` (2026-11-12) names the paired machine the rest of the work belongs on; the card offers the
+// move. Like steps it is a wait on the human alone, with no item and no `for:`.
+test("a machine fence parses, outlives the lookups' cap, and waits on the human like steps", () => {
+  const { hints, body } = splitAwaitingFrontmatter("title: Deploy on the desktop\nmachine: ssalb-xps\n---\nOnly the desktop copy is left.")
+  assert.equal(awaitingMachine(hints), "ssalb-xps")
+  assert.equal(body, "Only the desktop copy is left.", "the key never falls into the prose")
+  const shells = Array.from({ length: 10 }, (_, i) => `id${i}`).join(", ")
+  assert.equal(awaitingMachine(splitAwaitingFrontmatter(`shells: [${shells}]\nmachine: ssalb-xps`).hints), "ssalb-xps", "a scalar rides outside the cap")
+  assert.equal(awaitingMachine(splitAwaitingFrontmatter("agents: [a01b2d20]\nfor: 1h").hints), null, "no machine is the ordinary fence")
+  assert.equal(awaitingNeedsInput(splitAwaitingFrontmatter("needs_input: false\nmachine: ssalb-xps")), true)
+  const park = readAwaitingPark(hints)
+  assert.equal(parkIsHonoured(park, { shells: new Set(), agents: new Set(), timers: new Set(), prs: new Set() }), true, "names no item, and still parks")
+  const machineFence = awaiting({ kind: "machine", value: "ssalb-xps" })
+  assert.equal(needsYou(row(), tele(machineFence)), true)
+  assert.equal(deriveAwaitingBackground(row(), tele(machineFence), "turn-idle", false, NOW), true, "the card is where the move is pressed")
 })
 
 // THE TIME LIMIT CUTS A PARK (ARCHITECTURE.md § Time limits): a fence written before the deadline

@@ -1,5 +1,5 @@
 import { threadAwaitKey } from "./thread-mentions.ts"
-import { AWAITING_FOR_MAX_MS, awaitingDefaultForMs, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, terminalOutcome, type AwaitingFenceShape, type AwaitingHint, type AwaitingItemKind, type ThreadTerminal } from "@ntwine/shared"
+import { AWAITING_FOR_MAX_MS, awaitingDefaultForMs, awaitingMachine, awaitingNeedsInput, COMMAND_WATCH_FOR_MAX_MS, awaitingQuestions, awaitingSteps, GithubIssueStatus, GithubWatchStatus, isAwaitingItemKind, parseAwaitingDurationRaw, PR_WATCH_FOR_MAX_MS, terminalOutcome, type AwaitingFenceShape, type AwaitingHint, type AwaitingItemKind, type ThreadTerminal } from "@ntwine/shared"
 
 // The PR-reference vocabulary shared by the PR-watching scheduler and the board. It lives here rather
 // than in scheduler.ts so a reader can resolve a ref without pulling in the whole waker; scheduler.ts
@@ -50,6 +50,9 @@ export interface AwaitingPark {
    *  awaitingQuestions). Like steps, a wait on the HUMAN: their answer is the wake. Whether every open
    *  question is named is checked against the question rows, which only the scheduler has (2026-10-05). */
   questions: string[]
+  /** `machine:` — the paired machine the rest of the work belongs on (awaitingMachine). Like steps, a wait
+   *  on the HUMAN: moving the thread there is theirs to press, and the move itself is the next turn. */
+  machine?: string
 }
 
 /** Read the structural fence. Unknown keys are already dropped by the tailer's parse, so everything
@@ -70,7 +73,8 @@ export function readAwaitingPark(hints: readonly AwaitingHint[]): AwaitingPark {
     }
   }
   const forMs = written ?? awaitingDefaultForMs(items.map((i) => i.kind))
-  return { items, forMs, steps: awaitingSteps(hints), questions: awaitingQuestions(hints) }
+  const machine = awaitingMachine(hints)
+  return { items, forMs, steps: awaitingSteps(hints), questions: awaitingQuestions(hints), ...(machine ? { machine } : {}) }
 }
 
 /** What ntwine can see running for one thread, in the shape the check needs. Every id a fence may name
@@ -219,7 +223,7 @@ export function parkIsHonoured(park: AwaitingPark, live: LiveActivity): boolean 
 /** Does the park wait on the HUMAN — steps to perform, or questions to answer? Either needs no item and
  *  no `for:`, because the human's reply is the wake and the thread sits in their queue meanwhile. */
 export function parkOnHuman(park: AwaitingPark): boolean {
-  return park.steps.length > 0 || park.questions.length > 0
+  return park.steps.length > 0 || park.questions.length > 0 || park.machine !== undefined
 }
 
 /** Does this fence keep a NEW-CONTRACT thread out of the queue (see `needsInputRequired` in

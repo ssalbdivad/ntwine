@@ -2776,6 +2776,9 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       if (park.steps.length > 0) {
         status.push(`- \`steps:\` (${park.steps.length}) — the user has not replied; check whether they were done anyway before you post them again`)
       }
+      if (park.machine) {
+        status.push(`- \`machine: ${park.machine}\` — the user has not moved the thread there yet; check whether what is left can be done from here after all`)
+      }
       if (park.questions.length > 0) {
         status.push(`- \`questions:\` (${park.questions.length}) — not answered yet; each stays open until it is, and \`ntwinectl unask <id>\` withdraws one you no longer need`)
       }

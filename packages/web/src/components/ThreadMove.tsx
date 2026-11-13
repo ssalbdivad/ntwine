@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
 import type { PeerView, ThreadMovePreview, ThreadMoveResult, ThreadView } from "@ntwine/shared"
 import { useThreadApi, useThreadProjectId } from "../api/threadApi.tsx"
-import { errorText } from "../api/peers.ts"
+import { errorText, usePeersState } from "../api/peers.ts"
 import { displayTitle } from "../groups.ts"
 import { relativeAge } from "../lib/activityTime.ts"
 import { useNowMs } from "../lib/liveClock.ts"
@@ -28,6 +28,9 @@ import { Select } from "./ui/Select.tsx"
 //     (ThreadHeaderFacts.tsx), with when on hover.
 //
 // Every call goes through the thread's own project's client (useThreadApi), as the ⋯ menu's other verbs do.
+
+/** What the dialog reads of a thread: its slug and what its title is drawn from. */
+type MovableThread = Parameters<typeof displayTitle>[0]
 
 /** Paths a preview lists before it counts the rest ("and 12 more"). */
 const LIST_CAP = 8
@@ -54,7 +57,7 @@ export function offersMove(thread: ThreadView, peers: readonly PeerView[] | unde
 }
 
 export function MoveThreadDialog({ thread, peers, onClose, onMoved }: {
-  thread: ThreadView
+  thread: MovableThread
   peers: readonly PeerView[]
   onClose: () => void
   /** After a move lands and the dialog has closed — the phone's ⋯ sheet closes itself here. */
@@ -130,6 +133,45 @@ export function MoveThreadDialog({ thread, peers, onClose, onMoved }: {
         {failure ? <p className="m-0 text-[11.5px] text-danger" data-move-error>{failure}</p> : null}
       </div>
     </Dialog>
+  )
+}
+
+/** The paired machine a worker's `machine:` names. Matched loosely, because the worker writes what it was
+ *  told or what it saw in a hostname: case aside, and with `.local` or any domain dropped. */
+export function peerNamed(peers: readonly PeerView[], name: string): PeerView | undefined {
+  const key = (value: string) => value.trim().toLowerCase().replace(/\.local$/, "").split(".")[0]
+  return peers.find((peer) => key(peer.name) === key(name))
+}
+
+/**
+ * THE MOVE A WORKER SUGGESTED (2026-11-12). A worker that rests with `machine: <name>` in its awaiting
+ * fence is saying the rest of its work belongs on that paired machine (the contract's "Other machines"),
+ * and the card offers the move as its lead verb, so continuing there is one press rather than a trip to
+ * the ⋯ menu. It opens the same dialog, preselected, because a move carries uncommitted work and the
+ * preview is where the human sees which.
+ *
+ * The card asks `SuggestedPeer` first and draws the button only on a match: a name that matches no
+ * paired machine, or a thread that already left, gets no button, since one that could only fail is worse
+ * than none — and the footer's other verbs keep their weight.
+ */
+export function SuggestedPeer({ thread, machine, children }: {
+  thread: Pick<ThreadView, "movedTo">
+  machine: string
+  children: (peer: PeerView | undefined) => ReactNode
+}) {
+  const peers = usePeersState().data?.peers
+  return <>{children(thread.movedTo === undefined && peers ? peerNamed(peers, machine) : undefined)}</>
+}
+
+export function SuggestedMoveButton({ thread, peer, className }: { thread: MovableThread; peer: PeerView; className: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className={className} onClick={() => setOpen(true)} onMouseDown={(e) => e.preventDefault()} data-suggested-move>
+        Move to {peer.name}
+      </button>
+      {open && <MoveThreadDialog thread={thread} peers={[peer]} onClose={() => setOpen(false)} />}
+    </>
   )
 }
 

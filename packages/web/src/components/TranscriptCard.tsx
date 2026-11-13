@@ -415,3 +415,6 @@ export const CARD_ACTION_RADIUS = "rounded-md"
 // The same verb with the icon+label layout every card action uses. Cards differ only in what they pass
 // beyond this (shrink-0, a disabled treatment), never in the fill.
 export const CARD_PRIMARY_ACTION = `flex shrink-0 items-center gap-1 ${CARD_ACTION_RADIUS} text-[11px] font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ink-60 ${CARD_PRIMARY_BUTTON}`
+// The outlined secondary that stands beside a primary (CARD_PRIMARY_BUTTON says when): the awaiting card's
+// "Ask for update", and the steps' Done once the move to another machine leads the footer.
+export const CARD_SECONDARY_ACTION = `shrink-0 ${CARD_ACTION_RADIUS} border border-border-strong px-2 py-[3px] text-[11px] font-medium text-fg/90 outline-none transition-colors hover:bg-fg/[0.06] focus-visible:ring-1 focus-visible:ring-focus-ink-60 disabled:opacity-45`

@@ -10,7 +10,7 @@ import { dirname, join } from "node:path"
 import watcher from "@parcel/watcher"
 import { parseTodoStarters, type TodoStarter } from "./todo-steps.ts"
 import type { BoardSnapshot, ClaudeModel, ThreadScheduleRef, ThreadTerminal, ThreadView, RuntimeState, ThreadRecurringPrompt, ProviderError } from "@ntwine/shared"
-import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingStatus, awaitingStatusWritten, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionPassedOver, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
+import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, awaitingStatus, awaitingStatusWritten, awaitingMachine, awaitingSteps, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, threadQuestionDefaults, questionPassedOver, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import { workDirOf, type Project } from "./project.ts"
 import { liftWorkingDir } from "./thread-cwd.ts"
@@ -953,10 +953,11 @@ export function hasParkedTimerWatch(
   })
 }
 
-/** Is the thread's last word a fence handing the HUMAN steps to perform (`steps:`, 2026-10-03)? That
+/** Is the thread's last word a fence handing the HUMAN steps to perform (`steps:`, 2026-10-03)? Or naming
+ *  the machine the rest belongs on (`machine:`, 2026-11-12), whose move the card offers. That
  *  is a wait on them rather than on anything running, and the resting card is where they read it. */
 export function hasHumanSteps(tele: SessionTelemetry | undefined): boolean {
-  return tele?.lastFence?.kind === "awaiting" && awaitingSteps(tele.lastFence.hints).length > 0
+  return tele?.lastFence?.kind === "awaiting" && (awaitingSteps(tele.lastFence.hints).length > 0 || awaitingMachine(tele.lastFence.hints) !== null)
 }
 
 /** Does the thread DECLARE a wait of any kind — its own background work, a parked PR watcher, a parked

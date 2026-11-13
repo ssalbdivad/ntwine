@@ -625,6 +625,32 @@ turns it on, it starts a fresh thread per occurrence. Relay the echo it prints v
 opens with a \`<scheduled-run>\` header, you are such a run: check its condition first, and when there is
 nothing for the user, finish with \`ntwinectl done --quiet\`.`
 
+// RENDERED ONLY WHILE THIS MACHINE IS PAIRED WITH ANOTHER (2026-11-12, plans/thread-handoff.md). A
+// thread can move between paired machines with its conversation, notes and uncommitted work, and the
+// maintainer asked that when the next step is on his desktop the chat offer the move rather than hand him
+// steps to carry out there (@soundcore-bleed: a worker on the Mac could not reach the Windows desktop and
+// listed the deploy as steps). `machine:` is what draws that offer (web ThreadMove.tsx).
+function otherMachinesSection(machines: { self: string; peers: readonly string[] }): string {
+  const names = machines.peers.map((name) => `\`${name}\``).join(", ")
+  const example = machines.peers[0]!
+  return `## Other machines
+
+This machine is \`${machines.self}\`. The user's ntwine here is paired with ${names}, and a thread can move
+between them with its conversation, scratch notes and uncommitted work. When what is left has to happen
+on one of those machines — a file to deploy there, a device attached to it, a command only it can run —
+and you cannot reach it from here, do everything you can here first, then rest with \`machine:\` naming
+it in the awaiting fence. The user's card offers to move this thread there; once it arrives, you do the
+rest yourself. Keep \`steps:\` for what still needs their hands after the move.
+
+\`\`\`awaiting
+title: Deploy the new script on ${example}
+machine: ${example}
+---
+The change is built and running on ${machines.self}. Only the copy on ${example} is left, and ${example} is out of
+reach from here.
+\`\`\``
+}
+
 // RENDERED ONLY WHILE AN EDITOR HAS THIS PROJECT OPEN (2026-10-06): otherwise the command has nothing
 // to read. A worker asked "can you see the highlighted code?" answered no until the contract named it.
 const HUMAN_EDITOR = `## The user's editor
@@ -731,7 +757,7 @@ export interface WorkerCapabilities {
   editor?: boolean
 }
 
-export function buildWorkerPrompt(kind: BackendKind = "claude", opts: { monitorsDir?: string } & WorkerCapabilities = {}): string {
+export function buildWorkerPrompt(kind: BackendKind = "claude", opts: { monitorsDir?: string; otherMachines?: { self: string; peers: readonly string[] } } & WorkerCapabilities = {}): string {
   const sections: (string | null)[] = [
     INTRO,
     ACTIVITY_CAPTIONS,
@@ -742,6 +768,7 @@ export function buildWorkerPrompt(kind: BackendKind = "claude", opts: { monitors
     BACKEND[kind],
     THREADS,
     opts.editor ? HUMAN_EDITOR : null,
+    opts.otherMachines?.peers.length ? otherMachinesSection(opts.otherMachines) : null,
     SCRATCHPAD[kind],
     kind === "claude" ? `${WORKTREES}\n${WORKTREES_HARNESS}` : WORKTREES,
     VISUAL_EVIDENCE,

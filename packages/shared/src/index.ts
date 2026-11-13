@@ -709,6 +709,9 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //     - Approve the browser prompt   line, read VERBATIM (see awaitingSteps). A fence carrying them
 //                                    waits on the human: it needs no other name and no `for:`, and it
 //                                    always queues (awaitingNeedsInput reads it as `true`).
+//   machine: ssalb-xps               OPTIONAL (2026-11-12). The paired machine the rest of the work
+//                                    belongs on (awaitingMachine): the card offers to move the thread
+//                                    there. Waits on the human like `steps:`, and always queues.
 //   questions: [qst_…, …]            OPTIONAL and no longer taught (2026-10-24): registered questions
 //                                    the fence waits on. Read because older workers and transcripts
 //                                    write it — a held question signs off every rest whether a fence
@@ -769,7 +772,7 @@ export function parseAskUserQuestionAnswers(result: unknown, questions: readonly
 //   prose bodies       narrowed to `reason:` so the fence is machine-checkable — then given back in full
 //                      below the `---` delimiter, where prose cannot be mistaken for structure.
 export const AwaitingHint = z.object({
-  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command", "terminal", "for", "title", "status", "needs_input", "step", "question"]),
+  kind: z.enum(["shell", "agent", "timer", "pr", "thread", "command", "terminal", "for", "title", "status", "needs_input", "step", "question", "machine"]),
   value: z.string(),
 })
 export type AwaitingHint = z.infer<typeof AwaitingHint>
@@ -857,7 +860,7 @@ const AWAITING_KEY_RE = /^([a-z][a-z_-]*):\s*(\S.*)?$/i
  *  recognised here so they never fall to the body, but are read verbatim rather than as YAML (see
  *  splitAwaitingFrontmatter). Anything else falls through to the body. `needs-input` is the same key
  *  spelled the way the other hyphenated kinds are. */
-const AWAITING_YAML_KEYS = new Set(["shells", "agents", "timers", "prs", "threads", "commands", "terminals", "questions", "for", "title", "steps", "status", "needs_input", "needs-input"])
+const AWAITING_YAML_KEYS = new Set(["shells", "agents", "timers", "prs", "threads", "commands", "terminals", "questions", "for", "title", "steps", "status", "needs_input", "needs-input", "machine"])
 
 /** Which singular hint kind each plural sequence key produces. The WIRE SHAPE is unchanged by the
  *  2026-08-24 cutover — every consumer still reads a flat `{kind, value}` list with SINGULAR kinds — so
@@ -879,7 +882,7 @@ const AWAITING_SEQUENCE_KEYS: { [key: string]: AwaitingItemKind | undefined } = 
  *  correction for the missing line could never be satisfied by re-sending it. */
 export const AWAITING_HINT_MAX = 8
 export const AWAITING_HINT_VALUE_MAX = 200
-const AWAITING_SCALAR_KINDS: ReadonlySet<AwaitingHint["kind"]> = new Set(["for", "title", "status", "needs_input"])
+const AWAITING_SCALAR_KINDS: ReadonlySet<AwaitingHint["kind"]> = new Set(["for", "title", "status", "needs_input", "machine"])
 
 /** `steps:` has caps of its own, and the list is appended AFTER the hints capped above, so a long list can
  *  never crowd a `prs:` entry out of AWAITING_HINT_MAX.
@@ -1106,6 +1109,19 @@ export function awaitingQuestions(hints: readonly AwaitingHint[] | undefined): s
   return (hints ?? []).filter((h) => h.kind === "question").map((h) => questionIdOf(h.value))
 }
 
+/** `machine:` — the paired machine the rest of the work belongs on, as the worker wrote its name, or null
+ *  (2026-11-12, maintainer: when "the next step is on my desktop or another connected device", the chat
+ *  should offer the move). The worker writes it when what is left must happen on a machine it cannot reach
+ *  from here — a file to deploy there, a device plugged into it — and the card offers to MOVE the thread
+ *  there (web ThreadMove.tsx `SuggestedMoveButton`), where the worker picks the work up itself. Like
+ *  `steps:` it waits on the HUMAN, since the move is theirs to press, so it always queues
+ *  (fenceWaitsOnHuman). The LAST one wins, as in awaitingFenceTitle. */
+export function awaitingMachine(hints: readonly AwaitingHint[] | undefined): string | null {
+  let machine: string | null = null
+  for (const h of hints ?? []) if (h.kind === "machine" && h.value.trim()) machine = h.value.trim()
+  return machine
+}
+
 function questionIdOf(value: string): string {
   return (/qst_[a-z0-9]+/i.exec(value)?.[0] ?? value.trim()).toLowerCase()
 }
@@ -1147,6 +1163,9 @@ function parseAwaitingYaml(text: string): { ok: boolean; hints: AwaitingHint[] }
       // Kept as written, like `needs_input:` below, so a value that is none of the three can be quoted
       // back by the correction; awaitingStatus reads it as no answer at all.
       push("status", raw)
+    } else if (key === "machine") {
+      // A paired machine's name (awaitingMachine): a bare host name, which plain YAML reads as written.
+      push("machine", raw)
     } else if (key === "needs_input" || key === "needs-input") {
       // YAML hands `true`/`false` over as booleans, which `push` stringifies. Anything else — `yes`, a
       // sentence — is kept as written so the correction can quote it back; awaitingNeedsInput reads it
@@ -1242,7 +1261,7 @@ function restAnswerLines(hints: readonly AwaitingHint[] | undefined): { status: 
 /** Does this fence name the HUMAN as its wait — `steps:` to perform, or `questions:` still owed an answer?
  *  Either is the answer `needs_input` by construction, whatever the answer line says. */
 function fenceWaitsOnHuman(hints: readonly AwaitingHint[] | undefined): boolean {
-  return awaitingSteps(hints).length > 0 || awaitingQuestions(hints).length > 0
+  return awaitingSteps(hints).length > 0 || awaitingQuestions(hints).length > 0 || awaitingMachine(hints) !== null
 }
 
 /** The item kinds that come back BY THEMSELVES: the thread's own processes and its own clock. Every other

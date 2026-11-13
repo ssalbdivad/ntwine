@@ -32,6 +32,7 @@ import { resolveWorkerPluginDir } from "./worker-plugin-dir.ts"
 import { pluginContentDigest, stageStablePluginDir } from "./stable-plugin-path.ts"
 import { buildWorkerPrompt, type WorkerCapabilities } from "./workerPrompt.ts"
 import type { EditorBridge } from "./editor-bridge.ts"
+import { pairedMachines } from "./peer-service.ts"
 import { codexSandbox, codexFirstOutputTitleInstructions } from "./backend/codex.ts"
 import { threadNameProblem, type ThreadNamer } from "./thread-names.ts"
 import type { CodexAppServerBridge } from "./backend/codex-app-server.ts"
@@ -243,7 +244,7 @@ export function writeScratchDir(projectDir: string, sessionId: string): string {
 // separately. `caps` drops the sections whose feature cannot fire for this worker (workerCapabilities
 // below); omitted, every gated section is left out, which is the contract the goldens pin.
 export function loadWorkerPrompt(kind: BackendKind = "claude", caps: WorkerCapabilities = {}): string {
-  return buildWorkerPrompt(kind, { monitorsDir: monitorScriptsDir(), ...caps })
+  return buildWorkerPrompt(kind, { monitorsDir: monitorScriptsDir(), otherMachines: pairedMachines(), ...caps })
 }
 
 // WHAT A WORKER IN `dir` CAN REACH RIGHT NOW — the one predicate behind both halves of the gate: the

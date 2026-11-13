@@ -12,14 +12,14 @@
 // 2026-10-03: "The user can just send a new steer message in the prompt box if they want."). Nothing
 // is stored and nothing settles: the fence lives as long as the message carrying it, and the reply is
 // what ends it.
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Check } from "lucide-react"
 import { STEPS_DONE } from "../lib/awaitingPresentation.ts"
 import { useEagerFollowUp } from "../lib/eagerComposerSubmission.ts"
 import { useTickedSteps } from "../lib/stepsTicked.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
 import { LinkedHtml } from "./LinkedHtml.tsx"
-import { CARD_PRIMARY_ACTION, CardActions, QUEUE_WRAP } from "./TranscriptCard.tsx"
+import { CARD_PRIMARY_ACTION, CARD_SECONDARY_ACTION, CardActions, QUEUE_WRAP } from "./TranscriptCard.tsx"
 
 /** The steps as a TO-DO STEPPER — what the human reads, and ticks off, before pressing Done.
  *
@@ -97,8 +97,11 @@ function Step({ n, md, done, next, onToggle }: { n: number; md: string; done: bo
 
 /** The card's one verb — drawn only while the thread is resting on THESE steps, which is the caller's
  *  test (AwaitingBackgroundCard `stepsLive`). */
-export function StepsDone({ slug, onReplied, onReplyFailed, send }: {
+export function StepsDone({ slug, onReplied, onReplyFailed, send, lead }: {
   slug: string
+  /** A verb that comes FIRST and takes the white fill: the move to the machine the steps belong on
+   *  (ThreadMove.tsx SuggestedMoveButton), after which Done steps down to the outlined secondary. */
+  lead?: ReactNode
   /** The queue's optimistic card exit, as for its Snooze; absent off the queue. */
   onReplied?: () => void
   onReplyFailed?: () => void
@@ -135,13 +138,14 @@ export function StepsDone({ slug, onReplied, onReplyFailed, send }: {
   }
   return (
     <CardActions data-awaiting-steps-reply>
+      {lead}
       <button
         type="button"
         data-steps-done
         disabled={sent}
         onClick={reply}
         onMouseDown={(e) => e.preventDefault()}
-        className={`${CARD_PRIMARY_ACTION} disabled:opacity-60`}
+        className={`${lead ? CARD_SECONDARY_ACTION : CARD_PRIMARY_ACTION} disabled:opacity-60`}
       >
         {STEPS_DONE}
       </button>

@@ -185,6 +185,23 @@ test("every backend's contract names the editor command, and when to run it, onl
   }
 })
 
+// A worker on the Mac that could not reach the paired desktop handed the deploy over as steps
+// (2026-11-12). The section naming the paired machines, and `machine:`, renders only while one is paired,
+// and like the editor's it is the only difference: spliced out, the contract is the default byte for byte.
+test("every backend's contract names the paired machines and `machine:` only while one is paired", () => {
+  for (const kind of ALL) {
+    const paired = buildWorkerPrompt(kind, { otherMachines: { self: "mbp", peers: ["ssalb-xps", "nas"] } })
+    const without = buildWorkerPrompt(kind)
+    assert.match(paired.replace(/\s+/g, " "), /This machine is `mbp`\. The user's ntwine here is paired with `ssalb-xps`, `nas`/)
+    assert.match(paired, /\nmachine: ssalb-xps\n/)
+    assert.doesNotMatch(without, /## Other machines|machine:/)
+    assert.equal(buildWorkerPrompt(kind, { otherMachines: { self: "mbp", peers: [] } }), without, "paired with nothing")
+    const start = paired.indexOf("## Other machines")
+    const section = paired.slice(start, paired.indexOf("\n\n## ", start))
+    assert.equal(paired.replace(`\n\n${section}`, ""), without)
+  }
+})
+
 // The board's `.ntwine` watcher prunes `worktrees` and repo-files.ts reads a worktree's own ignore rules,
 // so a contract that moves the location has to move those with it.
 test("every backend sends worktrees to one directory inside the project", () => {

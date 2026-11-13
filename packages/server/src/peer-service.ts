@@ -257,6 +257,25 @@ function bodyReader(request: Pick<Request, "headers" | "body">, max: number): Bo
 
 const plain = (status: number, text: string) => new Response(text, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } })
 
+/** This machine and the machines it is paired with, by name. */
+export interface PairedMachines {
+  self: string
+  peers: string[]
+}
+
+// THE ONE LIVE SERVICE, for readers with no handle on it. A worker's contract names the paired machines
+// (dispatch.ts workerCapabilities) so the worker can write `machine: <name>` when what is left belongs on
+// one, and the contract is built at every dispatch and resume from places the AppContext never reaches
+// (a scheduler wake, a shell-stop notice). One peer service runs per server, so a module reading is the
+// honest shape; close() releases it.
+let livePaired: (() => PairedMachines) | undefined
+
+/** The paired machines right now, or undefined when this server runs no peer service or pairs with none. */
+export function pairedMachines(): PairedMachines | undefined {
+  const reading = livePaired?.()
+  return reading && reading.peers.length > 0 ? reading : undefined
+}
+
 export function createPeerService(deps: PeerServiceDeps): PeerService {
   const fetchImpl = deps.fetch ?? fetch
   const key: PeerKeyPair = loadOrCreatePeerKey(deps.home)
@@ -1050,6 +1069,9 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
   const saved = store.listener()
   if (deps.startListener !== false && saved.enabled) void startListener(saved.port)
 
+  const paired = (): PairedMachines => ({ self: name, peers: store.list().map((record) => record.name) })
+  livePaired = paired
+
   return {
     state: () => {
       const config = store.listener()
@@ -1136,6 +1158,9 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     keepHere,
     blocked,
     handle,
-    close: stopListener,
+    close: async () => {
+      if (livePaired === paired) livePaired = undefined
+      await stopListener()
+    },
   }
 }

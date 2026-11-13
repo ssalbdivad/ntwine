@@ -490,3 +490,25 @@ test("the heading names a PR only once the thread's own work has stopped", () =>
   // A shell the fence never named may be a dev server, and does not change what the wait is.
   assert.equal(awaitingBackgroundLabel({ bgShells: [running], watches: [{ id: "w", kind: "github", target: "acme/app#391", state: "armed", createdAt: running.startedAt }] }, [pr]), "Watching acme/app#391")
 })
+
+// `machine:` (2026-11-12): a worker whose remaining work belongs on a paired machine rests naming it, and
+// the card leads with the move there. It matches the name loosely (a `.local` host, any case), is the
+// white primary, and draws nothing for a machine that is not paired or a stale fence.
+test("a machine fence at rest leads the footer with the move to that paired machine", () => {
+  const peer = { id: "0".repeat(32), name: "ssalb-xps", url: "http://ssalb-xps.local:9494", fingerprint: "0000 0000", pairedAt: "2026-11-12T00:00:00.000Z" }
+  const resting = (hints: { kind: string; value: string }[], over: Record<string, unknown> = {}) =>
+    ({ ...thread([], []), lastFence: { kind: "awaiting", body: "", hints }, ...over }) as Parameters<typeof AwaitingBackgroundCard>[0]["thread"]
+  const withPeers = (t: Parameters<typeof AwaitingBackgroundCard>[0]["thread"]) => {
+    const client = new QueryClient()
+    client.setQueryData(["peersState"], { self: { name: "mbp", id: "1".repeat(32), fingerprint: "1111 1111", addresses: [] }, listener: { enabled: true, port: 9494 }, peers: [peer] })
+    return renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(AwaitingBackgroundCard, { thread: t })))
+  }
+  const moveButton = /<button[^>]*data-suggested-move[^>]*>Move to ssalb-xps<\/button>/
+  const alone = withPeers(resting([{ kind: "machine", value: "SSALB-XPS.local" }]))
+  assert.match(alone, moveButton)
+  assert.match(alone, /data-suggested-move[^>]*class="[^"]*bg-fg|class="[^"]*bg-fg[^"]*"[^>]*data-suggested-move/, "the move is the white primary")
+  assert.doesNotMatch(alone, /Ask for update/, "the card waits on the human, so there is nothing to ask for")
+  assert.doesNotMatch(withPeers(resting([{ kind: "machine", value: "nas" }])), /data-suggested-move/, "not a paired machine")
+  assert.doesNotMatch(withPeers(resting([{ kind: "machine", value: "ssalb-xps" }], { runtime: "running" })), /data-suggested-move/, "not at rest on it")
+  assert.doesNotMatch(withPeers(resting([{ kind: "machine", value: "ssalb-xps" }], { movedTo: { peerId: peer.id, peerName: "ssalb-xps", at: "2026-11-12T00:00:00.000Z" } })), /data-suggested-move/, "already moved")
+})
