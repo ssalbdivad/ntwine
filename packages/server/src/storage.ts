@@ -311,6 +311,9 @@ export interface SessionRow {
   // arrived at, carrying the one-time note its worker reads in its first message there.
   moved_to?: string | null
   moved_from?: string | null
+  // Every move the thread has made, as MoveLogEntry[] JSON (@ntwine/shared): it travels with the row, so the
+  // transcript on each machine can mark where the thread changed hands.
+  move_log?: string | null
   // The SCHEDULE this thread is a run of (ARCHITECTURE.md § Scheduled threads): set on the held row a schedule
   // materializes as its next run, and kept when that row starts — the dispatch upsert never writes it —
   // so every run carries its schedule for life. A row held by `schedules` is a schedule's pending next run:
@@ -1842,7 +1845,7 @@ export function ensureStorageSchema(db: Database): void {
     "todo_steps TEXT",
     // 2026-11-12: a thread moved to another machine (plans/thread-handoff.md) — the stamp on the machine it
     // LEFT, which keeps a read-only stub, and on the one it ARRIVED at (thread-move.ts).
-    "moved_to TEXT", "moved_from TEXT",
+    "moved_to TEXT", "moved_from TEXT", "move_log TEXT",
   ]) {
     try {
       db.exec(`ALTER TABLE session ADD COLUMN ${column}`)

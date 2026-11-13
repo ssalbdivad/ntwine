@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { tmpdir } from "node:os"
 import { dirname, join, relative, sep } from "node:path"
 import { randomUUID } from "node:crypto"
-import { movedAwayRefusal, ThreadSlug, threadIdentityName, type ThreadMoveStamp } from "@ntwine/shared"
+import { appendMoveLog, movedAwayRefusal, ThreadSlug, threadIdentityName, type ThreadMoveStamp } from "@ntwine/shared"
 import type { ProjectScope } from "./project-scope.ts"
 import type Database from "./sqlite.ts"
 import { BUNDLE_MAX_BYTES, packBundle, safeRelativePath, type BundleFile, type BundleRoot } from "./thread-bundle.ts"
@@ -452,6 +452,8 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
           row.thread_name = threadIdentityName(slug)
           row.moved_to = null
           row.moved_from = JSON.stringify(stamp)
+          // The history it carries, plus this move, timed by the machine it left (see MoveLogEntry).
+          row.move_log = appendMoveLog(row.move_log, { from: peer.name, to: self.name, at: manifest.createdAt, moveId: manifest.moveId })
           // The schedule stays on the machine that has it; a run that moved is just a thread here.
           row.schedule_id = null
         }
@@ -501,12 +503,14 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
  * Turn the thread into a read-only stub that names where it went, and settle every wait it had armed
  * here, so a timer or a PR watch fires on exactly one machine. One transaction.
  */
-export function markMovedAway(scope: ProjectScope, slug: string, stamp: ThreadMoveStamp): void {
+export function markMovedAway(scope: ProjectScope, slug: string, stamp: ThreadMoveStamp, departure: { from: string; at: string }): void {
   const now = Date.now()
   scope.db.transaction(() => {
-    scope.prepare(`UPDATE session SET moved_to = @stamp, state = 'archived', snoozed_until = NULL, snooze_prompt = NULL,
+    const current = scope.prepare<[string], { move_log: string | null }>("SELECT move_log FROM session WHERE project_id = @project_id AND slug = ?").get(slug)
+    const moveLog = appendMoveLog(current?.move_log, { from: departure.from, to: stamp.peerName, at: departure.at, moveId: stamp.moveId })
+    scope.prepare(`UPDATE session SET moved_to = @stamp, move_log = @moveLog, state = 'archived', snoozed_until = NULL, snooze_prompt = NULL,
       recurring_on_rest = 0, recurring_on_schedule = 0, recurring_on_compact = 0
-      WHERE project_id = @project_id AND slug = @slug`).run({ stamp: JSON.stringify(stamp), slug })
+      WHERE project_id = @project_id AND slug = @slug`).run({ stamp: JSON.stringify(stamp), moveLog, slug })
     for (const [table, settled] of [["thread_timer", "cancelled"], ["pr_watch", "dropped"], ["command_watch", "cancelled"], ["thread_watch", "dropped"]] as const) {
       scope.prepare(`UPDATE ${table} SET state = '${settled}', settled_at = @now WHERE project_id = @project_id AND thread_slug = @slug AND state = 'armed'`).run({ now, slug })
     }

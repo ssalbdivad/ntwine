@@ -7244,6 +7244,17 @@ export function createRouter(ctx: AppContext) {
         return result
       },
     }),
+    // "Resume here" on a thread that moved away: the machine holding it hands it back. Not in
+    // MOVED_THREAD_REFUSES, since the stub is exactly what it acts on.
+    threadMoveRecall: mutation({
+      input: ThreadMoveSlugInput,
+      output: ThreadMoveResult,
+      handler: async ({ input }) => {
+        const result = await peerService().recall(ctx, input.slug)
+        ctx.board.refresh()
+        return result
+      },
+    }),
     // A move whose answer never came back holds the thread on neither machine; this keeps it here.
     threadMoveKeepHere: mutation({
       input: ThreadMoveSlugInput,

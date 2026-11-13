@@ -113,6 +113,8 @@ export interface PeerService {
   ping(id: string): Promise<PeerPingResult>
   preview(ctx: AppContext, slug: string, peerId: string): Promise<ThreadMovePreview>
   move(ctx: AppContext, slug: string, peerId: string): Promise<ThreadMoveResult>
+  /** Take back a thread this machine moved away, from the machine holding it. */
+  recall(ctx: AppContext, slug: string): Promise<ThreadMoveResult>
   /** Clear a move whose answer never came back, keeping the thread on this machine. */
   keepHere(ctx: AppContext, slug: string): void
   /** Why this thread may not run here right now, or undefined. Every path that would run it asks. */
@@ -225,7 +227,7 @@ interface BodyReader {
  * anyone who could reach the route — no session needed, unbounded concurrency — could make the server
  * hold 400 MB (twice that once concatenated) per request before it said "not paired".
  */
-function bodyReader(request: Request, max: number): BodyReader {
+function bodyReader(request: Pick<Request, "headers" | "body">, max: number): BodyReader {
   const declared = Number(request.headers.get("content-length") ?? "NaN")
   const tooLarge = Number.isFinite(declared) && declared > max
   const reader = request.body?.getReader()
@@ -263,7 +265,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
   const store: PeerStore = openPeerStore(deps.storePath ?? peersFilePath(deps.home))
   const codes = createPairCodes()
   const seen = openSeenRequests(seenRequestsPath(deps.storePath ?? peersFilePath(deps.home)))
-  /** Threads with a move in flight on this machine, `<projectId>:<slug>`, to the destination's name. */
+  /** Threads leaving or coming back right now, `<projectId>:<slug>`, to what running them would be refused with. */
   const moving = new Map<string, string>()
   /**
    * The move id of the ONE import running here, server-wide. Taken before the bundle is unpacked: an
@@ -304,6 +306,11 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
    * every failure is a plain Error.
    */
   async function call(peer: PeerRecord, op: string, args: unknown, options: { blob?: Buffer; timeoutMs?: number; acts?: boolean } = {}): Promise<unknown> {
+    return (await exchange(peer, op, args, options)).result
+  }
+
+  /** `call`, keeping the blob the answer carries (a thread handed back travels in the answer). */
+  async function exchange(peer: PeerRecord, op: string, args: unknown, options: { blob?: Buffer; timeoutMs?: number; acts?: boolean } = {}): Promise<{ result: unknown; blob: Buffer }> {
     const failed = (message: string) => {
       store.update(peer.id, { lastError: message })
       return options.acts ? new UnconfirmedError(message) : new Error(message)
@@ -323,12 +330,14 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       // after delivery by anything on the path.
       throw failed(`${peer.name} did not answer at ${peer.url} (${error instanceof Error ? error.message : String(error)})`)
     }
-    let body: Buffer
+    let body: Buffer | undefined
     try {
-      body = Buffer.from(await response.arrayBuffer())
+      // Bounded like a request: an answer can carry a whole thread now, and nothing has authenticated it yet.
+      body = await bodyReader(response, MAX_CALL_BYTES).readAll()
     } catch (error) {
       throw failed(`${peer.name}'s answer was cut off (${error instanceof Error ? error.message : String(error)})`)
     }
+    if (!body) throw failed(`${peer.name}'s answer was too large`)
     if (response.status !== 200) {
       // Unsealed, so unauthenticated whatever it says: the other machine's own pre-envelope refusals
       // ("not paired") travel this way, and so does anything a relay or the LAN path makes up. Before
@@ -340,8 +349,11 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
         : `${peer.name} answered ${response.status} at ${peer.url}${text ? ` (${text})` : ""}`)
     }
     let head: { ok?: boolean; result?: unknown; error?: string; unconfirmed?: boolean }
+    let blob: Buffer
     try {
-      head = unframeMessage(sent.openResponse(body)).head as typeof head
+      const framed = unframeMessage(sent.openResponse(body))
+      head = framed.head as typeof head
+      blob = framed.blob
     } catch {
       throw failed(`${peer.name}'s answer could not be verified`)
     }
@@ -352,7 +364,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       if (options.acts && head.unconfirmed === true) throw new UnconfirmedError(message)
       throw options.acts ? new PeerRefusal(message) : new Error(message)
     }
-    return head.result
+    return { result: head.result, blob }
   }
 
   // ---- matching a project by remote ----
@@ -468,6 +480,61 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     return { peerId: record.id, peerName: record.name, at: new Date().toISOString(), moveId, ...(pending ? { pending: true } : {}) }
   }
 
+  interface Packed { git: GitPlan | undefined; exported: ReturnType<typeof exportThread> }
+
+  /**
+   * Stop the resting worker and pack the thread for `record`: its rows, its files and, when it goes with
+   * it, its checkout. Both ways a thread leaves pack this way: a move sends the pack, a recall answers with it.
+   */
+  async function pack(ctx: AppContext, row: SessionRow, record: PeerRecord, moveId: string, workRoot: string): Promise<Packed> {
+    // Stop the resting worker so nothing writes to the transcript while it is copied. Its next input
+    // would cold-resume it from disk anyway; here there will be no next input.
+    if (ctx.claudeBroker?.retireDaemon({ threadSlug: row.slug, sessionId: row.session_id })) {
+      for (let waited = 0; waited < 5_000 && ctx.claudeBroker.isDaemonAlive(row.session_id); waited += 100) await new Promise((done) => setTimeout(done, 100))
+    }
+    const bucket = transcriptBucket(ctx, row.session_id)
+    const git = planGit(ctx, row, bucket, record.name)
+    if (git && "refused" in git) throw new MoveRefusal(git.refused)
+    let gitPayload: (MoveGit & { bundle: Buffer }) | null = null
+    if (git && carriesCheckout(git)) {
+      const file = join(workRoot, "wip.bundle")
+      writeWipBundle({ root: git.location.root, wip: git.snapshot.wip, file })
+      gitPayload = { rel: git.location.rel, branch: git.snapshot.branch, head: git.snapshot.head, wip: git.snapshot.wip, paths: git.snapshot.paths, bundle: readFileSync(file) }
+    }
+    const exported = exportThread({
+      db: ctx.storage.db,
+      project: { id: ctx.project.id, name: ctx.project.name, dir: ctx.project.dir, workDir: workDirOf(ctx.project), stateDir: ctx.project.stateDir },
+      bucket,
+      slug: row.slug,
+      home: deps.home,
+      moveId,
+      git: gitPayload,
+    })
+    return { git, exported }
+  }
+
+  /**
+   * The other machine has the thread: this copy becomes a read-only stub naming where it went, and the
+   * uncommitted files that went with it are put back as the checkout had them. Returns notes for the human.
+   */
+  function departed(ctx: AppContext, slug: string, record: PeerRecord, moveId: string, packed: { git: GitPlan | undefined; createdAt: string }): string[] {
+    markMovedAway(ctx.storage.scope, slug, stampFor(record, moveId), { from: name, at: packed.createdAt })
+    const { git } = packed
+    const notes: string[] = []
+    if (git && git.snapshot.paths.length) {
+      try {
+        const reverted = revertMovedPaths({ root: git.location.root, head: git.snapshot.head, wip: git.snapshot.wip, paths: git.snapshot.paths })
+        if (reverted.kept.length) notes.push(`Left in place on ${name} because they changed during the move: ${reverted.kept.join(", ")}`)
+      } catch (error) {
+        notes.push(`Its uncommitted files are still on ${name} as well (${error instanceof Error ? error.message : String(error)})`)
+      }
+    }
+    if (git?.snapshot.leftBehind.length) notes.push(`${git.snapshot.leftBehind.length} uncommitted file(s) in ${name}'s main checkout were not this thread's edits and stayed there`)
+    if (git?.elsewhere.length) notes.push(`Its uncommitted edits outside ${git.location.rel === "." ? "the main checkout" : git.location.rel} stayed on ${name}: ${git.elsewhere.join(", ")}`)
+    void ctx.board.rebuild().catch(() => {})
+    return notes
+  }
+
   async function move(ctx: AppContext, slug: string, peerId: string): Promise<ThreadMoveResult> {
     const record = requirePeer(peerId)
     const moveKey = `${ctx.project.id}:${slug}`
@@ -477,8 +544,9 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     // A retry of a move whose answer was lost re-sends under the SAME id, which the destination
     // recognises; anything else that already left is refused by localRefusal below.
     const resumeId = retrying?.pending && retrying.peerId === record.id ? retrying.moveId : undefined
-    if (moving.has(moveKey)) throw new Error(`This thread is already moving to ${moving.get(moveKey)}`)
-    moving.set(moveKey, record.name)
+    const inFlight = moving.get(moveKey)
+    if (inFlight) throw new Error(inFlight)
+    moving.set(moveKey, `This thread is moving to ${record.name}`)
     const workRoot = mkdtempSync(join(tmpdir(), "ntwine-move-"))
     try {
       const row = ctx.storage.getSession(slug)
@@ -489,32 +557,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       const identities = remoteIdentities(workDirOf(ctx.project))
       if (!identities.length) throw new MoveRefusal("This project has no git remote, so the other machine cannot find its copy of it")
       await call(record, "prepare", { identities, slug, sessionId: row.session_id, ...(resumeId ? { moveId: resumeId } : {}) })
-
-      // Stop the resting worker so nothing writes to the transcript while it is copied. Its next input
-      // would cold-resume it from disk anyway; here there will be no next input.
-      if (ctx.claudeBroker?.retireDaemon({ threadSlug: slug, sessionId: row.session_id })) {
-        for (let waited = 0; waited < 5_000 && ctx.claudeBroker.isDaemonAlive(row.session_id); waited += 100) await new Promise((done) => setTimeout(done, 100))
-      }
-
-      const bucket = transcriptBucket(ctx, row.session_id)
-      const git = planGit(ctx, row, bucket, record.name)
-      if (git && "refused" in git) throw new MoveRefusal(git.refused)
-      let gitPayload: (MoveGit & { bundle: Buffer }) | null = null
-      if (git && carriesCheckout(git)) {
-        const file = join(workRoot, "wip.bundle")
-        writeWipBundle({ root: git.location.root, wip: git.snapshot.wip, file })
-        gitPayload = { rel: git.location.rel, branch: git.snapshot.branch, head: git.snapshot.head, wip: git.snapshot.wip, paths: git.snapshot.paths, bundle: readFileSync(file) }
-      }
       const moveId = resumeId ?? randomUUID()
-      const exported = exportThread({
-        db: ctx.storage.db,
-        project: { id: ctx.project.id, name: ctx.project.name, dir: ctx.project.dir, workDir: workDirOf(ctx.project), stateDir: ctx.project.stateDir },
-        bucket,
-        slug,
-        home: deps.home,
-        moveId,
-        git: gitPayload,
-      })
+      const { git, exported } = await pack(ctx, row, record, moveId, workRoot)
 
       // From here the thread runs nowhere until the destination answers: a send, a wake or a reopen all
       // refuse on this stamp, and it survives a restart of this server.
@@ -535,19 +579,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
         throw error instanceof UnconfirmedError ? error : new UnconfirmedError(error instanceof Error ? error.message : String(error))
       }
 
-      markMovedAway(ctx.storage.scope, slug, stampFor(record, moveId))
-      const notes = [...imported.notes]
-      if (git && git.snapshot.paths.length) {
-        try {
-          const reverted = revertMovedPaths({ root: git.location.root, head: git.snapshot.head, wip: git.snapshot.wip, paths: git.snapshot.paths })
-          if (reverted.kept.length) notes.push(`Left in place here because they changed during the move: ${reverted.kept.join(", ")}`)
-        } catch (error) {
-          notes.push(`Its uncommitted files are still here as well (${error instanceof Error ? error.message : String(error)})`)
-        }
-      }
-      if (git?.snapshot.leftBehind.length) notes.push(`${git.snapshot.leftBehind.length} uncommitted file(s) in the main checkout were not this thread's edits and stayed here`)
-      if (git?.elsewhere.length) notes.push(`Its uncommitted edits outside ${git.location.rel === "." ? "the main checkout" : git.location.rel} stayed here: ${git.elsewhere.join(", ")}`)
-      void ctx.board.rebuild().catch(() => {})
+      const notes = [...imported.notes, ...departed(ctx, slug, record, moveId, { git, createdAt: exported.manifest.createdAt })]
       audit("threadMoveOut", "ok", {
         project: auditProject, thread: slug,
         detail: { peer: peerRef(record), moveId, bytes: exported.bytes, compressed: exported.blob.length, files: exported.manifest.files.length, wipPaths: git?.snapshot.paths.length ?? 0, checkout: git?.location.rel ?? null },
@@ -578,8 +610,74 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
   function blocked(projectId: string, row: Pick<SessionRow, "slug" | "moved_to"> | undefined): string | undefined {
     if (!row) return undefined
     const inFlight = moving.get(`${projectId}:${row.slug}`)
-    if (inFlight) return `This thread is moving to ${inFlight}`
+    if (inFlight) return inFlight
     return movedAwayBlock(row.moved_to)
+  }
+
+  /**
+   * Take back a thread this machine moved away. The machine holding it packs it and answers with it (see
+   * onRecall), it is imported here over its own stub, and then that machine is told to let go — so only
+   * this machine has to reach that one. With that one unreachable the thread stays there: exactly one
+   * machine runs a thread, and nothing here can tell that the other has stopped running it.
+   */
+  async function recall(ctx: AppContext, slug: string): Promise<ThreadMoveResult> {
+    const row = ctx.storage.getSession(slug)
+    const away = movedStamp(row?.moved_to)
+    if (!row || !away) throw new Error("This thread is already on this machine")
+    if (away.pending) throw new Error(movedAwayBlock(row.moved_to))
+    const record = requirePeer(away.peerId)
+    const moveKey = `${ctx.project.id}:${slug}`
+    const auditProject = { id: ctx.project.id, dir: workDirOf(ctx.project) }
+    const inFlight = moving.get(moveKey)
+    if (inFlight) throw new Error(inFlight)
+    // The import below holds the whole thread at once, like one sent here (see `arriving`).
+    if (arriving) throw new Error(`${name} is taking in another thread; try again in a moment`)
+    const recallKey = `recall:${randomUUID()}`
+    arriving = recallKey
+    moving.set(moveKey, `This thread is coming back from ${record.name}`)
+    const say = (error: unknown) => (error instanceof Error ? error.message : String(error))
+    try {
+      const identities = remoteIdentities(workDirOf(ctx.project))
+      if (!identities.length) throw new Error("This project has no git remote, so the other machine cannot find its copy of it")
+      let handed: { result: unknown; blob: Buffer }
+      try {
+        handed = await exchange(record, "recall", { identities, slug, sessionId: row.session_id, moveId: away.moveId }, { timeoutMs: 15 * 60_000, acts: true })
+      } catch (error) {
+        // A refusal is that machine keeping it. Anything else may have reached it, and it then holds the
+        // thread for this machine, running nowhere, until a retry from here or a choice made there.
+        const message = error instanceof PeerRefusal ? say(error) : `${say(error)}. ${record.name} may be holding it for this machine: try again, or keep it there from its own copy`
+        audit("threadMoveIn", "refused", { project: auditProject, thread: slug, error: message, detail: { peer: peerRef(record), recalled: true, unconfirmed: !(error instanceof PeerRefusal) } })
+        throw new Error(message)
+      }
+      const moveId = (handed.result as { moveId?: unknown } | null)?.moveId
+      if (typeof moveId !== "string") throw new Error(`${record.name} answered in a way this machine does not understand; update ntwine on both`)
+      let arrived: { slug: string; notes: string[] }
+      try {
+        arrived = await takeIn(ctx, record, moveId, handed.blob, { slug, sessionId: row.session_id })
+      } catch (error) {
+        // Nothing was written here, so the thread is still that machine's to run.
+        try {
+          await call(record, "recall-abort", { identities, slug, moveId })
+        } catch (abortError) {
+          throw new Error(`${say(error)}. ${record.name} could not be told to keep it (${say(abortError)}): keep it there from its own copy`)
+        }
+        throw new Error(`${say(error)}. It stays on ${record.name}`)
+      }
+      const notes = [...arrived.notes]
+      try {
+        const done = await call(record, "recall-done", { identities, slug, moveId }) as { notes?: unknown } | null
+        if (Array.isArray(done?.notes)) notes.push(...done.notes.filter((note): note is string => typeof note === "string"))
+      } catch (error) {
+        // It is here and runs here. That machine's copy stays read-only until it learns so: its retry
+        // re-sends under this move's id, which this machine recognises as already arrived.
+        notes.push(`${record.name} did not hear that it is back (${say(error)}). Its copy there stays read-only; retry the move from it to finish`)
+      }
+      return { peer: { id: record.id, name: record.name }, slug: arrived.slug, notes }
+    } finally {
+      moving.delete(moveKey)
+      if (arriving === recallKey) arriving = undefined
+      void ctx.board.rebuild().catch(() => {})
+    }
   }
 
   // ---- the destination side ----
@@ -618,6 +716,14 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     if (!project) throw new Error(`${name} has no copy of this project`)
     const ctx = await deps.openProject(project.id)
     if (!ctx) throw new Error(`${name} could not open its copy of this project`)
+    return takeIn(ctx, peer, args.moveId as string, blob)
+  }
+
+  /**
+   * Write a thread `peer` packed into this machine's copy of the project. `asked`: the thread this machine
+   * recalled, which the pack must be. Throws only before anything is committed.
+   */
+  async function takeIn(ctx: AppContext, peer: PeerRecord, moveId: string, blob: Buffer, asked?: { slug: string; sessionId: string }): Promise<{ slug: string; notes: string[] }> {
     const auditProject = { id: ctx.project.id, dir: workDirOf(ctx.project) }
     let slug: string | undefined
     try {
@@ -628,7 +734,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
         throw new Error(error instanceof BundleError ? error.message : "the thread's bundle could not be read")
       }
       const manifest = parseManifest(unpacked.manifest)
-      if (!manifest || manifest.moveId !== args.moveId) throw new Error("the thread's bundle is malformed")
+      if (!manifest || manifest.moveId !== moveId) throw new Error("the thread's bundle is malformed")
+      if (asked && (manifest.thread.slug !== asked.slug || manifest.thread.sessionId !== asked.sessionId)) throw new Error(`${peer.name} answered with a different thread`)
       slug = manifest.thread.slug
       if (manifest.thread.backend !== "claude") throw new Error("Only a Claude thread can move to another machine for now")
       const workDir = workDirOf(ctx.project)
@@ -652,13 +759,90 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       }
       audit("threadMoveIn", "ok", {
         project: auditProject, thread: slug,
-        detail: { peer: peerRef(peer), moveId: manifest.moveId, duplicate: result.duplicate, compressed: blob.length, files: unpacked.files.length, wipPaths: manifest.git?.paths.length ?? 0, checkout: manifest.git?.rel ?? null },
+        detail: { peer: peerRef(peer), moveId: manifest.moveId, duplicate: result.duplicate, compressed: blob.length, files: unpacked.files.length, wipPaths: manifest.git?.paths.length ?? 0, checkout: manifest.git?.rel ?? null, ...(asked ? { recalled: true } : {}) },
       })
       return { slug: result.slug, notes: result.notes }
     } catch (error) {
-      audit("threadMoveIn", "refused", { project: auditProject, ...(slug ? { thread: slug } : {}), error: error instanceof Error ? error.message : String(error), detail: { peer: peerRef(peer), compressed: blob.length } })
+      audit("threadMoveIn", "refused", { project: auditProject, ...(slug ? { thread: slug } : {}), error: error instanceof Error ? error.message : String(error), detail: { peer: peerRef(peer), compressed: blob.length, ...(asked ? { recalled: true } : {}) } })
       throw error
     }
+  }
+
+  // ---- the destination side of a recall: the machine it moved to, handing it back ----
+
+  /** Recalls this machine answered with the thread, by move id, until the asker says it has it or cannot take it. */
+  const handing = new Map<string, { git: GitPlan | undefined; createdAt: string }>()
+
+  async function recallTarget(peer: PeerRecord, args: Record<string, unknown>): Promise<{ ctx: AppContext; slug: string; moveId: string; row: SessionRow | undefined }> {
+    const identities = Array.isArray(args.identities) ? args.identities.filter((id): id is string => typeof id === "string") : []
+    const project = projectFor(identities)
+    if (!project) throw new Error(`${name} has no copy of this project`)
+    const ctx = await deps.openProject(project.id)
+    if (!ctx) throw new Error(`${name} could not open its copy of this project`)
+    if (typeof args.slug !== "string" || typeof args.moveId !== "string") throw new Error("malformed request")
+    return { ctx, slug: args.slug, moveId: args.moveId, row: ctx.storage.getSession(args.slug) }
+  }
+
+  /**
+   * `peer` wants back a thread it moved here. Packed and stamped pending toward it, exactly as a move from
+   * here would be, and the pack is the answer. A retry (the answer was lost) re-packs under the same id.
+   */
+  async function onRecall(peer: PeerRecord, args: Record<string, unknown>): Promise<{ result: unknown; blob: Buffer }> {
+    const { ctx, slug, row } = await recallTarget(peer, args)
+    if (typeof args.sessionId !== "string") throw new Error("malformed request")
+    if (!row || row.session_id !== args.sessionId) throw new Error(`${name} has no copy of this thread`)
+    // Only threads that machine sent here: a pairing lets a machine hand threads over, not read this one's.
+    const from = movedStamp(row.moved_from)
+    if (from?.peerId !== peer.id) throw new Error(`${name}'s copy of this thread did not come from ${peer.name}`)
+    const away = movedStamp(row.moved_to)
+    const resumeId = away?.pending && away.peerId === peer.id ? away.moveId : undefined
+    const moveKey = `${ctx.project.id}:${slug}`
+    const inFlight = moving.get(moveKey)
+    if (inFlight) throw new Error(`${name}: ${inFlight}`)
+    moving.set(moveKey, `This thread is moving to ${peer.name}`)
+    const workRoot = mkdtempSync(join(tmpdir(), "ntwine-move-"))
+    try {
+      const refusal = localRefusal(ctx, resumeId ? { ...row, moved_to: null } : row, true)
+      if (refusal) throw new Error(`${name} cannot hand it back yet: ${refusal.charAt(0).toLowerCase()}${refusal.slice(1)}`)
+      const moveId = resumeId ?? randomUUID()
+      const { git, exported } = await pack(ctx, row, peer, moveId, workRoot)
+      // From here it runs nowhere until the asker says whether it took it (onRecallDone, onRecallAbort).
+      if (!resumeId) setMovedTo(ctx.storage.scope, slug, stampFor(peer, moveId, true))
+      handing.set(moveId, { git, createdAt: exported.manifest.createdAt })
+      void ctx.board.rebuild().catch(() => {})
+      return { result: { moveId }, blob: exported.blob }
+    } finally {
+      moving.delete(moveKey)
+      rmSync(workRoot, { recursive: true, force: true })
+    }
+  }
+
+  /** The asker has it: this copy becomes the stub, as at the end of a move from here. */
+  async function onRecallDone(peer: PeerRecord, args: Record<string, unknown>): Promise<unknown> {
+    const { ctx, slug, moveId, row } = await recallTarget(peer, args)
+    const stamp = movedStamp(row?.moved_to)
+    if (!stamp || stamp.peerId !== peer.id || stamp.moveId !== moveId) throw new Error(`${name} is not handing this thread to ${peer.name}`)
+    if (!stamp.pending) return { notes: [] }
+    const held = handing.get(moveId)
+    handing.delete(moveId)
+    // After a restart here the checkout plan is gone, so files that went with it are left as they are.
+    const notes = departed(ctx, slug, peer, moveId, { git: held?.git, createdAt: held?.createdAt ?? stamp.at })
+    audit("threadMoveOut", "ok", { project: { id: ctx.project.id, dir: workDirOf(ctx.project) }, thread: slug, detail: { peer: peerRef(peer), moveId, recalled: true, wipPaths: held?.git?.snapshot.paths.length ?? 0 } })
+    return { notes }
+  }
+
+  /** The asker could not take it: it is this machine's to run again. */
+  async function onRecallAbort(peer: PeerRecord, args: Record<string, unknown>): Promise<unknown> {
+    const { ctx, slug, moveId, row } = await recallTarget(peer, args)
+    handing.delete(moveId)
+    const stamp = movedStamp(row?.moved_to)
+    if (!stamp) return {}
+    if (stamp.peerId !== peer.id || stamp.moveId !== moveId) throw new Error(`${name} is not handing this thread to ${peer.name}`)
+    if (!stamp.pending) throw new Error(`${name} already let go of this thread`)
+    setMovedTo(ctx.storage.scope, slug, null)
+    audit("threadMoveOut", "refused", { project: { id: ctx.project.id, dir: workDirOf(ctx.project) }, thread: slug, error: `${peer.name} could not take it back`, detail: { peer: peerRef(peer), moveId, recalled: true } })
+    void ctx.board.rebuild().catch(() => {})
+    return {}
   }
 
   // ---- inbound ----
@@ -696,7 +880,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     const peer = sender
     // Sealed under a fresh nonce each time (peer-crypto.ts), so answering one request id more than once
     // — the replay refusal below — reuses no keystream.
-    const reply = (head: unknown) => new Response(new Uint8Array(opened.sealResponse(frameMessage(head))), { status: 200, headers: { "content-type": "application/octet-stream", "cache-control": "no-store" } })
+    const reply = (head: unknown, blob?: Buffer) => new Response(new Uint8Array(opened.sealResponse(frameMessage(head, blob))), { status: 200, headers: { "content-type": "application/octet-stream", "cache-control": "no-store" } })
     let message: { op?: unknown; id?: unknown; ts?: unknown; args?: unknown }
     let blob: Buffer
     try {
@@ -730,6 +914,14 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
           return reply({ ok: true, result: await onPrepare(peer, args) })
         case "import":
           return reply({ ok: true, result: await onImport(peer, args, blob) })
+        case "recall": {
+          const handed = await onRecall(peer, args)
+          return reply({ ok: true, result: handed.result }, handed.blob)
+        }
+        case "recall-done":
+          return reply({ ok: true, result: await onRecallDone(peer, args) })
+        case "recall-abort":
+          return reply({ ok: true, result: await onRecallAbort(peer, args) })
         case "unpair":
           store.remove(peer.id)
           audit("peerUnpair", "ok", { detail: { peer: peerRef(peer), by: "peer" } })
@@ -940,6 +1132,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     },
     preview,
     move,
+    recall,
     keepHere,
     blocked,
     handle,

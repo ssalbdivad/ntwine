@@ -33,6 +33,7 @@ import {
   parseSpinoffRequest,
   isKeepWorkingMessage,
   parseSpinoffChildPrompt,
+  moveLogOf,
 } from "@ntwine/shared"
 import { projectTranscriptSessionPeers, type SessionPeerThread } from "./session-peer.ts"
 import { workDirOf, type Project } from "./project.ts"
@@ -4871,9 +4872,14 @@ export function withSpinoffCards(
       spinoff: { id: row.id, instructions: row.instructions },
     })
   }
+  return insertAtInstants(messages, cards)
+}
+
+/** `cards` (each timed, in time order) placed among `messages` by their instants. Each goes after the last
+ *  message at or before its instant (ISO instants compare as strings); a message with no instant keeps its
+ *  place relative to its neighbours, as a queued bubble at the tail does. */
+function insertAtInstants(messages: TranscriptMessage[], cards: readonly TranscriptMessage[]): TranscriptMessage[] {
   if (!cards.length) return messages
-  // Each card goes after the last message at or before its instant (ISO instants compare as strings).
-  // A message with no instant keeps its place relative to its neighbours, as a queued bubble at the tail.
   const out: TranscriptMessage[] = []
   let next = 0
   for (const m of messages) {
@@ -4885,6 +4891,44 @@ export function withSpinoffCards(
   while (tail > 0 && out[tail - 1].at === undefined && out[tail - 1].queued) tail--
   out.splice(tail, 0, ...cards.slice(next))
   return out
+}
+
+/** A `moved_to` / `moved_from` stamp's machine and instant, for a row moved before the log existed. */
+function stampOf(raw: unknown): { peerName: string; at: string; moveId: string; pending: boolean } | undefined {
+  if (typeof raw !== "string" || !raw) return undefined
+  try {
+    const stamp = JSON.parse(raw) as Record<string, unknown>
+    if (typeof stamp.peerName !== "string" || typeof stamp.at !== "string" || typeof stamp.moveId !== "string") return undefined
+    return { peerName: stamp.peerName, at: stamp.at, moveId: stamp.moveId, pending: stamp.pending === true }
+  } catch {
+    return undefined
+  }
+}
+
+// WHERE A THREAD CHANGED MACHINES, drawn as a divider at that point in its conversation: "Moved from A to
+// B" (plans/thread-handoff.md). Nothing in the transcript itself marks it — the conversation goes on
+// unchanged, which is the point of a move — so it is read off the session row's move log, the way a
+// spinoff's card is read off its row, and placed by time. Both machines draw every move the thread has
+// made, since the log travels with it. A row moved before the log existed has only its two stamps.
+// A move still unconfirmed draws nothing here: the notice under the transcript says what is going on.
+export function withMoveDividers(messages: TranscriptMessage[], storage: Pick<Storage, "getSession">, slug: string): TranscriptMessage[] {
+  const row = storage.getSession(slug)
+  if (!row || (!row.move_log && !row.moved_to && !row.moved_from)) return messages
+  let dividers = moveLogOf(row.move_log).map((entry) => ({ id: entry.moveId, text: `Moved from ${entry.from} to ${entry.to}`, at: entry.at }))
+  if (!dividers.length) {
+    const from = stampOf(row.moved_from)
+    const to = stampOf(row.moved_to)
+    dividers = [
+      ...(from ? [{ id: from.moveId, text: `Moved here from ${from.peerName}`, at: from.at }] : []),
+      ...(to && !to.pending ? [{ id: to.moveId, text: `Moved to ${to.peerName}`, at: to.at }] : []),
+    ]
+  }
+  const seen = new Set<string>()
+  const cards: TranscriptMessage[] = dividers
+    .filter((divider) => !seen.has(divider.id) && seen.add(divider.id))
+    .map((divider): TranscriptMessage => ({ sourceId: `moved:${divider.id}`, role: "assistant", kind: "event", boundary: "moved", text: divider.text, tools: [], parts: [], at: new Date(divider.at).toISOString() }))
+    .sort((a, b) => (a.at! < b.at! ? -1 : a.at! > b.at! ? 1 : 0))
+  return insertAtInstants(messages, cards)
 }
 
 // The latest page of a thread with NO transcript behind it yet — and it still carries the delivery
@@ -4935,7 +4979,7 @@ export function readLatestThreadTranscriptPage(
       projected = projectSnapshot(snapshot)
     }
   }
-  projected = withSpinoffCards(projected, storage, slug, true)
+  projected = withMoveDividers(withSpinoffCards(projected, storage, slug, true), storage, slug)
   // The cursor has to name the window's REAL head, not the raw MAX_MESSAGES cut: once the window reaches
   // back for the human's ask, a cursor anchored at the cut sits INSIDE what was already sent, and the
   // first "Load earlier messages" click would page over messages the card is already showing.
@@ -4996,7 +5040,7 @@ export function readEarlierThreadTranscriptPage(
   if (digestPrefix(snapshot, payload.snapshotBytes) !== payload.prefixDigest) {
     throw new Error("transcript cursor is stale because prior transcript bytes changed")
   }
-  const projected = withSpinoffCards(projectSnapshot(snapshot), storage, slug, true)
+  const projected = withMoveDividers(withSpinoffCards(projectSnapshot(snapshot), storage, slug, true), storage, slug)
   const anchor = projected.findIndex((message) => message.sourceId === payload.anchorSourceId)
   if (anchor < 0) throw new Error("transcript cursor boundary is no longer present")
   const page = pageProjectedTranscript(projected, anchor)
