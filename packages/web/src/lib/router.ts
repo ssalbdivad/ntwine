@@ -7,7 +7,8 @@ import { homeHref } from "./pageView.ts"
 // URL ⇄ state sync, SPA-style. Inner paths: `/` (the page), `/thread/<slug>` (the page with that
 // thread open in the drawer STACK's topmost thread layer — or, from a cold link on a project's board, a
 // queued thread landed on its card: store.resolveRoutedThread). In the address bar they sit under the page's prefix — `/project/<slug>/…`
-// on a board, `/all/<project>/…` for a drawer on All projects (base-path.ts).
+// on a board, `/all/<project>/…` for a drawer on All projects (base-path.ts). `/thread/<slug>/full` is
+// that drawer in focus mode, filling the window (lib/focusMode.ts).
 //
 // History contract (standard SPA): opening a thread layer PUSHES an entry so the browser Back
 // button unwinds it; other transitions REPLACE so transient state never buries the back stack.
@@ -17,11 +18,13 @@ import { homeHref } from "./pageView.ts"
 
 function currentPath(): string {
   const top = topRoutedSlug()
-  if (top) return `/thread/${encodeURIComponent(top)}`
+  // Focus mode (lib/focusMode.ts) is the same drawer at the same address plus `/full`. A layer stacked
+  // over it (a sub-agent, a file) keeps that address; another thread on top does not inherit it.
+  if (top) return `/thread/${encodeURIComponent(top)}${store.focusSlug === top ? "/full" : ""}`
   // A parked route still IS that thread's URL. Without this the address bar would flip to "/" for the
   // frame or two before the board settles the destination, and settling it into a drawer would then
   // push a redundant history entry for a URL the user never left.
-  if (store.routeThreadSlug) return `/thread/${encodeURIComponent(store.routeThreadSlug)}`
+  if (store.routeThreadSlug) return `/thread/${encodeURIComponent(store.routeThreadSlug)}${store.focusSlug === store.routeThreadSlug ? "/full" : ""}`
   return "/"
 }
 
@@ -36,7 +39,10 @@ function decodeSegment(segment: string): string | null {
 }
 
 export function applyPath(path: string): void {
-  const thread = path.match(/^\/thread\/([^/]+)$/)
+  const thread = path.match(/^\/thread\/([^/]+)(\/full)?\/?$/)
+  // The address alone says whether the thread is in focus mode: Back off `/full` leaves it, a reload of
+  // `/full` restores it.
+  store.focusSlug = thread?.[2] ? decodeSegment(thread[1]) : null
   // An address that is not the pending open's thread (Back, another thread) abandons that open.
   const pendingSlug = store.pendingOpen?.slug
   if (pendingSlug !== undefined && (!thread || decodeSegment(thread[1]) !== pendingSlug)) store.pendingOpen = null
@@ -208,7 +214,10 @@ export function startRouter(navigate: (path: string, options: { replace: boolean
     if (path === location.pathname) return
     // A NEW topmost thread pushes history; unwinding or non-thread transitions replace. `startsWith`
     // is checked against the INNER path: under a project prefix every path starts with its prefix.
-    const openingThread = currentPath().startsWith("/thread/")
+    // Leaving focus mode in place (its ⤡, Escape) REPLACES `/full` with the drawer's address: entering
+    // pushed it, so the drawer's own entry is already below (lib/focusMode.ts exitFocus pops back to it
+    // when it can), and a push would leave two entries for one drawer.
+    const openingThread = currentPath().startsWith("/thread/") && location.pathname !== `${path}/full`
     // Home is the page showing its view (lib/pageView.ts): closing the last drawer goes back to the board
     // it is on, `/project/<slug>`, else to `/`, All projects.
     written = path

@@ -21,7 +21,6 @@ import { projectsQueuesQuery } from "./lib/projectsQueuesRead.ts"
 import { LightboxHost } from "./components/Lightbox.tsx"
 import { feedIsBoundTo, rebindProject } from "./api/socket.ts"
 import { resetProjectState, showToast, store } from "./store.ts"
-import { withoutFullPage } from "./lib/retiredFullPage.ts"
 import { ownedByThisPage } from "./lib/projectOwnership.ts"
 
 // THE ROUTE TREE — and, more to the point, the LAYOUT that outlives a navigation.
@@ -325,16 +324,7 @@ function useRegisterNavigate(): void {
   }, [navigate])
 }
 
-/** A retired fullscreen address (lib/retiredFullPage.ts), reached inside the app: its thread's drawer. */
-function RetiredFullRedirect() {
-  const { pathname, search, hash } = useLocation()
-  return <Navigate to={`${withoutFullPage(pathname)}${search}${hash}`} replace />
-}
-
 export const router = createBrowserRouter([
-  { path: "/thread/:thread/full", element: <RetiredFullRedirect /> },
-  { path: `${CROSS_PROJECT_PATH}/thread/:thread/full`, element: <RetiredFullRedirect /> },
-  { path: `${PROJECT_PATH}/thread/:thread/full`, element: <RetiredFullRedirect /> },
   {
     element: <RootLayout />,
     children: [
@@ -343,8 +333,11 @@ export const router = createBrowserRouter([
       // not remount under you.
       { path: "/", element: <PageRoute /> },
       { path: `${CROSS_PROJECT_PATH}/thread/:thread`, element: <PageRoute /> },
+      // A thread in focus mode (lib/focusMode.ts) is the same page with its drawer filling the window.
+      { path: `${CROSS_PROJECT_PATH}/thread/:thread/full`, element: <PageRoute /> },
       { path: PROJECT_PATH, element: <PageRoute /> },
       { path: `${PROJECT_PATH}/thread/:thread`, element: <PageRoute /> },
+      { path: `${PROJECT_PATH}/thread/:thread/full`, element: <PageRoute /> },
       // Anything else is the page — never a blank route (see "ONE PAGE" above).
       { path: "*", element: <HomeRedirect /> },
     ],

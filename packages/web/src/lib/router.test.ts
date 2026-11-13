@@ -478,3 +478,88 @@ test("a terminal opened from a thread's strip leaves the address on the thread",
     resetStore()
   }
 })
+
+// FOCUS MODE (lib/focusMode.ts) is the drawer's address plus `/full`. Entering it pushes, so Back leaves
+// it for the drawer; leaving it in place replaces, so the drawer's address is not in the history twice; and
+// a cold `/full` address keeps its `/full` while the board settles the parked thread.
+test("focus mode rides the drawer's address: entering pushes /full, Back leaves it, leaving in place replaces", async () => {
+  resetStore()
+  const globals = globalThis as typeof globalThis & { location?: Location }
+  const previous = globals.location
+  const writes: Array<{ path: string; replace: boolean }> = []
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+  globals.location = { pathname: "/" } as unknown as Location
+  const stop = startRouter((path, { replace }) => {
+    writes.push({ path, replace })
+    globals.location = { pathname: path } as unknown as Location
+    applyLocation(path)
+  })
+  try {
+    boardWith([{ id: "a" }, { id: "b" }])
+    pushDrawer("thread", "a")
+    await settle()
+    store.focusSlug = "a"
+    await settle()
+    assert.deepEqual(writes, [{ path: "/thread/a", replace: false }, { path: "/thread/a/full", replace: false }])
+
+    // Back: the browser is on the drawer's entry again, and the route applies it.
+    writes.length = 0
+    globals.location = { pathname: "/thread/a" } as unknown as Location
+    applyLocation("/thread/a")
+    await settle()
+    assert.equal(store.focusSlug, null)
+    assert.deepEqual(writes, [], "Back writes nothing")
+    assert.deepEqual(store.drawers.map((d) => d.slug), ["a"], "the drawer stays open")
+
+    // Forward, then leave in place: replace, never a second push of the drawer's address.
+    globals.location = { pathname: "/thread/a/full" } as unknown as Location
+    applyLocation("/thread/a/full")
+    assert.equal(store.focusSlug, "a")
+    store.focusSlug = null
+    await settle()
+    assert.deepEqual(writes, [{ path: "/thread/a", replace: true }])
+
+    // Another thread on top of a focused one does not inherit focus.
+    writes.length = 0
+    store.focusSlug = "a"
+    await settle()
+    pushDrawer("thread", "b")
+    await settle()
+    assert.equal(writes.at(-1)?.path, "/thread/b")
+    assert.equal(store.focusSlug, null)
+    stop()
+  } finally {
+    globals.location = previous
+    resetStore()
+    store.focusSlug = null
+  }
+})
+
+test("a cold /full address keeps focus mode while the board settles its thread", async () => {
+  resetStore()
+  const globals = globalThis as typeof globalThis & { location?: Location }
+  const previous = globals.location
+  const writes: string[] = []
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+  globals.location = { pathname: "/thread/cold/full" } as unknown as Location
+  const stop = startRouter((path) => {
+    writes.push(path)
+    globals.location = { pathname: path } as unknown as Location
+    applyLocation(path)
+  })
+  try {
+    assert.equal(store.routeThreadSlug, "cold")
+    assert.equal(store.focusSlug, "cold")
+    boardWith([{ id: "cold" }])
+    resolveRoutedThread()
+    await settle()
+    assert.deepEqual(writes, [], "the address already says the focused drawer")
+    assert.deepEqual(store.drawers.map((d) => d.slug), ["cold"])
+    assert.equal(store.focusSlug, "cold")
+    stop()
+  } finally {
+    globals.location = previous
+    resetStore()
+    store.focusSlug = null
+  }
+})

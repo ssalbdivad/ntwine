@@ -71,7 +71,7 @@ function fileTarget(path: string, position: FilePosition | undefined): LocalMark
 function isNtwineRoute(href: string): boolean {
   if (href === "/" || href.startsWith("/?") || href.startsWith("/#")) return true
   const bare = href.replace(/[?#].*$/u, "")
-  // A link that names its project — a drawer, `/all/nub/thread/x`, or its retired `/full` — is in-app whichever
+  // A link that names its project — a drawer, `/all/nub/thread/x`, or its focus-mode `/full` — is in-app whichever
   // page it is read on.
   if (projectSlug(bare)) return true
   // So is an address ntwine itself minted before 2026-09-28 (`/project/nub/thread/x`): it lands on the

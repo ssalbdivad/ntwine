@@ -27,7 +27,6 @@ import { primeRoute } from "./lib/router.ts"
 import { PENDING_SEND_REPLAY_DELAY_MS, replayPendingSends } from "./lib/eagerComposerSubmission.ts"
 import { stepOffStaleLayerEntries } from "./lib/backDismiss.ts"
 import { projectScopedQueryKeyHash } from "./lib/queryKeyScope.ts"
-import { RETIRED_FULL_PAGE, withoutFullPage } from "./lib/retiredFullPage.ts"
 
 // DEV ONLY: React 19.2's development build logs its Components/Scheduler performance tracks through
 // `performance.measure`, each entry carrying a `detail` object (a props diff for a re-render), and
@@ -41,12 +40,6 @@ if (import.meta.env.DEV && typeof performance !== "undefined") {
 }
 
 const settingsFixture = typeof window !== "undefined" && window.location.pathname.endsWith("/settings-formatting-fixture.html")
-// A thread's fullscreen page (`…/thread/<slug>/full`) is gone; a bookmark or an old link to one opens
-// that thread's drawer instead. Rewritten before the router or the store reads the address.
-if (typeof window !== "undefined" && RETIRED_FULL_PAGE.test(location.pathname)) {
-  history.replaceState(history.state, "", withoutFullPage(location.pathname) + location.search + location.hash)
-}
-
 // A reload with a phone sheet up restores the sheet's same-URL history entry with no sheet to own it.
 // Step off it before anything pushes, so the page sits on the router's own entry (see lib/backDismiss).
 if (!settingsFixture) stepOffStaleLayerEntries()

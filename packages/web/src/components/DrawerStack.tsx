@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { useSnapshot } from "valtio"
-import { store, threadBySlug } from "../store.ts"
+import { routedLayerSlug, store, threadBySlug } from "../store.ts"
+import { exitFocus } from "../lib/focusMode.ts"
 import { displayTitle } from "../groups.ts"
 import type { BoardSnapshot } from "@ntwine/shared"
 import { closeDrawerAnimated, closeSettingsAnimated } from "../lib/overlays.ts"
@@ -57,7 +58,9 @@ export function DrawerStack() {
       // The drawer STACK unwinds topmost-first, one layer per Esc.
       else if (store.drawers.length > 0) {
         const top = store.drawers[store.drawers.length - 1]
-        if (!closeDrawerAnimated(top.id)) store.drawers.pop()
+        // A thread in focus mode leaves focus first, back to its drawer; the next Escape closes that.
+        if (store.focusSlug !== null && routedLayerSlug(top) === store.focusSlug) exitFocus()
+        else if (!closeDrawerAnimated(top.id)) store.drawers.pop()
       }
     }
     window.addEventListener("keydown", onKey)

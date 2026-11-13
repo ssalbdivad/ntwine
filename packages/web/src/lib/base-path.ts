@@ -12,8 +12,8 @@ import { NTWINE_ROUTE_PREFIX } from "@ntwine/shared"
 //   /project/<slug>                that project's board
 //   /project/<slug>/thread/<t>     the board with that thread open (its card, or its drawer)
 //
-// (either thread address plus `/full` was that thread's fullscreen page until 2026-10-15; an old link
-// drops the suffix, lib/retiredFullPage.ts). That works because ntwine's own
+// (either thread address plus `/full` is that thread's drawer in focus mode, filling the window —
+// lib/focusMode.ts). That works because ntwine's own
 // routes live under `/_ntwine/`, so the top-level namespace is the SPA's.
 //
 // `/project/<slug>` was retired on 2026-09-28, when one page replaced the project view and focus mode moved
@@ -94,7 +94,7 @@ export const PROJECT_PREFIX = "/project"
 
 /**
  * A project board's address, EXACTLY: `/project/<slug>`, its thread `…/thread/<t>` and that thread's
- * retired `…/full`, and its retired status list `…/status/<s>` (gone 2026-10-14; old links still land in the app),
+ * focus-mode `…/full`, and its retired status list `…/status/<s>` (gone 2026-10-14; old links still land in the app),
  * each with an optional trailing slash. Nothing else under
  * `/project/` is a page: `/project` is a real directory on plenty of machines, and the markdown sanitizer
  * asks this (through projectSlug) whether a link is in-app — `/project/acme/src/main.rs` is somebody's file.

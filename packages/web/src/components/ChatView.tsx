@@ -75,6 +75,7 @@ import { QueueOpsSummary } from "./QueueOpsSummary.tsx"
 import type { QueueOpsKind } from "../lib/queueOpsCounts.ts"
 import { MobileThreadHeader } from "./MobileThreadHeader.tsx"
 import { HeaderActions } from "./HeaderActions.tsx"
+import { FocusModeButton } from "./FocusModeButton.tsx"
 import { ThreadLifecycleActions, StateButton } from "./ThreadLifecycle.tsx"
 import { Fact, FactSep, ThreadHeaderFacts } from "./ThreadHeaderFacts.tsx"
 import { ThreadTitle } from "./ThreadTitle.tsx"
@@ -1940,6 +1941,8 @@ export function ThreadHeader({ slug, onStatusApplied, onClose }: { slug: string;
         <div className="flex shrink-0 items-center gap-0.5">
           <ThreadTerminalButton slug={slug} />
           <SpinoffButton thread={thread} className={HEADER_ICON_CLASS} />
+          {/* Focus mode only exists for a drawer (no onClose → no drawer). */}
+          {onClose && <FocusModeButton slug={slug} />}
           <HeaderActions
             thread={thread}
             onDone={() => markComplete.mutate(undefined, { onSuccess: onStatusApplied })}

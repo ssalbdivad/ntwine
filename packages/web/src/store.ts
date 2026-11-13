@@ -126,6 +126,10 @@ export const store = proxy({
   // The router parks the slug here and App resolves it the first render the board is authoritative
   // (see resolveRoutedThread). Parked slugs keep the address bar on /thread/<slug> meanwhile.
   routeThreadSlug: null as string | null,
+  // FOCUS MODE: the thread whose drawer fills the whole window, with nothing of the page around it
+  // (lib/focusMode.ts). Its address is the drawer's plus `/full`, so Back leaves it and a reload keeps it.
+  // Only ever honoured while that thread is the stack's routed top layer (lib/router.ts currentPath).
+  focusSlug: null as string | null,
   // Another project's thread, clicked open from the queue and not yet drawn: its drawer cannot exist until
   // the page has rebound to that project and its board has landed, which on a loaded machine took seconds
   // (2026-10-01: ~5s on WSL for "Show earlier messages"). PendingThreadSheet draws the drawer's frame for
@@ -389,7 +393,9 @@ export function resolveRoutedThread(): void {
   if (!slug || !store.board) return
   const route = resolveThreadRoute(store.board, slug)
   const opening = store.pendingOpen?.slug === slug && store.pendingOpen.projectSlug === store.board.projectSlug
-  if (route.kind === "found" && routedLanding && !opening && arrivedFromOutside() && !openedInPlace() && store.drawers.every((d) => d.closing)) {
+  // A focus-mode address (`/full`, lib/focusMode.ts) asks for the drawer itself, never the card.
+  const focus = store.focusSlug === slug
+  if (route.kind === "found" && routedLanding && !opening && !focus && arrivedFromOutside() && !openedInPlace() && store.drawers.every((d) => d.closing)) {
     const landed = routedLanding(slug)
     if (landed === "pending") return
     if (landed === "landed") {
@@ -414,7 +420,7 @@ export function resolveRoutedThread(): void {
   pushDrawer("thread", slug, { routed: opening || !openedInPlace() })
 }
 
-// The recovery the retired /full page's <MissingThread> made: one owner (the overwhelmingly common
+// The recovery the old fullscreen page's <MissingThread> made: one owner (the overwhelmingly common
 // case) is opened at once; several have nothing to choose between them by, so the first is; none is said.
 // `rpc` is imported lazily because the API layer imports this store.
 async function relocateMissingThread(slug: string): Promise<void> {
@@ -426,7 +432,7 @@ async function relocateMissingThread(slug: string): Promise<void> {
     showToast(`No thread named ${slug}`, { duration: 7000 })
     return
   }
-  location.replace(`${crossProjectHref(encodeURIComponent(owner.projectSlug), "/")}/thread/${encodeURIComponent(slug)}`)
+  location.replace(`${crossProjectHref(encodeURIComponent(owner.projectSlug), "/")}/thread/${encodeURIComponent(slug)}${store.focusSlug === slug ? "/full" : ""}`)
 }
 
 // Navigation state for a thread opened IN PLACE by a click on the page — the cross-project page opening
@@ -589,6 +595,7 @@ export function resetProjectState() {
   store.drawers = []
   store.imageViewer = null
   store.routeThreadSlug = null
+  store.focusSlug = null
   store.socketBoardFallback = null
   store.socketTranscriptFallbacks = {}
   store.showSettings = false
