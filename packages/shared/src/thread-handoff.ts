@@ -129,6 +129,46 @@ export const ThreadMoveStamp = z.object({
 })
 export type ThreadMoveStamp = z.infer<typeof ThreadMoveStamp>
 
+/**
+ * ONE MOVE IN A THREAD'S HISTORY, kept on its session row (`move_log`, JSON) and carried along with it, so
+ * every machine it has been on can draw where in the conversation it changed hands ("Moved to B").
+ * `at` is the moment the machine it left packed it up, on that machine's clock: the same clock as every
+ * message before it, so the divider can only land after them.
+ */
+export interface MoveLogEntry {
+  from: string
+  to: string
+  at: string
+  moveId: string
+}
+
+/** The longest history a row keeps: the newest moves, which are the ones anyone scrolls to. */
+const MOVE_LOG_MAX = 50
+
+/** A row's `move_log`, read defensively: it arrived from another machine, so anything malformed is dropped. */
+export function moveLogOf(raw: unknown): MoveLogEntry[] {
+  if (typeof raw !== "string" || !raw) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  if (!Array.isArray(parsed)) return []
+  const text = (value: unknown, max: number) => typeof value === "string" && value.length > 0 && value.length <= max
+  return parsed
+    .filter((entry): entry is MoveLogEntry => !!entry && typeof entry === "object" &&
+      text(entry.from, 200) && text(entry.to, 200) && text(entry.at, 40) && !Number.isNaN(Date.parse(entry.at)) && text(entry.moveId, 64))
+    .map(({ from, to, at, moveId }) => ({ from, to, at, moveId }))
+    .slice(-MOVE_LOG_MAX)
+}
+
+/** `raw` with `entry` added, as stored JSON. A move already recorded (a retry) is not recorded twice. */
+export function appendMoveLog(raw: unknown, entry: MoveLogEntry): string {
+  const log = moveLogOf(raw).filter((existing) => existing.moveId !== entry.moveId)
+  return JSON.stringify([...log, entry].slice(-MOVE_LOG_MAX))
+}
+
 /** The refusal every verb that would run a moved-away thread answers with. */
 export function movedAwayRefusal(peerName: string): string {
   return `This thread moved to ${peerName}. Continue it there.`

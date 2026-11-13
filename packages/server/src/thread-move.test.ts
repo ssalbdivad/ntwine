@@ -6,7 +6,9 @@ import { after, describe, it } from "node:test"
 import { openNtwineDatabase, type NtwineDatabase } from "./ntwine-db.ts"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
 import { unpackBundle } from "./thread-bundle.ts"
+import { moveLogOf, type TranscriptMessage } from "@ntwine/shared"
 import { exportThread, importThread, markMovedAway, movedStamp, parseManifest, untoldMoveNote, type MoveManifest } from "./thread-move.ts"
+import { withMoveDividers } from "./transcript.ts"
 
 // Two "machines" on one disk: each its own home, checkout, state dir and database, as the real move
 // sees them. The git half is thread-wip.test.ts's; here a thread with no repository moves without one.
@@ -113,6 +115,7 @@ describe("moving a thread between two machines' data", () => {
     assert.equal(arrived.session_id, SID)
     assert.equal(arrived.title, "Fix the parser")
     assert.equal(movedStamp(arrived.moved_from)?.peerName, "mac")
+    assert.deepEqual(moveLogOf(arrived.move_log).map(({ from, to, moveId }) => [from, to, moveId]), [["mac", "desktop", "move-0001-aaaa"]])
     assert.equal(desktop.storage.getThreadDone("fix-parser")?.body, "**Fixed** the parser")
     // What would run it here without the human arrives settled, at this machine's defaults.
     assert.equal(desktop.db.db.prepare("SELECT state FROM thread_timer WHERE project_id = ? AND thread_slug = ?").get("proj-desktop", "fix-parser")?.state, "cancelled")
@@ -144,8 +147,9 @@ describe("moving a thread between two machines' data", () => {
     // Read through storage first: it memoises the session rows, and a stamp written around its scope
     // would never be seen by the board or a guard (the first real move's stub stayed live this way).
     assert.equal(mac.storage.allSessions().find((row) => row.slug === "fix-parser")?.moved_to ?? null, null)
-    markMovedAway(mac.storage.scope, "fix-parser", { peerId: "b".repeat(32), peerName: "desktop", at: "2026-11-12T11:00:00.000Z", moveId: "move-0001-aaaa" })
+    markMovedAway(mac.storage.scope, "fix-parser", { peerId: "b".repeat(32), peerName: "desktop", at: "2026-11-12T11:00:00.000Z", moveId: "move-0001-aaaa" }, { from: "mac", at: "2026-11-12T10:59:00.000Z" })
     const stub = mac.storage.getSession("fix-parser")!
+    assert.deepEqual(moveLogOf(stub.move_log), [{ from: "mac", to: "desktop", at: "2026-11-12T10:59:00.000Z", moveId: "move-0001-aaaa" }])
     assert.equal(stub.state, "archived")
     assert.equal(mac.storage.allSessions().find((row) => row.slug === "fix-parser")?.state, "archived")
     assert.deepEqual(movedStamp(stub.moved_to), { peerId: "b".repeat(32), peerName: "desktop", at: "2026-11-12T11:00:00.000Z", moveId: "move-0001-aaaa" })
@@ -165,6 +169,8 @@ describe("moving a thread between two machines' data", () => {
     const home = mac.storage.getSession("fix-parser")!
     assert.equal(home.moved_to, null)
     assert.equal(movedStamp(home.moved_from)?.moveId, "move-0002-bbbb")
+    // The history came back with it: both moves, oldest first, on the machine it is home on.
+    assert.deepEqual(moveLogOf(home.move_log).map((entry) => entry.moveId), ["move-0001-aaaa", "move-0002-bbbb"])
     assert.equal(mac.storage.getThreadDone("fix-parser")?.body, "changed on the desktop")
     // The desktop's copy is live (nothing marked it moved here), so a third machine's same-named thread is refused.
     const stranger = machine("laptop", "proj-laptop", "src/app")
@@ -173,6 +179,29 @@ describe("moving a thread between two machines' data", () => {
     mkdirSync(bucket, { recursive: true })
     writeFileSync(join(bucket, "11111111-2222-4333-8444-555555555555.jsonl"), `${JSON.stringify({ type: "user", cwd: stranger.project.workDir })}\n`)
     assert.deepEqual(await move(stranger, desktop, "fix-parser", "move-0003-cccc"), { refused: "This machine already has a different thread named @fix-parser in this project" })
+  })
+})
+
+describe("where a thread changed machines, in its conversation", () => {
+  const said = (text: string, at: string): TranscriptMessage => ({ sourceId: text, role: "user", text, tools: [], parts: [], at })
+  const conversation = [said("before", "2026-11-12T10:00:00.000Z"), said("after", "2026-11-12T12:00:00.000Z")]
+  const lines = (messages: TranscriptMessage[]) => messages.map((m) => (m.boundary === "moved" ? `— ${m.text} —` : m.text))
+  const storageOf = (fields: Partial<SessionRow>) => ({ getSession: () => ({ ...row("t"), ...fields }) })
+
+  it("draws every move in its log where it happened, the one it left on included", () => {
+    const log = JSON.stringify([
+      { from: "mac", to: "desktop", at: "2026-11-12T11:00:00.000Z", moveId: "move-1" },
+      { from: "desktop", to: "mac", at: "2026-11-12T13:00:00.000Z", moveId: "move-2" },
+    ])
+    assert.deepEqual(lines(withMoveDividers(conversation, storageOf({ move_log: log }), "t")),
+      ["before", "— Moved to desktop —", "after", "— Moved to mac —"])
+  })
+
+  it("reads a thread moved before the log from its stamps, and draws nothing for an unconfirmed move", () => {
+    const stamp = (peerName: string, at: string, extra: Record<string, unknown> = {}) => JSON.stringify({ peerId: "p", peerName, at, moveId: `m-${peerName}`, ...extra })
+    assert.deepEqual(lines(withMoveDividers(conversation, storageOf({ moved_from: stamp("mac", "2026-11-12T11:00:00.000Z"), moved_to: stamp("laptop", "2026-11-12T13:00:00.000Z") }), "t")),
+      ["before", "— Moved here from mac —", "after", "— Moved to laptop —"])
+    assert.deepEqual(lines(withMoveDividers(conversation, storageOf({ moved_to: stamp("laptop", "2026-11-12T13:00:00.000Z", { pending: true }) }), "t")), ["before", "after"])
   })
 })
 

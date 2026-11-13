@@ -1,31 +1,34 @@
 // END-TO-END: move a real Claude thread between two ntwine servers on this machine, and back
 // (plans/thread-handoff.md § 7).
 //
-//   node scripts/verify-thread-move.ts [--model=haiku] [--keep]
+//   node scripts/verify-thread-move.ts [--model=haiku] [--keep] [--shots=<dir>]
 //
 // Two disposable stacks (scripts/adhoc-stack.mjs), each with its own sandbox HOME, data root, port and
 // clone of one bare remote at a DIFFERENT path, so every path rule is exercised: the home, the
 // checkout, the Claude bucket. They pair over loopback through the real routes. A real Claude worker
 // (`--creds`, real tokens — a few cents on haiku) is told a code word and leaves uncommitted work in
 // a worktree; it is moved while resting, asked on the other server for the code word and to keep
-// working, then moved home and asked again. Every check is on the real outcome: the files in each
-// checkout, the transcript on each side, the board, the worker's own words.
+// working, then resumed from the mac's stub (Resume here) and asked again. Every check is on the real
+// outcome: the files in each checkout, the transcript on each side, the board, the worker's own words.
+// `--shots` also photographs the mac's drawer, headless, before and after it resumes the thread there.
 //
 // What it cannot reach: two real machines over a network (both servers are on 127.0.0.1), and Claude's
 // own home being separate (`--creds` links the real ~/.claude into both sandboxes, so both buckets are
 // under the real ~/.claude/projects; they are removed at the end).
 
-import { execFileSync, spawn, type ChildProcess } from "node:child_process"
+import { execFile, execFileSync, spawn, type ChildProcess } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { createServer, type AddressInfo } from "node:net"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
+import { promisify } from "node:util"
 import { cwdSlug } from "../packages/server/src/project.ts"
 import { createRpcClient } from "./lib/rpc-client.mjs"
 
 const args = process.argv.slice(2)
 const model = args.find((a) => a.startsWith("--model="))?.slice(8) ?? "haiku"
 const keep = args.includes("--keep")
+const shots = args.find((a) => a.startsWith("--shots="))?.slice(8)
 const repo = realpathSync(join(import.meta.dirname, ".."))
 const root = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-move-e2e-")))
 const realHome = homedir()
@@ -111,6 +114,23 @@ async function rested(s: Stack, slug: string, since: number, label: string): Pro
 }
 
 const transcriptText = async (s: Stack, slug: string) => JSON.stringify(await rpc<unknown>(s, "threadTranscript", { slug }, "query"))
+/** The "Moved to B" dividers on the page the drawer loads (the paginated reader, as the socket push uses). */
+const moveDividers = async (s: Stack, slug: string) =>
+  (await rpc<{ messages: { boundary?: string; text: string }[] }>(s, "threadTranscript", { slug }, "query")).messages.filter((m) => m.boundary === "moved").map((m) => m.text)
+
+/** A headless shot of the thread's drawer (scripts/shot.mjs), and what its moved lines and notice say.
+ *  Never a sync child: a blocked event loop outlives the servers' keep-alive, and the next POST then
+ *  goes out on a socket they already closed ("fetch failed"). */
+async function shoot(s: Stack, slug: string, name: string): Promise<string> {
+  if (!shots) return ""
+  mkdirSync(shots, { recursive: true })
+  const probe = "({ dividers: [...document.querySelectorAll('[data-wake-divider]')].map((e) => e.textContent).filter((t) => /Moved/.test(t)), notice: document.querySelector('[data-moved-notice]')?.textContent ?? null })"
+  const out: string[] = []
+  for (const [suffix, w, h] of [["", 1440, 900], ["-narrow", 420, 880]] as const) {
+    out.push((await promisify(execFile)(process.execPath, ["scripts/shot.mjs", `http://127.0.0.1:${s.port}/project/${s.slug}/thread/${slug}`, join(shots, `${name}${suffix}.png`), probe, `--w=${w}`, `--h=${h}`, "--wait=3000", "--mouse"], { cwd: repo, encoding: "utf8" })).stdout.trim())
+  }
+  return out.join("\n")
+}
 
 async function main() {
   step(`setting up one bare remote and two clones under ${root}`)
@@ -208,10 +228,21 @@ async function main() {
   check(readFileSync(join(wtB, "README.md"), "utf8").includes("continued on the second machine"), "it edited the desktop's worktree")
   check(readFileSync(join(wtB, "README.md"), "utf8").includes("edited on the first machine"), "on top of the work that moved")
   check((await transcriptText(b, slug)).includes("This thread moved from"), "its first message on the desktop carried the move note")
+  check((await moveDividers(b, slug)).length === 1, `the desktop's conversation marks where it arrived: ${(await moveDividers(b, slug)).join(" | ")}`)
+  check((await moveDividers(a, slug)).length === 1, `and so does the mac's stub, where it left: ${(await moveDividers(a, slug)).join(" | ")}`)
+  const stubShot = await shoot(a, slug, "stub")
+  if (shots) check(/Resume here/.test(stubShot) && /Moved (to|here)/.test(stubShot), `the mac's drawer shows the divider and Resume here: ${stubShot.split("\n")[0]?.slice(0, 300)}`)
 
-  step("moving it home")
-  const back = await rpc<{ slug: string }>(b, "threadMove", { slug, peerId: macId })
-  check(back.slug === slug, "moved back")
+  step("resuming it on the mac, from its stub")
+  // The desktop can no longer reach the mac: a recall needs only the asker to reach the holder, which is
+  // the real case where one machine cannot resolve the other's name.
+  await rpc(b, "peerSetAddress", { id: macId, url: "http://127.0.0.1:9" })
+  const back = await rpc<{ slug: string; notes: string[] }>(a, "threadMoveRecall", { slug })
+  check(back.slug === slug, `resumed here${back.notes.length ? ` (notes: ${back.notes.join("; ")})` : ""}`)
+  await rpc(a, "threadMoveRecall", { slug }).then(
+    () => check(false, "a second Resume here is refused"),
+    (error: Error) => check(/already on this machine/.test(error.message), `a second Resume here is refused: ${error.message}`),
+  )
   const live = (t?: ThreadRow) => t && !t.movedTo && t.movedFrom && t.state !== "archived"
   check(live(await threadWhen(a, slug, live)), "the mac's stub is a live thread again")
   check(!(await foreignCopy(a, dispatched.sessionId)), "and not a second time as a session ntwine did not start")
@@ -221,6 +252,9 @@ async function main() {
   await rpc(a, "followUp", { slug, sessionId: dispatched.sessionId, message: "Back home. Reply with the code word only." })
   const third = await rested(a, slug, t2, "turn back on the mac")
   check((third.lastAssistant ?? "").includes("PELICAN-42"), `it still remembers: ${JSON.stringify(third.lastAssistant?.slice(0, 120))}`)
+  check((await moveDividers(a, slug)).length === 2, `the mac's conversation marks both moves: ${(await moveDividers(a, slug)).join(" | ")}`)
+  const homeShot = await shoot(a, slug, "resumed")
+  if (shots) check(!/Resume here/.test(homeShot), `the resumed drawer has no notice: ${homeShot.split("\n")[0]?.slice(0, 300)}`)
 
   step("the audit trail")
   // Wherever the sandbox's data root put it (ntwinePaths picks by platform); `.claude` is a link, so find skips it.
@@ -239,12 +273,17 @@ async function cleanup(removeFiles: boolean) {
   // Broker daemons are detached on purpose (they outlive a server), so end the ones these stacks
   // forked: every one carries this run's unique root in its environment.
   try {
-    const ps = execFileSync("ps", ["-axEww", "-o", "pid=,command="], { encoding: "utf8" })
+    // With each process's environment: BSD ps spells it -E, procps a bare `e`.
+    const ps = execFileSync("ps", process.platform === "darwin" ? ["-axEww", "-o", "pid=,command="] : ["axeww", "-o", "pid=,command="], { encoding: "utf8" })
+    const signalled: number[] = []
     for (const line of ps.split("\n")) {
       if (!line.includes(root)) continue
       const pid = Number(line.trim().split(/\s+/)[0])
-      if (pid && pid !== process.pid) try { process.kill(pid, "SIGTERM") } catch {}
+      if (pid && pid !== process.pid) try { process.kill(pid, "SIGTERM"); signalled.push(pid) } catch {}
     }
+    // A worker writes on its way out (an MCP log under its HOME), so the files go only once it has.
+    const alive = (pid: number) => { try { process.kill(pid, 0); return true } catch { return false } }
+    for (let waited = 0; waited < 10_000 && signalled.some(alive); waited += 200) await sleep(200)
   } catch {}
   if (!removeFiles) return console.log(`\nkept ${root} and its Claude buckets under ~/.claude/projects (cwd slugs of its two clones)`)
   for (const project of [join(root, "mac", "code", "demo"), join(root, "desktop", "demo")]) {

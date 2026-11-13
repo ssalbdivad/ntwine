@@ -19,7 +19,8 @@ import { Select } from "./ui/Select.tsx"
 //     anything does: where the thread lands, which checkout and branch, which uncommitted files go and
 //     which stay. A refusal is shown in the server's words with Move disabled.
 //   · MovedThreadNotice — in place of the prompt box (ThreadComposerBox.tsx) on the machine a thread LEFT:
-//     the stub here can be read but not continued, so the one useful thing to say is where it went. A move
+//     the stub here can be read but not continued, so it says where it went and offers Resume here, which
+//     has that machine hand it back (`threadMoveRecall`; it refuses while the thread is busy there). A move
 //     whose answer never came back (`movedTo.pending`) is held here, and the other machine may or may not
 //     have committed it, so the notice says so and carries the two ways out: retry the move (idempotent
 //     there: it answers a move it already holds without writing again) or keep it here.
@@ -201,11 +202,24 @@ export function MovedThreadNotice({ thread }: { thread: ThreadView }) {
     mutationFn: () => api.threadMoveKeepHere({ slug: thread.id }),
     onSuccess: () => showToast("Kept on this machine"),
   })
+  const resume = useMutation({
+    mutationFn: () => api.threadMoveRecall({ slug: thread.id }),
+    onSuccess: (result) => showToast(`Resumed here from ${result.peer.name}`, result.notes.length > 0 ? { detail: result.notes.join(" ") } : undefined),
+  })
   if (!stamp.pending) {
     const age = relativeAge(stamp.at, now)
     return (
-      <div className="rounded-xl border border-border bg-bg px-3.5 py-3 text-[12.5px] leading-[18px] text-muted" data-moved-notice="moved">
-        Moved to <span className="text-fg">{stamp.peerName}</span>{age ? ` ${age}` : ""}. Continue it there.
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-bg px-3.5 py-2.5 text-[12.5px] leading-[18px] text-muted" data-moved-notice="moved">
+        <div className="flex items-center justify-between gap-3">
+          <p className="m-0 min-w-0">
+            Moved to <span className="text-fg">{stamp.peerName}</span>{age ? ` ${age}` : ""}.
+          </p>
+          <button type="button" className={`${PRIMARY_BUTTON} shrink-0`} disabled={resume.isPending} onClick={() => resume.mutate()} data-moved-resume>
+            {resume.isPending && <Loader2 size={12} className="animate-spin" aria-hidden />}
+            Resume here
+          </button>
+        </div>
+        {resume.error ? <p className="m-0 text-[11.5px] text-danger">{errorText(resume.error)}</p> : null}
       </div>
     )
   }

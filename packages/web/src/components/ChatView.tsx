@@ -4,7 +4,7 @@ import { createPortal } from "react-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useSnapshot } from "valtio"
-import { AlertTriangle, ArrowDown, ArrowUp, Bot, Check, ChevronRight, FileText, HelpCircle, Hourglass, KeyRound, Loader2, Repeat, TerminalSquare } from "lucide-react"
+import { AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, Bot, Check, ChevronRight, FileText, HelpCircle, Hourglass, KeyRound, Loader2, Repeat, TerminalSquare } from "lucide-react"
 import { awaitingSteps, heldQuestionViews, parseScheduledRunPrompt, parseThreadMessage, questionFencesLive } from "@ntwine/shared"
 import type { AskQuestion, AwaitingHint, BgShellView, PendingAsk, ThreadWatchView, RegisteredQuestionView, SubAgentView, ThreadView as ThreadViewData, TranscriptEdit, TranscriptMessage, TranscriptPage, TranscriptPart, TranscriptTodo, TranscriptToolCall } from "@ntwine/shared"
 import { store, threadBySlug, pushDrawer, pushScheduleDrawer, pushSubAgentDrawer, pushBackgroundShellDrawer, showToast } from "../store.ts"
@@ -4998,11 +4998,14 @@ function EventLine({ text, boundary, wakeShellId, sourceId, at }: { text: string
   // bare rule does not make (maintainer 2026-08-02, on the ellipsis this shipped with). It is far rarer
   // now that lib/restDividers.ts drops the ones that only restate their neighbours, and the bare rule is
   // still right: what survives sits directly above the human's own next message, where a glyph would
-  // compete with the bubble rather than quietly close the turn under it.
+  // compete with the bubble rather than quietly close the turn under it. A `moved` line is the thread
+  // changing machines ("Moved to B", transcript.ts withMoveDividers): rare, and the one point the
+  // human needs to find in a long history, so it wears the exchange glyph (maintainer 2026-11-12: the
+  // move was "too implicit").
   if (boundary) {
     return (
       <WakeDivider
-        icon={boundary === "wake" ? TerminalSquare : undefined}
+        icon={boundary === "wake" ? TerminalSquare : boundary === "moved" ? ArrowLeftRight : undefined}
         sourceId={sourceId}
         marker={boundary === "rest" ? "rest" : "event"}
         ariaLabel={openShell ? undefined : text}

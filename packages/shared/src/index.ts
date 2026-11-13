@@ -8264,12 +8264,13 @@ export const TranscriptMessage = z.object({
   //   wake       — a background task/shell completion `<task-notification>` re-invoked the agent
   //   compaction — the provider rewrote the conversation and dropped everything above this point
   //   rest       — the agent CAME TO REST: its turn ended and nothing further is in flight
+  //   moved      — the thread moved between machines here (transcript.ts withMoveDividers)
   // It was a bare boolean until the dividers grew icons (a shell glyph on a compaction line is simply
   // wrong), and the kind has to come from the SERVER: the alternative is the client sniffing the label
   // text, which is the guess this codebase refuses everywhere else. A string stays truthy, so any
   // surviving `if (boundary)` reads exactly as it did — including on a client that predates `rest`,
   // which draws it as an iconless divider rather than dropping it.
-  boundary: z.enum(["wake", "compaction", "rest"]).optional(),
+  boundary: z.enum(["wake", "compaction", "rest", "moved"]).optional(),
   // On a `wake` line for an agent terminal's completion ("Agent terminal «…» finished"): that terminal's
   // launch tool_use id, so the line opens its drawer as the strip's row does. Absent for a completion the
   // server could not tie to its launch.

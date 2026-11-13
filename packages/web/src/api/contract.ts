@@ -491,6 +491,7 @@ export interface Api {
   peerPing(input: PeerIdInput): Promise<PeerPingResult>
   threadMovePreview(input: ThreadMoveInput): Promise<ThreadMovePreview>
   threadMove(input: ThreadMoveInput): Promise<ThreadMoveResult>
+  threadMoveRecall(input: ThreadMoveSlugInput): Promise<ThreadMoveResult>
   threadMoveKeepHere(input: ThreadMoveSlugInput): Promise<void>
   // Registering a folder as a project — the add-project dialog. Same authority as running `ntwine`
   // there and strictly less: it resolves an id and writes the index, and dispatches nothing.
@@ -727,6 +728,7 @@ export const PROCEDURES = {
   peerPing: "mutation",
   threadMovePreview: "mutation",
   threadMove: "mutation",
+  threadMoveRecall: "mutation",
   threadMoveKeepHere: "mutation",
   projectPick: "mutation",
   projectPickWarm: "mutation",
