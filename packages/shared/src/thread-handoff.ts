@@ -131,7 +131,7 @@ export type ThreadMoveStamp = z.infer<typeof ThreadMoveStamp>
 
 /**
  * ONE MOVE IN A THREAD'S HISTORY, kept on its session row (`move_log`, JSON) and carried along with it, so
- * every machine it has been on can draw where in the conversation it changed hands ("Moved from A to B").
+ * every machine it has been on can draw where in the conversation it changed hands ("Moved to B").
  * `at` is the moment the machine it left packed it up, on that machine's clock: the same clock as every
  * message before it, so the divider can only land after them.
  */

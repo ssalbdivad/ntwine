@@ -151,4 +151,8 @@ The other machine has to be reachable from this one, by either of:
 - **Its board's public address**, any of the options above (an ntwine.app name, Cloudflare, Tailscale). Moves travel encrypted end to end between the two machines, so a relay in between carries nothing it can read, and moving needs no sign-in link.
 - **Its network listener**, off until you turn it on in the same section: it answers only machines it is paired with, on port 9394 by default, at an address such as `http://ssalb-xps.local:9394` or its tailnet name. Under WSL's default networking, another machine on the LAN reaches it only once Windows forwards the port (mirrored networking, or `netsh interface portproxy`); a tailnet address needs nothing.
 
+A `.local` name only works where mDNS does: Windows and WSL do not resolve another machine's `.local` name, so from a Windows machine type the other one's IP address or tailnet name into its row's address field instead.
+
+Once a thread has moved, the copy left behind is read-only and its drawer offers **Resume here**, which takes it back. Only the machine you press it on has to reach the other one.
+
 Pairing needs someone at both machines: neither the code nor its entry works through a public address.

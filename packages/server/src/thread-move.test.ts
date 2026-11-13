@@ -194,7 +194,7 @@ describe("where a thread changed machines, in its conversation", () => {
       { from: "desktop", to: "mac", at: "2026-11-12T13:00:00.000Z", moveId: "move-2" },
     ])
     assert.deepEqual(lines(withMoveDividers(conversation, storageOf({ move_log: log }), "t")),
-      ["before", "— Moved from mac to desktop —", "after", "— Moved from desktop to mac —"])
+      ["before", "— Moved to desktop —", "after", "— Moved to mac —"])
   })
 
   it("reads a thread moved before the log from its stamps, and draws nothing for an unconfirmed move", () => {

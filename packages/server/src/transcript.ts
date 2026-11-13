@@ -4905,8 +4905,9 @@ function stampOf(raw: unknown): { peerName: string; at: string; moveId: string; 
   }
 }
 
-// WHERE A THREAD CHANGED MACHINES, drawn as a divider at that point in its conversation: "Moved from A to
-// B" (plans/thread-handoff.md). Nothing in the transcript itself marks it — the conversation goes on
+// WHERE A THREAD CHANGED MACHINES, drawn as a divider at that point in its conversation: "Moved to B"
+// (plans/thread-handoff.md). Only where it went: the machine it left is the one the line before it names,
+// and two machine names on one hairline truncated at a phone's width. Nothing in the transcript itself marks it — the conversation goes on
 // unchanged, which is the point of a move — so it is read off the session row's move log, the way a
 // spinoff's card is read off its row, and placed by time. Both machines draw every move the thread has
 // made, since the log travels with it. A row moved before the log existed has only its two stamps.
@@ -4914,7 +4915,7 @@ function stampOf(raw: unknown): { peerName: string; at: string; moveId: string; 
 export function withMoveDividers(messages: TranscriptMessage[], storage: Pick<Storage, "getSession">, slug: string): TranscriptMessage[] {
   const row = storage.getSession(slug)
   if (!row || (!row.move_log && !row.moved_to && !row.moved_from)) return messages
-  let dividers = moveLogOf(row.move_log).map((entry) => ({ id: entry.moveId, text: `Moved from ${entry.from} to ${entry.to}`, at: entry.at }))
+  let dividers = moveLogOf(row.move_log).map((entry) => ({ id: entry.moveId, text: `Moved to ${entry.to}`, at: entry.at }))
   if (!dividers.length) {
     const from = stampOf(row.moved_from)
     const to = stampOf(row.moved_to)

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { after, describe, it } from "node:test"
+import { moveLogOf } from "@ntwine/shared"
 import type { RequestOrigin } from "./audit.ts"
 import type { AppContext } from "./context.ts"
 import { openNtwineDatabase } from "./ntwine-db.ts"
@@ -12,6 +13,7 @@ import { ENVELOPE_MAGIC, frameMessage, generatePeerKey, openRequest, sealRequest
 import { loadOrCreatePeerKey, openPeerStore, peerKeyPath } from "./peer-store.ts"
 import { cwdSlug } from "./project.ts"
 import { unpackBundle } from "./thread-bundle.ts"
+import { movedStamp } from "./thread-move.ts"
 import { createStorage } from "./storage.ts"
 
 // Two peer services in one process, each with its own home, whose `fetch` is the other's `handle`:
@@ -317,5 +319,112 @@ describe("moving a main-checkout thread with nothing uncommitted", () => {
     assert.equal((await service.preview(ctx, "look-around", peerId)).checkout, undefined)
     await service.move(ctx, "look-around", peerId)
     assert.equal(sentGit, null)
+  })
+})
+
+describe("resuming a thread on the machine it left", () => {
+  const sid = "2b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+  const identities = ["github.com/example/app"]
+  function side(name: string) {
+    const home = join(root, `recall-${name}`)
+    const dir = repoProject(`recall-${name}`)
+    const stateDir = join(home, "state")
+    mkdirSync(stateDir, { recursive: true })
+    const db = openNtwineDatabase({ path: join(home, "ui.db") })
+    after(() => db.db.close())
+    const storage = createStorage(db.db, `proj-${name}`)
+    const state = { busy: false }
+    const ctx = {
+      project: { id: `proj-${name}`, name: "app", dir, workDir: dir, stateDir },
+      storage,
+      tailer: { get: () => ({ turn: state.busy ? "running" : "idle", subAgents: [], bgShells: [] }), nudge: () => {} },
+      board: { rebuild: async () => {}, refresh: () => {} },
+    } as unknown as AppContext
+    return { name, home, dir, storage, ctx, state, key: loadOrCreatePeerKey(home), url: `http://recall-${name}.test` }
+  }
+  const mac = side("mac")
+  const desktop = side("desktop")
+  const stranger = generatePeerKey()
+  const pair = (on: typeof mac, other: { name: string; url: string; key: PeerKeyPair }) =>
+    openPeerStore(join(on.home, "peers.json")).upsert({ name: other.name, url: other.url, publicKey: other.key.publicKey.toString("base64url"), pairedAt: new Date().toISOString() }).id
+  const desktopId = pair(mac, desktop)
+  pair(desktop, mac)
+  pair(desktop, { name: "stranger", url: "", key: stranger })
+
+  // The desktop cannot reach the mac at all (it cannot resolve the mac's name, say): everything below
+  // must work from the mac's calls alone. `loseNextAnswer`: the next call reaches the other machine,
+  // which acts on it, and its answer never comes back.
+  let loseNextAnswer = false
+  const recallFetch: typeof fetch = async (input, init) => {
+    if (String(input).startsWith(mac.url)) throw new TypeError("fetch failed")
+    const response = await loopFetch(input, init)
+    if (!loseNextAnswer) return response
+    loseNextAnswer = false
+    throw new TypeError("fetch failed")
+  }
+  const serve = (s: typeof mac) => {
+    const created = createPeerService({ home: s.home, name: s.name, fetch: recallFetch, startListener: false, storePath: join(s.home, "peers.json"), workspaces: () => [{ id: s.ctx.project.id, path: s.dir }], openProject: async () => s.ctx })
+    services.set(s.url, created)
+    return created
+  }
+  const macPeers = serve(mac)
+  const desktopPeers = serve(desktop)
+
+  mac.storage.upsertSession({
+    slug: "fix-parser", session_id: sid, thread_name: "ntwine-fix-parser", spawned_at: "2026-11-12T10:00:00.000Z",
+    last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: "2026-11-12T10:05:00.000Z", title_auto: 0,
+    title: "Fix the parser", state: "open", meta: null, seen_at: null, transcript_id: null,
+  })
+  mac.storage.setBackend("fix-parser", "claude")
+  mac.storage.setClaudeRuntime("fix-parser", "broker")
+  const macBucket = join(mac.home, ".claude", "projects", cwdSlug(mac.dir))
+  mkdirSync(macBucket, { recursive: true })
+  writeFileSync(join(macBucket, `${sid}.jsonl`), `${JSON.stringify({ type: "user", cwd: mac.dir, message: { role: "user", content: "fix it" } })}\n`)
+
+  const awayOf = (s: typeof mac) => movedStamp(s.storage.getSession("fix-parser")?.moved_to)
+  const history = (s: typeof mac) => moveLogOf(s.storage.getSession("fix-parser")?.move_log).map((entry) => `${entry.from} > ${entry.to}`)
+
+  it("refuses a machine the thread did not come from, and a thread still busy there, changing nothing", async () => {
+    await macPeers.move(mac.ctx, "fix-parser", desktopId)
+    assert.equal(awayOf(mac)?.peerName, "desktop")
+    // A pairing lets a machine hand threads over; it does not let it take this machine's threads.
+    const asked = await request(stranger, desktop.key.publicKey, { op: "recall", args: { identities, slug: "fix-parser", sessionId: sid, moveId: "m" } }).send(desktopPeers)
+    assert.deepEqual(asked, { ok: false, error: "desktop's copy of this thread did not come from stranger" })
+    desktop.state.busy = true
+    await assert.rejects(macPeers.recall(mac.ctx, "fix-parser"), { message: "desktop cannot hand it back yet: wait for the thread to come to rest" })
+    desktop.state.busy = false
+    assert.equal(awayOf(desktop), undefined)
+    assert.equal(awayOf(mac)?.pending, undefined)
+  })
+
+  it("leaves the thread running there when it cannot be written here", async () => {
+    const notes = join(mac.dir, ".ntwine", "threads", sid)
+    mkdirSync(join(mac.dir, ".ntwine", "threads"), { recursive: true })
+    symlinkSync(root, notes)
+    try {
+      await assert.rejects(macPeers.recall(mac.ctx, "fix-parser"), /is a symlink, so the thread's notes cannot be placed\. It stays on desktop$/)
+    } finally {
+      rmSync(notes)
+    }
+    assert.equal(awayOf(desktop), undefined, "the desktop was told to keep it")
+    assert.equal(awayOf(mac)?.peerName, "desktop")
+  })
+
+  it("comes back with its history, finishing on a retry when the first answer is lost", async () => {
+    loseNextAnswer = true
+    await assert.rejects(macPeers.recall(mac.ctx, "fix-parser"), /desktop may be holding it for this machine/)
+    const held = awayOf(desktop)
+    assert.deepEqual([held?.peerName, held?.pending], ["mac", true], "the desktop packed it for the mac and runs it nowhere")
+
+    const back = await macPeers.recall(mac.ctx, "fix-parser")
+    assert.deepEqual(back, { peer: { id: desktopId, name: "desktop" }, slug: "fix-parser", notes: ["Its checkout did not move: it had no uncommitted work in this project's repository"] })
+    assert.equal(awayOf(mac), undefined)
+    assert.equal(movedStamp(mac.storage.getSession("fix-parser")?.moved_from)?.moveId, held!.moveId, "the retry finished the same hand-back")
+    const left = awayOf(desktop)
+    assert.deepEqual([left?.peerName, left?.moveId, left?.pending], ["mac", held!.moveId, undefined], "and the desktop let go of it")
+    assert.equal(desktop.storage.getSession("fix-parser")?.state, "archived")
+    assert.deepEqual(history(mac), ["mac > desktop", "desktop > mac"])
+    assert.deepEqual(history(desktop), ["mac > desktop", "desktop > mac"])
+    await assert.rejects(macPeers.recall(mac.ctx, "fix-parser"), { message: "This thread is already on this machine" })
   })
 })

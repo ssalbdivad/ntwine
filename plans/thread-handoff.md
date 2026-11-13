@@ -183,7 +183,11 @@ The one window with two copies is a response lost after the destination committe
 move as unconfirmed and offers the retry, which is idempotent.
 
 **The moved-away stub** stays readable on the origin (its transcript is kept), reads "Moved to <machine>" in its
-drawer, and refuses everything that would run it: a follow-up, an answer, reopening it.
+drawer, and refuses everything that would run it: a follow-up, an answer, reopening it. Its notice carries
+**Resume here** (added 2026-11-12): the holder packs the thread and answers with the pack (`recall`), the stub's
+machine imports it, then tells the holder to let go (`recall-done`) or, if its own import refused, to keep it
+(`recall-abort`). Only the stub's machine has to reach the holder. Each move also leaves a "Moved to <machine>"
+divider in the conversation, read off the row's `move_log`.
 
 ## 6. Where the human starts it
 
@@ -202,4 +206,4 @@ drawer, and refuses everything that would run it: a follow-up, an answer, reopen
   diverged refusal, round trip back), the row export and import against a real database.
 - End to end: two disposable stacks with their own HOMEs and their own clones of one bare remote, paired over
   loopback; a real Claude worker given a fact and a file edit, moved while resting, then asked on the other
-  stack for the fact and to finish the edit; then moved back.
+  stack for the fact and to finish the edit; then resumed from the stub with the holder unable to reach it.
