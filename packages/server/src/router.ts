@@ -218,7 +218,7 @@ import {
 } from "@ntwine/shared"
 import { type AppContext } from "./context.ts"
 import { listAcpAgentsCached } from "./backend/acp-agents.ts"
-import { secretFilePath, serveSecret } from "./secret-files.ts"
+import { releaseThreadSecrets, secretFilePath, serveSecret } from "./secret-files.ts"
 import { grantMcpToProject, mcpGrantOf, mcpRequestQuestion, threadMcpGrants } from "./mcp-requests.ts"
 import { requestableMcpServers, userScopeStdioServers } from "./backend/project-mcp-servers.ts"
 import { resolveClaudeExecutableAbsolute } from "./backend/claude-broker-host.ts"
@@ -5605,6 +5605,9 @@ export function createRouter(ctx: AppContext) {
         if (blockingQuestions.length > 0 || blockingWatches.length > 0) {
           return { done: false, blockingQuestions, blockingWatches }
         }
+        // A secret the worker did not `rm` itself is finished with once it signs off: drop it now rather
+        // than hold it in memory to the TTL (secret-files.ts).
+        releaseThreadSecrets(ctx.project.stateDir, input.slug)
         // QUIET: a scheduled run with nothing for the human goes straight to Done, and its body's first
         // line becomes the run's line in the schedule's history (schedules.ts quietDone).
         if (input.quiet) {

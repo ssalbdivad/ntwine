@@ -718,12 +718,20 @@ const SECRET = {
     "held in ntwine's memory — never on disk — and served through a private named pipe whose path this " +
     "command prints NOW. It never enters the transcript, the database or your context: the answer you are " +
     "woken with names the path, not the value.\n\n" +
-    "THE PATH CAN BE READ ONCE, within 15 minutes of the answer; then it is gone. So read it INSIDE the " +
-    "command that uses it: `npm publish --otp \"$(cat '<path>')\"`, `<cmd> < '<path>'`. A value several " +
-    "commands need goes into a variable at the start of ONE Bash call: " +
+    "THE PATH SERVES THE VALUE UP TO 5 TIMES, within 15 minutes of the answer; then it is gone. A " +
+    "command that fails does not cost the user another paste: fix the cause and run it again. Read it " +
+    "INSIDE the command that uses it: `npm publish --otp \"$(cat '<path>')\"`, `<cmd> < '<path>'`. A " +
+    "value several commands need goes into a variable at the start of ONE Bash call: " +
     "`T=\"$(cat '<path>')\"; cmd1 --token \"$T\"; cmd2 --token \"$T\"`. Never `cat` it bare, echo it, " +
-    "copy it into a file, or paste it into a message — any of those spends the one read and puts the " +
-    "value in the transcript. To discard an unread value, `rm` the path.\n\n" +
+    "copy it into a file, or paste it into a message — any of those puts the value in the transcript.\n\n" +
+    "PREFLIGHT BEFORE THE FIRST READ, while the user is still answering: run the command's dry-run or " +
+    "status mode if it has one, and clear what would fail it — a lock another process holds, state a " +
+    "previous attempt left behind, the wrong directory or flags. Never filter the consuming command's " +
+    "output (`| tail`, `| grep`, `2>/dev/null`): its error is what says why it failed. An exit 0 is not " +
+    "proof the value landed either, since a consumer can drop it silently: confirm it (read back the " +
+    "stored entry, make a request that needs it) before you are finished with it.\n\n" +
+    "RELEASE IT once it is confirmed: `rm '<path>'` drops the value from memory at once, read or unread. " +
+    "`ntwinectl done` releases any value the thread still holds.\n\n" +
     "A one-time code expires in about thirty seconds, so have the command ready BEFORE you rest: when the " +
     "answer wakes you, run it at once.\n\n" +
     "Like a question, it is the sign-off of every rest and it gates `done` until answered or withdrawn " +
@@ -2727,11 +2735,13 @@ async function secret(args) {
   const quoted = `'${path.replace(/'/g, `'\\''`)}'`
   return (
     `Registered secret request ${registered.id}. The user sees a masked box on the board.\n\n` +
-    `Once answered, the value can be read ONCE, within 15 minutes, at:\n  ${path}\n\n` +
+    `Once answered, the value can be read up to 5 times, within 15 minutes, at:\n  ${path}\n\n` +
     `Read it INSIDE the command that uses it — \`--otp "$(cat ${quoted})"\` — and never cat, echo or copy ` +
-    "it on its own: that spends the one read. Several commands share it through a variable set at the " +
-    "start of ONE Bash call. Get the command ready now: the answer wakes you, and a one-time code expires " +
-    "within a minute.\n\n" +
+    "it on its own: that puts it in the transcript. Several commands share it through a variable set at " +
+    "the start of ONE Bash call. Preflight now, while the user answers: a dry-run or status check, any " +
+    "lock or leftover state cleared, output unfiltered. A command that fails can run again on the same " +
+    `paste; once the value is confirmed stored or used, \`rm ${quoted}\` releases it. The answer wakes ` +
+    "you, and a one-time code expires within a minute.\n\n" +
     `${openQuestionList(result)}`
   )
 }

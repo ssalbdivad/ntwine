@@ -4130,7 +4130,7 @@ export function threadQuestionDefaults(
  *  terms it is served on. It is the WORKER's text: the `secret` tool already handed it the recipe, so
  *  this stays short. Every card the human reads draws `SECRET_ANSWER_MASK` in its place. */
 export function secretAnswerText(path: string): string {
-  return `${SECRET_ANSWER_PREFIX}${quotePath(path)} — it can be read ONCE, within ${SECRET_TTL_MS / 60_000}m; never print it)`
+  return `${SECRET_ANSWER_PREFIX}${quotePath(path)} — it can be read up to ${SECRET_MAX_READS} times within ${SECRET_TTL_MS / 60_000}m, so a failed command can run again; \`rm\` it once the value is confirmed stored or used; never print it)`
 }
 
 const SECRET_ANSWER_PREFIX = "(secret ready at "
@@ -4148,6 +4148,11 @@ export const SECRET_ANSWER_MASK = "••••••••••••"
 /** How long a secret waits to be read before the server drops it (`secret-files.ts`). Here rather than
  *  beside the server, because the stored answer text names it to the worker. */
 export const SECRET_TTL_MS = 15 * 60_000
+
+/** How many times a secret's pipe serves its value before the path goes (`secret-files.ts`). Enough
+ *  for a consumer that failed a few times to run again without another paste; few enough that a loop
+ *  cannot drain it forever. Here for the same reason as the TTL: the answer text names it. */
+export const SECRET_MAX_READS = 5
 
 /** POSIX single-quoting, so the path pastes into a command as-is. The macOS state dir is
  *  `~/Library/Application Support/…`, and an unquoted `$(cat <path>)` splits at the space. */

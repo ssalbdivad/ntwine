@@ -716,7 +716,7 @@ const catPath = (path: string) => new Promise<string>((resolve, reject) =>
 
 const secretAsk = (question = "The npm one-time code for the maintainer account."): AskedQuestion => ({ question, kind: "question", secret: true })
 
-test("a SECRET answer is served once from memory through its pipe, and the row keeps only the path", async () => {
+test("a SECRET answer is served from memory through its pipe, the row keeps only the path, and done releases it", async () => {
   const h = harness()
   try {
     h.storage.upsertSession(row("t"))
@@ -748,7 +748,12 @@ test("a SECRET answer is served once from memory through its pipe, and the row k
     const wake = questionAnswerMessage([answer])
     assert.ok(!wake.includes(value))
     assert.ok(wake.includes(`secret ready at '${q.secretPath}'`), "the path is single-quoted for the shell")
-    assert.match(wake, /read ONCE, within 15m/)
+    assert.match(wake, /read up to 5 times within 15m/)
+
+    // A consumer that failed runs again on the same paste, and the worker's sign-off drops what is left.
+    assert.equal(await catPath(q.secretPath!), value, "a second read, for a retried command")
+    assert.equal((await h.router.markOwnDone.handler({ input: { slug: "t", body: "done" } })).done, true)
+    assert.equal(existsSync(q.secretPath!), false, "done releases the value rather than holding it to the TTL")
   } finally { h.close() }
 })
 

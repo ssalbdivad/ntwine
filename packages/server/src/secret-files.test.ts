@@ -6,7 +6,7 @@ import { execFile } from "node:child_process"
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { clearSecrets, secretFilePath, serveSecret } from "./secret-files.ts"
+import { clearSecrets, releaseThreadSecrets, secretFilePath, serveSecret } from "./secret-files.ts"
 
 const cat = (path: string, timeout = 5_000) => new Promise<string>((resolve, reject) =>
   execFile("cat", [path], { timeout }, (error, stdout) => (error ? reject(error) : resolve(stdout))))
@@ -23,17 +23,45 @@ function stateDir(): string {
   return mkdtempSync(join(tmpdir(), "ntwine-secret-"))
 }
 
-test("the value is read ONCE: the first reader gets it and the path is gone", async () => {
+test("a failed consumer can read again: each reader gets the value whole, until the cap removes the path", async () => {
   const dir = stateDir()
   try {
-    const path = serveSecret(dir, "t", "qst_once", "s3cr3t value")
-    assert.equal(path, secretFilePath(dir, "t", "qst_once"))
+    const path = serveSecret(dir, "t", "qst_cap", "s3cr3t value", { maxReads: 3 })
+    assert.equal(path, secretFilePath(dir, "t", "qst_cap"))
     assert.ok(lstatSync(path).isFIFO())
-    assert.equal(await cat(path), "s3cr3t value")
+    for (let read = 1; read <= 3; read++) assert.equal(await cat(path), "s3cr3t value", `read ${read}`)
     await until(() => !existsSync(path))
-    // A second read finds nothing to open, rather than a second copy.
+    // Past the cap there is nothing to open, rather than another copy.
     await assert.rejects(() => cat(path), /No such file/)
     assert.equal(existsSync(join(dir, "secrets", "t")), false, "the thread's directory goes with its last pipe")
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test("a slow reader gets the value ONCE, not again on the next poll, and the next reader still gets it", async () => {
+  const dir = stateDir()
+  try {
+    const path = serveSecret(dir, "t", "qst_slow", "v")
+    // Open the pipe and sit on it for several poll ticks before reading: on one shared inode the server
+    // would write into it again while this reader still held it, and it would read "vv".
+    const slow = await new Promise<string>((resolve, reject) =>
+      execFile("sh", ["-c", `exec 3< '${path}'; sleep 0.5; cat <&3`], { timeout: 5_000 }, (e, out) => (e ? reject(e) : resolve(out))))
+    assert.equal(slow, "v")
+    assert.equal(await cat(path), "v")
+    assert.deepEqual(readdirSync(join(dir, "secrets", "t")), ["qst_slow"], "no swap pipe left beside it")
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test("a thread's sign-off releases only its own values", async () => {
+  const dir = stateDir()
+  try {
+    const mine = serveSecret(dir, "t", "qst_mine", "a")
+    const read = serveSecret(dir, "t", "qst_read", "b")
+    const other = serveSecret(dir, "t-other", "qst_theirs", "c")
+    assert.equal(await cat(read), "b")
+    assert.equal(releaseThreadSecrets(dir, "t"), 2, "a value already read once is still held, so it is released too")
+    assert.equal(existsSync(mine), false)
+    assert.equal(existsSync(read), false)
+    assert.equal(await cat(other), "c")
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
@@ -49,10 +77,12 @@ test("LOOKING at the path does not spend the value — only opening it does", as
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-test("an unread value expires, and removing the path discards it", async () => {
+test("a value expires at the TTL whether or not it was read, and removing the path discards it", async () => {
   const dir = stateDir()
   try {
-    const expiring = serveSecret(dir, "t", "qst_ttl", "late", { ttlMs: 200 })
+    const expiring = serveSecret(dir, "t", "qst_ttl", "late", { ttlMs: 400 })
+    // A read does not restart the clock: the TTL counts from the answer.
+    assert.equal(await cat(expiring), "late")
     await until(() => !existsSync(expiring))
     const discarded = serveSecret(dir, "t", "qst_rm", "unwanted")
     rmSync(discarded)

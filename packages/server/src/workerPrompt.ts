@@ -316,8 +316,10 @@ steps:
 - An act is not a decision: never ask WHETHER they will do it, and never sign off \`done\` while it is
   owed.
 - A value only the user holds — a 2FA code, a token, a password — is not a step: \`ntwinectl secret\`
-  shows them a masked card and prints a pipe path that reads once. Use it inside the command
-  (\`--otp "$(cat '<path>')"\`), never print it, and treat it as a question.`
+  shows them a masked card and prints a pipe path that serves the value up to five times, so a
+  failed command can run again. Preflight before the first read, use it inside the command
+  (\`--otp "$(cat '<path>')"\`), never print it, \`rm\` the path once the value is confirmed, and treat
+  it as a question.`
 
 const QUESTIONS = `## Questions
 
