@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { timeBreakLabel, timeBreaks } from "./timeBreaks.ts"
+import { messageStampLabel, timeBreakLabel, timeBreaks } from "./timeBreaks.ts"
 
 // Local wall-clock instants, so the day boundary is the test machine's own midnight.
 const at = (d: number, h: number, m: number) => new Date(2026, 9, d, h, m).toISOString()
@@ -45,4 +45,11 @@ test("labels: Today and Yesterday by name, a weekday inside the week, then a dat
   assert.equal(timeBreakLabel(at(1, 9, 0), "day", now, "en-US").day, "Oct 1")
   assert.equal(timeBreakLabel(new Date(2025, 11, 30, 9, 0).toISOString(), "day", now, "en-US").day, "Dec 30, 2025")
   assert.deepEqual(timeBreakLabel(at(9, 11, 24), "time", now, "en-US"), { day: null, time: "11:24 AM" })
+})
+
+test("a message's hover stamp names its day, clock and age; an unparseable instant draws none", () => {
+  const now = new Date(2026, 9, 9, 13, 0)
+  assert.deepEqual(messageStampLabel(at(9, 10, 51), now, "en-US"), { when: "Today 10:51 AM", age: "2h ago" })
+  assert.deepEqual(messageStampLabel(at(6, 9, 0), now, "en-US"), { when: "Tuesday 9:00 AM", age: "3d ago" })
+  assert.equal(messageStampLabel("nope", now), null)
 })

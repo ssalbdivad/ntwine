@@ -59,6 +59,7 @@ import { sendEagerFollowUp } from "../lib/eagerComposerSubmission.ts"
 import { limitPauseResume, limitPauseTitle } from "../lib/limitPause.ts"
 import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 import { timeBreakLabel, type TimeBreak } from "../lib/timeBreaks.ts"
+import { MessageHoverStamp } from "./MessageHoverStamp.tsx"
 import { useUnqueueFollowUp, useUnqueueSupported } from "../lib/unqueueFollowUp.ts"
 import { useFailedDeliveryActions } from "../lib/failedDelivery.ts"
 import { useDeliverQueuedNow, useDeliverQueuedNowSupported } from "../lib/deliverQueuedNow.ts"
@@ -691,6 +692,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
       </>
       )}
       </div>
+      {virtualized ? <MessageHoverStamp scroller={transcriptRef} /> : null}
       {/* Floating-affordance layer, pinned to the bottom-right of the scroll VIEWPORT. It is a
           sibling of the scroller, so nothing here moves when the transcript scrolls; the layer
           itself is click-through and only its children take pointer events. */}
@@ -1794,17 +1796,23 @@ function VirtualizedThreadTranscript({
                     <VSpace h={TIME_BREAK_BELOW} />
                   </>
                 ) : null}
-                <Message
-                  m={row.message}
-                  answering={fencesLive ? answeringForMessage(row.message) : undefined}
-                  showSendButton
-                  paired={paired[row.messageIndex]}
-                  staleAwaiting={awaitingCut >= 0 && row.messageIndex < awaitingCut}
-                  restingCardShown={row.messageIndex === lastAgentIdx && restingShown}
-                  shadowedBy={shadowedByMessage.get(row.messageIndex)}
-                  placed={placement.placed.get(row.messageIndex)}
-                  settledPlaced={settledPlacement.placed.get(row.messageIndex)}
-                />
+                {/* `data-message-at` is what MessageHoverStamp reads, and the tint ties its pinned pill to this
+                    message. On the message alone, not the row: the row also carries the gap and the time
+                    break above it. -mx/px and -my/py cancel, so the tint gets air without moving a pixel; flex-col
+                    because a user bubble places itself with `self-end`. */}
+                <div data-message-at={row.timeBreakAt} className="-mx-3 -my-1.5 flex flex-col rounded-lg px-3 py-1.5 transition-colors hover:bg-fg/[0.035]">
+                  <Message
+                    m={row.message}
+                    answering={fencesLive ? answeringForMessage(row.message) : undefined}
+                    showSendButton
+                    paired={paired[row.messageIndex]}
+                    staleAwaiting={awaitingCut >= 0 && row.messageIndex < awaitingCut}
+                    restingCardShown={row.messageIndex === lastAgentIdx && restingShown}
+                    shadowedBy={shadowedByMessage.get(row.messageIndex)}
+                    placed={placement.placed.get(row.messageIndex)}
+                    settledPlaced={settledPlacement.placed.get(row.messageIndex)}
+                  />
+                </div>
               </div>
             ) : row.kind === "runtime-status" ? (
               <div className="px-6" style={{ paddingTop: runtimeStatusGap }}>

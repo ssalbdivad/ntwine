@@ -1,3 +1,5 @@
+import { relativeAge } from "./activityTime.ts"
+
 // TIME BREAKS — the transcript's one reading of WHEN, drawn as a centred line between two messages
 // where time actually passed: `Today 10:51 AM` at the top of a day, `11:24 AM` after a pause.
 //
@@ -118,4 +120,15 @@ export function timeBreakLabel(at: string, kind: TimeBreak, now: Date = new Date
       ? { month: "short", day: "numeric" }
       : { month: "short", day: "numeric", year: "numeric" })
   return { day, time }
+}
+
+/**
+ * One message's own reading, for the hover stamp (components/MessageHoverStamp): the break's day and
+ * clock words in one phrase, and its age — `{ when: "Today 10:51 AM", age: "2h ago" }`. The age is the
+ * part that answers "how old is this", which the day/clock alone leaves to arithmetic.
+ */
+export function messageStampLabel(at: string, now: Date = new Date(), locale?: string): { when: string; age: string } | null {
+  if (breakInstant(at) === null) return null
+  const { day, time } = timeBreakLabel(at, "day", now, locale)
+  return { when: `${day} ${time}`, age: relativeAge(at, now.getTime()) ?? "" }
 }
