@@ -21,9 +21,10 @@ import { BLOCK_RADIUS } from "./TranscriptCard.tsx"
 // LAZY for the same reason every xterm consumer is: @xterm/xterm is browser-only.
 const TerminalPane = lazy(() => import("./TerminalPane.tsx").then((m) => ({ default: m.TerminalPane })))
 
-// A TERMINAL THREAD'S QUEUE CARD (plans/terminal-threads.md § Lifecycle). It is in the queue for one of three
+// A TERMINAL THREAD'S QUEUE CARD (plans/terminal-threads.md § Lifecycle). It is in the queue for one of four
 // reasons, and the card is the answer to each: at a PROMPT, its live screen to type the answer into; FAILED
-// or INTERRUPTED, its last screen, Restart, and a `$` line for the next command. The header carries the
+// or INTERRUPTED, its last screen, Restart, and a `$` line for the next command; FINISHED, a command the human
+// ran (`$ git status`), its output, until they mark it done or run the next line. The header carries the
 // lifecycle verbs every card does — snooze to a time, Mark as done — so nothing here is only dismissible.
 export function TerminalCardArticle({ project, thread, onLeave, onReturn, onSent = onLeave, onLanded = () => {}, chip = false, onChoose }: AllQueuesCardProps) {
   const terminal = thread.terminal

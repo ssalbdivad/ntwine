@@ -676,12 +676,13 @@ export type SessionIndicatorKind = "archived" | "needs-input" | "working" | "bac
 
 export function sessionIndicatorKind(t: ThreadView): SessionIndicatorKind {
   // A TERMINAL THREAD's mark is its process's state (shared terminalOutcome), in this family's words: a
-  // prompt needs input, a failure or an interruption is stalled (Restart is its answer), a live run works.
+  // prompt needs input, a failure or an interruption is stalled (Restart is its answer), a live run works, and a
+  // command of the human's that finished cleanly waits in Ready wearing the check a done card does.
   if (t.kind === "terminal" && t.terminal) {
     if (t.state === "archived") return "archived"
     if (futureSnoozedUntil(t) !== undefined && isSnoozed(t)) return "snoozed"
     const outcome = terminalOutcome(t.terminal)
-    return outcome === "running" ? "working" : outcome === "prompt" ? "needs-input" : "stalled"
+    return outcome === "running" ? "working" : outcome === "prompt" ? "needs-input" : outcome === "finished" ? "done" : "stalled"
   }
   // DONE IS THE HUMAN'S TO UNDO, and nothing a worker does afterwards un-archives the thread. But a live
   // session never sits under Done (upstream, hit 3× before 2026-07-10): while its turn drains or a sub-agent

@@ -4694,10 +4694,12 @@ export type ThreadTerminal = z.infer<typeof ThreadTerminal>
  *  · `running` — alive and writing, or quiet without a prompt → Working.
  *  · `prompt` — alive, silent on an unterminated line (a password, a [y/N]) → Ready: only a person can answer.
  *  · `failed` — ended non-zero by itself → Ready, like a worker that crashed: Restart or a `$` follow-up.
- *  · `interrupted` — no exit was recorded (the server went away under it) → Ready: it did not finish.
+ *  · `interrupted` — no exit was recorded (the server went away under it) → Done: nothing is left to answer, and its drawer offers Restart (2026-10-22).
  *  · `finished` — exit 0, Stop, Ctrl-C (130), a SIGTERM from outside (143, or the signal itself), or any end
  *    of an interactive shell (`exit` there is how a human closes it) → Done. Queuing those would put a card in
- *    the queue only to be dismissed, which is what the 2026-09-23 shape did.
+ *    the queue only to be dismissed, which is what the 2026-09-23 shape did. One exception, decided on the
+ *    server's row rather than here (thread-terminals.ts queuesCleanExit, 2026-11-12): a command the HUMAN ran
+ *    that exits 0 by itself queues in Ready until they mark it done, because its output is what they ran it for.
  */
 export type TerminalOutcome = "running" | "prompt" | "failed" | "interrupted" | "finished"
 

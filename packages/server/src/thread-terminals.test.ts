@@ -167,18 +167,25 @@ both("stop ends the whole process group — the shell's children too — and rec
   runner.shutdown()
 })
 
-both("each way a run ends lands in its band: a failure and a prompt queue, a clean exit and Ctrl-C are Done", async () => {
-  const { runner, start } = harness({ inputQuietMs: 150 })
+both("each way a run ends lands in its band: a failure, a prompt and the human's clean exit queue; an agent's clean exit and Ctrl-C are Done", async () => {
+  const { runner, start, dir } = harness({ inputQuietMs: 150 })
   const failed = await start("exit 1", undefined)
   const clean = await start("exit 0", undefined)
+  const agents = await runner.start({ parent: PARENT, startedBy: PARENT, command: "exit 0", cwd: dir })
   const interrupted = await start("sleep 60", undefined)
   const asking = await start("printf 'Continue? '; read x", undefined)
   await exitedTerm(runner, failed.id)
   await exitedTerm(runner, clean.id)
+  await exitedTerm(runner, agents.id)
   await until(() => (term(runner, asking.id)?.awaitingInput ? true : undefined), "the prompt")
 
   assert.deepEqual([terminalOutcome(term(runner, failed.id)!), row(runner, failed.id)!.needsYou, row(runner, failed.id)!.state], ["failed", true, "open"])
-  assert.deepEqual([terminalOutcome(term(runner, clean.id)!), row(runner, clean.id)!.needsYou, row(runner, clean.id)!.state], ["finished", false, "archived"])
+  // The human ran it for its output (`$ git status`): it waits in Ready until they mark it done.
+  assert.deepEqual([terminalOutcome(term(runner, clean.id)!), row(runner, clean.id)!.needsYou, row(runner, clean.id)!.state], ["finished", true, "open"])
+  // An agent's command is the agent's to read.
+  assert.deepEqual([terminalOutcome(term(runner, agents.id)!), row(runner, agents.id)!.needsYou, row(runner, agents.id)!.state], ["finished", false, "archived"])
+  await runner.setState(clean.id, "archived")
+  assert.deepEqual([row(runner, clean.id)!.needsYou, row(runner, clean.id)!.state], [false, "archived"])
   assert.deepEqual([terminalOutcome(term(runner, asking.id)!), row(runner, asking.id)!.needsYou, row(runner, asking.id)!.runtime], ["prompt", true, "turn-idle"])
   assert.deepEqual([row(runner, interrupted.id)!.needsYou, row(runner, interrupted.id)!.runtime], [false, "running"])
 
@@ -211,7 +218,7 @@ both("a parent's strip lists the terminals it started until each is Done, and it
   const build = await start("exit 0")
   const other = await start("sleep 60", "other-thread")
   await exitedTerm(runner, build.id)
-  // The clean exit is Done on its own row, and still in its parent's strip until it is marked done.
+  // The clean exit queues on its own row, and is in its parent's strip until it is marked done.
   assert.deepEqual(runner.byThread().get(PARENT)?.map((t) => t.id), [server.id, build.id])
   await runner.setState(build.id, "archived")
   assert.deepEqual(runner.byThread().get(PARENT)?.map((t) => t.id), [server.id])
@@ -314,6 +321,17 @@ test("a run the previous server never saw finish reads as interrupted after a re
   const attachment = after.runner.attach(id)!
   await new Promise<void>((resolve) => attachment.onExit(() => resolve()))
   after.runner.shutdown()
+})
+
+test("a clean exit filed before runs recorded who started them stays in Done rather than queueing at the upgrade", () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "ntwine-term-")))
+  const storage = createStorage(join(dir, "ui.db"), "p")
+  // No `exitQueues`: the column's default, which every row from before it reads.
+  storage.insertThreadTerminal({ slug: "term-old", startedBy: "human", handle: "git-status", command: "git status", cwd: dir, shell: false, createdAtMs: 1 })
+  storage.recordTerminalExit("term-old", { exitedAtMs: 2, exitCode: 0, stopped: false })
+  const { runner } = harness({ storage, dir })
+  assert.deepEqual([row(runner, "term-old")!.needsYou, row(runner, "term-old")!.state], [false, "archived"])
+  runner.shutdown()
 })
 
 test("migration: a thread's terminal becomes a terminal thread it started; a 2026-09-23 command thread stays a Done record", () => {

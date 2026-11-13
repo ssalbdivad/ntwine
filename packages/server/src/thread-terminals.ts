@@ -18,7 +18,8 @@ export { endsOnPrompt, loadNodePty } from "./terminal-session.ts"
 // dev server is meant to outlive the effort that started it — the parent's Done dialog offers to stop it.
 //
 // ITS BAND IS ITS PROCESS'S STATE (shared terminalOutcome): running → Working; at a prompt or failed by itself
-// → Ready; exit 0, Stop, Ctrl-C, the end of an interactive shell, or an interruption → Done. An interrupted
+// → Ready; a command the human ran that exits 0 by itself → Ready too, until they mark it done (queuesCleanExit);
+// any other exit 0, Stop, Ctrl-C, the end of an interactive shell, or an interruption → Done. An interrupted
 // run is one whose daemon died with no record of its end (a reboot, a kill): nothing is left to answer, and a
 // Ready card over its blank screen only waited to be dismissed (maintainer 2026-10-22). Its drawer still
 // offers Restart, and the parent's wake still says it was interrupted. The
@@ -293,11 +294,24 @@ export function terminalControllerOf(row: Pick<ThreadTerminalRow, "controller" |
   return row?.controller ?? row?.started_by ?? "human"
 }
 
-export function terminalThreadView(row: Pick<ThreadTerminalRow, "slug" | "state" | "created_at" | "pinned_at" | "snoozed_until">, terminal: ThreadTerminal, nowMs = Date.now()): ThreadView {
+/**
+ * A clean exit that QUEUES rather than filing itself in Done (maintainer 2026-11-12): a command the human ran
+ * that ended by itself with 0 — `$ git status`, `$ pnpm test` — left its output as the whole point, so it waits
+ * in Ready until they mark it done. Every other `finished` end stays in Done: Stop, Ctrl-C and a SIGTERM were
+ * someone ending it while looking at it, a shell's end is the human closing it, and an agent's command is the
+ * agent's to read (its wake carries the result). Who started the RUN decides, recorded at its start
+ * (`exit_queues`), so an agent's restart of the human's command does not queue, and the reverse does.
+ */
+export function queuesCleanExit(row: Pick<ThreadTerminalRow, "exit_queues">, terminal: ThreadTerminal): boolean {
+  return row.exit_queues === 1 && terminal.state === "exited" && terminal.exitCode === 0 && !terminal.stopped && !terminal.shell && !terminal.signal
+}
+
+export function terminalThreadView(row: Pick<ThreadTerminalRow, "slug" | "state" | "created_at" | "pinned_at" | "snoozed_until" | "exit_queues">, terminal: ThreadTerminal, nowMs = Date.now()): ThreadView {
   const outcome = terminalOutcome(terminal)
-  const archived = row.state === "archived" || outcome === "finished" || outcome === "interrupted"
+  const queuedFinish = queuesCleanExit(row, terminal)
+  const archived = row.state === "archived" || (outcome === "finished" && !queuedFinish) || outcome === "interrupted"
   const snoozedUntil = row.snoozed_until && Date.parse(row.snoozed_until) > nowMs && outcome !== "running" ? row.snoozed_until : undefined
-  const ready = !archived && (outcome === "prompt" || outcome === "failed")
+  const ready = !archived && (outcome === "prompt" || outcome === "failed" || queuedFinish)
   // The instant it last changed state: what the row's age and the queue's order read.
   const at = terminal.awaitingSince ?? terminal.exitedAt ?? terminal.startedAt
   return {
@@ -480,14 +494,14 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
           let taken: string[] = []
           try { taken = [...(deps.takenHandles?.() ?? [])] } catch {}
           const handle = terminalHandle(claim.command, [...openHandles(), ...taken])
-          deps.storage.insertThreadTerminal({ slug: claim.id, parentSlug: null, startedBy: claim.startedBy, handle, command: claim.command, cwd: claim.cwd, shell: false, createdAtMs: startedAtMs })
-          if (claim.runId !== 1) deps.storage.restartThreadTerminal(claim.id, startedAtMs, claim.command, claim.runId)
+          deps.storage.insertThreadTerminal({ slug: claim.id, parentSlug: null, startedBy: claim.startedBy, handle, command: claim.command, cwd: claim.cwd, shell: false, createdAtMs: startedAtMs, exitQueues: claim.startedBy === "human" })
+          if (claim.runId !== 1) deps.storage.restartThreadTerminal(claim.id, startedAtMs, claim.command, claim.runId, claim.startedBy === "human")
         } else if (action === "rerun") {
           let taken: string[] = []
           try { taken = [...(deps.takenHandles?.() ?? [])] } catch {}
           const handle = claimRerunHandle(existing!, claim.command, [...openHandles(), ...taken])
           if (handle) deps.storage.setThreadTerminalHandle(claim.id, handle)
-          deps.storage.restartThreadTerminal(claim.id, startedAtMs, claim.command, claim.runId)
+          deps.storage.restartThreadTerminal(claim.id, startedAtMs, claim.command, claim.runId, claim.startedBy === "human")
         }
         host.dropClaim(claim.id)
       } catch (cause) {
@@ -606,7 +620,7 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       const id = `term-${randomBytes(6).toString("hex")}`
       const line = command?.trim() || undefined
       const handle = terminalHandle(line, [...openHandles(), ...takenHandles])
-      deps.storage.insertThreadTerminal({ slug: id, parentSlug: parent ?? null, startedBy, handle, command: line ?? shellLabel(env), cwd, shell: line === undefined, createdAtMs: now() })
+      deps.storage.insertThreadTerminal({ slug: id, parentSlug: parent ?? null, startedBy, handle, command: line ?? shellLabel(env), cwd, shell: line === undefined, createdAtMs: now(), exitQueues: startedBy === "human" && line !== undefined })
       try {
         await spawn(id, { command: line, cwd })
       } finally {
@@ -621,7 +635,8 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       // run's row, and its viewers close on the old terminal while the browser remounts the new one.
       runs.delete(id)
       await stopRun(previous)
-      deps.storage.restartThreadTerminal(id, now())
+      // Its driver starts the new run: only the human driving makes a clean exit queue (queuesCleanExit).
+      deps.storage.restartThreadTerminal(id, now(), undefined, undefined, terminalControllerOf(row) === "human")
       try {
         await spawn(id, { command: row.shell === 1 ? undefined : row.command, cwd: row.cwd! })
       } finally {
@@ -634,7 +649,7 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
       runs.delete(id) // before the stop, for the same reason as restart
       await stopRun(previous)
       const screen = followUpScreen(previous && { command: row.command, buffer: previous.proc.replay(), echoed: previous.echoed, interactive: previous.interactive }, command)
-      deps.storage.restartThreadTerminal(id, now(), command)
+      deps.storage.restartThreadTerminal(id, now(), command, undefined, terminalControllerOf(row) === "human")
       try {
         await spawn(id, { command, cwd: row.cwd! }, screen)
       } finally {

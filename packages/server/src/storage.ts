@@ -583,6 +583,9 @@ export interface ThreadTerminalRow {
   stopped: number
   /** 'archived' once it is Done (marked done, or finished cleanly); a restart or follow-up reopens it. */
   state: "open" | "archived"
+  /** 1 ⇒ this run was started by the human as a command, so a clean exit of its own queues it in Ready until
+   *  they mark it done (thread-terminals.ts queuesCleanExit). 0 on every row from before 2026-11-12. */
+  exit_queues?: number
 }
 
 /** A SPINOFF: a new thread the human asked for from `parent_slug` — see the table. */
@@ -963,13 +966,14 @@ export interface Storage extends ScheduleStore {
   /** The human's reactions the agent has not been told about yet, oldest first. */
   untoldHumanReactions(slug: string): ThreadReactionRow[]
   markHumanReactionsTold(slug: string, atMs: number): void
-  insertThreadTerminal(row: { slug: string; parentSlug?: string | null; startedBy: string; handle: string; command: string; cwd: string; shell: boolean; createdAtMs: number }): void
+  /** `exitQueues`: a clean exit of this run queues it in Ready (ThreadTerminalRow.exit_queues). */
+  insertThreadTerminal(row: { slug: string; parentSlug?: string | null; startedBy: string; handle: string; command: string; cwd: string; shell: boolean; createdAtMs: number; exitQueues?: boolean }): void
   listThreadTerminals(): ThreadTerminalRow[]
   /** A new run of the terminal: bumps `runs`, clears the previous outcome and reopens it. `command`
    *  replaces its command (a follow-up line, which also makes a shell terminal a command one); absent,
    *  it reruns what it ran. `runId` sets the run number outright instead: a run forked outside the
-   *  server (terminal-host.ts claims) already serves its own. */
-  restartThreadTerminal(slug: string, startedAtMs: number, command?: string, runId?: number): void
+   *  server (terminal-host.ts claims) already serves its own. `exitQueues` is the new run's exit_queues. */
+  restartThreadTerminal(slug: string, startedAtMs: number, command?: string, runId?: number, exitQueues?: boolean): void
   recordTerminalExit(slug: string, exit: { exitedAtMs: number; exitCode: number | null; signal?: number; stopped: boolean }): void
   /** Boot: every run with no recorded exit died with the previous server. */
   interruptRunningTerminals(exitedAtMs: number): void
@@ -1911,6 +1915,11 @@ export function ensureStorageSchema(db: Database): void {
     ["thread_terminal", "control_agent TEXT"],
     ["thread_terminal", "control_from TEXT"],
     ["thread_terminal", "control_changed_at INTEGER"],
+    // `thread_terminal.exit_queues` (2026-11-12): 1 ⇒ a clean exit of this run queues it in Ready rather
+    // than filing it in Done — a command the human ran themselves, whose output is the point (`$ git status`).
+    // Set per run, at its start (thread-terminals.ts). Every row from before it reads 0, so the clean exits
+    // already filed in Done stay there rather than flooding the queue at the upgrade.
+    ["thread_terminal", "exit_queues INTEGER NOT NULL DEFAULT 0"],
     // `thread_spinoff.child_project_id` (2026-09-30): a spinoff can start its thread in another project.
     // The row stays filed under the parent's project; this names the child's when it is not that one.
     ["thread_spinoff", "child_project_id TEXT"],
@@ -2595,16 +2604,16 @@ export function createStorage(source: string | Database, projectId: string): Sto
     "UPDATE thread_reaction SET agent_told_at = ? WHERE project_id = @project_id AND thread_slug = ? AND author = 'human' AND agent_told_at IS NULL",
   )
   const delThreadReactions = scope.prepare("DELETE FROM thread_reaction WHERE project_id = @project_id AND thread_slug = ?")
-  const insertThreadTerminalStmt = scope.prepare<{ slug: string; parentSlug: string | null; startedBy: string; handle: string; command: string; cwd: string; shell: number; createdAtMs: number }>(`
-    INSERT INTO thread_terminal (project_id, slug, parent_slug, started_by, handle, command, cwd, shell, created_at, started_at)
-    VALUES (@project_id, @slug, @parentSlug, @startedBy, @handle, @command, @cwd, @shell, @createdAtMs, @createdAtMs)
+  const insertThreadTerminalStmt = scope.prepare<{ slug: string; parentSlug: string | null; startedBy: string; handle: string; command: string; cwd: string; shell: number; createdAtMs: number; exitQueues: number }>(`
+    INSERT INTO thread_terminal (project_id, slug, parent_slug, started_by, handle, command, cwd, shell, created_at, started_at, exit_queues)
+    VALUES (@project_id, @slug, @parentSlug, @startedBy, @handle, @command, @cwd, @shell, @createdAtMs, @createdAtMs, @exitQueues)
   `)
   const listThreadTerminalsStmt = scope.prepare<[], ThreadTerminalRow>(
-    "SELECT slug, parent_slug, started_by, handle, pinned_at, snoozed_until, exit_signal, watch_id, watch_slug, watch_armed_at, watch_expires_at, controller, control_notes, control_agent, control_from, control_changed_at, command, cwd, shell, created_at, started_at, runs, exited_at, exit_code, stopped, state FROM thread_terminal WHERE project_id = @project_id ORDER BY created_at, slug",
+    "SELECT slug, parent_slug, started_by, handle, pinned_at, snoozed_until, exit_signal, watch_id, watch_slug, watch_armed_at, watch_expires_at, controller, control_notes, control_agent, control_from, control_changed_at, command, cwd, shell, created_at, started_at, runs, exited_at, exit_code, stopped, state, exit_queues FROM thread_terminal WHERE project_id = @project_id ORDER BY created_at, slug",
   )
   // A follow-up line makes a shell terminal a command one: the shell ended, and the line is what runs now.
-  const restartThreadTerminalStmt = scope.prepare<{ command: string | null; startedAtMs: number; slug: string; runId: number | null }>(`
-    UPDATE thread_terminal SET command = COALESCE(@command, command), shell = CASE WHEN @command IS NULL THEN shell ELSE 0 END,
+  const restartThreadTerminalStmt = scope.prepare<{ command: string | null; startedAtMs: number; slug: string; runId: number | null; exitQueues: number }>(`
+    UPDATE thread_terminal SET command = COALESCE(@command, command), shell = CASE WHEN @command IS NULL THEN shell ELSE 0 END, exit_queues = @exitQueues,
       started_at = @startedAtMs, runs = COALESCE(@runId, runs + 1), exited_at = NULL, exit_code = NULL, exit_signal = NULL, stopped = 0, state = 'open',
       snoozed_until = NULL
     WHERE project_id = @project_id AND slug = @slug
@@ -3293,9 +3302,9 @@ export function createStorage(source: string | Database, projectId: string): Sto
     threadReactionsBySlug: () => groupBySlug(threadReactionsStmt.all()),
     untoldHumanReactions: (slug) => untoldHumanReactionsStmt.all(slug),
     markHumanReactionsTold: (slug, atMs) => void markHumanReactionsToldStmt.run(atMs, slug),
-    insertThreadTerminal: (row) => void insertThreadTerminalStmt.run({ ...row, parentSlug: row.parentSlug ?? null, shell: row.shell ? 1 : 0 }),
+    insertThreadTerminal: (row) => void insertThreadTerminalStmt.run({ ...row, parentSlug: row.parentSlug ?? null, shell: row.shell ? 1 : 0, exitQueues: row.exitQueues ? 1 : 0 }),
     listThreadTerminals: () => listThreadTerminalsStmt.all(),
-    restartThreadTerminal: (slug, startedAtMs, command, runId) => void restartThreadTerminalStmt.run({ command: command ?? null, startedAtMs, slug, runId: runId ?? null }),
+    restartThreadTerminal: (slug, startedAtMs, command, runId, exitQueues) => void restartThreadTerminalStmt.run({ command: command ?? null, startedAtMs, slug, runId: runId ?? null, exitQueues: exitQueues ? 1 : 0 }),
     recordTerminalExit: (slug, exit) => void recordTerminalExitStmt.run(exit.exitedAtMs, exit.exitCode, exit.signal || null, exit.stopped ? 1 : 0, slug),
     interruptRunningTerminals: (exitedAtMs) => void interruptTerminalsStmt.run(exitedAtMs),
     dropThreadTerminal: (slug) => dropThreadTerminalStmt.run(slug).changes === 1,

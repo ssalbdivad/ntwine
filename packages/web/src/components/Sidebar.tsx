@@ -1122,6 +1122,7 @@ function sessionStateIndicatorFor(t: ThreadView): { node: ReactElement; tip: str
     const tip = said.charAt(0).toUpperCase() + said.slice(1)
     if (kind === "archived") return { node: <StatusBox><Check size={10} strokeWidth={3} className="text-muted-75" /></StatusBox>, tip: `Done — ${said}` }
     if (kind === "needs-input") return { node: <StatusBox><Glyph ch="?" muted /></StatusBox>, tip }
+    if (kind === "done") return { node: <StatusBox><Check size={10} strokeWidth={3} className="text-muted-75" /></StatusBox>, tip }
     if (kind === "stalled") return { node: <StatusBox accent><Glyph ch="!" /></StatusBox>, tip: `${tip} — restart it, or run another command` }
     if (kind === "working") return { node: <BoxSpinner />, tip }
   }
