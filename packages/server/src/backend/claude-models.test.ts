@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { homedir } from "node:os"
-import { CLAUDE_MODELS_FALLBACK, probeClaudeModels, resolveClaudeModels } from "./claude-models.ts"
+import { CLAUDE_MODELS_FALLBACK, noteObservedClaudeModel, probeClaudeModels, readClaudeModels, resetClaudeModelsCache, resolveClaudeModels } from "./claude-models.ts"
 import { CLAUDE_CODE_VERSION, provisionedBinary, runtimesRoot } from "../runtimes.ts"
 
 // The REAL answer of `supportedModels()` on Claude Code 2.1.281 (2026-09-24), fields verbatim, trimmed
@@ -46,6 +46,27 @@ test("the first row of a family wins, so the default row names the edition every
 // LIVE: the provisioned pin answers, and every alias ntwine offers resolves to an edition on it. This is
 // the check that a pin bump cannot silently return the picker to bare family words. Skipped when the
 // pin has not been provisioned on this machine (a fresh clone before first boot).
+// The catalogue is compiled into the binary and the alias is resolved at session start, so the two can
+// disagree: on 2026-11-12 the Fable row read 5.1 while `--model fable` ran claude-fable-5-2.
+test("an edition a worker was observed running raises its family's row, and an older one never lowers it", async () => {
+  resetClaudeModelsCache()
+  try {
+    // No such executable ⇒ the bare-family fallback, which is the base the observations overlay here.
+    const read = () => readClaudeModels({ claudeBin: "/nonexistent/ntwine-test-claude" })
+    assert.deepEqual(await read(), CLAUDE_MODELS_FALLBACK)
+    noteObservedClaudeModel("claude-fable-5-2")
+    noteObservedClaudeModel("claude-fable-5-1[1m]")
+    noteObservedClaudeModel("<synthetic>")
+    noteObservedClaudeModel("gpt-6-astra")
+    assert.deepEqual(await read(), [
+      { alias: "fable", label: "Fable 5.2", resolvedModel: "claude-fable-5-2", edition: "5.2" },
+      ...CLAUDE_MODELS_FALLBACK.slice(1),
+    ])
+  } finally {
+    resetClaudeModelsCache()
+  }
+})
+
 test("the pinned Claude Code resolves every alias to an edition", { skip: !provisionedBinary("claude", runtimesRoot(process.env), CLAUDE_CODE_VERSION) && `Claude Code ${CLAUDE_CODE_VERSION} is not provisioned` }, async () => {
   const bin = provisionedBinary("claude", runtimesRoot(process.env), CLAUDE_CODE_VERSION)!
   const models = await probeClaudeModels(bin, homedir())

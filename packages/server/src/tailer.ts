@@ -51,6 +51,7 @@ import { processAwakeClock, wallSpan } from "./awake-clock.ts"
 import { forkPointOf, isInheritedSessionMetadata } from "./fork-point.ts"
 import { pidIsAlive } from "./project-identity.ts"
 import { redactToolPayload } from "./credential-redaction.ts"
+import { noteObservedClaudeModel } from "./backend/claude-models.ts"
 
 // The JSONL tailer: incrementally reads each registered session's Claude Code transcript
 // (~/.claude/projects/<cwdSlug>/<session_id>.jsonl) to derive liveness telemetry — last activity
@@ -2657,6 +2658,8 @@ export function applyRecord(state: TailState, rec: Record): void {
     const observedModel = typeof rec.message?.model === "string" ? rec.message.model.trim() : ""
     if (observedModel && observedModel !== "<synthetic>") {
       state.model = observedModel
+      // What the alias really launches, which the runtime's own catalogue can lag (claude-models.ts).
+      noteObservedClaudeModel(observedModel)
       state.profileAt = typeof rec.timestamp === "string" ? rec.timestamp : undefined
       state.profileRevision = (state.profileRevision ?? 0) + 1
     }

@@ -1,5 +1,5 @@
 import { query } from "@ntwine/claude-agent-sdk-runtime"
-import { claudeFamilyLabel, parseClaudeWireId, type ClaudeModel, type ClaudeModelFamily } from "@ntwine/shared"
+import { claudeEditionIsNewer, claudeFamilyLabel, parseClaudeWireId, type ClaudeModel, type ClaudeModelFamily } from "@ntwine/shared"
 import { sanitizeProviderChildEnvironment } from "./claude-agent-sdk.ts"
 import { resolveClaudeExecutableAbsolute } from "./claude-broker-host.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
@@ -68,15 +68,62 @@ let lastResolved: ClaudeModel[] | undefined
 // Told when a probe resolves, so a board built before it can re-derive every thread's `modelUpgrade`.
 const resolvedListeners = new Set<() => void>()
 
+
+// THE RUNTIME'S CATALOGUE CAN LAG ITS OWN ALIAS. `supportedModels()` is a list compiled into the binary,
+// while `--model fable` is resolved when the session starts — so the two disagree whenever a family moves
+// without the list moving. Measured 2026-11-12 on the maintainer's machine: the catalogue's Fable row was
+// `claude-fable-5-1[1m]` ("Fable 5.1") while every thread dispatched on `fable` wrote
+// `claude-fable-5-2` into its transcript, so the picker read "Fable 5.1" beside a thread card reading
+// "Fable 5.2". The transcript is the authority on what an alias launches, so a wire id a worker was
+// actually observed running RAISES its family's row — never lowers it: an older id is just a daemon
+// forked before the family moved, which is exactly what `modelUpgrade` exists to report.
+const observed = new Map<ClaudeModelAlias, ClaudeModel>()
+
+function withObserved(models: ClaudeModel[]): ClaudeModel[] {
+  if (observed.size === 0) return models
+  return models.map((model) => {
+    const seen = observed.get(model.alias as ClaudeModelAlias)
+    if (!seen?.edition) return model
+    return !model.edition || claudeEditionIsNewer(seen.edition, model.edition) ? seen : model
+  })
+}
+
+/** Tell the catalogue which model a Claude worker was seen running (the transcript's `message.model`).
+ *  Cheap and total: anything that is not a Claude wire id, or not newer than what is known, is a no-op. */
+export function noteObservedClaudeModel(wireId: string): void {
+  const parsed = parseClaudeWireId(wireId)
+  if (!parsed || !(CLAUDE_MODEL_ALIASES as readonly string[]).includes(parsed.alias)) return
+  const alias = parsed.alias as ClaudeModelAlias
+  const known = observed.get(alias)
+  if (known?.edition && !claudeEditionIsNewer(parsed.edition, known.edition)) return
+  observed.set(alias, { alias, label: `${claudeFamilyLabel(alias)} ${parsed.edition}`, resolvedModel: parsed.resolvedModel, edition: parsed.edition })
+  // Only a change the readers can see is worth a board rebuild, and never from inside the tailer's own
+  // record loop, which is where this is called from.
+  const probed = lastResolved?.find((model) => model.alias === alias)
+  if (probed?.edition && !claudeEditionIsNewer(parsed.edition, probed.edition)) return
+  setImmediate(notifyResolved)
+}
+
+function notifyResolved(): void {
+  for (const listener of resolvedListeners) {
+    try { listener() } catch { /* a listener never fails the probe */ }
+  }
+}
+
 export interface ReadClaudeModelsOptions {
   claudeBin?: string
   cwd?: string
   log?: (message: string) => void
 }
 
-/** The Claude models for the picker (RPC-facing): resolved labels from the pinned runtime, or the bare
- *  fallback while the probe runs or when it cannot. NEVER throws. */
+/** The Claude models for the picker (RPC-facing): resolved labels from the pinned runtime, raised by any
+ *  newer edition a worker was observed running, or the bare fallback while the probe runs or when it
+ *  cannot. NEVER throws. */
 export async function readClaudeModels(options: ReadClaudeModelsOptions = {}): Promise<ClaudeModel[]> {
+  return withObserved(await readProbedClaudeModels(options))
+}
+
+async function readProbedClaudeModels(options: ReadClaudeModelsOptions): Promise<ClaudeModel[]> {
   let executable: string
   try {
     executable = resolveClaudeExecutableAbsolute(options.claudeBin)
@@ -94,9 +141,7 @@ export async function readClaudeModels(options: ReadClaudeModelsOptions = {}): P
       resolved.set(executable, models)
       lastResolved = models
       failedAt.delete(executable)
-      for (const listener of resolvedListeners) {
-        try { listener() } catch { /* a listener never fails the probe */ }
-      }
+      notifyResolved()
       return models
     })
     .catch((err: unknown) => {
@@ -142,7 +187,7 @@ export async function probeClaudeModels(executable: string, cwd: string): Promis
 
 /** The catalogue the pinned runtime last resolved, without waiting for one — see `lastResolved`. */
 export function peekClaudeModels(): readonly ClaudeModel[] | undefined {
-  return lastResolved
+  return lastResolved ? withObserved(lastResolved) : undefined
 }
 
 /** Subscribe to probe resolutions; returns the unsubscribe. */
@@ -157,4 +202,5 @@ export function resetClaudeModelsCache(): void {
   inFlight.clear()
   failedAt.clear()
   lastResolved = undefined
+  observed.clear()
 }
