@@ -203,6 +203,13 @@ export function restingOnSteps(thread: Pick<ThreadView, "runtime" | "lastFence">
   return live.length === steps.length && live.every((step, i) => step === steps[i])
 }
 
+/** Is the thread resting on a fence naming EXACTLY this machine right now? The suggested move's test, as
+ *  restingOnSteps is the steps' Done's: a fence the thread has left is no longer what was asked. */
+export function restingOnMachine(thread: Pick<ThreadView, "runtime" | "lastFence"> | undefined, machine: string | null): boolean {
+  if (machine === null || thread?.runtime !== "turn-idle" || thread.lastFence?.kind !== "awaiting") return false
+  return awaitingMachine(thread.lastFence.hints) === machine
+}
+
 /** The watched PRs that get a CHIP: the `prs:` the fence names which the wait table does not already
  *  row. A registered PR is a github row below — verdict glyph, check counts, the same link — so a chip
  *  for it too would be one PR twice on a card that was trimmed for exactly that. What is left is a
@@ -1182,13 +1189,15 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // `steps:` — the fence is waiting on the HUMAN to perform these (2026-10-03). Drawn under the prose on
   // every surface; the verbs that answer them only while the thread rests on them (restingOnSteps).
   const steps = awaitingSteps(hints)
-  const stepsTitle = steps.length > 0 || awaitingMachine(hints) !== null ? awaitingFenceTitle(hints) : null
   const stepsLive = thread !== undefined && restingOnSteps(thread, steps)
   // `machine:` — the paired machine the rest of the work belongs on (2026-11-12). Its move leads the
   // footer, white, while the thread rests on THIS fence — on a stale fence the move is no longer what was
   // asked — and only when the name matches a paired machine (useSuggestedPeer).
   const machine = awaitingMachine(hints)
-  const machineLive = machine !== null && thread !== undefined && thread.runtime === "turn-idle" && thread.lastFence?.kind === "awaiting" && awaitingMachine(thread.lastFence.hints) === machine && threadLifecycleAvailability(thread).archive
+  const stepsTitle = steps.length > 0 || machine !== null ? awaitingFenceTitle(hints) : null
+  const machineLive = thread !== undefined && restingOnMachine(thread, machine) && threadLifecycleAvailability(thread).archive
+  // Both are a wait on the READER, which takes the to-do glyph, the chip and the worker's own title.
+  const onReader = steps.length > 0 || machine !== null
   const waiting = awaitsResults(work)
   // THE WORKER'S OWN HANDOFF, opening the card (maintainer 2026-08-24: "the rendered message at the
   // top of the card, followed by a horizontal divider, followed by all of the awaited items"). Until
@@ -1261,14 +1270,14 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
       // being waited on, so the card is a to-do rather than a status. It rides a KIND CHIP rather than
       // the title (2026-10-05, TranscriptCard's KindChip): "Awaiting human" over the worker's own title, which is
       // left out when the worker named none — the chip already says what the card is for.
-      icon={steps.length > 0 || machine !== null ? ListTodo : shellsAlone(work) ? TerminalSquare : Hourglass}
-      chip={steps.length > 0 || machine !== null ? STEPS_CHIP : undefined}
+      icon={onReader ? ListTodo : shellsAlone(work) ? TerminalSquare : Hourglass}
+      chip={onReader ? STEPS_CHIP : undefined}
       // WRAPPED AT ANY CHARACTER, because this heading can now be WORKER-AUTHORED. Every other card in
       // the family carries a code-authored label, so the header's wrap-don't-truncate rule never had to
       // survive an unbreakable token; a `title:` naming a branch, a URL or a base64 id is one. Measured
       // at the queue card's narrowest (368px content box, sans): a 40-character single token bled 135.64px
       // PAST the card's right edge without this, and wraps inside it with it.
-      label={steps.length > 0 || machine !== null
+      label={onReader
         ? (stepsTitle ? <span className="[overflow-wrap:anywhere]">{stepsTitle}</span> : null)
         : <span className="[overflow-wrap:anywhere]">{awaitingBackgroundLabel(work, hints)}</span>}
       // ONE watched PR the table does not already row rides the title, as the GitHub wake card's ref

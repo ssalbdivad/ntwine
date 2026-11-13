@@ -222,20 +222,22 @@ test("the resting card owns the heading, the glyph, the prose and the chips", ()
   // case, and the parameter is what lets one card also state a fence the board has already dropped.
   assert.match(code, /const stated = fence \?\? \(thread\?\.lastFence\?\.kind === "awaiting" \? thread\.lastFence : undefined\)/)
   assert.match(code, /awaitingBackgroundLabel\(work, hints\)/, "the heading reads the stated fence's hints")
-  assert.match(code, /icon=\{steps\.length > 0 \? ListTodo : shellsAlone\(work\) \? TerminalSquare : Hourglass\}/, "three titles, three glyphs, and no fourth — steps are the one wait on the reader")
+  assert.match(code, /const onReader = steps\.length > 0 \|\| machine !== null/)
+  assert.match(code, /icon=\{onReader \? ListTodo : shellsAlone\(work\) \? TerminalSquare : Hourglass\}/, "three titles, three glyphs, and no fourth — steps and a machine to move to are the waits on the reader")
   assert.match(code, /const prose = awaitingProseBlock\(stated\?\.body\)/)
   assert.match(code, /const unrowed = unrowedWatchRefs\(work, hints\)/, "a PR the table already rows gets no chip — one PR, one place")
   // THE VERBS ARE THE ONLY THINGS THE RUNTIME MAY CHANGE, and each is withheld rather than re-styled: a
   // thread that has left the rest its steps were posted at has nobody waiting on the steps' Done
   // (2026-10-03), and "Ask for update" needs a parked rest the human owns. (The card's own Snooze was
   // removed 2026-10-14.)
-  assert.match(code, /const restOwned = thread !== undefined && steps\.length === 0 && showsRestingCard\(thread\) && threadLifecycleAvailability\(thread\)\.snooze/)
+  assert.match(code, /const restOwned = thread !== undefined && steps\.length === 0 && machine === null && showsRestingCard\(thread\) && threadLifecycleAvailability\(thread\)\.snooze/)
   assert.doesNotMatch(code, /AwaitingSnooze|snoozeAwaitingBackground/, "the card carries no snooze")
   assert.match(code, /const stepsLive = thread !== undefined && restingOnSteps\(thread, steps\)/)
   // Nothing else may key on the runtime. A second `showsRestingCard` call inside this card is how a
   // heading, a glyph or a truncation rule would start varying with it again.
   assert.equal(code.match(/showsRestingCard\(/g)?.length, 1, "the runtime reaches the verbs once")
   assert.equal(code.match(/restingOnSteps\(/g)?.length, 1, "…and the steps' Done once")
+  assert.equal(code.match(/restingOnMachine\(/g)?.length, 1, "…and the suggested move once")
   assert.doesNotMatch(code, /\.runtime\b/, "and nothing in the card reads the runtime directly")
 })
 
