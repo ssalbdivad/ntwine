@@ -285,6 +285,23 @@ export function movedNote(fromName: string, toName: string, maps: readonly Prefi
   ].filter(Boolean).join(" ")
 }
 
+// PRODUCER AND STRIPPER TOGETHER, as with the wake riders in @ntwine/shared: the note above is written for
+// the WORKER, and the router prepends it to the human's first message on this machine (`messageForWorker`),
+// so the stored user turn opens with it and the chat would show it in the human's own bubble. The move
+// itself is already drawn as its own line in the conversation. Anchored to the note's fixed head and to one
+// of its two fixed tails, so a message that merely quotes part of one keeps it.
+const MOVED_NOTE_HEAD = "⟦ntwine⟧ This thread moved from "
+const MOVED_NOTE_TAILS = [" Its uncommitted work and notes are here.", " Set again whatever still matters."]
+
+/** Display projection: a user turn without the arrival note ntwine prepended for the worker. */
+export function stripMovedNote(text: string): string {
+  if (!text.startsWith(MOVED_NOTE_HEAD)) return text
+  const end = text.indexOf("\n\n")
+  if (end < 0) return text
+  if (!MOVED_NOTE_TAILS.some((tail) => text.slice(0, end).endsWith(tail))) return text
+  return text.slice(end).replace(/^\n+/, "")
+}
+
 /**
  * Session fields that would run the thread, or decide what it may do, without the human on THIS machine:
  * a recurring prompt, a snooze's follow-up, a held prompt, a time limit's check-ins, and its own

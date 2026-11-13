@@ -7,8 +7,8 @@ import { openNtwineDatabase, type NtwineDatabase } from "./ntwine-db.ts"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
 import { unpackBundle } from "./thread-bundle.ts"
 import { moveLogOf, type TranscriptMessage } from "@ntwine/shared"
-import { exportThread, importThread, markMovedAway, movedStamp, parseManifest, untoldMoveNote, type MoveManifest } from "./thread-move.ts"
-import { withMoveDividers } from "./transcript.ts"
+import { exportThread, importThread, markMovedAway, movedNote, movedStamp, parseManifest, untoldMoveNote, type MoveManifest } from "./thread-move.ts"
+import { parseTranscript, withMoveDividers } from "./transcript.ts"
 
 // Two "machines" on one disk: each its own home, checkout, state dir and database, as the real move
 // sees them. The git half is thread-wip.test.ts's; here a thread with no repository moves without one.
@@ -202,6 +202,24 @@ describe("where a thread changed machines, in its conversation", () => {
     assert.deepEqual(lines(withMoveDividers(conversation, storageOf({ moved_from: stamp("mac", "2026-11-12T11:00:00.000Z"), moved_to: stamp("laptop", "2026-11-12T13:00:00.000Z") }), "t")),
       ["before", "— Moved here from mac —", "after", "— Moved to laptop —"])
     assert.deepEqual(lines(withMoveDividers(conversation, storageOf({ moved_to: stamp("laptop", "2026-11-12T13:00:00.000Z", { pending: true }) }), "t")), ["before", "after"])
+  })
+})
+
+describe("the arrival note in the human's message", () => {
+  const shown = (text: string) => {
+    const line = (content: string, uuid: string) => JSON.stringify({ type: "user", uuid, timestamp: "2026-11-12T12:00:00.000Z", message: { role: "user", content } })
+    const users = parseTranscript([line("first", "u1"), line(text, "u2")].join("\n")).filter((m) => m.role === "user")
+    return users.at(-1)!.displayText ?? users.at(-1)!.text
+  }
+  const note = movedNote("mac", "desktop", [{ from: "/Users/a", to: "/home/a" }], ["1 timer"])
+
+  it("is the worker's, so the bubble shows only what the human typed", () => {
+    assert.equal(shown(`${note}\n\nresume`), "resume")
+  })
+
+  it("stays when the human quotes it rather than ntwine prepending it", () => {
+    const quoted = `${note.split(" Nothing")[0]}\n\nwhy does this show?`
+    assert.equal(shown(quoted), quoted)
   })
 })
 

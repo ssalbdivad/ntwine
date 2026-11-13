@@ -54,6 +54,7 @@ import { hasEscapingBackgroundJob } from "../../../cc-worker/hooks/bash-backgrou
 import { ntwineTempDir, isPromptAttachmentPath } from "./ntwine-paths.ts"
 import { dispatchProfileCell } from "./subagent-profile.ts"
 import { forkPointOf } from "./fork-point.ts"
+import { stripMovedNote } from "./thread-move.ts"
 
 // Parse a session JSONL into a renderable conversation — mechanically, no AI. Same defensive
 // posture as the tailer: bad line → skip, unknown type → ignore, never throw. Assistant messages
@@ -236,6 +237,7 @@ function userDisplayText(text: string, first: boolean): string | undefined {
     projected = githubDispatchDisplayText(projected) ?? projected
     projected = subAgentDispatchDisplayText(projected) ?? projected
   }
+  projected = stripMovedNote(projected)
   projected = stripWakeDeliveryToken(projected)
   // The token comes off FIRST and the clock second, because that is the order they were appended in
   // (scheduler.withClock, then context's delivery token) and each is anchored to end-of-text.
