@@ -169,6 +169,8 @@ export function parsePageMessage(value: unknown, origin?: string): EmbedPageMess
       const url = webUrl(value.url)
       return url ? { type: "ntwine:open-external", url } : undefined
     }
+    case "ntwine:read-clipboard":
+      return typeof value.id === "string" && value.id && value.id.length <= 200 ? { type: "ntwine:read-clipboard", id: value.id } : undefined
     case "ntwine:key": {
       const { key, code, ctrl, meta, shift, alt } = value
       if (typeof key !== "string" || typeof code !== "string" || key.length > 64 || code.length > 64) return undefined

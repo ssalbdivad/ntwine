@@ -9,6 +9,7 @@ import { hostFocusGate } from "./hostFocusGate.ts"
 import { finishStuckTransitions } from "./stuckTransitions.ts"
 import { repostRoute } from "./embedRoute.ts"
 import { closeSettingsAnimated } from "./overlays.ts"
+import { installEmbedEditKeys, takeHostClipboard } from "./embedEditKeys.ts"
 import { EMBED_READY, embedded, hostKeyChord, parseHostMessage, postToHost } from "./embed.ts"
 import { bindingLookup, effectiveBindings, matchAction } from "./keybindings.ts"
 import { basename } from "./paths.ts"
@@ -32,6 +33,7 @@ import { setHostTheme } from "./theme.ts"
 export function initEmbedHost(): void {
   if (!embedded() || typeof window === "undefined") return
   document.documentElement.dataset.embed = "vscode"
+  installEmbedEditKeys()
   window.addEventListener("message", (event) => {
     // The parent, and nothing else: another frame or a popup could post the same shapes, and a compose
     // from one would put its text into the human's prompt box.
@@ -150,6 +152,10 @@ function guardFocus(): void {
 
 async function handle(message: EmbedHostMessage): Promise<void> {
   if (message.type === "ntwine:command" || message.type === "ntwine:navigate" || (message.type === "ntwine:compose" && message.focus)) allowHostFocus()
+  if (message.type === "ntwine:clipboard") {
+    takeHostClipboard(message)
+    return
+  }
   if (message.type === "ntwine:theme") {
     const { colors, surface, contrast } = message
     setHostTheme(message.theme, colors ? { colors, ...(surface ? { surface } : {}), ...(contrast ? { contrast } : {}) } : undefined)

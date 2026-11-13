@@ -73,6 +73,12 @@ export async function actOnPage(api: Vscode, page: SharedPageMessage, host: Page
     }
     case "ntwine:open-external":
       return (await api.env.openExternal(api.Uri.parse(page.url, true))) ? "opened" : "declined"
+    case "ntwine:read-clipboard": {
+      let text = ""
+      try { text = await api.env.clipboard.readText() } catch {}
+      void frame.post({ type: "ntwine:clipboard", id: page.id, text })
+      return "read"
+    }
     case "ntwine:key": {
       const command = chordCommand(page, frame.mac())
       // Recorded as it is RUN, not once it has finished: a command's effect (the Explorer taking the side

@@ -186,6 +186,9 @@ function nonEmpty(value: unknown, max: number): value is string {
  */
 export function parseHostMessage(data: unknown): EmbedHostMessage | null {
   if (!isRecord(data)) return null
+  if (data.type === "ntwine:clipboard") {
+    return typeof data.id === "string" && typeof data.text === "string" ? { type: "ntwine:clipboard", id: data.id, text: data.text } : null
+  }
   if (data.type === "ntwine:theme") {
     const theme = parseTheme(data.theme)
     if (!theme) return null

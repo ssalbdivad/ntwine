@@ -278,6 +278,14 @@ export type EmbedHostMessage =
   | EmbedEditorExtrasMessage
   | EmbedContextPicksMessage
   | EmbedHostStateMessage
+  | EmbedClipboardMessage
+
+/** The answer to `ntwine:read-clipboard`: the clipboard's text, empty when it held none or the read failed. */
+export interface EmbedClipboardMessage {
+  type: "ntwine:clipboard"
+  id: string
+  text: string
+}
 
 // ── page → host ────────────────────────────────────────────────────────────────────────────────────
 
@@ -416,6 +424,17 @@ export type EmbedPageMessage =
   | EmbedRouteMessage
   | EmbedReviewMessage
   | EmbedPickContextMessage
+  | EmbedReadClipboardMessage
+
+/**
+ * ⌘V in a Mac sidebar: the page cannot read the clipboard from inside VS Code's webview (the read is
+ * refused), so it asks the extension, which answers `ntwine:clipboard` with `env.clipboard.readText()`.
+ * Text only: the editor's API has no image clipboard (lib/embedEditKeys.ts).
+ */
+export interface EmbedReadClipboardMessage {
+  type: "ntwine:read-clipboard"
+  id: string
+}
 
 // ── more ways in: files by name or dropped, the file's problems, the terminal's last command ─────────
 //
