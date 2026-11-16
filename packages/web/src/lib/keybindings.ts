@@ -86,12 +86,12 @@ export const ACTIONS: readonly ActionDef[] = [
   { id: "thread.done", label: "Mark as done", group: "queue", defaultChord: "d" },
   { id: "thread.snooze", label: "Snooze", group: "queue", defaultChord: "s" },
   { id: "thread.open", label: "Open in a drawer", group: "queue", defaultChord: "o" },
-  // A terminal belongs to a thread (ThreadTerminals.tsx), so `t` opens one on the thread being read. It
+  // A terminal belongs to a thread (ThreadTerminals.tsx), so ⇧T opens one on the thread being read. It
   // was "New terminal thread", from anywhere, until the Terminal tab went on 2026-09-29.
-  { id: "thread.terminal", label: "Open terminal", group: "queue", defaultChord: "t" },
-  // The same folder in the Local file links app — the step `t` then `code .` took (ThreadMenu.tsx openInEditor).
+  { id: "thread.terminal", label: "Open terminal", group: "queue", defaultChord: "shift+t" },
+  // The same folder in the Local file links app — the step ⇧T then `code .` took (ThreadMenu.tsx openInEditor).
   // With no thread in front of the human, the project's own folder (AllQueues.tsx).
-  { id: "thread.editor", label: "Open in editor", group: "queue", defaultChord: "e" },
+  { id: "thread.editor", label: "Open in editor", group: "queue", defaultChord: "shift+e" },
   // The ⋯ menu itself, so its rarer verbs (Restart worker, Thread info, …) are ↓ and Enter away
   // without each needing a letter of its own.
   { id: "thread.menu", label: "More actions", group: "queue", defaultChord: "m" },
