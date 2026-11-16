@@ -306,6 +306,15 @@ export function queuesCleanExit(row: Pick<ThreadTerminalRow, "exit_queues">, ter
   return row.exit_queues === 1 && terminal.state === "exited" && terminal.exitCode === 0 && !terminal.stopped && !terminal.shell && !terminal.signal
 }
 
+/** The terminal with the `@handle` of the thread whose agent started it, so its row can name its origin. A
+ *  human's terminal, or a starter with no name to show, is returned as it is. */
+export function withStarterHandle(terminal: ThreadTerminal, handleOf: (slug: string) => string | undefined): ThreadTerminal {
+  const starter = terminal.startedBy
+  if (!starter || starter === "human") return terminal
+  const handle = handleOf(starter)
+  return handle ? { ...terminal, starterHandle: handle } : terminal
+}
+
 export function terminalThreadView(row: Pick<ThreadTerminalRow, "slug" | "state" | "created_at" | "pinned_at" | "snoozed_until" | "exit_queues">, terminal: ThreadTerminal, nowMs = Date.now()): ThreadView {
   const outcome = terminalOutcome(terminal)
   const queuedFinish = queuesCleanExit(row, terminal)

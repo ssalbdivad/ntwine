@@ -58,7 +58,7 @@ import { createCodexBackend, codexSandbox } from "./backend/codex.ts"
 import { createAcpBackend } from "./backend/acp-transcript.ts"
 import { createAcpBridge, type AcpBridge } from "./backend/acp-bridge.ts"
 import { readClaudePreflightAuth, readCodexAuthState, readCodexBinaryState } from "./backend/auth-status.ts"
-import { createTerminalRunner, terminalThreadView, type TerminalRunner } from "./thread-terminals.ts"
+import { createTerminalRunner, terminalThreadView, withStarterHandle, type TerminalRunner } from "./thread-terminals.ts"
 import { createTerminalHost } from "./backend/terminal-host.ts"
 import type { EditorBridge } from "./editor-bridge.ts"
 import { ntwineCliEnv, withNtwineCliOnPath, type AgentBackend } from "./backend/types.ts"
@@ -1189,7 +1189,16 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   board = createBoard(project, storage, bus, tailer, bootId, {
     scheduleRef: (row) => schedules?.threadRef(row),
     threadTerminals: () => terminalRunner.byThread(),
-    terminalThreads: (nowMs) => terminalRunner.terminals().map(({ row, terminal }) => terminalThreadView(row, terminal, nowMs)),
+    terminalThreads: (nowMs) => {
+      const terminals = terminalRunner.terminals()
+      // One registry read per build, and only when an agent started one of them.
+      const names = terminals.some(({ terminal }) => terminal.startedBy && terminal.startedBy !== "human") ? threadNamer.threads() : []
+      const starterHandle = (slug: string) => {
+        const named = names.find((t) => t.slug === slug)
+        return named ? handleOf(named) : undefined
+      }
+      return terminals.map(({ row, terminal }) => terminalThreadView(row, withStarterHandle(terminal, starterHandle), nowMs))
+    },
     projectTerminals: () => terminalRunner.terminals().map(({ terminal }) => terminal),
     codexTurnLiveness: (slug, sessionId) => codexAppServer?.turnLiveness(slug, sessionId),
     // Headless-stall signal for a broker row: the ownerless daemon's record. Absent bridge ⇒ default

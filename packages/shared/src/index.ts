@@ -4676,6 +4676,10 @@ export const ThreadTerminal = z.object({
   parent: ThreadSlug.optional(),
   // Who started it: `human`, or the slug of the thread whose agent did. The strip's owner glyph reads it.
   startedBy: z.string().optional(),
+  // The `@handle` of the thread whose agent started it (`startedBy` resolved by the board), so its row can
+  // say where it came from: a dev server an agent left running reads as nobody's without it (maintainer
+  // 2026-11-16). Absent when the human started it, or the starter no longer has a name to show.
+  starterHandle: z.string().optional(),
   // Its `@handle` (`$ pnpm run dev` → `pnpm-run-dev`), what `read-thread` and the agents address it by.
   handle: z.string().optional(),
   // CONTROL (plans/terminal-threads.md § Control): who types into it, `human` or a thread's slug — its starter
