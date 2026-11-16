@@ -79,7 +79,7 @@ test("done is a dismissal: landed as far as asked, nothing owed, and found work 
     assert.match(c, /Commit, push or open a pull request only when their current request asks for it or the project's docs tell workers to/)
     assert.match(c, /finished code is `done` where it sits/)
     assert.match(c, /Asked to merge: not done until it merges — park on its PR with `prs:`/)
-    assert.match(c, /never park on the user's own review or merge/)
+    assert.match(c, /never park on a review, anyone's, or on the user's merge/)
     // zod #6022: a drafted, unposted close comment fenced as done.
     assert.match(c, /an investigation headed for a fix \(the fix is still owed\)/)
     assert.match(c, /A draft you wrote but did not send: ask whether to send it, with the draft inside the option that sends it/)

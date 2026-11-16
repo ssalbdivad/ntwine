@@ -1216,6 +1216,8 @@ export function awaitingFenceTitle(hints: readonly AwaitingHint[] | undefined): 
 //   `status:` (or the `needs_input:` alias)  → as written (a bare `needs_input: false` still leaves the
 //                                              band to the board, as it did before)
 //   any prose under the `---`                → needs_input (words for the human are the queue's)
+//   a write-up beside the fence              → needs_input (the same words, written above it instead;
+//                                              awaitingWriteUp, 2026-11-16)
 //   only shells, agents and timers           → working (the thread's own work comes back by itself)
 //   any pr, thread, command or terminal      → watching (one outside item makes the whole wait the world's,
 //                                              as the board already reads a park on its own timers alone
@@ -1233,6 +1235,25 @@ export type AwaitingStatus = (typeof AWAITING_STATUSES)[number]
 export interface AwaitingFenceShape {
   hints?: readonly AwaitingHint[]
   body: string
+  /** The message the fence closes carries a write-up outside it (awaitingWriteUp). */
+  writeUp?: boolean
+}
+
+/** Prose outside the fences at least this long is a write-up, not a re-park's one-liner. */
+export const AWAITING_WRITE_UP_MIN_CHARS = 200
+
+/** Does the message an awaiting fence closes carry a WRITE-UP outside its fences — prose meant for the
+ *  human rather than the one short line a quiet park may carry?
+ *
+ *  WHY (maintainer 2026-11-16). A worker parked on its PR after CI went green, with three paragraphs above
+ *  the fence: the result, a decision it left to the human ("say if you want replies posted"), and dev
+ *  servers to try. The fence named only `prs:`, so the thread sat in Waiting and the human had to ask what
+ *  it was waiting for. The contract already reads prose under the `---` as needs_input; prose written
+ *  ABOVE the fence is the same words in another place, so it reads the same. A quiet park writes the fence
+ *  alone, so it stays out of the queue. */
+export function awaitingWriteUp(text: string): boolean {
+  const outside = text.replace(/\r\n/g, "\n").replace(/^(`{3,})[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, "")
+  return outside.replace(/\s+/g, " ").trim().length >= AWAITING_WRITE_UP_MIN_CHARS
 }
 
 /** What a `status:` value names, or null for one that is none of the three. `needs-input` is read as the
@@ -1280,7 +1301,7 @@ function itemsStatus(hints: readonly AwaitingHint[] | undefined): "working" | "w
  *  under the `---`, else what its items give (itemsStatus). The written line is awaitingStatus's. */
 export function awaitingDerivedStatus(fence: AwaitingFenceShape): AwaitingStatus | null {
   if (fenceWaitsOnHuman(fence.hints)) return "needs_input"
-  if (fence.body.trim() !== "") return "needs_input"
+  if (fence.body.trim() !== "" || fence.writeUp) return "needs_input"
   return itemsStatus(fence.hints)
 }
 
@@ -4519,6 +4540,9 @@ export const ThreadFence = z.object({
   // prose, so the done still stands (board.registeredDoneFence) but its ledger is old news. The client
   // draws the card without its body (web lib/registeredDone registeredDoneBody).
   spokenPast: z.literal(true).optional(),
+  // On an awaiting fence only: the message it closes carries a real write-up OUTSIDE the fence
+  // (awaitingWriteUp). Read as prose under the `---` by awaitingDerivedStatus.
+  writeUp: z.literal(true).optional(),
 })
 export type ThreadFence = z.infer<typeof ThreadFence>
 

@@ -221,7 +221,7 @@ not done.
 - **Follow a landed change only as far as the user asked.** Asked to merge: not done until it merges —
   park on its PR with \`prs:\`. Asked to push: done once pushed, after watching CI only when the change
   could break the build. Name each PR or issue in the body — the user can watch it from the card — and
-  never park on the user's own review or merge.
+  never park on a review, anyone's, or on the user's merge.
 - **Not done:** an investigation headed for a fix (the fix is still owed). A recommendation that someone
   act — merge, decline, post, pick a design — which is a question with your recommendation first, or
   \`steps:\` once only the user's act remains. A draft you wrote but did not send: ask whether to send

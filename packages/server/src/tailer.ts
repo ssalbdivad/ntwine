@@ -6,7 +6,7 @@ import { promisify } from "node:util"
 import { basename, dirname, isAbsolute, join, resolve, win32 } from "node:path"
 import { homedir, tmpdir } from "node:os"
 import type { AskQuestion, AwaitingHint, CodexModel, LiveTool, SubAgentDirectoryEntry, WorkCheckout } from "@ntwine/shared"
-import { insideFence, isAllInjectedNoise, isInterruptMarker, isWakeDelivery, parseAskUserQuestionInput, parseCrossSessionMessage, PermissionMode, questionFencesLive, saysAllDone, isWrittenReply, splitAwaitingFrontmatter } from "@ntwine/shared"
+import { insideFence, isAllInjectedNoise, isInterruptMarker, isWakeDelivery, parseAskUserQuestionInput, parseCrossSessionMessage, PermissionMode, questionFencesLive, saysAllDone, isWrittenReply, splitAwaitingFrontmatter, awaitingWriteUp } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import { permMarkerPath, workDirOf, type Project } from "./project.ts"
 import { isBrokerClaudeRow, isHeadlessRow, isHeldRow } from "./storage.ts"
@@ -746,6 +746,8 @@ export interface FenceView {
   registered?: true
   // Board-only too: the human spoke after the registered done, which still stands (registeredDoneFence).
   spokenPast?: true
+  // Awaiting only: the message carries a write-up outside the fence (shared awaitingWriteUp).
+  writeUp?: true
 }
 
 // Per-session derived telemetry surfaced to the board overlay. Structurally a NormalizedTail (the
@@ -1456,7 +1458,7 @@ export function parseSignalFence(text: string | undefined): FenceView | undefine
   // frontmatter at the human in the in-chat card. One function, called twice, is the only thing that
   // actually prevents that. See `splitAwaitingFrontmatter` for the grammar and its failure modes.
   const { body, hints } = splitAwaitingFrontmatter(raw)
-  return { kind, body: capFenceBody(body), hints }
+  return { kind, body: capFenceBody(body), hints, ...(awaitingWriteUp(norm) ? { writeUp: true as const } : {}) }
 }
 
 // A user record is a REAL user interaction (a typed prompt / answer / steer / dispatch) rather than a

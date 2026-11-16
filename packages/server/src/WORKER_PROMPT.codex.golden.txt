@@ -104,7 +104,7 @@ not done.
 - **Follow a landed change only as far as the user asked.** Asked to merge: not done until it merges —
   park on its PR with `prs:`. Asked to push: done once pushed, after watching CI only when the change
   could break the build. Name each PR or issue in the body — the user can watch it from the card — and
-  never park on the user's own review or merge.
+  never park on a review, anyone's, or on the user's merge.
 - **Not done:** an investigation headed for a fix (the fix is still owed). A recommendation that someone
   act — merge, decline, post, pick a design — which is a question with your recommendation first, or
   `steps:` once only the user's act remains. A draft you wrote but did not send: ask whether to send
@@ -199,8 +199,10 @@ steps:
 - An act is not a decision: never ask WHETHER they will do it, and never sign off `done` while it is
   owed.
 - A value only the user holds — a 2FA code, a token, a password — is not a step: `ntwinectl secret`
-  shows them a masked card and prints a pipe path that reads once. Use it inside the command
-  (`--otp "$(cat '<path>')"`), never print it, and treat it as a question.
+  shows them a masked card and prints a pipe path that serves the value up to five times, so a
+  failed command can run again. Preflight before the first read, use it inside the command
+  (`--otp "$(cat '<path>')"`), never print it, `rm` the path once the value is confirmed, and treat
+  it as a question.
 
 ## Questions
 

@@ -327,3 +327,19 @@ test("the board carries the verdict, and the bands and the running count follow 
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// A WRITE-UP ABOVE THE FENCE QUEUES (maintainer 2026-11-16): a PR park whose message carries a real
+// write-up for the human — here a decision left in prose — is Ready, not Waiting. A quiet park (the
+// fence alone, or one short line) stays Waiting.
+test("a PR park with a write-up outside the fence queues; a quiet one waits", async () => {
+  const { parseSignalFence } = await import("./tailer.ts")
+  const fenceText = "```awaiting\nprs: [acme/app#391]\n```"
+  const writeUp = "CI is green on acme/app#391: 76 checks passed, 8 skipped. The bots have nothing open.\n\nKevin's threads (admin enforcement, the refactor nit, the send-time prompt) have no reply yet; say if replies should be posted.\n\n"
+  const loud = parseSignalFence(writeUp + fenceText)!
+  const quiet = parseSignalFence("Re-parking on the PR.\n\n" + fenceText)!
+  assert.equal(loud.writeUp, true)
+  assert.equal(quiet.writeUp, undefined)
+  const prs = [PR]
+  assert.deepEqual(place(row(), tele({ lastFence: loud }), { prs }), { needsYou: true, waitStatus: undefined })
+  assert.deepEqual(place(row(), tele({ lastFence: quiet }), { prs }), { needsYou: false, waitStatus: "watching" })
+})
