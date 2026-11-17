@@ -432,6 +432,9 @@ export interface Api {
   // Which capability-gated tools the workers' ntwine MCP server lists (`editor` while a window has this
   // project open). The worker's MCP server polls it; the page does not.
   workerCapabilities(input: { slug?: string }): Promise<{ editor: boolean }>
+  // Show two commits' changes (a PR's) in the editor window that has this project open. The workers'
+  // `ntwinectl editor-compare` calls it; the page does not.
+  compareInEditor(input: { dir: string; base: string; head: string; title: string; view?: "auto" | "gitlens" | "diff" }): Promise<{ ok: true }>
   // What a browser tab shows of the editor beside it: the file in front and its selection's lines, from
   // the window this project's agents' editor tool reads; `text` adds what a click puts in the prompt box.
   editorFront(input: { text?: boolean }): Promise<{ front: EditorFront | null; item?: EditorComposeInput }>
@@ -692,6 +695,7 @@ export const PROCEDURES = {
   composeTake: "mutation",
   editorState: "mutation",
   workerCapabilities: "mutation",
+  compareInEditor: "mutation",
   editorFront: "query",
   markComplete: "mutation",
   setThreadStatus: "mutation",

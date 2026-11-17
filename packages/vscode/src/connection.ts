@@ -42,6 +42,7 @@ import {
   EDITOR_PROTOCOL_VERSION,
   EDITOR_SOCKET_PATH,
   type EditorClientMessage,
+  type EditorCompare,
   type EditorComposeInput,
   type EditorComposed,
   type EditorFocus,
@@ -84,6 +85,8 @@ export interface ConnectionHost {
   focus(message: EditorFocus): Promise<OpenResult>
   /** Show a thread's changes and raise the window. Absent: this window cannot, and never says it can. */
   review?(message: EditorReview): Promise<OpenResult>
+  /** Show two commits' changes for an agent and raise the window. Absent: this window cannot, and never says it can. */
+  compare?(message: EditorCompare): Promise<OpenResult>
   projects(projects: EditorProject[]): void
   status(status: ConnectionStatus): void
   log: ConnectionLog
@@ -488,7 +491,14 @@ export class EditorConnection {
         this.#host.log.info(`Connected to ntwine at ${origin} (${detail})${restarted ? "; ntwine restarted since the last connection" : ""}${blind}.`)
         this.#setStatus({ kind: "connected", origin, bootId: message.bootId })
         // What this window can do beyond v1, to an ntwine that takes the frame (see the header).
-        if (this.#host.review && this.#features.has(EDITOR_FEATURES.review)) this.#send({ t: "features", features: [EDITOR_FEATURES.review] })
+        // Only to a server that takes the frame at all, which every server naming `review` does.
+        if (this.#features.has(EDITOR_FEATURES.review)) {
+          const can = [
+            ...(this.#host.review ? [EDITOR_FEATURES.review] : []),
+            ...(this.#host.compare && this.#features.has(EDITOR_FEATURES.compare) ? [EDITOR_FEATURES.compare] : []),
+          ]
+          if (can.length) this.#send({ t: "features", features: can })
+        }
         // Anything that changed between the hello and the welcome, and the editor's picture: an ntwine that
         // just (re)started knows nothing of it.
         this.sendState()
@@ -500,11 +510,13 @@ export class EditorConnection {
         return
       case "open":
       case "focus":
-      case "review": {
+      case "review":
+      case "compare": {
         let result: OpenResult
         try {
           if (message.t === "open") result = await this.#host.open(message)
           else if (message.t === "focus") result = await this.#host.focus(message)
+          else if (message.t === "compare") result = this.#host.compare ? await this.#host.compare(message) : { ok: false, error: "This window can't show changes." }
           else result = this.#host.review ? await this.#host.review(message) : { ok: false, error: "This window can't show changes." }
         } catch (error) {
           result = { ok: false, error: (error as Error).message }

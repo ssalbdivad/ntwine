@@ -26,6 +26,7 @@
  * A handler NEVER takes the caller's thread from its arguments: threadSlug() reads it from the
  * environment the worker was started with, which is what stops one thread acting as another.
  */
+import { execFile } from "node:child_process"
 import { readFileSync, readdirSync } from "node:fs"
 import { basename, dirname, isAbsolute, join, relative, resolve as resolvePath } from "node:path"
 
@@ -1013,6 +1014,37 @@ const EDITOR = {
   annotations: { title: "Read the user's editor", readOnlyHint: true, openWorldHint: false },
 }
 
+// THE HUMAN'S EDITOR, SHOWN A DIFF (2026-11-17, maintainer: "open a gitlens diff for this pr"). The one
+// thing an agent may make the editor DO: show a pull request's changes, or two commits', in the window
+// that has this project open (router `compareInEditor` → editor-bridge.ts `compare` → packages/vscode
+// compare.ts). GitLens's Search & Compare when the editor has GitLens, else VS Code's multi-file diff.
+// Deliberately not "run any VS Code command": a diff is all it can open. This side resolves the PR with
+// `gh` and fetches both commits into the caller's checkout, because the extension's git is read-only.
+const EDITOR_COMPARE = {
+  name: "editor_compare",
+  description:
+    "SHOW A DIFF IN THE USER'S EDITOR: a pull request's changes (`--pr`), or the changes between two commits " +
+    "(`--base` and `--head`, any refs), opened in the VS Code, Cursor or Windsurf window that has this " +
+    "project open, which comes to the front. With GitLens installed it opens as a comparison in GitLens's " +
+    "Search & Compare view; without it, as VS Code's multi-file diff. `--view gitlens` or `--view diff` " +
+    "picks one. Run it when the user asks to see, open or review a PR or a branch's diff in their editor.\n\n" +
+    "RUN IT INSIDE A CHECKOUT OF THE REPOSITORY. `--pr` takes `owner/repo#123`, a PR URL, or `123` for " +
+    "this checkout's repository; it reads the PR with `gh` and fetches its base and head commits into this " +
+    "checkout when they are missing. A PR shows the head's changes since its merge base with the base, as " +
+    "GitHub does. It changes nothing in the checkout: no switch, no worktree.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      pr: { type: "string", description: "The pull request: `owner/repo#123`, its URL, or `123` for this checkout's repository." },
+      base: { type: "string", description: "Without `pr`: where the changes start, any git ref (`main`, a SHA)." },
+      head: { type: "string", description: "Without `pr`: where they end, any git ref (`HEAD`, a branch, a SHA)." },
+      view: { type: "string", enum: ["auto", "gitlens", "diff"], description: "`auto` (default): GitLens when it is installed, else VS Code's multi-file diff." },
+    },
+    required: [],
+  },
+  annotations: { title: "Show a diff in the user's editor", readOnlyHint: false, openWorldHint: false },
+}
+
 // The registry: `ntwinectl` lists these and routes a command by name (and the legacy MCP front-end
 // answers `tools/list` and `tools/call` from the same list). Adding a worker-facing capability = one
 // entry here + one handler in `HANDLERS` + its spelling in `CLI` — never a second surface.
@@ -1245,7 +1277,7 @@ const TERMINAL = {
 // (2026-10-02), SCHEDULE after EDITOR (2026-10-05), DEADLINE after SCHEDULE (2026-10-06), upstream's
 // SECRET after DEADLINE (2026-10-08), and upstream's WATCH_COMMAND after SECRET (2026-10-12). Upstream's STEER is not
 // here: MESSAGE_THREAD is the fork's thread-to-thread command (plans/upstream-superset.md).
-const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, REACT, REACTIONS, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST, TERMINAL]
+const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, REACT, REACTIONS, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST, TERMINAL, EDITOR_COMPARE]
 
 // A COMMAND WHOSE FEATURE CAN BE ABSENT, and the capability the server reports for it (router
 // `workerCapabilities`, the same predicate that gates the contract's sections, dispatch.ts). Of the
@@ -1259,7 +1291,7 @@ const GATED_TOOLS = /** @type {Record<string, string>} */ ({ [EDITOR.name]: "edi
 // front-end is what Codex and ACP workers run, which load their own MCP servers themselves. `terminal`
 // (2026-10-15) came after the CLI cutover: only a worker taught the MCP tools mounts the front-end
 // (context.ts workerTaughtMcp), its contract never names terminals, and a listed tool costs every turn.
-const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name, TERMINAL.name, REACT.name, REACTIONS.name])
+const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name, TERMINAL.name, REACT.name, REACTIONS.name, EDITOR_COMPARE.name])
 
 /** @type {Record<string, (args: Record<string, unknown>) => Promise<string>>} */
 const HANDLERS = {
@@ -1284,6 +1316,7 @@ const HANDLERS = {
   [READ_THREAD.name]: readThread,
   [MESSAGE_THREAD.name]: messageThread,
   [EDITOR.name]: editor,
+  [EDITOR_COMPARE.name]: editorCompare,
   [SCHEDULE.name]: schedule,
   [DEADLINE.name]: deadline,
   [WATCH_COMMAND.name]: watchCommand,
@@ -1643,6 +1676,106 @@ async function editor() {
     )
   }
   return parts.join("\n\n")
+}
+
+/** Run `cmd` in `cwd`; stdout trimmed, or throws with its stderr's first line.
+ * @param {string} cmd @param {string[]} args @param {string} cwd @returns {Promise<string>} */
+function run(cmd, args, cwd) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { cwd, encoding: "utf8", maxBuffer: 16 << 20, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } }, (error, stdout, stderr) => {
+      if (error) reject(new Error(`\`${cmd} ${args.join(" ")}\` failed: ${(String(stderr).trim().split("\n")[0] || error.message).slice(0, 300)}`))
+      else resolve(String(stdout).trim())
+    })
+  })
+}
+
+/** `owner/repo#123`, a PR URL, or `123` / `#123` → its parts; undefined when it is none of them.
+ * @param {string} spec @returns {{ repo?: string, number: number } | undefined} */
+export function parsePrSpec(spec) {
+  const s = spec.trim()
+  const url = /^https?:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)(?:[/?#].*)?$/u.exec(s)
+  if (url) return { repo: url[1], number: Number(url[2]) }
+  const ref = /^([\w.-]+\/[\w.-]+)#(\d+)$/u.exec(s)
+  if (ref) return { repo: ref[1], number: Number(ref[2]) }
+  const bare = /^#?(\d+)$/u.exec(s)
+  if (bare) return { number: Number(bare[1]) }
+  return undefined
+}
+
+/** The remote of the checkout at `top` whose URL is `repo` on GitHub, else `origin`, else none.
+ * @param {string} top @param {string | undefined} repo @returns {Promise<string | undefined>} */
+async function remoteFor(top, repo) {
+  const names = (await run("git", ["remote"], top).catch(() => "")).split("\n").filter(Boolean)
+  if (repo) {
+    for (const name of names) {
+      const url = await run("git", ["remote", "get-url", name], top).catch(() => "")
+      if (new RegExp(`github\\.com[:/]${repo.replace(/[.]/g, "\\.")}(?:\\.git)?/?$`, "iu").test(url)) return name
+    }
+  }
+  return names.includes("origin") ? "origin" : names[0]
+}
+
+/** Whether `sha` is a commit the checkout at `top` has. @param {string} top @param {string} sha */
+async function hasCommit(top, sha) {
+  return run("git", ["cat-file", "-e", `${sha}^{commit}`], top).then(() => true, () => false)
+}
+
+/** The `editor_compare` handler: resolve the two commits here, then have the editor show them.
+ * @param {Record<string, unknown>} args @returns {Promise<string>} */
+async function editorCompare(args) {
+  const str = (/** @type {unknown} */ v) => (typeof v === "string" && v.trim() ? v.trim() : undefined)
+  const pr = str(args.pr)
+  const baseRef = str(args.base)
+  const headRef = str(args.head)
+  const view = str(args.view) ?? "auto"
+  if (!["auto", "gitlens", "diff"].includes(view)) throw new Error("`view` must be one of auto, gitlens, diff")
+  if (pr ? baseRef || headRef : !(baseRef && headRef)) throw new Error("Give either `--pr`, or both `--base` and `--head`.")
+  const top = await run("git", ["rev-parse", "--show-toplevel"], process.cwd()).catch(() => {
+    throw new Error(`${process.cwd()} isn't a git checkout. Run this inside a checkout of the repository, so the editor can read its commits.`)
+  })
+
+  let base, head, title
+  if (pr) {
+    const spec = parsePrSpec(pr)
+    if (!spec) throw new Error(`\`${pr}\` isn't a pull request: give \`owner/repo#123\`, its URL, or \`123\`.`)
+    const info = JSON.parse(await run("gh", ["pr", "view", String(spec.number), ...(spec.repo ? ["-R", spec.repo] : []), "--json", "number,title,url,baseRefOid,headRefOid"], top))
+    const repo = spec.repo ?? /github\.com\/([\w.-]+\/[\w.-]+)\/pull\//u.exec(info.url ?? "")?.[1]
+    base = info.baseRefOid
+    head = info.headRefOid
+    title = `${repo ? `${repo}#` : "#"}${info.number}: ${info.title}`
+    const remote = await remoteFor(top, repo)
+    // Fetch only what is missing, by SHA, which GitHub serves; a head from a fork that is gone from its
+    // branch still lives under the base repository's `pull/<n>/head`.
+    for (const [sha, fallback] of /** @type {[string, string | undefined][]} */ ([[base, undefined], [head, `pull/${info.number}/head`]])) {
+      if (await hasCommit(top, sha)) continue
+      if (!remote) throw new Error(`Commit ${sha.slice(0, 7)} isn't in ${top}, and it has no remote to fetch it from.`)
+      await run("git", ["fetch", "--no-tags", "--quiet", remote, sha], top).catch(async (err) => {
+        if (!fallback) throw err
+        await run("git", ["fetch", "--no-tags", "--quiet", remote, fallback], top)
+      })
+      if (!(await hasCommit(top, sha))) {
+        throw new Error(`Couldn't fetch ${sha.slice(0, 7)} into ${top} from \`${remote}\`. Is this a checkout of ${repo ?? "the PR's repository"}?`)
+      }
+    }
+  } else {
+    const resolve = (/** @type {string} */ ref) => run("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], top).catch(() => {
+      throw new Error(`\`${ref}\` isn't a commit in ${top}.`)
+    })
+    base = await resolve(/** @type {string} */ (baseRef))
+    head = await resolve(/** @type {string} */ (headRef))
+    title = `${baseRef}...${headRef}`
+  }
+
+  try {
+    await callRpc("compareInEditor", { dir: top, base, head, title, view })
+  } catch (err) {
+    if (/HTTP 404/.test(err instanceof Error ? err.message : String(err))) {
+      return "The running ntwine can't show diffs in the editor yet: it predates this command. Restart ntwine to enable this."
+    }
+    throw err
+  }
+  const where = view === "diff" ? "VS Code's multi-file diff" : view === "gitlens" ? "GitLens's Search & Compare" : "GitLens's Search & Compare, or VS Code's multi-file diff without GitLens"
+  return `Showed ${title} in the user's editor (${where}): ${base.slice(0, 7)}...${head.slice(0, 7)}.`
 }
 
 /** "VS Code, focused now, folder /repo" — which window this is. @param {any} w */
@@ -3221,6 +3354,12 @@ const CLI = {
     group: "This thread",
     summary: "Read what the user has in front of them in their editor: file, selection, tabs, errors",
     examples: ["ntwinectl editor"],
+  },
+  editor_compare: {
+    group: "This thread",
+    summary: "Show a pull request's or two commits' diff in the user's editor (GitLens if installed)",
+    positional: ["pr"],
+    examples: ["ntwinectl editor-compare acme/app#123", "ntwinectl editor-compare --base main --head HEAD --view diff"],
   },
   read_thread: {
     group: "Other threads",

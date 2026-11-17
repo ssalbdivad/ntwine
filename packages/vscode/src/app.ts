@@ -26,6 +26,7 @@ import { addRoute, composeInSidebar as composeVia, projectPath, promptRoute, thr
 import { composeInput, composeMessage, normalizeNewlines, refLabel, type FileRef, type Selected } from "./message.ts"
 import { projectForPath, workspaceProjects } from "./projects.ts"
 import { registerReviews, type ReviewSnapshot } from "./review-view.ts"
+import { registerCompares, type CompareSnapshot } from "./compare.ts"
 import { registerSelectionHint, type SelectionHintShown } from "./selection-hint.ts"
 import type { PageComposer } from "./framed-page.ts"
 import { registerThreadPanels, type ThreadPanelSnapshot, type ThreadTab } from "./thread-panel.ts"
@@ -52,6 +53,8 @@ export interface NtwineExtensionApi {
   editorContext(): EmbedEditorContextMessage | undefined
   /** The last thread's changes this window opened as a multi-file diff. */
   review(): ReviewSnapshot | undefined
+  /** The last two commits' changes an agent had this window show. */
+  compare(): CompareSnapshot | undefined
   /** The file's problems and the terminal's last command as the sidebar's page was last told them. */
   editorExtras(): EmbedEditorExtrasMessage | undefined
   /** This build's label (`0.1.0+1a2b3c4d`), as the hello, the log and the status bar's tooltip say it. */
@@ -292,6 +295,9 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   // A thread's changes as a multi-file diff (review-view.ts): pushed by ntwine when the human asks from a
   // browser tab (the window then comes to the front), asked for by the sidebar's page, or picked here.
   const reviews = registerReviews(api, context, { info: (line) => log.info(line), warn: (line) => log.warn(line) })
+  // Two commits' changes, for an agent (compare.ts): GitLens's comparison, or the same multi-file diff,
+  // both sides read through the review's `ntwine-base:` provider.
+  const compares = registerCompares(api, { info: (line) => log.info(line), warn: (line) => log.warn(line) })
 
   let lastNotes: string | undefined
   /** The last discovery's answer: the origin a page opens on even when the editor connection was refused. */
@@ -321,6 +327,11 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     async review(message) {
       const result = await reviews.open(message)
       // The ask came from a browser: the diff is no use behind it. Best-effort, as after an open.
+      if (result.ok) await focusWindow()
+      return result
+    },
+    async compare(message) {
+      const result = await compares.open(message)
       if (result.ok) await focusWindow()
       return result
     },
@@ -1284,6 +1295,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     sidebar: () => sidebar.snapshot(),
     editorContext: () => feed.last(),
     review: () => reviews.last(),
+    compare: () => compares.last(),
     editorExtras: () => extras.last(),
     build: extensionVersion,
     reloadOffered: () => offered?.label,

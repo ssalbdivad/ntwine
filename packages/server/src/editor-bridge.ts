@@ -17,6 +17,7 @@ import {
   workingThread,
   type EditorAttentionNeeds,
   type EditorAttentionThread,
+  type EditorCompareTarget,
   type EditorComposeInput,
   type EditorComposeItem,
   type EditorFront,
@@ -147,6 +148,11 @@ export interface EditorBridge {
    * when it answered that it could not (nothing to review, not a repository).
    */
   review(target: EditorReviewTarget, projectDir: string): Promise<boolean>
+  /**
+   * Show two commits' changes (`compare`, for an agent's `ntwinectl editor-compare`), in the window
+   * `review` would pick for a checkout at `target.dir`. True, false and throws as for `review`.
+   */
+  compare(target: EditorCompareTarget, projectDir: string): Promise<boolean>
   /** Claim a held compose item: that one, or with no id the oldest. Null when there is none (or it expired). */
   takeCompose(id?: string): EditorComposeItem | null
   /**
@@ -459,7 +465,7 @@ export function createEditorBridge(deps: EditorBridgeDeps): EditorBridge {
       features: new Set(),
       attention: false,
     }
-    send(conn, { t: "welcome", v: EDITOR_PROTOCOL_VERSION, bootId: deps.bootId(), features: [EDITOR_FEATURES.editorState, EDITOR_FEATURES.selectionWithheld, EDITOR_FEATURES.review, EDITOR_FEATURES.sidebar, EDITOR_FEATURES.attention] })
+    send(conn, { t: "welcome", v: EDITOR_PROTOCOL_VERSION, bootId: deps.bootId(), features: [EDITOR_FEATURES.editorState, EDITOR_FEATURES.selectionWithheld, EDITOR_FEATURES.review, EDITOR_FEATURES.sidebar, EDITOR_FEATURES.attention, EDITOR_FEATURES.compare] })
     publishEditorsIfChanged()
     frontsChanged()
     void pollProjects()
@@ -558,10 +564,10 @@ export function createEditorBridge(deps: EditorBridgeDeps): EditorBridge {
     startTimers()
   }
 
-  /** Send `open`/`focus`/`review` and wait for the window's `result`. */
+  /** Send `open`/`focus`/`review`/`compare` and wait for the window's `result`. */
   function request(
     conn: Connection,
-    frame: { t: "open"; path: string } & Partial<FilePosition> | { t: "focus"; path: string } | { t: "review" } & EditorReviewTarget,
+    frame: { t: "open"; path: string } & Partial<FilePosition> | { t: "focus"; path: string } | { t: "review" } & EditorReviewTarget | { t: "compare" } & EditorCompareTarget,
     timeoutMs = requestTimeoutMs,
   ): Promise<boolean> {
     const id = randomUUID()
@@ -573,11 +579,35 @@ export function createEditorBridge(deps: EditorBridgeDeps): EditorBridge {
         conn.pending.delete(id)
         if (outcome === "gone") resolve(false)
         else if (outcome.ok) resolve(true)
-        else reject(new Error(outcome.error || (frame.t === "review" ? `${app} could not show the changes` : `${app} could not open ${basename(frame.path)}`)))
+        else reject(new Error(outcome.error || (frame.t === "review" || frame.t === "compare" ? `${app} could not show the changes` : `${app} could not open ${basename(frame.path)}`)))
       }
       conn.pending.set(id, settle)
       if (!send(conn, { ...frame, id } as EditorServerMessage)) settle("gone")
     })
+  }
+
+  /**
+   * The window to show changes in (`review`, `compare`): of those that can (`feature`) and take things
+   * from ntwine, one whose workspace folder holds the earliest of `dirs` — the deepest folder, then the
+   * one the human was in last — else the window the human was in last that shares this server's filesystem.
+   */
+  function windowFor(feature: string, dirs: readonly string[]): Connection | undefined {
+    const candidates = [...connections].filter((c) => c.window && c.window.acceptsOpens && c.window.features.has(feature))
+    let best: { conn: Connection; rank: number; depth: number } | undefined
+    for (const [rank, dir] of dirs.entries()) {
+      const real = realpathOrUndefined(dir)
+      if (!real) continue
+      for (const conn of candidates) {
+        for (const folder of conn.window!.folders) {
+          const realFolder = realpathOrUndefined(folder)
+          if (!realFolder || !isUnder(real, folder)) continue
+          const depth = realFolder.length
+          const better = !best || rank < best.rank || (rank === best.rank && (depth > best.depth || (depth === best.depth && moreRecentlyFocused(conn, best.conn))))
+          if (better) best = { conn, rank, depth }
+        }
+      }
+    }
+    return best?.conn ?? mostRecent(candidates.filter((c) => c.window!.home === home && c.window!.platform === platform))
   }
 
   function eligible(kinds: readonly EditorKind[]): Connection[] {
@@ -821,27 +851,22 @@ export function createEditorBridge(deps: EditorBridgeDeps): EditorBridge {
 
     async review(target, projectDir) {
       if (closing) return false
-      const candidates = [...connections].filter((c) => c.window && c.window.acceptsOpens && c.window.features.has(EDITOR_FEATURES.review))
       // The checkouts first, in the review's order, then the project: a window on the thread's worktree
       // beats one on the whole project, and either beats a window on something else.
-      const dirs = [...target.checkouts.map((checkout) => checkout.dir), projectDir]
-      let best: { conn: Connection; rank: number; depth: number } | undefined
-      for (const [rank, dir] of dirs.entries()) {
-        const real = realpathOrUndefined(dir)
-        if (!real) continue
-        for (const conn of candidates) {
-          for (const folder of conn.window!.folders) {
-            const realFolder = realpathOrUndefined(folder)
-            if (!realFolder || !isUnder(real, folder)) continue
-            const depth = realFolder.length
-            const better = !best || rank < best.rank || (rank === best.rank && (depth > best.depth || (depth === best.depth && moreRecentlyFocused(conn, best.conn))))
-            if (better) best = { conn, rank, depth }
-          }
-        }
-      }
-      const conn = best?.conn ?? mostRecent(candidates.filter((c) => c.window!.home === home && c.window!.platform === platform))
+      const conn = windowFor(EDITOR_FEATURES.review, [...target.checkouts.map((checkout) => checkout.dir), projectDir])
       if (!conn) return false
       return request(conn, { t: "review", title: target.title, checkouts: target.checkouts }, reviewTimeoutMs)
+    },
+
+    async compare(target, projectDir) {
+      if (closing) return false
+      // The same choice as a review's: the agent's checkout, then the project. Two commits of one
+      // repository read the same from any of its worktrees, so a window on the main checkout serves an
+      // agent working in a worktree, and GitLens finds the repository by its remote either way.
+      const conn = windowFor(EDITOR_FEATURES.compare, [target.dir, projectDir])
+      if (!conn) return false
+      const { dir, base, head, title, view } = target
+      return request(conn, { t: "compare", dir, base, head, title, view }, reviewTimeoutMs)
     },
 
     editorState(dir, also = []) {

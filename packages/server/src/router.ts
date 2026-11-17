@@ -5938,6 +5938,31 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
+    // TWO COMMITS' CHANGES IN THE HUMAN'S EDITOR, for a worker (`ntwinectl editor-compare`,
+    // cc-worker/lib/ntwine-tools.mjs; the frame: editor-protocol.ts `compare`). The worker resolved the
+    // PR and fetched both commits into `dir`, its own checkout; the extension shows the diff and can do
+    // nothing else with the call — no command, no checkout — so this is safe to hand any worker. A window
+    // on the project or the worker's checkout is preferred (editor-bridge.ts `compare`).
+    compareInEditor: mutation({
+      input: z.object({
+        dir: z.string().min(1).max(4096).refine((dir) => isAbsolute(dir), "`dir` must be an absolute path"),
+        base: z.string().regex(/^[0-9a-f]{40}([0-9a-f]{24})?$/, "`base` must be a full commit SHA"),
+        head: z.string().regex(/^[0-9a-f]{40}([0-9a-f]{24})?$/, "`head` must be a full commit SHA"),
+        title: z.string().min(1).max(500),
+        view: z.enum(["auto", "gitlens", "diff"]).default("auto"),
+      }).strict(),
+      output: z.object({ ok: z.literal(true) }),
+      handler: async ({ input }) => {
+        if (!ctx.editors || !(await ctx.editors.compare(input, workDir))) {
+          throw new Error(
+            "No editor window can show the diff: none is connected with an up-to-date ntwine extension. " +
+            "The user needs VS Code, Cursor or Windsurf open with the ntwine extension (reload the window after an update).",
+          )
+        }
+        return { ok: true as const }
+      },
+    }),
+
     // Claim what an editor sent to the prompt box (`compose-pending` announced it on every open
     // project's bus). First caller wins, so of every tab that heard the event, the one the human is in
     // inserts it and the rest get null. No id: the oldest still held.

@@ -665,7 +665,8 @@ const HUMAN_EDITOR = `## The user's editor
 
 When the user points at code they have not pasted — "this", "the selected code", "the error" — run
 \`ntwinectl editor\`: it prints what they have in front of them in VS Code or Cursor, the selection and
-its text, their open tabs and the editor's errors and warnings.`
+its text, their open tabs and the editor's errors and warnings. When they ask to see a pull request's
+or a branch's diff in their editor, \`ntwinectl editor-compare owner/repo#123\` opens it there.`
 
 // The lightbox fence must sit ABOVE a closing signal fence and never inside one: parseSignalFence
 // (tailer.ts) is END-anchored, and a nested ``` line closes the signal fence early. An awaiting body is

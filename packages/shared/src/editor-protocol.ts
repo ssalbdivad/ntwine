@@ -56,6 +56,11 @@ export const EDITOR_FEATURES = {
    * rest needing the human — to ONE window, the one the human was in last.
    */
   attention: "attention",
+  /**
+   * Both ways, like `review`. In a server's `welcome`: it may send `compare`. In a window's `features`
+   * frame: it can show two commits' changes (`compare`).
+   */
+  compare: "compare",
 } as const
 export type EditorFeature = (typeof EDITOR_FEATURES)[keyof typeof EDITOR_FEATURES]
 
@@ -162,7 +167,7 @@ export interface EditorState {
   acceptsOpens: boolean
 }
 
-/** The answer to an `open`, `focus` or `review` request. */
+/** The answer to an `open`, `focus`, `review` or `compare` request. */
 export interface EditorResult {
   t: "result"
   id: string
@@ -344,6 +349,34 @@ export interface EditorReview extends EditorReviewTarget {
   id: string
 }
 
+// ── two commits' changes, for an agent (`compare`) ─────────────────────────────────────────────────────
+//
+// An agent asks the human's editor to show a pull request's changes, or any two commits' (`ntwinectl
+// editor-compare`, cc-worker/lib/ntwine-tools.mjs). The WORKER resolves the PR with `gh` and fetches both
+// commits into its checkout; the server picks the window (editor-bridge.ts `compare`); the EXTENSION shows
+// them (packages/vscode compare.ts): GitLens's Search & Compare when GitLens is installed, else VS Code's
+// own multi-file diff with both sides read out of git. It can only SHOW a diff — no command, no checkout.
+
+export type EditorCompareView = "auto" | "gitlens" | "diff"
+
+export interface EditorCompareTarget {
+  /** A checkout of the repository that has both commits: where the agent ran the command. */
+  dir: string
+  /** Full commit SHAs. The changes shown are `head`'s since its merge base with `base`, as a pull request's are. */
+  base: string
+  head: string
+  /** The diff's title: "slashfi/slash#24817: Full legal name". */
+  title: string
+  /** GitLens's Search & Compare, VS Code's own multi-file diff, or ("auto") GitLens when it is installed. */
+  view: EditorCompareView
+}
+
+/** Show two commits' changes and raise the window. Answer with `result`. */
+export interface EditorCompare extends EditorCompareTarget {
+  t: "compare"
+  id: string
+}
+
 export interface EditorComposed {
   t: "composed"
   id: string
@@ -405,7 +438,7 @@ export interface EditorAttentionThread {
   runtime?: string
 }
 
-export type EditorServerMessage = EditorWelcome | EditorOpen | EditorFocus | EditorReview | EditorComposed | EditorProjects | EditorHeartbeat | EditorAttention
+export type EditorServerMessage = EditorWelcome | EditorOpen | EditorFocus | EditorReview | EditorCompare | EditorComposed | EditorProjects | EditorHeartbeat | EditorAttention
 
 /** What an ntwine page knows about connected editor windows (`editorWindows`, and the `editors` event). */
 export interface EditorWindowSummary {
