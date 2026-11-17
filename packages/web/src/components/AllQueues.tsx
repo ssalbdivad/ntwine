@@ -55,6 +55,7 @@ import { useBoard } from "../hooks.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.ts"
 import { MarkdownScopeContext } from "../lib/useMarkdown.ts"
 import { stableQueue, type QueueSlot } from "../lib/stableQueue.ts"
+import { useFocusedCardKey } from "../lib/focusedCard.ts"
 import { isHeldInQueue, placeHeld, setHeldInQueue, useAutoHolds, useQueueHolds, type AutoHolds, type QueueHolds } from "../lib/queueHold.ts"
 import { FOREGROUND_MS, longTurnReason } from "../lib/foregroundTurn.ts"
 import { actedOnHere } from "../lib/humanActs.ts"
@@ -1355,6 +1356,9 @@ function useReleaseFinishedHolds(projects: readonly QueuesProject[], holds: Queu
  */
 function useReleaseLongTurns(projects: readonly QueuesProject[], autoHolds: AutoHolds, leaving: LeavingCards): void {
   const [, tick] = useState(0)
+  // A card holding the focus keeps its hold until the focus leaves it (lib/focusedCard.ts); subscribing
+  // re-renders this page then, which reads the rule again.
+  const focused = useFocusedCardKey()
   useEffect(() => {
     if (autoHolds.size === 0) return
     const now = Date.now()
@@ -1364,7 +1368,7 @@ function useReleaseLongTurns(projects: readonly QueuesProject[], autoHolds: Auto
       for (const thread of project.running) {
         const key = threadKey(project.id, thread.id)
         const sentAt = autoHolds.get(key)
-        if (sentAt === undefined) continue
+        if (sentAt === undefined || key === focused) continue
         if (longTurnReason(thread, sentAt, now) !== undefined) {
           setHeldInQueue(key, false)
           leaving.leave(key)()

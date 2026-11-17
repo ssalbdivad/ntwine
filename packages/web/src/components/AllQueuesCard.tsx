@@ -85,6 +85,7 @@ import { TerminalCardArticle } from "./TerminalQueueCard.tsx"
 import type { ThreadProcess } from "../lib/threadProcesses.ts"
 import { ThreadCheckoutToken } from "./ThreadCheckoutToken.tsx"
 import { Tooltip } from "./Tooltip.tsx"
+import { focusedCardKey, useFocusedCardKey } from "../lib/focusedCard.ts"
 import { autoHoldInQueue, autoHoldSentAt, clearHeldReply, noteHeldReply, setHeldInQueue, useAutoHolds, useHeldInQueue, useHeldReply, type HeldReply } from "../lib/queueHold.ts"
 import { longTurnReason } from "../lib/foregroundTurn.ts"
 import { HeldLiveTurn } from "./HeldLiveTurn.tsx"
@@ -460,9 +461,15 @@ function CardArticle({
   // AllQueues `useReleaseLongTurns` reads the same rule off the thread alone (the clock, a live sub-agent),
   // for a card that is not drawing its turn; this is the transcript's half, which sees every tool call.
   const autoSentAt = useAutoHolds().get(key)
+  // A card holding the focus is not let go (lib/focusedCard.ts): the tools it last saw are kept, and read
+  // again once the focus leaves the card.
+  const focused = useFocusedCardKey() === key
+  const lastTurnTools = useRef<{ names: readonly string[]; humanAt: number } | undefined>(undefined)
   const onTurnTools = useCallback((names: readonly string[], humanAt: number) => {
+    lastTurnTools.current = { names, humanAt }
     const sentAt = autoHoldSentAt(key)
     if (sentAt === undefined) return
+    if (focusedCardKey() === key) return
     // Only the reply's own turn: until the transcript has the reply, "the turn" is still the one before
     // it, whose tools say nothing about this one. The slack absorbs a server clock behind this browser's.
     const own = humanAt >= sentAt - REPLY_CLOCK_SLACK_MS
@@ -470,6 +477,10 @@ function CardArticle({
     setHeldInQueue(key, false)
     onLeave()
   }, [key, thread, onLeave])
+  useEffect(() => {
+    const last = lastTurnTools.current
+    if (!focused && autoSentAt !== undefined && last) onTurnTools(last.names, last.humanAt)
+  }, [focused, autoSentAt, onTurnTools])
 
   // THE DOCK'S STICKY RANGE STOPS AT THE HEADER (upstream 01953049, on its board card). The dock's
   // containing block is the whole card, and `bottom-0` alone let it rise to the card's top edge: a card
