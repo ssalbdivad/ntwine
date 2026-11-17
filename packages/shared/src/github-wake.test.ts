@@ -117,7 +117,7 @@ test("a steer that grew lines this parser has never seen still renders its card"
 })
 
 test("the single-item steer names the item and ends on its bare URL", () => {
-  const text = formatGithubWakeSteer(single)
+  const text = formatGithubWakeSteer(single).split("\n")[0]
   assert.equal(
     text,
     "👤 New GitHub comment on nubjs/nub#587 from @dana at 2026-07-29T15:39:28Z. Read that exact comment — ignore older activity you have already handled — and continue: https://github.com/nubjs/nub/pull/587#issuecomment-5120099362",
@@ -251,6 +251,22 @@ test("a backlog replay is recognizable from its delivered text, and ordinary new
   assert.equal(isGithubWakeBacklog(undefined), false)
   // A legacy transcript written before the tail existed reads as not-a-backlog, which is what it was.
   assert.equal(isGithubWakeBacklog("🤖 New GitHub comment on acme/app#1 from @dana."), false)
+  // A replay delivered under the pre-2026-11-16 wording still reads as one.
+  assert.equal(isGithubWakeBacklog("🤖 New GitHub comment on acme/app#1 from @dana.\n\nThese were already on the PR when you parked, so you may have handled some. Check what is still unaddressed, deal with it, and re-park — this is the only time ntwine replays a PR's existing activity to you."), true)
+})
+
+// Feedback on a PR is the human's to act on (maintainer 2026-11-16): every review wake, single, burst
+// or backlog, tells the worker to prepare and ask rather than push — and the rule never reaches the card.
+test("every review wake gates acting on the feedback behind the user", () => {
+  for (const text of [
+    formatGithubWakeSteer(single),
+    formatGithubWakeSteer(burst),
+    formatGithubWakeSteer(burst, { backlog: true }),
+  ]) {
+    assert.match(text, /\n\nFeedback on a PR is the user's to act on\. .+ Do not commit to its branch, push, or post on the PR until they answer\.$/)
+  }
+  assert.deepEqual(parseGithubWakeSteer(formatGithubWakeSteer(single)), single)
+  assert.equal(parseGithubWakeSteer(formatGithubWakeSteer(burst))?.items.length, 3)
 })
 
 // Marking it must not cost the round trip — the whole reason `backlog` is an argument and not a field.

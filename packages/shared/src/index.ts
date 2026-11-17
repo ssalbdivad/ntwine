@@ -7628,8 +7628,30 @@ function wakeReviewTail(steer: GithubWakeSteer): string {
 // the contract that keeps formatter and parser from drifting.
 const WAKE_BACKLOG_TAIL =
   "These were already on the PR when you parked, so you may have handled some. Check what is still" +
+  " unaddressed, handle it as below, and re-park — this is the only time ntwine replays a PR's existing" +
+  " activity to you."
+// The wording before 2026-11-16 ("…unaddressed, deal with it, and re-park…"), still in transcripts.
+const LEGACY_WAKE_BACKLOG_TAIL =
+  "These were already on the PR when you parked, so you may have handled some. Check what is still" +
   " unaddressed, deal with it, and re-park — this is the only time ntwine replays a PR's existing" +
   " activity to you."
+
+// ---- the FEEDBACK GATE tail -----------------------------------------------------------------------
+// Feedback on a PR is the human's to act on (maintainer 2026-11-16: disable "that as a pr receives
+// feedback it is automatically addressed autonomously without at least verifying it with me first").
+// The header's "and continue" read as license: woken by a review, a worker fixed it, pushed to the PR
+// and replied, and the human learned of it after the fact. The worker still does the work — anticipating
+// what the human will want and preparing it, the way a planning thread drafts an implementation without
+// landing it — but stops short of every act that leaves the machine, unless the human already said to
+// handle this PR's feedback on its own (or armed a Goal, which is that consent for the whole thread).
+//
+// A derived tail, like the two above, so the header and the parser are untouched and every open tab
+// renders the card exactly as before. No line starts with "- ", which the burst parser reads as an item.
+const WAKE_FEEDBACK_TAIL =
+  "Feedback on a PR is the user's to act on. Unless they told you to handle this PR's feedback on your" +
+  " own, or armed a Goal on this thread, prepare what you expect they will want — the change uncommitted" +
+  " or on a local branch, any reply as a draft — and ask with your recommendation first, the draft inside" +
+  " the option that applies it. Do not commit to its branch, push, or post on the PR until they answer."
 
 /** Is this delivered steer the FIRST-PARK REPLAY rather than news?
  *
@@ -7642,12 +7664,13 @@ const WAKE_BACKLOG_TAIL =
  *  intact — see the note above on why `backlog` is an argument and not a field. A legacy transcript
  *  written before the tail existed simply reads as not-a-backlog, which is what it was. */
 export function isGithubWakeBacklog(text: string | undefined): boolean {
-  return typeof text === "string" && text.includes(WAKE_BACKLOG_TAIL)
+  return typeof text === "string" && (text.includes(WAKE_BACKLOG_TAIL) || text.includes(LEGACY_WAKE_BACKLOG_TAIL))
 }
 
 export function formatGithubWakeSteer({ ref, items, omitted }: GithubWakeSteer, opts: { backlog?: boolean } = {}): string {
   const icon = items.some((i) => !i.bot) ? "👤" : "🤖"
   const reviewTail = wakeReviewTail({ ref, items, omitted }) + (opts.backlog ? `\n\n${WAKE_BACKLOG_TAIL}` : "")
+    + `\n\n${WAKE_FEEDBACK_TAIL}`
   if (items.length === 1 && omitted === 0) {
     const item = items[0]
     const url = item.url ? `: ${item.url}` : "."

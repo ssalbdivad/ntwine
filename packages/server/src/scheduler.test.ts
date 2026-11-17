@@ -1191,7 +1191,8 @@ test("pr-watch: the bump steer carries the item's permalink and timestamp, not j
   const steer = `👤 New GitHub comment on nubjs/nub#587 from @dana at ${at}. Read that exact comment — ignore older activity you have already handled — and continue: https://github.com/nubjs/nub/pull/587#issuecomment-2`
   // The steer is a PREFIX of the delivery: the still-armed trailer follows it, and the blank line
   // between them is also what pins that the URL ends the steer — no trailing period joins the href.
-  assert.ok(h.resumes[0].message.startsWith(`${steer}\n\n(Registered PR watcher`))
+  assert.ok(h.resumes[0].message.startsWith(`${steer}\n\nFeedback on a PR is the user's to act on.`))
+  assert.match(h.resumes[0].message, /until they answer\.\n\n\(Registered PR watcher/)
   assert.doesNotMatch(h.resumes[0].message, /issuecomment-1\b/, "the stale comment the worker already handled is never named")
 })
 
@@ -1265,7 +1266,7 @@ test("pr-watch: a burst past the enumeration cap counts everything and says how 
   assert.match(msg, /^👤 13 new GitHub items on acme\/app#391\./, "the header counts the whole burst, not just the named ones")
   assert.equal(msg.split("\n").filter((l) => l.startsWith("- ")).length, 11, "10 named items plus the overflow line")
   // The overflow line ends the STEER — what follows it is the still-armed trailer, nothing else.
-  assert.match(msg, /- …and 3 more not listed — check acme\/app#391 for the rest\n\n\(Registered PR watcher/)
+  assert.match(msg, /- …and 3 more not listed — check acme\/app#391 for the rest\n\nFeedback on a PR is the user's to act on\./)
   assert.match(msg, /issuecomment-12/, "the newest item survives the cap")
   assert.doesNotMatch(msg, /issuecomment-2:/, "the oldest three are the ones dropped")
 })

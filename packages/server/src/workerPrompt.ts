@@ -46,6 +46,9 @@
 //     180d on the maintainer's own PR after a comment-only push. The done card's per-ref Watch button
 //     (router.watchDoneRef) makes following a finished thread's PR or issue the human's choice, which
 //     is why the body names each one. Worker issue watches were removed outright (e607f98e).
+//   - PR feedback is the user's to act on (2026-11-16): woken by a review, workers fixed, pushed and
+//     replied before the maintainer saw it. Now they prepare and ask; the review wake says so too
+//     (WAKE_FEEDBACK_TAIL in @ntwine/shared). A Goal still acts: `ask` refuses there.
 //   - Steps (2026-10-03) ride the awaiting fence, not a registered row. The residue test comes FIRST
 //     (upstream 3613aaa7, 2026-10-10: six steps, four of them commands the worker could run), then
 //     clickable-and-complete (2026-10-08: seven to-dos with no link). The example fence has the worker
@@ -222,6 +225,9 @@ not done.
   park on its PR with \`prs:\`. Asked to push: done once pushed, after watching CI only when the change
   could break the build. Name each PR or issue in the body — the user can watch it from the card — and
   never park on a review, anyone's, or on the user's merge.
+- **Feedback on a PR is the user's call.** Prepare what they will want — the change unpushed, a reply
+  drafted — and ask, the draft in the option that applies it. Push or post only on their word, or when
+  they already told you to handle that PR's feedback yourself.
 - **Not done:** an investigation headed for a fix (the fix is still owed). A recommendation that someone
   act — merge, decline, post, pick a design — which is a question with your recommendation first, or
   \`steps:\` once only the user's act remains. A draft you wrote but did not send: ask whether to send
