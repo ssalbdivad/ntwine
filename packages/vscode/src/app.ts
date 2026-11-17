@@ -555,7 +555,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   function unplaceableSelection(uri: vscode.Uri | undefined): boolean {
     const editor = api.window.activeTextEditor
     if (!editor || (uri && editor.document.uri.toString() !== uri.toString())) return false
-    return diskPath(editor.document.uri) === undefined && !editor.selection.isEmpty
+    return diskPath(editor.document.uri) === undefined && pairedFile(editor.document.uri) === undefined && !editor.selection.isEmpty
   }
 
   /**
@@ -567,9 +567,14 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     const fromEditor = editor && (!uri || editor.document.uri.toString() === uri.toString()) ? editor : undefined
     if (fromEditor) {
       const document = fromEditor.document
-      // A diff's old side (`git:`, `ntwine-base:`) names the working file; its selection is that version's.
-      const path = diskPath(document.uri)
-      if (path === undefined) return undefined
+      // A diff's old side names the working file; its selection is that version's. The schemes known to
+      // carry the file's path (`git:`, `ntwine-base:`) say so themselves; any other side of a diff (GitLens's
+      // `gitlens:`, a pull request's `review:`, an agent's proposed edit) names the file the diff pairs it with.
+      const path = diskPath(document.uri) ?? pairedFile(document.uri)
+      if (path === undefined) {
+        log.info(`Add to ntwine prompt: the editor in front (${document.uri.scheme}:) is no file on disk, nor a diff side of one.`)
+        return undefined
+      }
       const selection = fromEditor.selection
       if (selection.isEmpty) return { path, uri: document.uri, cursorLine: selection.active.line + 1 }
       // A selection that ends at column 0 of a line (a whole-line drag, shift+down) does not include it —
@@ -578,6 +583,28 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
       return { path, uri: document.uri, selection: { text: normalizeNewlines(document.getText(selection)), startLine, endLine } }
     }
     if (uri && uri.scheme === "file") return { path: uri.fsPath, uri }
+    return undefined
+  }
+
+  /**
+   * The file on disk a diff tab pairs a document with: the other side of a side-by-side diff, or of an entry
+   * in a multi-file one, when that side is a `file:` document. The multi-diff tab's input is read by shape:
+   * `TabInputTextMultiDiff` is newer than the oldest VS Code the extension supports.
+   */
+  function pairedFile(uri: vscode.Uri): string | undefined {
+    const key = uri.toString()
+    for (const tab of api.window.tabGroups.all.flatMap((group) => group.tabs)) {
+      const input = tab.input as { original?: unknown; modified?: unknown; textDiffs?: unknown } | undefined
+      const pairs = input instanceof api.TabInputTextDiff
+        ? [input]
+        : Array.isArray(input?.textDiffs) ? (input.textDiffs as { original?: vscode.Uri; modified?: vscode.Uri }[]) : []
+      for (const { original, modified } of pairs) {
+        const sides = [original, modified].filter((side): side is vscode.Uri => side instanceof api.Uri)
+        if (!sides.some((side) => side.toString() === key)) continue
+        const file = sides.find((side) => side.scheme === "file")
+        if (file) return file.fsPath
+      }
+    }
     return undefined
   }
 
@@ -925,6 +952,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     hint.added()
     const target = targetOf(uri)
     if (!target) {
+      if (!api.window.activeTextEditor) log.info(`Add to ntwine prompt: no text editor in front (tab: ${api.window.tabGroups.activeTabGroup.activeTab?.input?.constructor?.name ?? "none"}).`)
       void api.window.showInformationMessage("Open a file to add it to ntwine's prompt box.")
       return undefined
     }
