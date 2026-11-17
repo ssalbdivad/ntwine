@@ -13,12 +13,12 @@
 // Ask just started.
 
 import assert from "node:assert/strict"
-import { execFileSync } from "node:child_process"
+import { execFile, execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { isDeepStrictEqual } from "node:util"
+import { isDeepStrictEqual, promisify } from "node:util"
 import * as vscode from "vscode"
 import { EDITOR_FEATURES, type EditorClientMessage, type EditorComposed, type EditorProject, type EditorSnapshot } from "@ntwine/shared/editor-protocol"
 import type { EmbedContextPicksMessage, EmbedEditorContextMessage, EmbedPickedFile } from "@ntwine/shared/embed-protocol"
@@ -1567,21 +1567,25 @@ const steps: Step[] = [
       const ctl = process.env.NTWINE_E2E_CTL
       if (!raw || !ctl) return skip("needs the stack's seeded repository and ntwinectl (scripts/e2e.ts --stack)")
       const { repo } = JSON.parse(raw) as SeededReview
-      const run = (...args: string[]) => execFileSync(process.env.NTWINE_E2E_NODE!, [ctl, "editor-compare", ...args], {
+      // Async, never execFileSync: this is the extension host, and blocking it while the command waits on
+      // ntwine, which waits on this window's answer, is a deadlock that reads as "no window can show it".
+      const run = async (...args: string[]) => (await promisify(execFile)(process.env.NTWINE_E2E_NODE!, [ctl, "editor-compare", ...args], {
         cwd: repo.worktree,
         encoding: "utf8",
         env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", NTWINE_PROJECT_ID: project.id, NTWINE_SERVER_LOCK: process.env.NTWINE_E2E_SERVER_LOCK! },
-      }).trim()
-      const base = commitOf(repo, "main")
+      })).stdout.trim()
+      // The project folder's branch, whatever the stack's repository named it; main-only.md moved it on.
+      const main = execFileSync("git", ["symbolic-ref", "--short", "HEAD"], { cwd: repo.dir, encoding: "utf8" }).trim()
+      const base = commitOf(repo, main)
       const head = commitOf(repo, repo.branch)
       const before = gitLensSaw().length
       // Refs, as an agent types them, resolved in its checkout.
-      assert.equal(run("--base", "main", "--head", repo.branch), `Showed main...${repo.branch} in the user's editor (GitLens's Search & Compare, or VS Code's multi-file diff without GitLens): ${base.slice(0, 7)}...${head.slice(0, 7)}.`)
+      assert.equal(await run("--base", main, "--head", repo.branch), `Showed ${main}...${repo.branch} in the user's editor (GitLens's Search & Compare, or VS Code's multi-file diff without GitLens): ${base.slice(0, 7)}...${head.slice(0, 7)}.`)
       await until("GitLens handed the link", () => gitLensSaw().length > before)
       assert.deepEqual(gitLensSaw().slice(before).map((uri) => uri.path), [`/link/r/-/compare/${base}...${head}`])
       await vscode.commands.executeCommand("workbench.action.closeAllEditors")
-      run("--base", "main", "--head", repo.branch, "--view", "diff")
-      await assertCompareInFront(api, repo, `main...${repo.branch}`)
+      await run("--base", main, "--head", repo.branch, "--view", "diff")
+      await assertCompareInFront(api, repo, `${main}...${repo.branch}`)
     },
   },
   {
@@ -1902,7 +1906,8 @@ export async function run(): Promise<void> {
     const only = process.env.NTWINE_E2E_ONLY
     if (only && mode === "fake") {
       await vscode.commands.executeCommand("ntwine.sidebar.focus")
-      await until("the sidebar's page ready", () => api.sidebar().ready, 30_000)
+      // Not fatal: a picked step that needs no sidebar still runs, and one that does fails on its own.
+      await until("the sidebar's page ready", () => api.sidebar().ready, 30_000).catch((error: unknown) => console.log(`  ! ${(error as Error).message}; running the picked steps anyway`))
     }
     for (const step of steps) {
       if (!step.modes.includes(mode)) continue
