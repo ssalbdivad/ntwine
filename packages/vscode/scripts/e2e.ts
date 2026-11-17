@@ -199,6 +199,23 @@ try {
   }
   const origin = realOrigin ?? fake!.origin
 
+  // A STAND-IN FOR GITLENS: an extension with its id (`eamodio.gitlens`) that only records the URIs it is
+  // handed, so `ntwinectl editor-compare` can be followed to the link GitLens would receive — and the
+  // link proven to reach THIS window's handler, not whichever window the OS picks. Loaded as a second
+  // development extension, which `--disable-extensions` leaves running. The suite reads what it saw
+  // from `globalThis.__ntwineE2eGitLens` (one extension host, one global).
+  const fakeGitLens = join(scratch, "fake-gitlens")
+  mkdirSync(fakeGitLens, { recursive: true })
+  writeFileSync(join(fakeGitLens, "package.json"), JSON.stringify({ name: "gitlens", publisher: "eamodio", version: "0.0.0", engines: { vscode: "^1.90.0" }, main: "./extension.js", activationEvents: ["*"] }))
+  writeFileSync(join(fakeGitLens, "extension.js"), [
+    "const vscode = require('vscode')",
+    "exports.activate = (context) => {",
+    "  const seen = (globalThis.__ntwineE2eGitLens ??= [])",
+    "  context.subscriptions.push(vscode.window.registerUriHandler({ handleUri: (uri) => { seen.push({ authority: uri.authority, path: uri.path, query: uri.query }) } }))",
+    "}",
+    "",
+  ].join("\n"))
+
   const userData = join(scratch, "user-data")
   mkdirSync(join(userData, "User"), { recursive: true })
   writeFileSync(join(userData, "User", "settings.json"), JSON.stringify({
@@ -249,7 +266,7 @@ try {
   log(`${stack ? "stack" : mode} mode against ${origin}${stack ? ` (tenant ${stack.tenant.slug})` : ""}, VS Code ${vscodeExecutablePath}, DISPLAY=${process.env.DISPLAY ?? "(none)"}`)
   const suiteCode = await runTests({
     vscodeExecutablePath,
-    extensionDevelopmentPath: pkg,
+    extensionDevelopmentPath: [pkg, fakeGitLens],
     extensionTestsPath: join(pkg, "dist", "e2e", "suite.cjs"),
     launchArgs: [
       workspace,
@@ -277,6 +294,8 @@ try {
       NTWINE_E2E_MCP: stack ? join(repo, "cc-worker", "bin", "ntwine-mcp.mjs") : undefined,
       NTWINE_E2E_SERVER_LOCK: stack?.serverLock,
       NTWINE_E2E_NODE: stack ? process.execPath : undefined,
+      // An agent's `ntwinectl editor-compare`, the real command line, run by the suite in --stack mode.
+      NTWINE_E2E_CTL: stack ? join(repo, "cc-worker", "bin", "ntwinectl.mjs") : undefined,
     },
   }).catch((error: unknown) => {
     log(`the suite did not run: ${(error as Error).message}`)

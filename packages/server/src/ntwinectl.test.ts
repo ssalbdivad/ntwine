@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { spawn } from "node:child_process"
+import { execFileSync, spawn } from "node:child_process"
 import { createServer, type Server } from "node:http"
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -537,6 +537,9 @@ test("every example in every command's help runs as written", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "ntwinectl-examples-"))
     writeFileSync(join(cwd, "questions.json"), JSON.stringify({ questions: [{ question: "Ship it?", kind: "question", options: [{ label: "Yes" }, { label: "No" }] }] }))
     for (const file of ["handoff.md", "prompt.md", "resume-prompt.md"]) writeFileSync(join(cwd, file), "Some text with `backticks`.\n")
+    // `editor-compare` runs in a checkout and resolves its refs there.
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd })
+    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t.invalid", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "init"], { cwd })
     for (const [name, spec] of Object.entries(CLI as Record<string, { examples: string[] }>)) {
       for (const example of spec.examples) {
         fake.seen.length = 0

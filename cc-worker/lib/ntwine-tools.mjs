@@ -3357,9 +3357,9 @@ const CLI = {
   },
   editor_compare: {
     group: "This thread",
-    summary: "Show a pull request's or two commits' diff in the user's editor (GitLens if installed)",
+    summary: "Show a pull request's (`acme/app#123`) or two commits' diff in the user's editor",
     positional: ["pr"],
-    examples: ["ntwinectl editor-compare acme/app#123", "ntwinectl editor-compare --base main --head HEAD --view diff"],
+    examples: ["ntwinectl editor-compare --base main --head HEAD", "ntwinectl editor-compare --base main --head HEAD --view diff"],
   },
   read_thread: {
     group: "Other threads",

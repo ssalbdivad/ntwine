@@ -13,6 +13,7 @@
 // Ask just started.
 
 import assert from "node:assert/strict"
+import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -28,7 +29,7 @@ import { projectForPath } from "../src/projects.ts"
 import { workerTool } from "./worker-tool.ts"
 import type { ReviewSnapshot } from "../src/review-view.ts"
 import { NtwineRpc } from "../src/rpc.ts"
-import { seedReviewRepo, type ReviewRepo } from "./review-repo.ts"
+import { LOOP_AFTER, LOOP_BEFORE, seedReviewRepo, type ReviewRepo } from "./review-repo.ts"
 import type { SeededReview } from "./review-seed.ts"
 
 const mode = process.env.NTWINE_E2E_MODE === "real" ? "real" : "fake"
@@ -204,6 +205,34 @@ const workerReadsEditor = (projectId: string) =>
 /** The worktree the fake-mode review steps show, built once (e2e/review-repo.ts) inside the workspace. */
 let fakeReviewRepo: ReviewRepo | undefined
 const reviewRepo = () => (fakeReviewRepo ??= seedReviewRepo(join(workspace, "review-repo")))
+
+// ── An agent's diff of two commits (`ntwinectl editor-compare`) ─────────────────────────────────────────
+
+/** What the stand-in GitLens (scripts/e2e.ts) has been handed, oldest first. */
+const gitLensSaw = () => ((globalThis as { __ntwineE2eGitLens?: { authority: string; path: string; query: string }[] }).__ntwineE2eGitLens ?? [])
+
+const commitOf = (repo: ReviewRepo, ref: string) => execFileSync("git", ["rev-parse", ref], { cwd: repo.dir, encoding: "utf8" }).trim()
+
+/**
+ * The branch's COMMITS against main's tip, as a pull request shows them: since the fork (main's later
+ * main-only.md is not there), and only what was committed — src/feature.ts is the committed `1`, not the
+ * `2` on disk, and the untracked src/fresh.ts is absent. Both sides come out of git.
+ */
+async function assertCompareInFront(api: NtwineExtensionApi, repo: ReviewRepo, title: string): Promise<void> {
+  await until(`"${title}" in front`, () => (vscode.window.tabGroups.activeTabGroup.activeTab?.label ?? "").startsWith(title), 20_000)
+  const shown = api.compare()
+  assert.equal(shown?.view, "diff")
+  assert.equal(shown?.title, title)
+  const relative = (uri: string) => vscode.Uri.parse(uri).fsPath.slice(repo.worktree.length + 1)
+  assert.deepEqual(shown!.resources!.map((resource) => relative(resource.label)), ["docs/old.md", "src/feature.ts", "src/loop.ts", "src/renamed.ts"])
+  const text = async (uri: string | undefined) => (uri === undefined ? undefined : (await vscode.workspace.openTextDocument(vscode.Uri.parse(uri))).getText())
+  const [old, feature, loop, renamed] = shown!.resources!
+  assert.deepEqual([await text(old!.original), await text(old!.modified)], ["# old notes\n", undefined])
+  assert.deepEqual([await text(feature!.original), await text(feature!.modified)], [undefined, "export const feature = 1\n"], "the head's commit, not the file on disk")
+  assert.deepEqual([await text(loop!.original), await text(loop!.modified)], [LOOP_BEFORE, LOOP_AFTER])
+  assert.equal(vscode.Uri.parse(renamed!.original!).fsPath, join(repo.worktree, "src", "rename-me.ts"))
+  for (const side of [loop!.original!, loop!.modified!]) assert.equal(vscode.Uri.parse(side).scheme, "ntwine-base", "both sides read out of git, read-only")
+}
 
 /**
  * The review in front is the repository's whole branch — every file in git's order, each side what it must
@@ -1429,7 +1458,7 @@ const steps: Step[] = [
       const repo = reviewRepo()
       // The window told this ntwine it can review — only because its welcome named the feature.
       const features = (await fakeLog()).frames.filter((frame) => frame.t === "features")
-      assert.deepEqual(features.at(-1), { t: "features", features: ["review"] })
+      assert.deepEqual(features.at(-1), { t: "features", features: ["review", "compare"] })
       await vscode.commands.executeCommand("workbench.action.closeAllEditors")
       const result = await fake<{ t: string; ok: boolean; error?: string }>("/__e2e/review", { title: "Tidy the loop", checkouts: [{ dir: repo.worktree, scope: "branch", files: repo.edited }] })
       assert.deepEqual({ ok: result.ok, error: result.error }, { ok: true, error: undefined })
@@ -1500,6 +1529,59 @@ const steps: Step[] = [
       // What a browser tab's ⋯ Review changes calls.
       assert.deepEqual(await rpc.mutation(project.id, "reviewInEditor", { slug: seeded.slug, title: seeded.title }), { ok: true })
       await assertReviewInFront(api, seeded.repo, seeded.title)
+    },
+  },
+  {
+    name: "compare: ntwine's push of two commits opens GitLens's comparison here when GitLens is installed, the multi-file diff when asked",
+    modes: ["fake"],
+    async run({ api }) {
+      const repo = reviewRepo()
+      const base = commitOf(repo, "main")
+      const head = commitOf(repo, repo.branch)
+      // GitLens (the stand-in) is installed, so `auto` hands it the comparison link — in THIS window.
+      const before = gitLensSaw().length
+      const viaGitLens = await fake<{ ok: boolean; error?: string }>("/__e2e/compare", { dir: repo.worktree, base, head, title: "acme/app#7: Tidy the loop", view: "auto" })
+      assert.deepEqual({ ok: viaGitLens.ok, error: viaGitLens.error }, { ok: true, error: undefined })
+      await until("GitLens handed the link", () => gitLensSaw().length > before)
+      // The fixture has no remote, so no `url=`: GitLens then looks in the open repositories.
+      assert.deepEqual(gitLensSaw().slice(before), [{ authority: "eamodio.gitlens", path: `/link/r/-/compare/${base}...${head}`, query: "" }])
+      assert.equal(api.compare()?.view, "gitlens")
+      // `diff` is VS Code's own, GitLens or not.
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors")
+      const viaDiff = await fake<{ ok: boolean; error?: string }>("/__e2e/compare", { dir: repo.worktree, base, head, title: "acme/app#7: Tidy the loop", view: "diff" })
+      assert.deepEqual({ ok: viaDiff.ok, error: viaDiff.error }, { ok: true, error: undefined })
+      await assertCompareInFront(api, repo, "acme/app#7: Tidy the loop")
+      // A commit this checkout lacks is said back to the agent, and nothing opens.
+      const missing = "0123456789abcdef0123456789abcdef01234567"
+      const refused = await fake<{ ok: boolean; error?: string }>("/__e2e/compare", { dir: repo.worktree, base, head: missing, title: "Missing", view: "diff" })
+      assert.equal(refused.ok, false)
+      assert.match(refused.error ?? "", /^Commit 0123456 isn't in /u)
+      assert.equal(api.compare()?.title, "acme/app#7: Tidy the loop")
+    },
+  },
+  {
+    name: "compare: an agent's `ntwinectl editor-compare` (the real command line) reaches this window through ntwine",
+    modes: ["real"],
+    async run({ api, project }) {
+      const raw = process.env.NTWINE_E2E_REVIEW
+      const ctl = process.env.NTWINE_E2E_CTL
+      if (!raw || !ctl) return skip("needs the stack's seeded repository and ntwinectl (scripts/e2e.ts --stack)")
+      const { repo } = JSON.parse(raw) as SeededReview
+      const run = (...args: string[]) => execFileSync(process.env.NTWINE_E2E_NODE!, [ctl, "editor-compare", ...args], {
+        cwd: repo.worktree,
+        encoding: "utf8",
+        env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", NTWINE_PROJECT_ID: project.id, NTWINE_SERVER_LOCK: process.env.NTWINE_E2E_SERVER_LOCK! },
+      }).trim()
+      const base = commitOf(repo, "main")
+      const head = commitOf(repo, repo.branch)
+      const before = gitLensSaw().length
+      // Refs, as an agent types them, resolved in its checkout.
+      assert.equal(run("--base", "main", "--head", repo.branch), `Showed main...${repo.branch} in the user's editor (GitLens's Search & Compare, or VS Code's multi-file diff without GitLens): ${base.slice(0, 7)}...${head.slice(0, 7)}.`)
+      await until("GitLens handed the link", () => gitLensSaw().length > before)
+      assert.deepEqual(gitLensSaw().slice(before).map((uri) => uri.path), [`/link/r/-/compare/${base}...${head}`])
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors")
+      run("--base", "main", "--head", repo.branch, "--view", "diff")
+      await assertCompareInFront(api, repo, `main...${repo.branch}`)
     },
   },
   {

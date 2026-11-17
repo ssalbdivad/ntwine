@@ -74,7 +74,7 @@ async function editor(port: number, hello: Partial<EditorHello> = {}, answer: An
   ws.on("message", (raw) => {
     const msg = JSON.parse(raw.toString()) as EditorServerMessage
     frames.push(msg)
-    if (msg.t === "open" || msg.t === "focus" || msg.t === "review") {
+    if (msg.t === "open" || msg.t === "focus" || msg.t === "review" || msg.t === "compare") {
       requests.push(msg)
       if (answer === "ok") ws.send(JSON.stringify({ t: "result", id: msg.id, ok: true }))
       else if (answer === "fail") ws.send(JSON.stringify({ t: "result", id: msg.id, ok: false, error: "Could not open a.ts: it is a binary file" }))
@@ -257,7 +257,7 @@ test("a hello is answered with welcome then projects, and a projects change is r
   assert.deepEqual(got.slice(0, 2), [
     // `features`: what this server takes beyond v1, so a new extension sends the `editor` frame only here,
     // frames this server's page in its sidebar, and says whether it shows needs-you notifications.
-    { t: "welcome", v: 1, bootId: "boot-1", features: ["editor-state", "editor-selection-withheld", "review", "sidebar", "attention"] },
+    { t: "welcome", v: 1, bootId: "boot-1", features: ["editor-state", "editor-selection-withheld", "review", "sidebar", "attention", "compare"] },
     { t: "projects", projects: [{ id: "p1", slug: "alpha", name: "Alpha", dir: "/work/alpha", ready: 1, working: 0 }] },
   ])
   // Unchanged: nothing more across several polls.
@@ -777,6 +777,26 @@ test("review: only a window that said it can, the one holding the checkout first
   assert.equal(await h.bridge.review(target(dirs.mono), dirs.mono), true)
   assert.equal(reviews(monoWin).length, 2)
   assert.equal(reviews(pkgWin).length, 2, "the only window left that takes things from ntwine")
+})
+
+test("compare: only a window that said it can — not one that can only review — the one holding the agent's checkout first", async (t) => {
+  const h = await harness(t)
+  const dirs = tree(t)
+  const target = (dir: string) => ({ dir, base: "a".repeat(40), head: "b".repeat(40), title: "acme/app#7: Tidy", view: "auto" as const })
+  const compares = (window: { requests: EditorServerMessage[] }) => window.requests.filter((r) => r.t === "compare")
+  // An extension from before `compare` says only `review`: an agent's diff never goes to it.
+  const reviewOnly = await editor(h.port, { folders: [dirs.pkg], focused: true })
+  reviewOnly.send({ t: "features", features: ["review"] })
+  await until(() => h.bridge.windows().some((w) => w.reviews), "the review-only window")
+  assert.equal(await h.bridge.compare(target(dirs.pkg), dirs.mono), false)
+  const monoWin = await editor(h.port, { folders: [dirs.mono] })
+  monoWin.send({ t: "features", features: ["review", "compare"] })
+  const pkgWin = await editor(h.port, { folders: [dirs.pkg] })
+  pkgWin.send({ t: "features", features: ["review", "compare"] })
+  await until(() => h.bridge.windows().filter((w) => w.reviews).length === 3, "both new windows")
+  assert.equal(await h.bridge.compare(target(dirs.pkg), dirs.mono), true)
+  assert.deepEqual(compares(pkgWin).map((r) => ({ ...r, id: undefined })), [{ t: "compare", id: undefined, ...target(dirs.pkg) }])
+  assert.equal(compares(monoWin).length + compares(reviewOnly).length, 0)
 })
 
 test("review: a window that says it could not is the error, in its own words; silence is false", async (t) => {

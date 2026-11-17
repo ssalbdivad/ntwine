@@ -16,6 +16,7 @@
 //   POST /__e2e/open      {path, line?, …}   send `open` to the newest editor socket; answers its `result`
 //   POST /__e2e/focus     {path}             send `focus` the same way
 //   POST /__e2e/review    {title, checkouts} send `review` the same way (a browser tab's Review changes)
+//   POST /__e2e/compare   {dir, base, head, title, view}  send `compare` (an agent's `ntwinectl editor-compare`)
 //   POST /__e2e/review-target {target}       what `reviewTarget` answers (the sidebar's Review changes)
 //   POST /__e2e/projects  {projects}         push a `projects` frame
 //   POST /__e2e/drop                         close the editor socket (1001), as a restart would
@@ -273,12 +274,13 @@ export class FakeNtwine {
         }
         case "/__e2e/open":
         case "/__e2e/focus":
-        case "/__e2e/review": {
+        case "/__e2e/review":
+        case "/__e2e/compare": {
           const ws = this.#sockets.at(-1)
           if (!ws) return json(409, { error: "no editor connected" })
           const id = randomUUID()
           const result = new Promise((resolve) => this.#results.set(id, resolve))
-          this.#send(ws, url.pathname === "/__e2e/open" ? { t: "open", id, ...input } : url.pathname === "/__e2e/focus" ? { t: "focus", id, path: input.path } : { t: "review", id, title: input.title, checkouts: input.checkouts })
+          this.#send(ws, url.pathname === "/__e2e/open" ? { t: "open", id, ...input } : url.pathname === "/__e2e/focus" ? { t: "focus", id, path: input.path } : url.pathname === "/__e2e/compare" ? { t: "compare", id, ...input } : { t: "review", id, title: input.title, checkouts: input.checkouts })
           const answer = await Promise.race([result, new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), 20_000))])
           return json(200, answer)
         }
