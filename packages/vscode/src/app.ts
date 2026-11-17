@@ -18,6 +18,7 @@ import { EditorConnection, FocusRecency, type ConnectionStatus, type OpenResult 
 import { registerContextFeed } from "./context-feed.ts"
 import { discoverNtwine, pageAddressNote, SOURCE_WORDS, type FoundNtwine } from "./discovery.ts"
 import { fixNote, fixTitle, lineSpan, terminalText, type Problem } from "./editor-context.ts"
+import { diskPath } from "./editor-front.ts"
 import { registerEditorStateFeed, SHARE_SETTING } from "./editor-state-feed.ts"
 import { registerEditorWatcher } from "./editor-watcher.ts"
 import { registerExtrasFeed } from "./extras-feed.ts"
@@ -547,14 +548,14 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
   }
 
   /**
-   * Text selected where no command can place it: an editor that is not a file on disk — an untitled
-   * buffer, the git side of a diff. A command that would otherwise carry the selection must refuse
+   * Text selected where no command can place it: an editor that stands for no file on disk — an untitled
+   * buffer, an output pane. (A diff's old side names its file: see diskPath.) A command that would otherwise carry the selection must refuse
    * rather than send without it.
    */
   function unplaceableSelection(uri: vscode.Uri | undefined): boolean {
     const editor = api.window.activeTextEditor
     if (!editor || (uri && editor.document.uri.toString() !== uri.toString())) return false
-    return editor.document.uri.scheme !== "file" && !editor.selection.isEmpty
+    return diskPath(editor.document.uri) === undefined && !editor.selection.isEmpty
   }
 
   /**
@@ -566,13 +567,15 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     const fromEditor = editor && (!uri || editor.document.uri.toString() === uri.toString()) ? editor : undefined
     if (fromEditor) {
       const document = fromEditor.document
-      if (document.uri.scheme !== "file") return undefined
+      // A diff's old side (`git:`, `ntwine-base:`) names the working file; its selection is that version's.
+      const path = diskPath(document.uri)
+      if (path === undefined) return undefined
       const selection = fromEditor.selection
-      if (selection.isEmpty) return { path: document.uri.fsPath, uri: document.uri, cursorLine: selection.active.line + 1 }
+      if (selection.isEmpty) return { path, uri: document.uri, cursorLine: selection.active.line + 1 }
       // A selection that ends at column 0 of a line (a whole-line drag, shift+down) does not include it —
       // the same count the sidebar's context bar shows for it (editor-context.ts).
       const { startLine, endLine } = lineSpan(selection.start, selection.end)
-      return { path: document.uri.fsPath, uri: document.uri, selection: { text: normalizeNewlines(document.getText(selection)), startLine, endLine } }
+      return { path, uri: document.uri, selection: { text: normalizeNewlines(document.getText(selection)), startLine, endLine } }
     }
     if (uri && uri.scheme === "file") return { path: uri.fsPath, uri }
     return undefined
@@ -1056,7 +1059,7 @@ export function activateNtwine(api: Vscode, context: vscode.ExtensionContext): N
     } else if (message.what === "selection") {
       // The editor the bar showed (the one in front, by the watcher's rule); a chip needs a file on disk.
       const editor = watcher.frontEditor()
-      if (!editor || editor.document.uri.scheme !== "file" || editor.selection.isEmpty) return "nothing selected"
+      if (!editor || editor.selection.isEmpty) return "nothing selected"
       const target = targetOf(editor.document.uri, editor)
       if (!target?.selection) return "nothing selected"
       hint.added()

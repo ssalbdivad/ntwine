@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { EDITOR_STATE_MAX_SELECTION_TEXT } from "@ntwine/shared/editor-protocol"
 import { EMBED_MAX_SELECTION_TEXT } from "@ntwine/shared/embed-protocol"
 import { editorContextMessage, pageActive, type Position } from "./editor-context.ts"
-import { editorFront, pickFront, secretFile, selectedText, type ReadableEditor } from "./editor-front.ts"
+import { diskPath, editorFront, pickFront, secretFile, selectedText, type ReadableEditor } from "./editor-front.ts"
 import { buildEditorSnapshot } from "./editor-state.ts"
 
 const at = (line: number, character: number): Position => ({ line, character })
@@ -107,6 +107,15 @@ test("the selected text is read only as far as a feed carries it, and never from
   assert.equal(selectedText(whole, editorFront(whole, true), 1_000), undefined)
   // An untitled buffer is never withheld: it has no name that could say so, and nothing the glue can match.
   assert.equal(editorFront(editor("x", { scheme: "untitled" }), true).withheld, false)
+})
+
+test("a diff's old side names the working file; a buffer with no file behind it names none", () => {
+  const at = (scheme: string, path: string) => ({ scheme, path, fsPath: path })
+  assert.equal(diskPath(at("file", "/repo/a.ts")), "/repo/a.ts")
+  assert.equal(diskPath(at("git", "/repo/a.ts")), "/repo/a.ts")
+  assert.equal(diskPath(at("ntwine-base", "/repo/a.ts")), "/repo/a.ts")
+  assert.equal(diskPath(at("untitled", "Untitled-1")), undefined)
+  assert.equal(diskPath(at("output", "extension-output-1")), undefined)
 })
 
 test("secret files, by name", () => {

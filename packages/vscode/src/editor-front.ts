@@ -67,6 +67,21 @@ export function readableUri(uri: UriLike): boolean {
   return uri.scheme === "file" || uri.scheme === "untitled"
 }
 
+/**
+ * Documents that stand for a file on disk at another version — the old side of a diff: VS Code's git
+ * extension (`git:`, a staged diff's both sides) and the review's base (`ntwine-base:`, review.ts). Each
+ * keeps the file's own path as its URI path, so a selection there can name the file it came from.
+ */
+const FILE_VERSION_SCHEMES = new Set(["git", "ntwine-base"])
+
+/**
+ * The file on disk a document is about: a file's own path, or the working file behind a diff side. The
+ * selection's text and lines are that version's, which is what the human selected.
+ */
+export function diskPath(uri: UriLike): string | undefined {
+  return uri.scheme === "file" || FILE_VERSION_SCHEMES.has(uri.scheme) ? uri.fsPath : undefined
+}
+
 /** How a document is named: its path on disk, or an untitled buffer's label (`Untitled-1`). */
 export function documentPath(uri: UriLike): string {
   return uri.scheme === "untitled" ? uri.path : uri.fsPath

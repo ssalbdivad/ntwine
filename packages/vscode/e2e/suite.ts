@@ -663,6 +663,29 @@ const steps: Step[] = [
     },
   },
   {
+    name: "Add to ntwine prompt takes a selection on a diff's old side, named for the working file, with the old text",
+    modes: ["fake"],
+    async run() {
+      const repo = reviewRepo()
+      const entry = repo.expected.find((candidate) => candidate.status === "modified")!
+      const file = join(repo.worktree, ...entry.path.split("/"))
+      // The old side as the review's diff opens it (review-view.ts): the file's path, the base in the query.
+      const query = new URLSearchParams({ repo: repo.worktree, ref: repo.base, path: entry.basePath! }).toString()
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors")
+      const editor = await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(file).with({ scheme: "ntwine-base", query })))
+      editor.selection = new vscode.Selection(0, 0, 1, editor.document.lineAt(1).text.length)
+      const before = await fakeLog()
+      const composed = await vscode.commands.executeCommand<EditorComposed | undefined>("ntwine.addToPrompt")
+      assert.equal(composed?.ok, true, JSON.stringify(composed))
+      const [compose] = await pageReceived("ntwine:compose", before.page.received.length)
+      const item = (compose as { item: { path: string; text: string; startLine: number; endLine: number } }).item
+      assert.deepEqual(
+        { path: item.path, text: item.text, startLine: item.startLine, endLine: item.endLine },
+        { path: file, text: repo.text[entry.path]!.base!.split("\n").slice(0, 2).join("\n"), startLine: 1, endLine: 2 },
+      )
+    },
+  },
+  {
     name: "Ask ntwine… opens the sidebar's new-thread box with the selection, and starts nothing itself",
     modes: ["fake"],
     async run({ project }) {
