@@ -116,6 +116,13 @@ test("a diff's old side names the working file; a buffer with no file behind it 
   assert.equal(diskPath(at("ntwine-base", "/repo/a.ts")), "/repo/a.ts")
   assert.equal(diskPath(at("untitled", "Untitled-1")), undefined)
   assert.equal(diskPath(at("output", "extension-output-1")), undefined)
+  // GitLens: the repository in the authority (hex of its JSON), the path absolute or from the repository's root.
+  const gitlens = (path: string, authority: string) => ({ ...at("gitlens", path), authority })
+  const hex = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("hex")
+  assert.equal(diskPath(gitlens("/repo/src/a.ts", hex({ ref: "abc123", repoPath: "/repo" }))), "/repo/src/a.ts")
+  assert.equal(diskPath(gitlens("/src/a.ts", hex({ ref: "abc123", repoPath: "/repo" }))), "/repo/src/a.ts")
+  assert.equal(diskPath(gitlens("/repository/a.ts", hex({ ref: "abc123", repoPath: "/repo" }))), "/repo/repository/a.ts")
+  assert.equal(diskPath(gitlens("/src/a.ts", "not-hex")), undefined)
 })
 
 test("secret files, by name", () => {

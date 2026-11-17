@@ -22,7 +22,7 @@
 //     screen. Focus in an output pane or the debug console makes THAT the active text editor in VS Code;
 //     without the fallback the selection the human was pointing at a moment ago would blank.
 
-import { basename } from "node:path"
+import { basename, join } from "node:path"
 import type { Position } from "./editor-context.ts"
 
 /** The part of a `vscode.Uri` the rules read. */
@@ -30,6 +30,8 @@ export interface UriLike {
   scheme: string
   fsPath: string
   path: string
+  /** Read only for a `gitlens:` revision, whose authority names its repository. */
+  authority?: string
 }
 
 /** A range as the document's own API made it — VS Code's `getText` refuses a plain `{ start, end }`. */
@@ -79,7 +81,26 @@ const FILE_VERSION_SCHEMES = new Set(["git", "ntwine-base"])
  * selection's text and lines are that version's, which is what the human selected.
  */
 export function diskPath(uri: UriLike): string | undefined {
-  return uri.scheme === "file" || FILE_VERSION_SCHEMES.has(uri.scheme) ? uri.fsPath : undefined
+  if (uri.scheme === "file" || FILE_VERSION_SCHEMES.has(uri.scheme)) return uri.fsPath
+  if (uri.scheme === "gitlens") return gitlensPath(uri)
+  return undefined
+}
+
+/**
+ * A GitLens revision (`gitlens:`, both sides of its commit-to-commit diffs): its authority is the hex of the
+ * UTF-8 JSON `{"ref", "repoPath"}`, and its path is the file's, absolute or from the repository's root —
+ * GitLens 19.6 builds both (`dist/gitlens.js` and `dist/integrations.js`).
+ */
+function gitlensPath(uri: UriLike): string | undefined {
+  let repoPath: unknown
+  try {
+    repoPath = (JSON.parse(Buffer.from(uri.authority ?? "", "hex").toString("utf8")) as { repoPath?: unknown }).repoPath
+  } catch {
+    return undefined
+  }
+  if (typeof repoPath !== "string" || !repoPath) return undefined
+  const inRepo = (path: string) => path === repoPath || path.startsWith(`${repoPath.replace(/[\\/]+$/, "")}/`)
+  return inRepo(uri.path) ? uri.fsPath : join(repoPath, uri.path)
 }
 
 /** How a document is named: its path on disk, or an untitled buffer's label (`Untitled-1`). */
