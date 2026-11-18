@@ -38,7 +38,7 @@ import { threadNameProblem, type ThreadNamer } from "./thread-names.ts"
 import type { CodexAppServerBridge } from "./backend/codex-app-server.ts"
 import type { AcpBridge } from "./backend/acp-bridge.ts"
 import { acpAgentIdFromModel } from "./backend/acp-agents.ts"
-import { acpModelIdFromModel, DEADLINE_MAX_MS, DEADLINE_MIN_MS } from "@ntwine/shared"
+import { acpModelIdFromModel, acpModelPreset, DEADLINE_MAX_MS, DEADLINE_MIN_MS } from "@ntwine/shared"
 import { deadlineSection } from "./deadline.ts"
 import { claudeBrokerBridgeEnabled, type ClaudeAgentBrokerBridge } from "./backend/claude-agent-broker-bridge.ts"
 import { claudeUltracodeFlags, resolveClaudeEffort } from "./backend/claude-effort.ts"
@@ -1060,10 +1060,12 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
   // a fixed default used to launch on: high where the ladder has it, else the model's own default.
   async function concreteEffort(kind: BackendKind, model: string | undefined, effort: Settings["effort"], prompt: string): Promise<Settings["effort"]> {
     if (effort !== AUTO_EFFORT) return effort
-    if (kind === "acp") return undefined
+    // An ACP agent row has no effort axis, so its Auto is no level at all; a picker preset has a ladder.
+    const preset = kind === "acp" ? acpModelPreset(model) : undefined
+    if (kind === "acp" && !preset) return undefined
     const codex = kind === "codex" ? (deps.codexModels?.() ?? readCodexModels()).find((candidate) => candidate.slug === model) : undefined
-    const efforts = kind === "codex" ? codex?.efforts ?? [] : claudeEffortsFor(model ?? "")
-    const fallback = efforts.includes("high") ? "high" : codex?.defaultEffort ?? efforts[0]
+    const efforts = preset ? [...preset.efforts] : kind === "codex" ? codex?.efforts ?? [] : claudeEffortsFor(model ?? "")
+    const fallback = efforts.includes("high") ? "high" : preset?.defaultEffort ?? codex?.defaultEffort ?? efforts[0]
     if (!fallback) return undefined
     const chosen = deps.chooseEffort ? await deps.chooseEffort({ prompt, efforts, fallback }) : fallback
     return Settings.shape.effort.parse(chosen)

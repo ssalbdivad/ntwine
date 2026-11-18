@@ -10,6 +10,7 @@ import { defaultSettings } from "./settings.ts"
 import { cwdSlug, type Project } from "./project.ts"
 import type { BoardManager } from "./board.ts"
 import type { ClaudeAgentBrokerBridge } from "./backend/claude-agent-broker-bridge.ts"
+import type { AcpBridge } from "./backend/acp-bridge.ts"
 import type { BackendKind } from "./backend/types.ts"
 import type { ChooseEffort, ChooseEffortInput } from "./effort-chooser.ts"
 
@@ -41,6 +42,12 @@ function harness(
     },
     releaseSession: () => {},
   } as unknown as ClaudeAgentBrokerBridge
+  const acpBridge = {
+    spawnDispatch: async (input: { sessionId: string; modelId?: string; effort?: string }) => {
+      spawned.push({ model: input.modelId, effort: input.effort })
+      return { acpSessionId: `acp-${input.sessionId}` }
+    },
+  } as unknown as AcpBridge
   const dispatcher = createDispatcher({
     project,
     storage,
@@ -49,6 +56,7 @@ function harness(
     getSettings: () => ({ ...defaultSettings(), model: "haiku", effort: "low", ...extra.settings }),
     dispatchProfile: (kind) => saved[kind] ?? {},
     claudeBroker,
+    acpBridge,
     ...(chooseEffort ? { chooseEffort } : {}),
     ...(extra.readClaudeQuota ? { readClaudeQuota: extra.readClaudeQuota } : {}),
   })
@@ -105,6 +113,20 @@ test("an auto effort on Haiku is offered no ultracode, and without a chooser lau
   const bare = harness({})
   await bare.dispatcher.dispatch({ prompt: "Rename foo", model: "opus", effort: "auto" }, { backend: "claude" })
   assert.deepEqual(bare.spawned, [{ model: "opus", effort: "high" }])
+})
+
+// A picker preset (an ACP agent's model with an effort ladder) takes Auto the way a Claude model does:
+// the chooser picks off the preset's own ladder. A bare agent row has no ladder, so its Auto is no level.
+test("an auto effort on an ACP preset is chosen from the preset's ladder; on a bare agent it is none", async () => {
+  const asked: ChooseEffortInput[] = []
+  const preset = harness({}, async (input) => (asked.push(input), "low"))
+  await preset.dispatcher.dispatch({ prompt: "Rename foo", model: "acp:antigravity@gemini-3.8-flash", effort: "auto" }, { backend: "acp" })
+  assert.deepEqual(asked.map((input) => [input.efforts, input.fallback]), [[["low", "medium", "high"], "high"]])
+  assert.deepEqual(preset.spawned, [{ model: "gemini-3.8-flash", effort: "low" }])
+
+  const bare = harness({}, async () => assert.fail("a bare agent row has no ladder to choose from"))
+  await bare.dispatcher.dispatch({ prompt: "Rename foo", model: "acp:antigravity", effort: "auto" }, { backend: "acp" })
+  assert.deepEqual(bare.spawned, [{ model: undefined, effort: undefined }])
 })
 
 // The `fableFallback` setting: while a base window is nearly out and Fable's own window has room, a new

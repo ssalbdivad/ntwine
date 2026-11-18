@@ -6,7 +6,7 @@ import { ACP_MODEL_PREFIX, acpAgentIdFromModel, acpModelSlug } from "@ntwine/sha
 // Which ACP agents ntwine knows how to launch, and which of them this machine actually has.
 //
 // ACP agents are PATH-resolved, never provisioned (plans/acp-backend.md, decision 5): the operator
-// installs and logs into `opencode`, `gemini`, `copilot` … with the vendor's own installer and CLI, and
+// installs and logs into `opencode`, `agy`, `copilot` … with the vendor's own installer and CLI, and
 // ntwine only needs to know the executable and the argument that puts it into ACP mode. The registry at
 // github.com/agentclientprotocol/registry is the source for those launch shapes; the ones here are the
 // agents with measurable usage in 2026 (see plans/acp-backend.md) plus the ones that share a binary
@@ -28,8 +28,6 @@ export const ACP_AGENT_CATALOGUE: readonly AcpAgentSpec[] = [
   // native ACP server since 1.5.0 (2026-11-04), and it is how ntwine runs Gemini 4 models (Neon …).
   // `brew install --cask antigravity-cli` or https://antigravity.google/cli/install.sh, then `agy` once to sign in.
   { id: "antigravity", label: "Antigravity CLI", command: "agy", args: ["acp"] },
-  // Kept for machines still carrying a pre-retirement install, and for existing threads' `acp_agent` rows.
-  { id: "gemini", label: "Gemini CLI", command: "gemini", args: ["--acp"] },
   { id: "copilot", label: "GitHub Copilot CLI", command: "copilot", args: ["--acp"] },
   { id: "kilo", label: "Kilo", command: "kilo", args: ["acp"] },
   { id: "qwen", label: "Qwen Code", command: "qwen", args: ["--acp"] },

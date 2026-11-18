@@ -130,8 +130,9 @@ export function dispatchProfileGroups(codexModels: readonly CodexModel[], acpAge
     ...ACP_MODEL_PRESETS.filter((preset) => preset.agentId === agent.id).map((preset) => ({
       model: acpModelSlug(preset.agentId, preset.modelId),
       label: preset.label,
-      defaultEffort: preset.defaultEffort,
-      efforts: [...preset.efforts],
+      // Auto leads a preset's row as it leads the Claude and Codex rows: the server picks from the rest.
+      defaultEffort: AUTO_EFFORT,
+      efforts: [AUTO_EFFORT, ...preset.efforts],
     })),
   ])
   return [
@@ -192,7 +193,7 @@ export function resolveDispatchPreferences(
       ? codexModels.some((candidate) => candidate.slug === model)
       : acpAgents.some((candidate) => candidate.available && candidate.id === acpAgentId)
   // Auto unless the operator made another level the default: the server picks one from the prompt.
-  const defaultEffort = backend === "claude" || codexModel ? AUTO_EFFORT : preset?.defaultEffort ?? ""
+  const defaultEffort = backend === "claude" || codexModel || preset ? AUTO_EFFORT : ""
   // An ACP agent has no effort axis in ntwine — it runs on its own CLI's model and effort — so its
   // effort is "" and always "available": there is nothing to be unavailable. A preset has one.
   const effort = backend === "acp" && !preset ? "" : profile.effort ?? defaultEffort
@@ -201,7 +202,7 @@ export function resolveDispatchPreferences(
     ? [...autoOptions, ...claudeEffortOptions(model, { withDefault: false })]
     : backend === "codex" && codexModel
       ? [...autoOptions, ...codexEffortOptions(codexModel, { withDefault: false })]
-      : preset ? preset.efforts.map((value) => ({ value, label: value })) : []
+      : preset ? [...autoOptions, ...preset.efforts.map((value) => ({ value, label: value }))] : []
   const effortAvailable = (backend === "acp" && !preset) || baseEfforts.some((option) => option.value === effort)
   const effortOptions = effort && !effortAvailable
     ? [{ value: effort, label: `${effort} (unavailable)`, title: "Saved reasoning level is not available for this model" }, ...baseEfforts]

@@ -219,6 +219,7 @@ export interface AcpModelPreset {
 // environment, or `opencode auth login`). OpenCode offers minimal…max for Muse Wonder; the ladder here is
 // the part of it ntwine's effort vocabulary already has.
 const MUSE_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
+const GEMINI_EFFORTS = ["low", "medium", "high"] as const
 export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
   // Verified live 2026-10-13 (opencode 1.19.0): low and high reach OpenRouter as `reasoning.effort`.
   { agentId: "opencode", modelId: "openrouter/meta/muse-wonder", label: "Muse Wonder", defaultEffort: "medium", efforts: MUSE_EFFORTS },
@@ -227,6 +228,16 @@ export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
   // follows OpenRouter's naming for the day it appears there; until then OpenCode will not switch to it
   // and the dispatch fails rather than running another model.
   { agentId: "opencode", modelId: "openrouter/meta/muse-wonder-full", label: "Muse Wonder Full", defaultEffort: "medium", efforts: MUSE_EFFORTS },
+  // Google's Gemini models through Antigravity CLI (`agy acp`, signed in with `agy`). agy advertises a
+  // `thought_level` option of low/medium/high on its Gemini models (none on the Claude and GPT-OSS models it
+  // also carries, which stay in the agent row's model dropdown), defaulting to high.
+  // Verified live 2026-11-18 (agy 1.5.11, Google AI Pro): the model option's value is the bare id
+  // (`gemini-3.8-flash`), and the level is a separate option.
+  { agentId: "antigravity", modelId: "gemini-3.8-flash", label: "Gemini 3.8 Flash", defaultEffort: "high", efforts: GEMINI_EFFORTS },
+  // UNTESTED: Gemini 4 Neon launched 2026-11-18, but agy 1.5.11 did not offer it to a Google AI Pro account
+  // that day. The id is the Gemini API's (`gemini-4-neon`); until agy offers it, the dispatch fails rather
+  // than running another model.
+  { agentId: "antigravity", modelId: "gemini-4-neon", label: "Gemini 4 Neon", defaultEffort: "high", efforts: GEMINI_EFFORTS },
 ]
 
 /** The preset an ACP model slug names exactly, if any. */

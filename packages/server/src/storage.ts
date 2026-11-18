@@ -270,7 +270,7 @@ export interface SessionRow {
   // writes. NULL/'tmux' is the PRE-BROKER legacy value, readable on an old database and never written
   // again. Only meaningful for backend='claude' rows.
   claude_runtime?: string | null
-  // Which ACP agent (backend/acp-agents.ts catalogue id — "opencode", "gemini" …) an `acp` row runs on.
+  // Which ACP agent (backend/acp-agents.ts catalogue id — "opencode", "antigravity" …) an `acp` row runs on.
   // The ACP session id lives in `agent_session_id` like codex's. NULL on every other backend.
   acp_agent?: string | null
   // A FORKED thread's anchor (2026-09-30, the Claude spinoff route): the uuid of its own first record.

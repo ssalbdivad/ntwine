@@ -175,13 +175,13 @@ test("an acp preset resolves as a model with efforts, and lists only under an in
     [saved.pickerModel, saved.effort, saved.effortAvailable, saved.acpAgentId, saved.acpModelId, saved.modelAvailable],
     [muse, "high", true, undefined, undefined, true],
   )
-  assert.equal(resolveDispatchPreferences({ ...preferences, backend: "acp", acp: { model: muse } }, models, agents).effort, "medium", "no saved effort: the preset's default")
+  assert.equal(resolveDispatchPreferences({ ...preferences, backend: "acp", acp: { model: muse } }, models, agents).effort, "auto", "no saved effort: Auto, as on a Claude row")
   assert.equal(resolveDispatchPreferences({ ...preferences, backend: "acp", acp: { model: muse, effort: "ultra" } }, models, agents).effortAvailable, false)
   const acp = (installed: boolean) => dispatchProfileGroups(models, [{ ...agents[0]!, available: installed }]).find((group) => group.id === "acp")
   assert.deepEqual(acp(true)?.options.map((option) => [option.label, option.efforts.join(" ")]), [
     ["OpenCode", ""],
-    ["Muse Wonder", "low medium high xhigh max"],
-    ["Muse Wonder Full", "low medium high xhigh max"],
+    ["Muse Wonder", "auto low medium high xhigh max"],
+    ["Muse Wonder Full", "auto low medium high xhigh max"],
   ])
   assert.equal(acp(false), undefined)
 })
