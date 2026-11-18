@@ -45,7 +45,7 @@ const ci = (over: Partial<GithubWatchStatus> = {}): GithubWatchStatus => ({
 })
 
 // The board's own order — the queue rule first, then the card fact, then the band — with each input named.
-function place(r: SessionRow, t: SessionTelemetry, extra: { github?: GithubStatusBook; prs?: string[]; timers?: string[]; watches?: RegisteredWatch[]; runtime?: "turn-idle" | "exited" | "running"; inFlight?: boolean; now?: number } = {}) {
+function place(r: SessionRow, t: SessionTelemetry, extra: { github?: GithubStatusBook; prs?: string[]; timers?: string[]; fireAt?: Record<string, number>; watches?: RegisteredWatch[]; runtime?: "turn-idle" | "exited" | "running"; inFlight?: boolean; now?: number } = {}) {
   const runtime = extra.runtime ?? "turn-idle"
   const now = extra.now ?? NOW
   const prs = new Set(extra.prs ?? [])
@@ -54,7 +54,7 @@ function place(r: SessionRow, t: SessionTelemetry, extra: { github?: GithubStatu
   const watches = extra.watches ?? []
   const needsYou = deriveNeedsYou(r, t, runtime, false, now, undefined, true, false, github, prs, timers, watches, 0, extra.inFlight ?? false)
   const card = deriveAwaitingBackground(r, t, runtime, false, now, undefined, false, github, prs, timers, watches, 0)
-  return { needsYou, waitStatus: deriveWaitStatus(t, runtime, needsYou, card, extra.inFlight ?? false, now, github, prs, watches, needsInputRequired(r.spawned_at)) }
+  return { needsYou, waitStatus: deriveWaitStatus(t, runtime, needsYou, card, extra.inFlight ?? false, now, github, prs, watches, needsInputRequired(r.spawned_at), new Map(Object.entries(extra.fireAt ?? {}))) }
 }
 
 // ---- THE GRAMMAR ---------------------------------------------------------------------------------
@@ -176,6 +176,10 @@ test("`working` spins only while something it names MOVES", () => {
   // clock, and nothing outside the thread can stall it (2026-10-22).
   assert.deepEqual(place(row(), tele(fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("working"))), { timers: ["tmr_a1"] }), { needsYou: false, waitStatus: "working" })
   assert.equal(place(row(), tele(fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("watching"))), { timers: ["tmr_a1"] }).waitStatus, "working")
+  // …until its next fire is far off: then only the clock is left, and that is Waiting (2026-11-17).
+  const timerPark = tele(fence({ kind: "timer", value: "tmr_a1" }, FOR_2H, status("working")))
+  assert.equal(place(row(), timerPark, { timers: ["tmr_a1"], fireAt: { tmr_a1: NOW + 6 * 86_400_000 } }).waitStatus, "watching")
+  assert.equal(place(row(), timerPark, { timers: ["tmr_a1"], fireAt: { tmr_a1: NOW + 5 * 60_000 } }).waitStatus, "working", "a short retry stays Working")
   // A timer beside a wait on the world is still Waiting: the PR is what has to move.
   assert.equal(place(row(), tele(fence({ kind: "timer", value: "tmr_a1" }, { kind: "pr", value: PR }, FOR_2H, status("watching"))), { timers: ["tmr_a1"], prs: [PR] }).waitStatus, "watching")
 })

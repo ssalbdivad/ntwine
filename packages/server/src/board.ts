@@ -1828,6 +1828,9 @@ export function deriveAwaitingBackground(
 // ABSENT for every other shape, which the client reads as the old placement: a queued rest (it never
 // spins), a rest that is not at rest, an archived row, and a message on its way to the worker — a follow-up or an answer the
 // transcript has not shown yet, whose row keeps its Running placement until the turn starts.
+/** How far off a timer-only park's next fire must be before it reads as Waiting (deriveWaitStatus). */
+export const TIMER_PARK_WAITING_AFTER_MS = 10 * 60_000
+
 export function deriveWaitStatus(
   tele: SessionTelemetry | undefined,
   runtime: RuntimeState,
@@ -1839,6 +1842,7 @@ export function deriveWaitStatus(
   registeredPrWatches: ReadonlySet<string> = new Set(),
   armedWatches: readonly RegisteredWatch[] = [],
   deriveAnswer = true,
+  timerFireAtMs: ReadonlyMap<string, number> = new Map(),
 ): ThreadView["waitStatus"] {
   if (runtime !== "turn-idle" || needsYou || messageInFlight) return undefined
   const liveChild = hasLiveBackgroundWork(tele)
@@ -1849,12 +1853,17 @@ export function deriveWaitStatus(
   // read or derived (awaitingStatus).
   const declared = fence && (deriveAnswer || awaitingStatusWritten(fence.hints)) ? awaitingStatus(fence) : null
   if (declared === "needs_input") return undefined
-  // A PARK ON ITS OWN TIMERS ALONE IS WORK (maintainer 2026-10-22): the worker comes back on its own
-  // clock, so nothing outside the thread can stall it. Waiting is kept for a wait on the world — a PR, a
-  // reply (`threads:`, which is a timer underneath but names another party), a command watch — whatever
-  // the fence's `status:` says, since the band means "nothing moves until someone else acts".
+  // A PARK ON ITS OWN TIMERS ALONE is Working while the next one fires SOON (maintainer 2026-10-22: a
+  // short retry or backoff is the worker's own work, and bouncing it to Waiting and back is flicker), and
+  // Waiting once it is far off (2026-11-17: a reminder parked six days on one timer read as working; "it
+  // still makes sense to say waiting for a certain time"). Nothing is moving then, only the clock. A timer
+  // ntwine has no fire time for stays Working, the old reading. `status:` does not change either answer.
   const parkItems = readAwaitingPark(fence?.hints ?? []).items
-  if (parkItems.length > 0 && parkItems.every((i) => i.kind === "timer")) return "working"
+  if (parkItems.length > 0 && parkItems.every((i) => i.kind === "timer")) {
+    const fires = parkItems.map((i) => timerFireAtMs.get(i.value))
+    const next = fires.every((f) => f !== undefined) ? Math.min(...(fires as number[])) : undefined
+    return next !== undefined && next - nowMs > TIMER_PARK_WAITING_AFTER_MS ? "watching" : "working"
+  }
   // A SHELL MOVES ONLY WHEN THE WORKER SAYS SO: named in the fence, or registered with a watch. An
   // unnamed one is as likely a dev server nobody tore down as the job being waited on.
   const namedShell = parkItems.some((i) => i.kind === "shell" && resolveLiveWatchTarget(tele, i.value)?.kind === "shell")
@@ -2404,7 +2413,7 @@ function sessionThreadView(
     // A done the human parked on its watch is a `watching` rest — deriveWaitStatus reads only awaiting
     // fences and live work, and a done is neither (doneParkedOnWatch).
     : runtime === "turn-idle" && !needsYou && !messageInFlight && doneParkedOnWatch(row, tele, registeredPrWatches) ? "watching"
-    : deriveWaitStatus(tele, runtime, needsYou, awaitingBackground, messageInFlight, nowMs, github, registeredPrWatches, armedWatches, needsInputRequired(row.spawned_at))
+    : deriveWaitStatus(tele, runtime, needsYou, awaitingBackground, messageInFlight, nowMs, github, registeredPrWatches, armedWatches, needsInputRequired(row.spawned_at), new Map(armedTimers.map((t) => [t.id, Date.parse(t.fireAt)])))
   // A worker that exited with work still outstanding — a turn in flight, OR a sub-agent still reading
   // "running" (its parent is gone, so it cannot actually be live) — is a crash/stall, not a clean
   // handoff, so it cards as "stalled" not a bare "rest". Mirrors deriveNeedsYou's surfacing above.

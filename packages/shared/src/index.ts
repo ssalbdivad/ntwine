@@ -5593,7 +5593,7 @@ export function agentParked(t: ThreadView, nowMs = Date.now()): boolean {
 }
 
 /** THE WAITING BAND (2026-10-14): an agent's park with only something OUTSIDE the thread left — a review,
- *  CI, a release, a reply (a park on its own timers alone is Working, 2026-10-22) — which the server reads as `waitStatus: "watching"` (board.deriveWaitStatus;
+ *  CI, a release, a reply (a park on its own timers alone is Working while the next fires within 10m, Waiting after, 2026-11-17) — which the server reads as `waitStatus: "watching"` (board.deriveWaitStatus;
  *  a done the human chose to watch from its card reads the same). Always in view, under Working, and never
  *  folded (maintainer: "a separate category that is always visible under working … when agents are
  *  waiting for something external"). A park on the thread's own sub-agents or shells stays in Working: it
