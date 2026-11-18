@@ -232,12 +232,13 @@ export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
   // `thought_level` option of low/medium/high on its Gemini models (none on the Claude and GPT-OSS models it
   // also carries, which stay in the agent row's model dropdown), defaulting to high.
   // Verified live 2026-11-18 (agy 1.5.11, Google AI Pro): the model option's value is the bare id
-  // (`gemini-3.8-flash`), and the level is a separate option.
-  { agentId: "antigravity", modelId: "gemini-3.8-flash", label: "Gemini 3.8 Flash", defaultEffort: "high", efforts: GEMINI_EFFORTS },
+  // (`gemini-3.8-flash`), and the level is a separate option. Labels are family then version, as the Claude
+  // rows read ("Opus 5.5"): "Gemini 3.8 Flash" overran the grid's 7rem label column.
+  { agentId: "antigravity", modelId: "gemini-3.8-flash", label: "Flash 3.8", defaultEffort: "high", efforts: GEMINI_EFFORTS },
   // UNTESTED: Gemini 4 Neon launched 2026-11-18, but agy 1.5.11 did not offer it to a Google AI Pro account
   // that day. The id is the Gemini API's (`gemini-4-neon`); until agy offers it, the dispatch fails rather
   // than running another model.
-  { agentId: "antigravity", modelId: "gemini-4-neon", label: "Gemini 4 Neon", defaultEffort: "high", efforts: GEMINI_EFFORTS },
+  { agentId: "antigravity", modelId: "gemini-4-neon", label: "Neon 4", defaultEffort: "high", efforts: GEMINI_EFFORTS },
 ]
 
 /** The preset an ACP model slug names exactly, if any. */
