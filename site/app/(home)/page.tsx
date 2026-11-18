@@ -40,7 +40,7 @@ const principles = [
   { title: "Nothing of its own.", text: "No model, no cloud and no workflow. Just your CLIs on your sign-in, on localhost." },
 ];
 
-const agents = ["Claude Code", "Codex", "OpenCode", "Gemini CLI", "Copilot CLI", "Cursor", "goose", "Qwen Code"];
+const agents = ["Claude Code", "Codex", "OpenCode", "Antigravity CLI", "Copilot CLI", "Cursor", "goose", "Qwen Code"];
 
 // a watch outliving the session that set it: the thread rests out of the queue, and each event wakes it
 const watchFeed = `  @settings-store  resting · watching acme/api#391

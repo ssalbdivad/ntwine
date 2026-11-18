@@ -16,6 +16,7 @@ test("provider marks identify only known, backend-backed threads", () => {
 test("an ACP thread's mark is its agent's brand glyph, falling back to the generic plug", () => {
   assert.deepEqual(providerMarkFor("acp", "acp:opencode"), { key: "acp:opencode", backend: "acp", label: "OpenCode" })
   assert.equal(providerMarkFor("acp", "acp:gemini")?.key, "acp:gemini")
+  assert.deepEqual(providerMarkFor("acp", "acp:antigravity@gemini-4-neon"), { key: "acp:antigravity", backend: "acp", label: "Antigravity CLI" })
   // Agents without a CC0 glyph (Grok Build, pi, Kilo, goose) and an unknown/absent model wear the plug.
   assert.equal(providerMarkFor("acp", "acp:grok")?.key, "acp")
   assert.equal(providerMarkFor("acp", undefined)?.key, "acp")
@@ -30,7 +31,7 @@ test("provider mark geometry keeps compact monochrome marks optically centered b
 })
 
 test("every ACP provider mark uses semantic ink while retaining its own geometry", () => {
-  for (const agent of ["opencode", "cursor", "gemini", "copilot", "qwen", "kimi", "grok"]) {
+  for (const agent of ["opencode", "cursor", "gemini", "antigravity", "copilot", "qwen", "kimi", "grok"]) {
     const provider = providerMarkFor("acp", `acp:${agent}`)!
     const html = renderToStaticMarkup(createElement(ProviderMark, { backend: "acp", model: `acp:${agent}` }))
     assert.ok(html.includes(PROVIDER_MARK_GEOMETRY[provider.key]))

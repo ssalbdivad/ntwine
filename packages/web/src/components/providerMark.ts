@@ -5,7 +5,7 @@ import { acpAgentIdFromModel } from "@ntwine/shared"
  *  packages/server/src/backend/acp-agents.ts. */
 export type ProviderMarkKey =
   | "claude" | "codex" | "acp"
-  | "acp:opencode" | "acp:cursor" | "acp:gemini" | "acp:copilot" | "acp:qwen" | "acp:kimi"
+  | "acp:opencode" | "acp:cursor" | "acp:gemini" | "acp:antigravity" | "acp:copilot" | "acp:qwen" | "acp:kimi"
 
 export interface ProviderMarkDefinition {
   key: ProviderMarkKey
@@ -44,6 +44,9 @@ export const PROVIDER_MARK_GEOMETRY: Record<ProviderMarkKey, string> = {
   "acp:opencode": "size-[10px]",
   "acp:cursor": "size-[10px]",
   "acp:gemini": "size-[10px]",
+  // Antigravity draws the Gemini glyph (it runs Gemini models, and has no CC0 mark of its own), so it
+  // inherits Gemini's measured geometry rather than a re-measurement.
+  "acp:antigravity": "size-[10px]",
   "acp:copilot": "size-[12px] translate-y-px",
   "acp:qwen": "size-[10px]",
   "acp:kimi": "size-[10px]",
@@ -58,6 +61,7 @@ const PROVIDER_MARKS: Record<ProviderMarkKey, ProviderMarkDefinition> = {
   "acp:opencode": { key: "acp:opencode", backend: "acp", label: "OpenCode" },
   "acp:cursor": { key: "acp:cursor", backend: "acp", label: "Cursor agent" },
   "acp:gemini": { key: "acp:gemini", backend: "acp", label: "Gemini CLI" },
+  "acp:antigravity": { key: "acp:antigravity", backend: "acp", label: "Antigravity CLI" },
   "acp:copilot": { key: "acp:copilot", backend: "acp", label: "GitHub Copilot CLI" },
   "acp:qwen": { key: "acp:qwen", backend: "acp", label: "Qwen Code" },
   "acp:kimi": { key: "acp:kimi", backend: "acp", label: "Kimi CLI" },

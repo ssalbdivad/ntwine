@@ -24,6 +24,11 @@ export interface AcpAgentSpec {
 export const ACP_AGENT_CATALOGUE: readonly AcpAgentSpec[] = [
   { id: "opencode", label: "OpenCode", command: "opencode", args: ["acp"] },
   { id: "cursor", label: "Cursor agent", command: "cursor-agent", args: ["acp"] },
+  // Antigravity CLI replaced Gemini CLI (retired 2026-06-18) as Google's terminal agent; `agy acp` is its
+  // native ACP server since 1.5.0 (2026-11-04), and it is how ntwine runs Gemini 4 models (Neon …).
+  // `brew install --cask antigravity-cli` or https://antigravity.google/cli/install.sh, then `agy` once to sign in.
+  { id: "antigravity", label: "Antigravity CLI", command: "agy", args: ["acp"] },
+  // Kept for machines still carrying a pre-retirement install, and for existing threads' `acp_agent` rows.
   { id: "gemini", label: "Gemini CLI", command: "gemini", args: ["--acp"] },
   { id: "copilot", label: "GitHub Copilot CLI", command: "copilot", args: ["--acp"] },
   { id: "kilo", label: "Kilo", command: "kilo", args: ["acp"] },

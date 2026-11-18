@@ -33,6 +33,7 @@ const MARKS: Record<ProviderMarkKey, () => ReactElement> = {
   "acp:opencode": OpenCodeMark,
   "acp:cursor": CursorMark,
   "acp:gemini": GeminiMark,
+  "acp:antigravity": GeminiMark,
   "acp:copilot": CopilotMark,
   "acp:qwen": QwenMark,
   "acp:kimi": KimiMark,

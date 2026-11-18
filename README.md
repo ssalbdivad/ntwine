@@ -23,7 +23,7 @@ It drives the agent CLIs you already pay for from one browser tab. When an agent
 
 <h2 align="center">Getting started</h2>
 
-**Requirements.** Node 22.13+, and a [Claude Code](https://claude.com/claude-code) or [Codex](https://developers.openai.com/codex) subscription you're signed in to. ntwine brings its own pinned copy of each CLI (downloaded once, on first start), so the version on your PATH never changes what a thread runs. Any agent on your PATH that speaks the [Agent Client Protocol](https://agentclientprotocol.com) works too, including OpenCode, Gemini CLI, GitHub Copilot CLI, Cursor's agent, goose and Qwen Code.
+**Requirements.** Node 22.13+, and a [Claude Code](https://claude.com/claude-code) or [Codex](https://developers.openai.com/codex) subscription you're signed in to. ntwine brings its own pinned copy of each CLI (downloaded once, on first start), so the version on your PATH never changes what a thread runs. Any agent on your PATH that speaks the [Agent Client Protocol](https://agentclientprotocol.com) works too, including OpenCode, Antigravity CLI, GitHub Copilot CLI, Cursor's agent, goose and Qwen Code.
 
 You can run it from anywhere. A project is any folder you add: a repo, a jj checkout, or a folder of scripts. ntwine doesn't care how you do version control, and it doesn't need Git.
 
