@@ -33,13 +33,19 @@ export function restHandoff(
   if (!fence) return { questions }
   if (fence.kind === "done") return { questions, signoff: { kind: "done" } }
   const park = readAwaitingPark(fence.hints)
+  const status = awaitingStatus(fence)
+  // A needs_input owed only to the write-up beside the fence is passed on as the named items' own status
+  // plus `writeUp`, so the writer reads the prose for an ask instead of assuming one (describeHandoff).
+  const withoutWriteUp = fence.writeUp ? awaitingStatus({ ...fence, writeUp: false }) : status
+  const writeUp = status === "needs_input" && withoutWriteUp !== "needs_input"
   return {
     questions,
     signoff: {
       kind: "awaiting",
-      status: awaitingStatus(fence),
+      status: writeUp ? withoutWriteUp : status,
       waitsOn: park.items.map((i) => `${i.kind} ${i.value}`),
       steps: park.steps,
+      ...(writeUp ? { writeUp: true as const } : {}),
     },
   }
 }

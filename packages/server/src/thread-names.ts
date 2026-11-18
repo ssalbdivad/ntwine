@@ -266,7 +266,7 @@ export function statusRequest(name: string | undefined, conversation: string, ha
     `- One short phrase, at most ${THREAD_STATUS_TARGET_CHARS} characters.`,
     "- Say what the agent is doing, what it just finished, or what it is waiting on — and name the specific thing (file, test, PR, finding, decision): \"Waiting on CI for the budget fix\", \"Pushed the rail fix, awaiting review\", \"Asked whether to drop the mono font\".",
     ...(handoff
-      ? ["- Say the developer is needed (\"Waiting on your pick…\", \"Asked whether…\", \"Needs your review…\") ONLY when the handoff names an open question, steps for the developer, or status needs_input. Otherwise the developer is not needed, and the status must not suggest they are."]
+      ? ["- Say the developer is needed (\"Waiting on your pick…\", \"Asked whether…\", \"Needs your review…\") ONLY when the handoff names an open question, steps for the developer, status needs_input, or a write-up whose words ask the developer for something now. Otherwise the developer is not needed, and the status must not suggest they are."]
       : []),
     "- A choice the agent says it made or will make \"unless you say otherwise\", \"if you don't object\" or the like is the agent's DECISION, not a question: state it as decided (\"Chose @ark/aot, reversible until RC\"), never as waiting on the developer.",
     "- A finished step followed by more work still running is the running work: \"Merging the soundness fixes\", not the step that finished several messages ago.",

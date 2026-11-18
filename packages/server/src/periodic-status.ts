@@ -78,7 +78,15 @@ export interface RestHandoff {
   /** The sign-off the rest ended on, if any. */
   signoff?:
     | { kind: "done" }
-    | { kind: "awaiting"; status: AwaitingStatus | null; waitsOn: string[]; steps: string[] }
+    | {
+      kind: "awaiting"
+      /** The park's status, except that a `needs_input` owed ONLY to a write-up beside the fence is
+       *  replaced by what the named items alone give, and `writeUp` is set instead (see describeHandoff). */
+      status: AwaitingStatus | null
+      waitsOn: string[]
+      steps: string[]
+      writeUp?: true
+    }
 }
 
 /** The handoff as the lines the status writer reads. */
@@ -96,12 +104,21 @@ export function describeHandoff(h: RestHandoff): string {
       lines.push("- It is waiting on the developer to do these steps:")
       for (const step of s.steps) lines.push(`  - ${step}`)
     }
+    const notNeeded = s.writeUp ? "" : "; the developer is NOT needed"
     const meaning = s.status === "needs_input" ? "the developer has something to review or act on now"
-      : s.status === "working" ? "its own work (sub-agents, shells, CI) is still running and finishes by itself; the developer is NOT needed"
-      : s.status === "watching" ? "it is waiting on something outside the thread (a review, a release, a reply); the developer is NOT needed"
+      : s.status === "working" ? `its own work (sub-agents, shells, CI) is still running and finishes by itself${notNeeded}`
+      : s.status === "watching" ? `it is waiting on something outside the thread (a review, a release, a reply)${notNeeded}`
       : "no status given"
     lines.push(`- It parked with status ${s.status ?? "unset"}: ${meaning}.`)
     if (s.waitsOn.length) lines.push(`- It is waiting on: ${s.waitsOn.join(", ")}.`)
+    // A write-up queues the thread (awaitingWriteUp), but it is a REPORT, not by itself a request. Told
+    // only "needs_input: the developer has something to review", the writer turned a mid-work progress
+    // note — "fixed locally, not pushed; CI stays red until the size work lands, which I'll ask about
+    // then" — into "Needs your review: …" (maintainer 2026-11-18, @arktype-3). Whether the developer is
+    // needed is in the write-up's own words, so the writer is told to read them for an ask.
+    if (s.writeUp) {
+      lines.push("- It also left a write-up for the developer to read in its last reply. A write-up is a report, not by itself a request: the developer is needed only if that reply asks them for something specific NOW (a decision, a test, a look, an act). A reply that reports progress, says the work goes on, or says it will ask later does NOT need the developer yet.")
+    }
   }
   return lines.join("\n")
 }
