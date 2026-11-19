@@ -220,6 +220,7 @@ export interface AcpModelPreset {
 // the part of it ntwine's effort vocabulary already has.
 const MUSE_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 const GEMINI_EFFORTS = ["low", "medium", "high"] as const
+const GEMINI_XHIGH_EFFORTS = ["low", "medium", "high", "xhigh"] as const
 export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
   // Verified live 2026-10-13 (opencode 1.19.0): low and high reach OpenRouter as `reasoning.effort`.
   { agentId: "opencode", modelId: "openrouter/meta/muse-wonder", label: "Muse Wonder", defaultEffort: "medium", efforts: MUSE_EFFORTS },
@@ -235,14 +236,14 @@ export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
   // (`gemini-3.8-flash`), and the level is a separate option. Labels are family then version, as the Claude
   // rows read ("Opus 5.5"): "Gemini 3.8 Flash" overran the grid's 7rem label column.
   { agentId: "antigravity", modelId: "gemini-3.8-flash", label: "Flash 3.8", defaultEffort: "high", efforts: GEMINI_EFFORTS },
-  // UNTESTED: Gemini 4 Neon launched 2026-11-18, but agy 1.5.11 did not offer it to a Google AI Pro account
-  // that day. The id is the Gemini API's (`gemini-4-neon`); until agy offers it, the dispatch fails rather
-  // than running another model.
-  { agentId: "antigravity", modelId: "gemini-4-neon", label: "Neon 4", defaultEffort: "high", efforts: GEMINI_EFFORTS },
-  // UNTESTED: Gemini 4 Carbon is Google AI Ultra/Enterprise only (agy docs, 2026-11-19), and agy offers it
-  // under Google sign-in or ADC, not GEMINI_API_KEY (google-antigravity/antigravity-cli#1522). The id is the
-  // one Google's enterprise docs give for the CLI (`gemini-4-carbon`); on a Pro account the dispatch fails.
+  // Gemini 4 models, verified live 2026-11-19 (agy 1.5.11, Google AI Ultra) over ACP: each bare id is a
+  // value of the model option, and switching to it advertises its own thought_level ladder, default high.
+  // Neon and Hydrogen add xhigh; Carbon and Argon stop at high. None is offered to a Google AI Pro account,
+  // and Carbon is not offered under GEMINI_API_KEY (google-antigravity/antigravity-cli#1522).
   { agentId: "antigravity", modelId: "gemini-4-carbon", label: "Carbon 4", defaultEffort: "high", efforts: GEMINI_EFFORTS },
+  { agentId: "antigravity", modelId: "gemini-4-neon", label: "Neon 4", defaultEffort: "high", efforts: GEMINI_XHIGH_EFFORTS },
+  { agentId: "antigravity", modelId: "gemini-4-argon", label: "Argon 4", defaultEffort: "high", efforts: GEMINI_EFFORTS },
+  { agentId: "antigravity", modelId: "gemini-4-hydrogen", label: "Hydrogen 4", defaultEffort: "high", efforts: GEMINI_XHIGH_EFFORTS },
 ]
 
 /** The preset an ACP model slug names exactly, if any. */
