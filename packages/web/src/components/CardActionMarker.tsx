@@ -12,13 +12,14 @@ import { BLOCK_RADIUS } from "./TranscriptCard.tsx"
 // Each glyph is the one on the button it stands for. Vertical: the cap-band centring every
 // glyph-beside-text here uses. Horizontal: a lucide glyph paints only part of its 24-unit box, so on
 // `gap-1.5` its ink sat further from the word than the 5–6px word space the label reads in; each margin
-// takes that dead box back (sans, 13px, measured with scripts/ink-gaps.mjs 2026-11-18). Play's was
-// measured 2026-10-14: its ink is 6–20 of 24 units, its tip 8.17px from the word untrimmed.
+// takes that dead box back. Ink gaps after the trim, sans 13px, scripts/ink-gaps.mjs 2026-11-18: Play
+// 5.74px, Check 5.78px, RotateCcw 5.73px, RefreshCw 5.70px (untrimmed: 6.95 / 7.03 / 7.52; Play's
+// 8.17px was measured 2026-10-14).
 const GLYPHS: Record<CardAction, { icon: LucideIcon; trim: string }> = {
   "keep-working": { icon: Play, trim: "-mr-[0.2em]" },
-  "steps-done": { icon: Check, trim: "-mr-[0.12em]" },
-  retry: { icon: RotateCcw, trim: "-mr-[0.05em]" },
-  "restart-worker": { icon: RefreshCw, trim: "-mr-[0.05em]" },
+  "steps-done": { icon: Check, trim: "-mr-[0.21em]" },
+  retry: { icon: RotateCcw, trim: "-mr-[0.15em]" },
+  "restart-worker": { icon: RefreshCw, trim: "-mr-[0.19em]" },
 }
 
 type CardActionMarkerProps = {

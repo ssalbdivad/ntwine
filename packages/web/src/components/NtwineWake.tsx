@@ -365,7 +365,9 @@ export function UpdateRequestedMarker({ sourceId, items = [] }: { sourceId?: str
         title={items.length ? `Asked for an update on:\n${items.join("\n")}` : undefined}
         className={`flex items-baseline gap-1.5 ${BLOCK_RADIUS} rounded-br-sm bg-user-bubble px-3.5 py-2.5 text-[13px] leading-5 text-user-bubble-fg`}
       >
-        <RefreshCw aria-hidden="true" className="size-[1em] shrink-0 self-baseline translate-y-[calc(0.5em_-_0.5cap)] opacity-70" />
+        {/* CardActionMarker's dead-box trim, less 0.04em for the A's narrower bearing: every marker's glyph sits ~5.7px of ink
+            from its word (sans, 13px, 2026-11-18). */}
+        <RefreshCw aria-hidden="true" className="size-[1em] shrink-0 self-baseline -mr-[0.15em] translate-y-[calc(0.5em_-_0.5cap)] opacity-70" />
         <span>Asked for an update</span>
       </div>
     </div>

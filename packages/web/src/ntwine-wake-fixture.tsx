@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { commandWatchExpiredWakeMessage, commandWatchPassedWakeMessage, compactionPromptMessage, formatGithubWakeSteer, goalLimitMessage, interruptEndedSubAgentsMessage, limitModelSwitchSteer, limitResumeSteer, mergedWakeMessage, ownWatchExpiredWakeMessage, parkExpiredWakeMessage, signoffNudgeMessage, parkFinishedWakeMessage, PR_WATCH_ARMED_TRAILER, prWatchExpiredWakeMessage, prWatchWakeMessage, questionsCancelledWakeMessage, restPromptMessage, shellDoneMessage, timerPromptMessage } from "@ntwine/shared"
+import { commandWatchExpiredWakeMessage, commandWatchPassedWakeMessage, compactionPromptMessage, formatGithubWakeSteer, goalLimitMessage, interruptEndedSubAgentsMessage, KEEP_WORKING_MESSAGE, RESTART_WORKER_MESSAGE, RETRY_MESSAGE, STEPS_DONE_MESSAGE, limitModelSwitchSteer, limitResumeSteer, mergedWakeMessage, ownWatchExpiredWakeMessage, parkExpiredWakeMessage, signoffNudgeMessage, parkFinishedWakeMessage, PR_WATCH_ARMED_TRAILER, prWatchExpiredWakeMessage, prWatchWakeMessage, questionsCancelledWakeMessage, restPromptMessage, shellDoneMessage, timerPromptMessage } from "@ntwine/shared"
 import type { ChatMessage } from "./hooks.ts"
 import { Message } from "./components/ChatView.tsx"
 import "./styles.css"
@@ -141,6 +141,11 @@ const messages: ChatMessage[] = [
   // their side of the conversation. A typed message stands under it so the two can be compared.
   wake("w18b", parkExpiredWakeMessage(["- `agent: a01b2d20b32feab11` — still running"], true, true)),
   { sourceId: "typed", role: "user", text: "Continue exactly where you left off.", tools: [], parts: [], at: new Date().toISOString() },
+  // EVERY OTHER BUTTON'S SEND (CardActionMarker): the human's side too, with the button's own glyph.
+  { sourceId: "ca-keep", role: "user", text: KEEP_WORKING_MESSAGE, tools: [], parts: [], at: new Date().toISOString() },
+  { sourceId: "ca-done", role: "user", text: STEPS_DONE_MESSAGE, tools: [], parts: [], at: new Date().toISOString() },
+  { sourceId: "ca-retry", role: "user", text: RETRY_MESSAGE, tools: [], parts: [], at: new Date().toISOString() },
+  { sourceId: "ca-restart", role: "user", text: RESTART_WORKER_MESSAGE, tools: [], parts: [], at: new Date().toISOString() },
   // A REGISTERED WATCHER whose own `for:` ran out. The ref is the only thing on the line a reader can
   // act on, so it is the link.
   wake("w19", prWatchExpiredWakeMessage("nubjs/nub#777")),
