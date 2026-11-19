@@ -239,6 +239,45 @@ function toolResultText(tc: AcpToolCallUpdate): string {
   return ""
 }
 
+const UNSAFE_INTERACTION_TEXT = /[\p{Cf}\p{Cs}\p{Zl}\p{Zp}\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/gu
+const utf8Encoder = new TextEncoder()
+
+/** Truncate to at most `maxChars` UTF-16 code units AND `maxBytes` UTF-8 bytes, never splitting a
+ *  surrogate pair (which `InteractionRequest`'s `UNSAFE_TEXT` regex rejects as `\p{Cs}`). */
+function clipUtf8(text: string, maxChars: number, maxBytes: number): string {
+  const fits = (s: string) => s.length <= maxChars && utf8Encoder.encode(s).byteLength <= maxBytes
+  if (fits(text)) return text
+  const suffix = "…"
+  let end = Math.min(text.length, Math.max(0, maxChars - suffix.length))
+  while (end > 0) {
+    if (end < text.length && text.charCodeAt(end - 1) >= 0xd800 && text.charCodeAt(end - 1) <= 0xdbff) end--
+    const candidate = `${text.slice(0, end)}${suffix}`
+    if (fits(candidate)) return candidate
+    end--
+  }
+  return suffix
+}
+
+/** Sanitize provider-controlled text for a single-line `InteractionRequest` field (`InteractionLabel`,
+ *  `InteractionOpaqueId`, `pathLabel`, `workingDirectoryLabel`): collapse newlines to spaces, scrub
+ *  unsafe control/bidi characters, and enforce both char and UTF-8 byte caps. Without this, any
+ *  multi-line shell command (heredocs, `node -e '\n...'`, loops) whose raw text rides in `tc.title`
+ *  failed `InteractionLabel`'s single-line check and `handlePermission` silently denied it. */
+function singleLineInteractionText(value: string, maxChars: number, maxBytes: number, fallback: string): string {
+  const cleaned = value.replace(/[\r\n]+/gu, " ").replace(UNSAFE_INTERACTION_TEXT, "").trim()
+  return cleaned ? clipUtf8(cleaned, maxChars, maxBytes) : fallback
+}
+
+/** Sanitize multi-line text for `InteractionPreview` (<= 256 lines, <= 16_000 chars, <= 24_000 bytes,
+ *  no unsafe control/bidi chars). */
+function previewInteractionText(value: string, maxChars = 6_000, maxBytes = 20_000, maxLines = 256): string {
+  const scrubbed = value.replace(UNSAFE_INTERACTION_TEXT, "").trim()
+  if (!scrubbed) return ""
+  const lines = scrubbed.split(/\r?\n/u)
+  const bounded = lines.length > maxLines ? [...lines.slice(0, maxLines - 1), "…"].join("\n") : scrubbed
+  return clipUtf8(bounded, maxChars, maxBytes)
+}
+
 /** An ACP permission request as an ntwine card. The card's decision ids are the CANONICAL ones the web
  *  renders buttons for (typedInteractions.ts `specFor`); the agent's own optionIds are kept beside the
  *  pending entry and echoed back verbatim on the answer. */
@@ -259,7 +298,7 @@ export function buildAcpPermissionInteraction(
   const add = (id: PermissionDecisionId, semantic: "approve" | "deny", label: string, optionId: string, description?: string) => {
     if (optionByDecision.has(id)) return
     optionByDecision.set(id, optionId)
-    allowedDecisions.push({ id, semantic, label: clip(label, 150), ...(description ? { description: clip(description, 500) } : {}) })
+    allowedDecisions.push({ id, semantic, label: singleLineInteractionText(label, 150, 512, "Option"), ...(description ? { description: clip(description, 500) } : {}) })
   }
   for (const opt of params.options) {
     const label = opt.name ?? opt.kind ?? opt.optionId
@@ -271,25 +310,30 @@ export function buildAcpPermissionInteraction(
     else if (opt.kind === "reject_once" || opt.kind === "reject_always") add(deny, "deny", label, opt.optionId, "Block this tool call.")
   }
   if (!allowedDecisions.some((d) => d.semantic === "deny")) return null // nothing safe to press
-  const title = clip(tc.title ?? (isCommand ? "Run a command?" : "Approve a tool call?"), 150)
+  const fallbackTitle = isCommand ? "Run a command?" : "Approve a tool call?"
+  const title = singleLineInteractionText(redactCredentialSyntax(tc.title ?? fallbackTitle), 150, 512, fallbackTitle)
   const previewLines = [command || "", ...Object.entries(input ?? {}).filter(([k, v]) => k !== "command" && k !== "CommandLine" && v !== "" && v !== null).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)].filter(Boolean)
-  const preview = clip(redactCredentialSyntax(previewLines.join("\n\n")), 6_000)
-  const pathLabel = clip(tc.locations?.[0]?.path ?? (typeof input?.filePath === "string" ? input.filePath : typeof input?.path === "string" ? input.path : ""), 1_000)
+  const preview = previewInteractionText(redactCredentialSyntax(previewLines.join("\n\n")))
+  const commandSummary = singleLineInteractionText(redactCredentialSyntax(command).replace(/\s+/gu, " "), 150, 512, "Run a command")
+  const rawPath = tc.locations?.[0]?.path ?? (typeof input?.filePath === "string" ? input.filePath : typeof input?.path === "string" ? input.path : "")
+  const pathLabel = singleLineInteractionText(rawPath, 1_000, 2_048, "(unknown path)")
+  const cwdLabel = singleLineInteractionText(owner.cwd, 1_000, 2_048, ".")
+  const toolCallId = singleLineInteractionText(tc.toolCallId, 256, 512, "tool-call")
   const base = {
     protocolVersion: INTERACTION_PROTOCOL_VERSION,
     contentFormat: "plain-text" as const,
-    provider: { kind: "acp" as const, name: agent.label },
-    source: { kind: "tool" as const, id: clip(tc.toolCallId, 500), label: clip(tc.title ?? tc.kind ?? "tool", 150) },
-    owner: { projectId: owner.projectId, threadSlug: owner.threadSlug, sessionId: owner.sessionId, turnId: clip(tc.toolCallId, 500), itemId: clip(tc.toolCallId, 500), sessionEpoch: 0, capabilityRevision: 0 },
-    providerRequestId: clip(tc.toolCallId, 500),
+    provider: { kind: "acp" as const, name: singleLineInteractionText(agent.label, 150, 512, "ACP agent") },
+    source: { kind: "tool" as const, id: toolCallId, label: singleLineInteractionText(redactCredentialSyntax(tc.title ?? tc.kind ?? "tool"), 150, 512, "tool") },
+    owner: { projectId: owner.projectId, threadSlug: owner.threadSlug, sessionId: owner.sessionId, turnId: toolCallId, itemId: toolCallId, sessionEpoch: 0, capabilityRevision: 0 },
+    providerRequestId: toolCallId,
     allowedDecisions,
     expiresAt: null,
   }
   const payload = payloadKind === "command-approval"
-    ? { kind: "command-approval" as const, title, command: { summary: clip(command.replace(/\s+/g, " "), 150), preview, redacted: true as const, workingDirectoryLabel: clip(owner.cwd, 1_000) } }
+    ? { kind: "command-approval" as const, title, command: { summary: commandSummary, preview: preview || commandSummary, redacted: true as const, workingDirectoryLabel: cwdLabel } }
     : payloadKind === "file-approval"
-      ? { kind: "file-approval" as const, title, operation: (tc.kind === "delete" ? "delete" : tc.kind === "move" ? "move" : "write") as "delete" | "move" | "write", pathLabel: pathLabel || "(unknown path)", ...(preview ? { diffPreview: preview } : {}) }
-      : { kind: "permission-approval" as const, title, permission: clip(tc.kind ?? "tool", 250), ...(preview ? { preview } : {}), workingDirectoryLabel: clip(owner.cwd, 1_000) }
+      ? { kind: "file-approval" as const, title, operation: (tc.kind === "delete" ? "delete" : tc.kind === "move" ? "move" : "write") as "delete" | "move" | "write", pathLabel, ...(preview ? { diffPreview: preview } : {}) }
+      : { kind: "permission-approval" as const, title, permission: singleLineInteractionText(tc.kind ?? "tool", 250, 512, "tool"), ...(preview ? { preview } : {}), workingDirectoryLabel: cwdLabel }
   const parsed = InteractionRequest.safeParse({ ...base, payload })
   return parsed.success ? { request: parsed.data, optionByDecision } : null
 }
@@ -979,17 +1023,29 @@ export class AcpBridge {
   private handlePermission(live: LiveSession, params: unknown): Promise<AcpRequestPermissionResult> {
     const parsed = AcpRequestPermissionParams.safeParse(params)
     const cancelled: AcpRequestPermissionResult = { outcome: { outcome: "cancelled" } }
-    if (!parsed.success) return Promise.resolve(cancelled)
+    if (!parsed.success) {
+      log.warn("acp", `[${live.slug}] malformed session/request_permission; cancelling`)
+      this.diagnostic(live.slug, "permission", "malformed permission request; cancelling")
+      return Promise.resolve(cancelled)
+    }
     const store = this.options.interactions
     const reject = parsed.data.options.find((o) => o.kind === "reject_once") ?? parsed.data.options.find((o) => o.kind === "reject_always")
     const failClosed: AcpRequestPermissionResult = reject ? { outcome: { outcome: "selected", optionId: reject.optionId } } : cancelled
     if (!store) { this.diagnostic(live.slug, "permission", "no interaction store; denying the request"); return Promise.resolve(failClosed) }
     const built = buildAcpPermissionInteraction(parsed.data, { projectId: this.options.projectId, threadSlug: live.slug, sessionId: live.sessionId, cwd: live.cwd }, { id: live.agent.id, label: live.agent.label })
-    if (!built) { this.diagnostic(live.slug, "permission", "request could not be represented as a card; denying"); return Promise.resolve(failClosed) }
+    if (!built) {
+      log.warn("acp", `[${live.slug}] permission request ${parsed.data.toolCall.toolCallId} could not be represented as a card; denying`)
+      this.diagnostic(live.slug, "permission", "request could not be represented as a card; denying")
+      live.writer.append({ kind: "acp-note", at: this.now(), text: "Denied a permission request that could not be represented as a card." })
+      return Promise.resolve(failClosed)
+    }
     const scope: InteractionSessionScope = { projectId: this.options.projectId, threadSlug: live.slug, sessionId: live.sessionId }
     let id: string
     try { id = store.create(built.request).interaction.id } catch (err) {
-      this.diagnostic(live.slug, "permission", `could not record the approval: ${(err as Error).message}`)
+      const msg = (err as Error).message
+      log.warn("acp", `[${live.slug}] could not record permission card ${parsed.data.toolCall.toolCallId}: ${msg}`)
+      this.diagnostic(live.slug, "permission", `could not record the approval: ${msg}`)
+      live.writer.append({ kind: "acp-note", at: this.now(), text: `Denied a permission request that could not be recorded (${clip(msg, 200)}).` })
       return Promise.resolve(failClosed)
     }
     return new Promise<AcpRequestPermissionResult>((resolve) => {

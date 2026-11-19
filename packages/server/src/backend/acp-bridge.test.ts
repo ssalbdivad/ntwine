@@ -569,3 +569,47 @@ test("acp-bridge: two concurrent follow-ups to a session with no live agent shar
     assert.deepEqual(frames.filter((f) => f.method === "session/prompt").map((f) => f.params?.prompt?.[0]?.text), ["the waker's answers", "the operator's send"])
   } finally { await teardown(r) }
 })
+
+test("buildAcpPermissionInteraction: multi-line agy CommandLine/title and hostile chars still produce a valid card", () => {
+  const multilineCmd = "ntwinectl ask --input - <<'JSON'\n{\"questions\": [{\"question\": \"Ship it?\"}]}\nJSON"
+  const owner = { projectId: "proj-1", threadSlug: "command-approvals", sessionId: "s1", cwd: "/Users/ssalb/ntwine" }
+  const agent = { id: "antigravity", label: "Antigravity CLI" }
+  const options = [
+    { optionId: "allow_once", name: "Allow once", kind: "allow_once" as const },
+    { optionId: "reject_once", name: "Reject", kind: "reject_once" as const },
+  ]
+
+  const built = buildAcpPermissionInteraction({
+    sessionId: "acp-1",
+    toolCall: { toolCallId: "call_123", kind: "execute", title: multilineCmd, rawInput: { CommandLine: multilineCmd, BypassSandbox: true } },
+    options,
+  }, owner, agent)
+  assert.ok(built, "multi-line title/CommandLine must not fail InteractionRequest validation and silently deny")
+  assert.equal(built.request.payload.kind, "command-approval")
+  assert.ok(!built.request.payload.title.includes("\n"), "title is collapsed to a single line")
+  assert.ok(!built.request.source.label?.includes("\n"), "source.label is collapsed to a single line")
+  assert.ok(built.request.payload.command.preview.includes("\n"), "command.preview preserves newlines")
+  const store = createInteractionStore(new Database(":memory:"))
+  assert.ok(store.create(built.request).interaction.id, "InteractionStore accepts the built card")
+
+  // Hostile/edge inputs: >256-char toolCallId, control/bidi chars, >256-line preview, >512-byte multi-byte title.
+  const hugeLines = Array.from({ length: 300 }, (_, i) => `line ${i + 1}`).join("\n")
+  const hostile = buildAcpPermissionInteraction({
+    sessionId: "acp-1",
+    toolCall: {
+      toolCallId: `call_${"x".repeat(400)}\n`,
+      kind: "execute",
+      title: `\u001b[31m\u202e${"🚀".repeat(160)}\nsecond line`,
+      rawInput: { CommandLine: `echo "\u0000hi"\n${hugeLines}` },
+    },
+    options: [
+      { optionId: "allow_once", name: `Allow\n${"🎉".repeat(160)}`, kind: "allow_once" },
+      { optionId: "reject_once", name: "Reject\u202e", kind: "reject_once" },
+    ],
+  }, owner, agent)
+  assert.ok(hostile, "control/bidi chars, overlong toolCallId, >256 lines and >512-byte emoji labels are sanitized")
+  assert.equal(hostile.request.payload.kind, "command-approval")
+  assert.ok(hostile.request.providerRequestId.length <= 256)
+  assert.ok(hostile.request.payload.command.preview.split("\n").length <= 256)
+  assert.ok(store.create(hostile.request).interaction.id)
+})
