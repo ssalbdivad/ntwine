@@ -239,6 +239,10 @@ export const ACP_MODEL_PRESETS: readonly AcpModelPreset[] = [
   // that day. The id is the Gemini API's (`gemini-4-neon`); until agy offers it, the dispatch fails rather
   // than running another model.
   { agentId: "antigravity", modelId: "gemini-4-neon", label: "Neon 4", defaultEffort: "high", efforts: GEMINI_EFFORTS },
+  // UNTESTED: Gemini 4 Carbon is Google AI Ultra/Enterprise only (agy docs, 2026-11-19), and agy offers it
+  // under Google sign-in or ADC, not GEMINI_API_KEY (google-antigravity/antigravity-cli#1522). The id is the
+  // one Google's enterprise docs give for the CLI (`gemini-4-carbon`); on a Pro account the dispatch fails.
+  { agentId: "antigravity", modelId: "gemini-4-carbon", label: "Carbon 4", defaultEffort: "high", efforts: GEMINI_EFFORTS },
 ]
 
 /** The preset an ACP model slug names exactly, if any. */
