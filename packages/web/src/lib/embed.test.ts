@@ -152,12 +152,26 @@ test("host messages are accepted in the contract's shapes only", () => {
   assert.deepEqual(parseHostMessage(extras), extras)
   assert.deepEqual(parseHostMessage({ type: "ntwine:editor-extras" }), { type: "ntwine:editor-extras" })
   assert.deepEqual(parseHostMessage({ type: "ntwine:editor-extras", terminal: {} }), { type: "ntwine:editor-extras", terminal: {} })
+  // Clipboard: text alone, or with an image (screenshot or copied image file).
+  assert.deepEqual(parseHostMessage({ type: "ntwine:clipboard", id: "c1", text: "hi" }), { type: "ntwine:clipboard", id: "c1", text: "hi" })
+  assert.deepEqual(
+    parseHostMessage({ type: "ntwine:clipboard", id: "c2", text: "", image: { mime: "image/png", base64: "AQID", extra: 1 } }),
+    { type: "ntwine:clipboard", id: "c2", text: "", image: { mime: "image/png", base64: "AQID" } },
+  )
+  assert.deepEqual(
+    parseHostMessage({ type: "ntwine:clipboard", id: "c3", text: "shot.jpg", image: { mime: "image/jpeg", base64: "AQID", name: "shot.jpg" } }),
+    { type: "ntwine:clipboard", id: "c3", text: "shot.jpg", image: { mime: "image/jpeg", base64: "AQID", name: "shot.jpg" } },
+  )
 
   const refused: unknown[] = [
     null,
     "ntwine:theme",
     { type: "ntwine:theme", theme: "sepia" },
     { type: "ntwine:unknown" },
+    { type: "ntwine:clipboard", id: "c1", text: "", image: { mime: "image/svg+xml", base64: "AQID" } },
+    { type: "ntwine:clipboard", id: "c1", text: "", image: { mime: "image/png", base64: "" } },
+    { type: "ntwine:clipboard", id: "c1", text: "", image: { mime: "image/png", base64: "AQID", name: "" } },
+    { type: "ntwine:clipboard", id: "c1", text: "", image: "not-an-object" },
     { type: "ntwine:navigate", to: "everything" },
     { type: "ntwine:navigate", to: { thread: "fix" } },
     { ...compose, id: "" },

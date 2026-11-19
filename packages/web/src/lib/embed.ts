@@ -1,4 +1,6 @@
 import {
+  EMBED_CLIPBOARD_IMAGE_MIMES,
+  EMBED_CLIPBOARD_MAX_BASE64_CHARS,
   EMBED_COLOR_VALUE,
   EMBED_THEME_COLORS,
   EDITOR_COMPOSE_MAX_TEXT,
@@ -12,6 +14,7 @@ import {
   EMBED_MAX_SELECTION_TEXT,
   EMBED_THEME_PARAM,
   EMBED_VSCODE,
+  type EmbedClipboardImage,
   type EmbedCommandMessage,
   type EmbedEditorExtrasMessage,
   type EmbedEditorFile,
@@ -187,7 +190,10 @@ function nonEmpty(value: unknown, max: number): value is string {
 export function parseHostMessage(data: unknown): EmbedHostMessage | null {
   if (!isRecord(data)) return null
   if (data.type === "ntwine:clipboard") {
-    return typeof data.id === "string" && typeof data.text === "string" ? { type: "ntwine:clipboard", id: data.id, text: data.text } : null
+    if (typeof data.id !== "string" || typeof data.text !== "string") return null
+    if (data.image === undefined) return { type: "ntwine:clipboard", id: data.id, text: data.text }
+    const image = clipboardImage(data.image)
+    return image ? { type: "ntwine:clipboard", id: data.id, text: data.text, image } : null
   }
   if (data.type === "ntwine:theme") {
     const theme = parseTheme(data.theme)
@@ -315,6 +321,19 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
 }
 
 const HOST_COMMANDS = new Set<EmbedCommandMessage["command"]>(["new-thread", "queue", "jump", "settings", "shortcuts", "prompt"])
+const CLIPBOARD_IMAGE_MIMES = new Set<string>(EMBED_CLIPBOARD_IMAGE_MIMES)
+
+function clipboardImage(value: unknown): EmbedClipboardImage | null {
+  if (!isRecord(value)) return null
+  if (typeof value.mime !== "string" || !CLIPBOARD_IMAGE_MIMES.has(value.mime)) return null
+  if (typeof value.base64 !== "string" || value.base64.length === 0 || value.base64.length > EMBED_CLIPBOARD_MAX_BASE64_CHARS) return null
+  if (value.name !== undefined && (typeof value.name !== "string" || value.name.length === 0 || value.name.length > 255)) return null
+  return {
+    mime: value.mime as EmbedClipboardImage["mime"],
+    base64: value.base64,
+    ...(value.name !== undefined ? { name: value.name } : {}),
+  }
+}
 
 /** One open file of a `ntwine:editor-context`, with only the contract's fields, or null. */
 function editorFile(value: unknown): EmbedEditorFile | null {

@@ -11,6 +11,7 @@ import type * as vscode from "vscode"
 import type { EditorOpen } from "@ntwine/shared/editor-protocol"
 import type {
   EmbedAddContextMessage,
+  EmbedClipboardImage,
   EmbedComposeMessage,
   EmbedComposedMessage,
   EmbedHostMessage,
@@ -20,6 +21,7 @@ import type {
   EmbedPickedFile,
   EmbedReviewMessage,
 } from "@ntwine/shared/embed-protocol"
+import { readClipboardImage } from "./clipboard.ts"
 import { chordCommand } from "./embed.ts"
 
 type Vscode = typeof vscode
@@ -44,6 +46,8 @@ export interface PageHost {
   review(message: EmbedReviewMessage): Promise<string>
   /** Files for the page's `@` menu, or what was dropped from the explorer (`ntwine:pick-context`). */
   pickContext(message: EmbedPickContextMessage): Promise<EmbedPickedFile[]>
+  /** Optional override for reading an image from the host OS clipboard (defaults to `readClipboardImage`). */
+  readClipboardImage?: () => Promise<EmbedClipboardImage | undefined>
   log: { info(line: string): void; warn(line: string): void }
 }
 
@@ -74,10 +78,12 @@ export async function actOnPage(api: Vscode, page: SharedPageMessage, host: Page
     case "ntwine:open-external":
       return (await api.env.openExternal(api.Uri.parse(page.url, true))) ? "opened" : "declined"
     case "ntwine:read-clipboard": {
-      let text = ""
-      try { text = await api.env.clipboard.readText() } catch {}
-      void frame.post({ type: "ntwine:clipboard", id: page.id, text })
-      return "read"
+      const [text, image] = await Promise.all([
+        Promise.resolve(api.env.clipboard.readText()).catch(() => ""),
+        (host.readClipboardImage ?? readClipboardImage)().catch(() => undefined),
+      ])
+      void frame.post({ type: "ntwine:clipboard", id: page.id, text, ...(image ? { image } : {}) })
+      return image ? "read-image" : "read"
     }
     case "ntwine:key": {
       const command = chordCommand(page, frame.mac())

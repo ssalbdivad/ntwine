@@ -10,7 +10,7 @@
 // Mac only: elsewhere these are Ctrl chords Chromium handles in the focused frame, and taking paste over
 // there would only lose what a native paste carries. Installed only in embed mode (lib/embedHost.ts).
 
-import type { EmbedClipboardMessage } from "@ntwine/shared"
+import type { EmbedClipboardImage, EmbedClipboardMessage } from "@ntwine/shared"
 import { postToHost } from "./embed.ts"
 
 type TextField =HTMLInputElement | HTMLTextAreaElement
@@ -30,24 +30,43 @@ function selectedText(field: TextField | HTMLElement): string {
   return document.getSelection()?.toString() ?? ""
 }
 
-const pendingReads = new Map<string, (text: string) => void>()
+interface HostClipboard {
+  text: string
+  image?: EmbedClipboardImage
+}
 
-/** The clipboard's text as the extension reads it; empty if it never answers (an older extension). */
-function hostClipboardText(): Promise<string> {
+const pendingReads = new Map<string, (clip: HostClipboard) => void>()
+
+/** The clipboard's text and optional image as the extension reads them; empty if it never answers (an older extension). */
+function hostClipboard(): Promise<HostClipboard> {
   const id = crypto.randomUUID()
   return new Promise((resolve) => {
-    const done = (text: string) => {
+    const done = (clip: HostClipboard) => {
       pendingReads.delete(id)
-      resolve(text)
+      resolve(clip)
     }
     pendingReads.set(id, done)
-    setTimeout(() => done(""), 2000)
+    setTimeout(() => done({ text: "" }), 5000)
     postToHost({ type: "ntwine:read-clipboard", id })
   })
 }
 
 export function takeHostClipboard(message: EmbedClipboardMessage): void {
-  pendingReads.get(message.id)?.(message.text)
+  pendingReads.get(message.id)?.({ text: message.text, ...(message.image ? { image: message.image } : {}) })
+}
+
+/** Decode a host-supplied clipboard image into a `File` the composer's `onPaste` can upload. */
+export function clipboardImageToFile(image: EmbedClipboardImage): File | null {
+  try {
+    const binary = atob(image.base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    const sub = image.mime.slice("image/".length)
+    const ext = sub === "jpeg" ? "jpg" : sub
+    return new File([bytes], image.name || `pasted.${ext}`, { type: image.mime })
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -67,7 +86,12 @@ async function paste(field: TextField | HTMLElement): Promise<void> {
     }
   } catch {
     // The webview refuses the read (David, 2026-11-12: ⌘V did nothing), so the extension reads it.
-    data.setData("text/plain", await hostClipboardText())
+    const clip = await hostClipboard()
+    if (clip.text) data.setData("text/plain", clip.text)
+    if (clip.image) {
+      const file = clipboardImageToFile(clip.image)
+      if (file) data.items.add(file)
+    }
   }
   const event = new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true })
   if (!field.dispatchEvent(event)) return

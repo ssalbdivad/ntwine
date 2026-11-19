@@ -280,11 +280,28 @@ export type EmbedHostMessage =
   | EmbedHostStateMessage
   | EmbedClipboardMessage
 
-/** The answer to `ntwine:read-clipboard`: the clipboard's text, empty when it held none or the read failed. */
+/** Raster image MIME types accepted on `ntwine:clipboard` (mirrors `ATTACHMENT_IMAGE_EXTENSIONS`). */
+export const EMBED_CLIPBOARD_IMAGE_MIMES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const
+export type EmbedClipboardImageMime = (typeof EMBED_CLIPBOARD_IMAGE_MIMES)[number]
+/** Same base64 ceiling as `/attach` (`ATTACHMENT_MAX_BASE64_CHARS`), kept here so the extension bundles no zod/yaml. */
+export const EMBED_CLIPBOARD_MAX_BASE64_CHARS = 25_000_000
+export const EMBED_CLIPBOARD_MAX_BYTES = Math.floor(EMBED_CLIPBOARD_MAX_BASE64_CHARS / 4) * 3
+
+/** An image read from the host OS clipboard (e.g. a screenshot on macOS). */
+export interface EmbedClipboardImage {
+  mime: EmbedClipboardImageMime
+  /** Base64-encoded image bytes, at most `EMBED_CLIPBOARD_MAX_BASE64_CHARS` characters. */
+  base64: string
+  /** Original filename when copied as a file (e.g. from Finder); absent for raw clipboard screenshots. */
+  name?: string
+}
+
+/** The answer to `ntwine:read-clipboard`: the clipboard's text and, when present, its image. */
 export interface EmbedClipboardMessage {
   type: "ntwine:clipboard"
   id: string
   text: string
+  image?: EmbedClipboardImage
 }
 
 // ── page → host ────────────────────────────────────────────────────────────────────────────────────
@@ -428,8 +445,8 @@ export type EmbedPageMessage =
 
 /**
  * ⌘V in a Mac sidebar: the page cannot read the clipboard from inside VS Code's webview (the read is
- * refused), so it asks the extension, which answers `ntwine:clipboard` with `env.clipboard.readText()`.
- * Text only: the editor's API has no image clipboard (lib/embedEditKeys.ts).
+ * refused), so it asks the extension, which answers `ntwine:clipboard` with `env.clipboard.readText()`
+ * and, on macOS, any image on the pasteboard (lib/embedEditKeys.ts).
  */
 export interface EmbedReadClipboardMessage {
   type: "ntwine:read-clipboard"
