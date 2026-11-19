@@ -143,11 +143,14 @@ function workspaceFile(name: string): string {
   return path
 }
 
-/** The query the sidebar's frame carries for this window. */
-function embedQuery(project: EditorProject): string {
+/** The query the sidebar's frame carries for this window. The project is in the path (sidebarUrl). */
+function embedQuery(): string {
   const light = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Light || vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.HighContrastLight
-  return `?embed=vscode&theme=${light ? "light" : "dark"}&project=${project.slug}`
+  return `?embed=vscode&theme=${light ? "light" : "dark"}`
 }
+
+/** The address the sidebar frames on an ntwine: its project's board, `/project/<slug>`, in embed mode. */
+const sidebarUrl = (origin: string, project: EditorProject) => `${origin}/project/${project.slug}${embedQuery()}`
 
 async function until(what: string, condition: () => boolean | Promise<boolean>, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
@@ -655,8 +658,8 @@ const steps: Step[] = [
         target: "front",
         focus: true,
       }])
-      const query = embedQuery(project)
-      assert.equal(api.sidebar().url, `${control}/${query}`)
+      const query = embedQuery()
+      assert.equal(api.sidebar().url, sidebarUrl(control, project))
       const log = await fakeLog()
       assert.deepEqual(log.page.loads, [`/${query}`], "ntwine served the page once, with those params")
       // Whatever the page reads from its URL, the theme follows once it is ready.
@@ -793,6 +796,8 @@ const steps: Step[] = [
       let from = keys().length
       await pagePosts(chord("E", "KeyE", { primary: true, shift: true }))
       await until("the explorer shown", () => !api.sidebar().visible)
+      // The relay presses the key before it tells the extension, so the effect can land before the record.
+      await until("the chord recorded", () => keys().length > from)
       assert.deepEqual(keys().slice(from), ["relayed"])
 
       // The human's ⌘1 is the Explorer (scripts/e2e.ts keybindings.json), not VS Code's "first editor group",
@@ -1814,7 +1819,7 @@ const steps: Step[] = [
       assert.deepEqual(manifest().contributes.menus["view/title"]!.find((entry) => entry.command === "ntwine.openThreadInTab"), {
         command: "ntwine.openThreadInTab", when: "view == ntwine.sidebar && ntwine.sidebarView == thread", group: "ntwine@0",
       })
-      const path = `/all/${project.slug}/thread/fake-thread`
+      const path = `/project/${project.slug}/thread/fake-thread`
       const inTab = async (type: string, from = 0) => (await fakeLog()).page.received.slice(from).filter((entry) => entry.page === path && entry.data.type === type).map((entry) => entry.data)
       const editor = await openSample([1, 0, 2])
       const loadsBefore = (await fakeLog()).page.loads.length
@@ -1823,8 +1828,8 @@ const steps: Step[] = [
         await until("the tab's page ready", () => api.threadTabs()[0]?.ready === true, 30_000)
         const [tab] = api.threadTabs()
         assert.equal(api.threadTabs().length, 1)
-        assert.equal(tab!.url, `${control}${path}${embedQuery(project)}`, "the thread's own address, in embed mode, on this window's project")
-        assert.deepEqual((await fakeLog()).page.loads.slice(loadsBefore), [`${path}${embedQuery(project)}`])
+        assert.equal(tab!.url, `${control}${path}${embedQuery()}`, "the thread's own address, in embed mode, on this window's project")
+        assert.deepEqual((await fakeLog()).page.loads.slice(loadsBefore), [`${path}${embedQuery()}`])
         assert.equal(tab!.viewColumn, 2, "beside the code")
         assert.ok(vscode.window.visibleTextEditors.some((visible) => visible.document.uri.fsPath === sample), "the code still in sight")
         assert.equal(tab!.title, "fake-thread", "named by the thread until its page says its title")
@@ -1888,14 +1893,14 @@ const steps: Step[] = [
       const ntwine = vscode.workspace.getConfiguration("ntwine")
       try {
         await ntwine.update("serverUrl", elsewhere, vscode.ConfigurationTarget.Global)
-        await until("the frame on the new port, ready", () => api.sidebar().url === `${elsewhere}/${embedQuery(project)}` && api.sidebar().ready, 30_000)
-        assert.deepEqual((await fakeLog(elsewhere)).page.loads, [`/${embedQuery(project)}`])
+        await until("the frame on the new port, ready", () => api.sidebar().url === sidebarUrl(elsewhere, project) && api.sidebar().ready, 30_000)
+        assert.deepEqual((await fakeLog(elsewhere)).page.loads, [`/${embedQuery()}`])
         assert.equal(api.sidebar().hinted, false)
 
         // The setting is taken at its word, so the frame goes to port 1, where nothing listens; its
         // page never says it is ready, and the view offers Reload and Open in browser over it.
         await ntwine.update("serverUrl", "http://127.0.0.1:1", vscode.ConfigurationTarget.Global)
-        await until("the frame on port 1", () => api.sidebar().url === `http://127.0.0.1:1/${embedQuery(project)}`)
+        await until("the frame on port 1", () => api.sidebar().url === sidebarUrl("http://127.0.0.1:1", project))
         assert.equal(api.sidebar().ready, false)
         // The view waits 20s for a page to say it is ready (src/sidebar.ts READY_HINT_MS; 10s until an ntwine
         // run from source took 13s and 42s to load on a busy machine), so the hint comes after that.
@@ -1906,14 +1911,14 @@ const steps: Step[] = [
         await ntwine.update("serverUrl", "not an address", vscode.ConfigurationTarget.Global)
         await until("offline", () => api.status().kind === "offline")
         await new Promise((resolve) => setTimeout(resolve, 500))
-        assert.equal(api.sidebar().url, `http://127.0.0.1:1/${embedQuery(project)}`)
+        assert.equal(api.sidebar().url, sidebarUrl("http://127.0.0.1:1", project))
         await vscode.commands.executeCommand("ntwine.sidebar.reload")
         // Reload looks again first ("Looking for ntwine…"), then says what it found.
         await until("a message instead of the page", () => api.sidebar().url === undefined && api.sidebar().message === "ntwine isn't running.")
       } finally {
         await ntwine.update("serverUrl", control, vscode.ConfigurationTarget.Global)
       }
-      await until("the frame back on the first ntwine, ready", () => api.sidebar().url === `${control}/${embedQuery(project)}` && api.sidebar().ready, 30_000)
+      await until("the frame back on the first ntwine, ready", () => api.sidebar().url === sidebarUrl(control, project) && api.sidebar().ready, 30_000)
       assert.equal(api.sidebar().hinted, false)
     },
   },

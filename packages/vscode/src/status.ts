@@ -27,7 +27,7 @@ export interface StatusView {
  */
 export function statusView(connection: ConnectionStatus, projects: readonly EditorProject[], build?: string): StatusView {
   const view = statusFor(connection, projects)
-  return build ? { ...view, tooltip: `${view.tooltip}\nNtwine extension ${build}` } : view
+  return build ? { ...view, tooltip: `${view.tooltip}\nntwine extension ${build}` } : view
 }
 
 function statusFor(connection: ConnectionStatus, projects: readonly EditorProject[]): StatusView {

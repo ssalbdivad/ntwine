@@ -107,6 +107,16 @@ const FAKE_PAGE = `<!doctype html>
 </script>
 </body></html>`
 
+/**
+ * Which page a frame is, as the suite names it: a thread's own address for a thread's tab, and `/` for the
+ * sidebar's board whatever its address. The sidebar frames `/project/<slug>` since the board moved there
+ * (d9dc6ca7, 2026-10-06), when this fake still served only `/` and every sidebar step timed out on a
+ * Forbidden page.
+ */
+function pageKey(pathname: string): string {
+  return pathname.includes("/thread/") ? pathname : "/"
+}
+
 /** The editor's window as the harness reaches it (e2e/cdp.ts), for the controls a suite inside it cannot do itself. */
 export interface WorkbenchControl {
   press(chord: string): Promise<void>
@@ -264,10 +274,10 @@ export class FakeNtwine {
           }
         }
         case "/__e2e/page-event":
-          this.log.page.received.push(input)
+          this.log.page.received.push({ ...input, page: pageKey(String(input.page)) })
           return json(200, { answer: this.#pageAnswer })
         case "/__e2e/page-next": {
-          const page = url.searchParams.get("page") ?? "/"
+          const page = pageKey(url.searchParams.get("page") ?? "/")
           const messages = this.#pageOutbox.filter((entry) => entry.page === page).map((entry) => entry.message)
           this.#pageOutbox = this.#pageOutbox.filter((entry) => entry.page !== page)
           return json(200, { messages })
@@ -289,8 +299,8 @@ export class FakeNtwine {
     }
 
     // The page at `/` (the sidebar's) and at a thread's own address (a thread's editor tab frames it).
-    if (request.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/all/"))) {
-      this.log.page.loads.push(`${url.pathname}${url.search}`)
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/all/") || url.pathname.startsWith("/project/"))) {
+      this.log.page.loads.push(`${pageKey(url.pathname)}${url.search}`)
       response.setHeader("content-type", "text/html; charset=utf-8")
       response.end(this.#pageReady ? FAKE_PAGE : FAKE_PAGE.replace("<body>", '<body data-mute="1">'))
       return

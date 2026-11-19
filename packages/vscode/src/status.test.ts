@@ -45,7 +45,7 @@ test("a command with no connection says the connection's own reason, not that nt
 })
 
 test("the tooltip's last line names the extension's build, in every state", () => {
-  assert.equal(statusView(connected, [], "0.1.0+1a2b3c4d").tooltip, "Click to show ntwine.\nNtwine extension 0.1.0+1a2b3c4d")
-  assert.equal(statusView({ kind: "offline", reason: "ntwine isn't running." }, [], "0.1.0+1a2b3c4d-dirty").tooltip, "ntwine isn't running. Click to try again.\nNtwine extension 0.1.0+1a2b3c4d-dirty")
+  assert.equal(statusView(connected, [], "0.1.0+1a2b3c4d").tooltip, "Click to show ntwine.\nntwine extension 0.1.0+1a2b3c4d")
+  assert.equal(statusView({ kind: "offline", reason: "ntwine isn't running." }, [], "0.1.0+1a2b3c4d-dirty").tooltip, "ntwine isn't running. Click to try again.\nntwine extension 0.1.0+1a2b3c4d-dirty")
   assert.equal(statusView({ kind: "connecting" }, []).tooltip, "Looking for ntwine…", "no build named, no line")
 })
