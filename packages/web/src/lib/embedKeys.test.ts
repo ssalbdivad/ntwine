@@ -1,24 +1,24 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { chordCommand } from "../../../vscode/src/embed.ts"
+import { ownChord } from "../../../vscode/src/embed.ts"
 import { readFileSync } from "node:fs"
 import { EDITOR_ADD_CHORD } from "./editorContext.ts"
 import { EDITOR_CHORDS, HOST_CHORDS, SIDEBAR_KEY_HINTS, SIDEBAR_KEY_NAMES, hostChordEvent, hostChordKeycaps, hostChordProblem } from "./embedKeys.ts"
 import { ACTIONS, chordProblem, formatChord, type Chord, type Platform } from "./keybindings.ts"
 
-// The sidebar's half of the keyboard (lib/embedKeys.ts). The shortcuts sheet tells the human which chords
-// go to VS Code from the sidebar; the EXTENSION decides which do (packages/vscode/src/embed.ts CHORDS). So
-// every chord the sheet lists is run through the extension's own matcher, on both platforms — a chord
-// dropped from its allowlist, or rebound there, fails here instead of being promised in the sheet.
+// The sidebar's half of the keyboard (lib/embedKeys.ts). The shortcuts sheet lists some of VS Code's own
+// chords; the extension's relay presses every chord the page forwards in VS Code but its own
+// (packages/vscode/src/embed.ts § key chords). So every chord the sheet lists is run through the
+// extension's own matcher, on both platforms — one the extension kept for itself would fail here instead
+// of being promised in the sheet as VS Code's.
 
-test("every VS Code chord the sheet lists is one the extension runs, on a Mac and elsewhere", () => {
+test("every VS Code chord the sheet lists is pressed in VS Code by the relay, but ⌘L, which is ntwine's way back", () => {
   for (const chord of HOST_CHORDS) {
     for (const platform of ["mac", "other"] as const) {
-      assert.ok(chordCommand({ ...hostChordEvent(chord, platform), alt: false }, platform === "mac"), `${chord.label} on ${platform}`)
+      const own = ownChord(hostChordEvent(chord, platform), platform === "mac")
+      assert.equal(own, chord.label === "Back to the editor" ? "back-to-editor" : undefined, `${chord.label} on ${platform}`)
     }
   }
-  // …and the matcher is the real thing: a chord it does not list maps to nothing (negative control).
-  assert.equal(chordCommand({ code: "KeyW", ctrl: true, meta: false, shift: false, alt: false }, false), undefined)
 })
 
 test("caps in each platform's order", () => {
@@ -65,7 +65,7 @@ test("in the sidebar, rebinding to a VS Code chord is refused as VS Code's, in e
   assert.equal(hostChordProblem(pressed("Toggle the terminal", "mac"), "mac"), "⌃` goes to VS Code")
   // Every chord the sheet lists is refused so.
   for (const chord of HOST_CHORDS) for (const platform of ["mac", "other"] as const) assert.ok(hostChordProblem(pressed(chord.label, platform), platform), `${chord.label} on ${platform}`)
-  // Not VS Code's: a chord the extension does not run, or ⌘ where VS Code binds Ctrl on a Mac.
+  // Not refused: a chord the sheet does not list, or ⌘ where VS Code binds Ctrl on a Mac.
   assert.equal(hostChordProblem({ code: "KeyW", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false }, "other"), null)
   assert.equal(hostChordProblem({ code: "Backquote", ctrlKey: false, metaKey: true, shiftKey: false, altKey: false }, "mac"), null)
   // The browser's reason stays the desktop's.

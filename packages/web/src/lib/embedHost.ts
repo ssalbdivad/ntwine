@@ -65,7 +65,7 @@ export function initEmbedHost(): void {
   }, true)
   // ⌘L / Ctrl+L, the chord the context bar names, is Cursor's TOGGLE: from the editor it comes here (with a
   // selection, bringing it as a chip), and pressed here it goes back — forwarded like any VS Code chord
-  // above, and run by the extension as "focus the editor" (packages/vscode embed.ts CHORDS). Until
+  // above, and run by the extension as "focus the editor" (packages/vscode embed.ts § key chords). Until
   // 2026-10-02 the page took it to add the editor's selection again, which ⌘I does here (App.tsx
   // app.details), so a human who pressed ⌘L to get into the box had no chord to get back out.
   guardFocus()

@@ -243,6 +243,32 @@ test("Ctrl and Cmd chords the page left alone go to the editor; the editing chor
   assert.equal(hostKeyChord(key({ repeat: true })), null, "auto-repeat")
   assert.equal(hostKeyChord(key({ isComposing: true })), null, "IME composition")
   assert.equal(hostKeyChord(key({ key: "Control", code: "ControlLeft" })), null, "a bare modifier")
+  // The layout's own key code rides along when the browser gave one: VS Code dispatches by it on Windows.
+  assert.deepEqual(hostKeyChord(key({ key: "1", code: "Digit1", keyCode: 49, ctrlKey: false, metaKey: true, shiftKey: false })), {
+    type: "ntwine:key", key: "1", code: "Digit1", keyCode: 49, ctrl: false, meta: true, shift: false, alt: false,
+  })
+})
+
+test("Alt chords that type nothing and function keys go to the editor; Alt typing a character never does", () => {
+  const alt = (over: Partial<KeyboardEvent>) => key({ ctrlKey: false, shiftKey: false, altKey: true, ...over })
+  // ⌥↑ / ⌥↓, a human's previous and next side bar view.
+  assert.deepEqual(hostKeyChord(alt({ key: "ArrowDown", code: "ArrowDown" })), { type: "ntwine:key", key: "ArrowDown", code: "ArrowDown", ctrl: false, meta: false, shift: false, alt: true })
+  assert.equal(hostKeyChord(alt({ key: "ArrowUp", code: "ArrowUp", shiftKey: true }))?.code, "ArrowUp")
+  // Alt+K off a Mac types nothing, so it is a chord; ⌘⌥K on a Mac is one whatever its key reads.
+  assert.equal(hostKeyChord(alt({ key: "k", code: "KeyK" }))?.code, "KeyK")
+  assert.equal(hostKeyChord(alt({ key: "˚", code: "KeyK", metaKey: true }))?.code, "KeyK")
+  // A character: ⌥K is ˚ on a Mac, ⌥E a dead key waiting for its letter, AltGr+Q (Ctrl+Alt) is @ on a German layout.
+  assert.equal(hostKeyChord(alt({ key: "˚", code: "KeyK" })), null, "⌥K")
+  assert.equal(hostKeyChord(alt({ key: "Dead", code: "KeyE" })), null, "⌥E")
+  assert.equal(hostKeyChord(alt({ key: "@", code: "KeyQ", ctrlKey: true })), null, "AltGr+Q")
+  assert.equal(hostKeyChord(alt({ key: "¡", code: "Digit1" })), null, "⌥1")
+  // …while Ctrl+Alt+K on a US layout is a chord.
+  assert.equal(hostKeyChord(alt({ key: "k", code: "KeyK", ctrlKey: true }))?.code, "KeyK")
+  // Function keys alone or with Shift (F1 is VS Code's palette); any other bare key is the page's.
+  assert.equal(hostKeyChord(key({ key: "F1", code: "F1", ctrlKey: false, shiftKey: false }))?.code, "F1")
+  assert.equal(hostKeyChord(key({ key: "F24", code: "F24", ctrlKey: false }))?.code, "F24")
+  assert.equal(hostKeyChord(key({ key: "F25", code: "F25", ctrlKey: false, shiftKey: false })), null)
+  for (const bare of ["d", "Escape", "Enter", "ArrowDown", "?"]) assert.equal(hostKeyChord(key({ key: bare, code: bare, ctrlKey: false, shiftKey: false })), null, bare)
 })
 
 test("every VS Code chord the ? sheet lists leaves the page, on both platforms", () => {

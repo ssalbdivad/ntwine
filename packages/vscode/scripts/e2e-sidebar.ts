@@ -1475,7 +1475,7 @@ try {
     await sleep(500)
     const forwarded = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").slice(keysBefore)
     const leftBox = await box("chatComposer")
-    expect("c4", "Ctrl+L pressed in the reply box goes back to the editor, adding nothing", backToEditor && forwarded.some((event) => event.outcome === "workbench.action.focusActiveEditorGroup") && leftBox?.value === "", { focus: await workbenchFocus(), forwarded, box: leftBox?.value })
+    expect("c4", "Ctrl+L pressed in the reply box goes back to the editor, adding nothing", backToEditor && forwarded.some((event) => event.outcome === "back-to-editor") && leftBox?.value === "", { focus: await workbenchFocus(), forwarded, box: leftBox?.value })
 
     // …and in the editor with NOTHING selected, to the prompt box — revealing the sidebar when the Explorer
     // has it — with the caret in the box and nothing added.
@@ -1620,7 +1620,7 @@ try {
     await press("Control+Shift+KeyP")
     const vsPalette = await until(paletteOpen, 5_000)
     const keyEvents = (await status()).sidebar.events.filter((event) => event.type === "ntwine:key").slice(keysBefore)
-    expect("c8", "Ctrl+Shift+P from the frame opens VS Code's command palette (forwarded)", vsPalette && keyEvents.some((event) => event.outcome === "workbench.action.showCommands"), keyEvents)
+    expect("c8", "Ctrl+Shift+P from the frame opens VS Code's command palette (pressed in VS Code by the relay)", vsPalette && keyEvents.some((event) => event.outcome === "relayed"), keyEvents)
     await shot("c8-vscode-palette", { window: true })
     await press("Escape")
     await until(async () => !(await paletteOpen()), 3_000)

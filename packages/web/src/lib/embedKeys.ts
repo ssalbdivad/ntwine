@@ -7,9 +7,10 @@ import type { ActionId, Chord, Platform } from "./keybindings.ts"
 // WHERE A KEY GOES. While the frame has focus no VS Code keybinding sees a key (the sidebar spike,
 // 2026-10-01), so every key reaches ntwine — and ntwine's chords that VS Code also binds (⌘K, its chord
 // prefix; ⌘, its settings; ⌘I, its inline chat) are ntwine's there and VS Code's from the editor. The page
-// forwards each Ctrl/Cmd chord it leaves alone (lib/embedHost.ts `ntwine:key`), and the extension runs the
-// ones its allowlist names: HOST_CHORDS below, which must stay the list in packages/vscode/src/embed.ts
-// CHORDS (embedKeys.test.ts runs every one through the extension's own matcher).
+// forwards each chord it leaves alone (lib/embedHost.ts `ntwine:key`), and the extension's relay presses it
+// in VS Code, which runs whatever the human bound it to (packages/vscode/src/embed.ts § key chords).
+// HOST_CHORDS below are a few of VS Code's DEFAULTS, listed so the sheet can show them and so a rebind
+// here never takes one; embedKeys.test.ts holds that the page forwards every one.
 
 /** What a key does in the sidebar, where that is not what its name in the sheet says. Shown under the name. */
 export const SIDEBAR_KEY_HINTS: Partial<Record<ActionId, string>> = {
@@ -97,7 +98,7 @@ const chord = (label: string, spec: string): HostChord => {
   return { label, primary: parts.includes("primary"), ctrl: parts.includes("ctrl"), shift: parts.includes("shift"), code, key }
 }
 
-/** VS Code's own names, in VS Code's own default chords. */
+/** VS Code's own names, in VS Code's own default chords — what a human who has rebound none of them presses. */
 export const HOST_CHORDS: readonly HostChord[] = [
   chord("Command palette", "primary+shift+KeyP"),
   chord("Go to file", "primary+KeyP"),
@@ -114,7 +115,7 @@ export const HOST_CHORDS: readonly HostChord[] = [
 ]
 
 /** The note under the VS Code group. */
-export const HOST_CHORDS_NOTE = "Pressed in the sidebar, these go to VS Code. Its other keys work from the editor."
+export const HOST_CHORDS_NOTE = "VS Code's keys work here too, as you've bound them. Some of its defaults:"
 
 /** A chord's keycaps in each platform's order: Apple's ⌃⇧⌘, and Ctrl, Shift elsewhere. */
 export function hostChordKeycaps(chord: HostChord, platform: Platform): string[] {

@@ -11,7 +11,8 @@
 // The relay. Three documents take part (embed-protocol.ts): the extension host, this document (served
 // from a `vscode-webview://` origin) and the page in its iframe. Messages cross it unchanged:
 //  - page → host: only from ITS iframe (`event.source === frame.contentWindow`) at ntwine's origin, sent on
-//    as `{ page: <message> }`. The extension validates the message again (embed.ts parsePageMessage).
+//    as `{ page: <message> }`. The extension validates the message again (embed.ts parsePageMessage). A
+//    forwarded chord (`ntwine:key`) is also pressed on this document, for VS Code's keybindings to hear.
 //  - host → page: VS Code's host frame delivers the extension's messages at this document's own origin
 //    (pre/index.html, `contentWindow.postMessage(…, window.origin)`), and that ORIGIN is how they are
 //    known: VS Code sets `window.parent = window` in a webview document (its injected API script), so
@@ -36,7 +37,7 @@
 
 import { randomBytes } from "node:crypto"
 import { EMBED_THEME_COLORS, EMBED_THEME_FRAGMENT, type EmbedSurface } from "@ntwine/shared/embed-protocol"
-import { safeOrigin } from "./embed.ts"
+import { KEY_CODES, ownChordEvents, safeOrigin } from "./embed.ts"
 
 export function nonce(): string {
   return randomBytes(18).toString("base64url")
@@ -219,10 +220,31 @@ export function frameDocument(input: {
   // counts them: a page that reloaded and never says it is ready is gone (sidebar.ts).
   frame.addEventListener("load", () => vscode.postMessage({ view: "loaded" }))
   frame.src = ${scriptJson(url)} + (match ? ${scriptJson(`#${EMBED_THEME_FRAGMENT}`)} + encodeURIComponent(posted) : "")
+  // A chord the page forwarded (\`ntwine:key\`) is pressed again HERE, where VS Code's webview host hears
+  // this document's keydowns and hands them to the workbench's keybindings — so it runs whatever the
+  // human bound it to (embed.ts § key chords). ntwine's own chords stay out of VS Code: the extension runs
+  // those. keyup too, as a real press ends.
+  const MAC = /Mac/.test(navigator.platform)
+  const OWN_KEYS = MAC ? ${scriptJson(ownChordEvents(true))} : ${scriptJson(ownChordEvents(false))}
+  const KEY_CODES = ${scriptJson(KEY_CODES)}
+  const pressInVsCode = (data) => {
+    const { key, code, ctrl, meta, shift, alt } = data
+    if (typeof key !== "string" || typeof code !== "string" || key.length > 64 || code.length > 64) return
+    if (typeof ctrl !== "boolean" || typeof meta !== "boolean" || typeof shift !== "boolean" || typeof alt !== "boolean") return
+    if (OWN_KEYS.some((own) => own.code === code && own.ctrl === ctrl && own.meta === meta && own.shift === shift && own.alt === alt)) return
+    const keyCode = Number.isInteger(data.keyCode) && data.keyCode > 0 && data.keyCode < 256 ? data.keyCode : KEY_CODES[code] ?? 0
+    for (const type of ["keydown", "keyup"]) {
+      const press = new KeyboardEvent(type, { key, code, keyCode, ctrlKey: ctrl, metaKey: meta, shiftKey: shift, altKey: alt, bubbles: true, cancelable: true })
+      if (press.keyCode !== keyCode) Object.defineProperty(press, "keyCode", { get: () => keyCode })
+      window.dispatchEvent(press)
+    }
+  }
   window.addEventListener("message", (event) => {
     const data = event.data
     if (event.source === frame.contentWindow) {
-      if (event.origin === NTWINE) vscode.postMessage({ page: data })
+      if (event.origin !== NTWINE) return
+      if (data && typeof data === "object" && data.type === "ntwine:key") pressInVsCode(data)
+      vscode.postMessage({ page: data })
       return
     }
     if (event.origin !== window.origin) return

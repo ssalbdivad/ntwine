@@ -116,6 +116,13 @@ const focusIn = () => workbench<"editor" | "sidebar" | "elsewhere">(`(() => {
   return "elsewhere"
 })()`)
 
+/**
+ * What the human's keybindings.json ran (scripts/e2e.ts writes it): `e2e.keybinding` stands in for commands
+ * this run has no extension for, its argument naming the one it stands for.
+ */
+const bound: string[] = []
+vscode.commands.registerCommand("e2e.keybinding", (command: string) => bound.push(command))
+
 /** The extension's own manifest, as the editor loaded it. */
 const manifest = () => vscode.extensions.getExtension("ssalbdivad.ntwine-vscode")!.packageJSON as {
   contributes: { keybindings: unknown[]; menus: Record<string, { command?: string; when?: string; group?: string }[]> }
@@ -765,49 +772,87 @@ const steps: Step[] = [
     },
   },
   {
-    name: "a chord the page forwards runs its VS Code command; Ctrl+L there goes back to the editor",
+    name: "a chord pressed in the page is the human's VS Code binding, keybindings.json and all; Ctrl+L there goes back to the editor",
     modes: ["fake"],
     async run({ api }) {
       assert.equal(api.sidebar().visible, true)
       const mac = process.platform === "darwin"
       // The keys' own records, read by type: an earlier step's open can record its outcome after these.
       const keys = () => api.sidebar().events.filter((event) => event.type === "ntwine:key").map((event) => event.outcome)
-      let from = keys().length
-      // Ctrl+Shift+E (⌘⇧E): the Explorer takes the side bar, so the ntwine view is no longer visible.
-      await pagePosts({ type: "ntwine:key", key: "E", code: "KeyE", ctrl: !mac, meta: mac, shift: true, alt: false })
-      await until("the explorer shown", () => !api.sidebar().visible)
-      assert.deepEqual(keys().slice(from), ["workbench.view.explorer"])
-      await vscode.commands.executeCommand("ntwine.sidebar.focus")
-      await until("the sidebar back", () => api.sidebar().visible)
+      const chord = (key: string, code: string, mods: { primary?: boolean; shift?: boolean; alt?: boolean } = {}) =>
+        ({ type: "ntwine:key", key, code, ctrl: !!mods.primary && !mac, meta: !!mods.primary && mac, shift: !!mods.shift, alt: !!mods.alt })
+      // VS Code runs a webview's keys only while that webview has the keyboard, so each press starts there.
+      const inSidebar = async () => {
+        if (!api.sidebar().visible || (await focusIn()) !== "sidebar") await vscode.commands.executeCommand("ntwine.sidebar.focus")
+        await until("the sidebar focused", async () => api.sidebar().visible && (await focusIn()) === "sidebar")
+      }
+      await openSample()
+      await inSidebar()
 
-      // Ctrl+L (⌘L) in the page goes back to the editor — the other half of Ctrl+L with nothing selected.
-      await until("the sidebar focused", async () => (await focusIn()) === "sidebar")
+      // VS Code's own default: Ctrl+Shift+E (⌘⇧E) shows the Explorer, which takes the side bar.
+      let from = keys().length
+      await pagePosts(chord("E", "KeyE", { primary: true, shift: true }))
+      await until("the explorer shown", () => !api.sidebar().visible)
+      assert.deepEqual(keys().slice(from), ["relayed"])
+
+      // The human's ⌘1 is the Explorer (scripts/e2e.ts keybindings.json), not VS Code's "first editor group",
+      // which would have put the keyboard in the editor and left the sidebar showing — on the FIRST press.
+      await inSidebar()
+      await pagePosts(chord("1", "Digit1", { primary: true }))
+      await until("the explorer shown by ⌘1", () => !api.sidebar().visible)
+      assert.notEqual(await focusIn(), "editor", "not the first editor group")
+
+      // Chords the allowlist this replaced dropped: the human's ⌘3, ⌘W over "close the editor", and ⌥↓.
+      await inSidebar()
+      for (const [message, command] of [
+        [chord("3", "Digit3", { primary: true }), "workbench.view.extension.github-pull-requests"],
+        [chord("w", "KeyW", { primary: true }), "workbench.action.terminal.toggleTerminal"],
+        [chord("ArrowDown", "ArrowDown", { alt: true }), "workbench.action.nextSideBarView"],
+      ] as const) {
+        const ran = bound.length
+        await pagePosts(message)
+        await until(`${command} run`, () => bound.length > ran)
+        assert.deepEqual(bound.slice(ran), [command])
+      }
+      assert.equal(vscode.window.activeTextEditor?.document.uri.fsPath, sample, "⌘W is the human's, so the editor is still open")
+
+      // A binding whose `when` does not hold where the keyboard is runs nothing: ⌘4 is only the text editor's.
+      const ran = bound.length
       from = keys().length
-      await pagePosts({ type: "ntwine:key", key: "l", code: "KeyL", ctrl: !mac, meta: mac, shift: false, alt: false })
+      await pagePosts(chord("4", "Digit4", { primary: true }))
+      await until("⌘4 relayed", () => keys().length > from)
+      await sleep(500)
+      assert.deepEqual(bound.slice(ran), [], "the when clause is VS Code's to judge")
+
+      // Ctrl+L (⌘L) in the page goes back to the editor — the other half of Ctrl+L with nothing selected —
+      // and is ntwine's, so VS Code never hears it.
+      await inSidebar()
+      from = keys().length
+      await pagePosts(chord("l", "KeyL", { primary: true }))
       await until("the editor focused", async () => (await focusIn()) === "editor")
-      assert.deepEqual(keys().slice(from), ["workbench.action.focusActiveEditorGroup"])
+      assert.deepEqual(keys().slice(from), ["back-to-editor"])
       assert.equal(api.sidebar().visible, true, "the sidebar stays in sight")
     },
   },
   {
-    name: "a message the sidebar does not know, a chord off its list, a link that is not a web page: nothing happens",
+    name: "a message the sidebar does not know, a chord nothing is bound to, a link that is not a web page: nothing happens",
     modes: ["fake"],
     async run({ api }) {
       await openSample()
       const from = api.sidebar().events.length
-      const mac = process.platform === "darwin"
+      const ran = bound.length
       await pagePosts({ type: "ntwine:bogus", path: sample })
-      // Ctrl+W would close the editor were it run.
-      await pagePosts({ type: "ntwine:key", key: "w", code: "KeyW", ctrl: !mac, meta: mac, shift: false, alt: false })
+      await pagePosts({ type: "ntwine:key", key: "F19", code: "F19", ctrl: true, meta: false, shift: true, alt: true })
       await pagePosts({ type: "ntwine:open-external", url: "javascript:alert(1)" })
       await until("three messages handled", () => api.sidebar().events.length >= from + 3)
       assert.deepEqual(api.sidebar().events.slice(from), [
         { type: "ntwine:bogus", outcome: "ignored" },
-        { type: "ntwine:key", outcome: "ignored" },
+        { type: "ntwine:key", outcome: "relayed" },
         { type: "ntwine:open-external", outcome: "ignored" },
       ])
       assert.equal(vscode.window.activeTextEditor?.document.uri.fsPath, sample, "the editor is still open")
       assert.equal(api.sidebar().visible, true)
+      assert.deepEqual(bound.slice(ran), [])
     },
   },
   {

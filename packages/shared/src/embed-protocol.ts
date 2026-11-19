@@ -242,7 +242,7 @@ export const EMBED_MAX_OPEN_FILES = 50
  *
  * And `prompt`: the caret into the prompt box in front — the open thread's reply box, else the new-thread
  * box — from Ctrl+L / ⌘L pressed in the editor with nothing selected (Cursor's chord for moving to its
- * chat). Ctrl+L pressed in the page goes back to the editor (a forwarded `ntwine:key`).
+ * chat). Ctrl+L pressed in the page goes back to the editor (a forwarded `ntwine:key` the extension runs).
  */
 export interface EmbedCommandMessage {
   type: "ntwine:command"
@@ -345,17 +345,25 @@ export interface EmbedOpenExternalMessage {
 }
 
 /**
- * A key chord the page's own handlers left alone (not `defaultPrevented`), with Ctrl or Cmd held. While the
- * frame has focus VS Code's keybindings cannot see a key at all, so the page forwards these and the extension
- * runs the VS Code command its ALLOWLIST maps the chord to (the command palette, quick open, the sidebar and
- * panel toggles, focusing the editor); anything else is ignored. The page never forwards the editing chords
- * a text box handles natively — copy, cut, paste, undo, redo, select all.
+ * A key chord the page's own handlers left alone (not `defaultPrevented`): Ctrl or Cmd held, Alt with a key
+ * that types nothing, or a function key. While the frame has focus VS Code's keybindings cannot see a key at
+ * all — the page is a cross-origin frame inside the webview, and keys do not leave it — so the page forwards
+ * these and the RELAY hands each to VS Code's own keybinding dispatcher as a keydown in the webview's
+ * document (packages/vscode/src/sidebar-html.ts), which resolves it exactly as it does from any webview: the
+ * human's `keybindings.json`, `when` clauses and all. The one exception is ntwine's own ⌘L / Ctrl+L, back to
+ * the editor, which the extension runs itself. The page never forwards the editing chords a text box handles
+ * natively — copy, cut, paste, undo, redo, select all — nor a chord ntwine binds.
  */
 export interface EmbedKeyMessage {
   type: "ntwine:key"
   /** `KeyboardEvent.key` and `.code`, as the page saw them. */
   key: string
   code: string
+  /**
+   * `KeyboardEvent.keyCode`, the layout's virtual key — what VS Code dispatches by on Windows. Absent from a
+   * page older than the relay, which then derives it from `code` (US layout).
+   */
+  keyCode?: number
   ctrl: boolean
   meta: boolean
   shift: boolean

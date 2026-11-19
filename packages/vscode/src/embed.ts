@@ -175,7 +175,9 @@ export function parsePageMessage(value: unknown, origin?: string): EmbedPageMess
       const { key, code, ctrl, meta, shift, alt } = value
       if (typeof key !== "string" || typeof code !== "string" || key.length > 64 || code.length > 64) return undefined
       if (typeof ctrl !== "boolean" || typeof meta !== "boolean" || typeof shift !== "boolean" || typeof alt !== "boolean") return undefined
-      return { type: "ntwine:key", key, code, ctrl, meta, shift, alt }
+      const { keyCode } = value
+      if (keyCode !== undefined && !(Number.isInteger(keyCode) && (keyCode as number) >= 0 && (keyCode as number) < 256)) return undefined
+      return { type: "ntwine:key", key, code, ...(keyCode === undefined ? {} : { keyCode: keyCode as number }), ctrl, meta, shift, alt }
     }
     case "ntwine:add-context": {
       const { what, path } = value
@@ -264,33 +266,30 @@ export function webUrl(text: string): string | undefined {
 // ── key chords ─────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The chords the sidebar runs for the human while the frame has focus — where no VS Code keybinding can
- * see a key. Each is VS Code's own DEFAULT chord for the command, matched by `KeyboardEvent.code` (the
- * physical key, as VS Code dispatches on Linux and Windows), with exactly the modifiers listed. Kept to
- * getting around the workbench: the palette, quick open, the side bar, the panel and terminal, back to
- * the editor, and the built-in views. Nothing that edits, closes or runs anything is here.
+ * WHERE A KEY PRESSED IN THE PAGE GOES. While the frame has focus no VS Code keybinding sees a key: the page
+ * is a cross-origin frame INSIDE the webview's document, and Chromium does not carry a keydown out of it. A
+ * plain webview's keys reach the workbench because VS Code's webview host listens for keydown on the
+ * webview's own document and posts each to the workbench (`did-keydown`, pre/index.html), which dispatches
+ * it through the keybinding service. So the page forwards each chord it leaves alone (`ntwine:key`), and the
+ * relay dispatches it as a keydown on ITS document (sidebar-html.ts), where that listener hears it — and VS
+ * Code resolves the chord the way it resolves any key in any webview: the human's `keybindings.json` over
+ * the defaults, `when` clauses, removals and all. ⌘1 bound to the Explorer opens the Explorer; nothing here
+ * has to know.
  *
- * `primary` is Cmd on a Mac and Ctrl elsewhere; the terminal and source control are Ctrl on every
- * platform, as VS Code binds them.
+ * The keydown is synthetic, so the workbench accepts it only because extension webviews are created with
+ * `forwardUntrustedKeypressEvents` (VS Code 1.146 and Cursor 3.30 alike, read from their workbench 2026-11-19);
+ * and only while the webview is the workbench's focused element, so a page in the background cannot press
+ * anything. Until 2026-11-19 the extension ran a 12-chord allowlist of VS Code's DEFAULTS instead, which
+ * dropped every other chord and ran ⌘1 as "first editor group" over a human's own binding.
  *
- * One is ntwine's own rather than VS Code's default: ⌘L / Ctrl+L, Cursor's chord to its chat and back. In the
- * editor it comes to the sidebar's prompt box (package.json binds it: with a selection the selection comes
- * along as a chip); pressed here it goes back to the editor the human came from.
+ * One chord is ntwine's own and never reaches VS Code: ⌘L / Ctrl+L, Cursor's chord to its chat and back. In
+ * the editor it comes to the sidebar's prompt box (package.json binds it: with a selection the selection
+ * comes along as a chip); pressed in a frame it goes back to the editor the human came from, which the
+ * extension runs itself (framed-page.ts). `primary` is Cmd on a Mac and Ctrl elsewhere, as VS Code spells it.
  */
-const CHORDS: readonly { chord: string; command: string }[] = [
-  { chord: "primary+shift+KeyP", command: "workbench.action.showCommands" },
-  { chord: "primary+KeyP", command: "workbench.action.quickOpen" },
-  { chord: "primary+KeyB", command: "workbench.action.toggleSidebarVisibility" },
-  { chord: "primary+KeyJ", command: "workbench.action.togglePanel" },
-  { chord: "ctrl+Backquote", command: "workbench.action.terminal.toggleTerminal" },
-  { chord: "primary+KeyL", command: "workbench.action.focusActiveEditorGroup" },
-  { chord: "primary+Digit1", command: "workbench.action.focusFirstEditorGroup" },
-  { chord: "primary+shift+KeyE", command: "workbench.view.explorer" },
-  { chord: "primary+shift+KeyF", command: "workbench.view.search" },
-  { chord: "ctrl+shift+KeyG", command: "workbench.view.scm" },
-  { chord: "primary+shift+KeyD", command: "workbench.view.debug" },
-  { chord: "primary+shift+KeyX", command: "workbench.view.extensions" },
-]
+const OWN_CHORDS: readonly { chord: string; action: OwnChordAction }[] = [{ chord: "primary+KeyL", action: "back-to-editor" }]
+
+export type OwnChordAction = "back-to-editor"
 
 export interface KeyChord {
   code: string
@@ -300,19 +299,44 @@ export interface KeyChord {
   alt: boolean
 }
 
-/** The VS Code command a forwarded chord runs, or undefined for any chord the allowlist does not name. */
-export function chordCommand(key: KeyChord, mac: boolean): string | undefined {
-  for (const { chord, command } of CHORDS) {
-    const parts = chord.split("+")
-    const code = parts.pop()!
-    const wants = { ctrl: false, meta: false, shift: false, alt: false }
-    for (const part of parts) {
-      if (part === "primary") wants[mac ? "meta" : "ctrl"] = true
-      else wants[part as keyof typeof wants] = true
-    }
-    if (key.code === code && key.ctrl === wants.ctrl && key.meta === wants.meta && key.shift === wants.shift && key.alt === wants.alt) return command
+/** A chord spec (`primary+shift+KeyP`) as the keydown it is on a platform. */
+function chordEvent(chord: string, mac: boolean): KeyChord {
+  const parts = chord.split("+")
+  const code = parts.pop()!
+  const event = { code, ctrl: false, meta: false, shift: false, alt: false }
+  for (const part of parts) {
+    if (part === "primary") event[mac ? "meta" : "ctrl"] = true
+    else event[part as "ctrl" | "meta" | "shift" | "alt"] = true
   }
-  return undefined
+  return event
+}
+
+const sameChord = (a: KeyChord, b: KeyChord) => a.code === b.code && a.ctrl === b.ctrl && a.meta === b.meta && a.shift === b.shift && a.alt === b.alt
+
+/** ntwine's own chords as keydowns on each platform — what the relay keeps from VS Code (sidebar-html.ts). */
+export function ownChordEvents(mac: boolean): KeyChord[] {
+  return OWN_CHORDS.map(({ chord }) => chordEvent(chord, mac))
+}
+
+/** What a forwarded chord does in ntwine itself, or undefined for every chord that is VS Code's. */
+export function ownChord(key: KeyChord, mac: boolean): OwnChordAction | undefined {
+  return OWN_CHORDS.find(({ chord }) => sameChord(chordEvent(chord, mac), key))?.action
+}
+
+/**
+ * `KeyboardEvent.keyCode` for a `code`, on a US layout — for a forwarded chord from a page too old to send
+ * its own (EmbedKeyMessage.keyCode). VS Code dispatches by `code` on a Mac and Linux and by `keyCode` on
+ * Windows, so the synthetic keydown carries both. Given to the relay whole (sidebar-html.ts).
+ */
+export const KEY_CODES: Readonly<Record<string, number>> = {
+  Backspace: 8, Tab: 9, Enter: 13, Escape: 27, Space: 32, PageUp: 33, PageDown: 34, End: 35, Home: 36,
+  ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Insert: 45, Delete: 46,
+  Semicolon: 186, Equal: 187, Comma: 188, Minus: 189, Period: 190, Slash: 191, Backquote: 192,
+  BracketLeft: 219, Backslash: 220, BracketRight: 221, Quote: 222,
+  ...Object.fromEntries(Array.from({ length: 26 }, (_, i) => [`Key${String.fromCharCode(65 + i)}`, 65 + i])),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`Digit${i}`, 48 + i])),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`Numpad${i}`, 96 + i])),
+  ...Object.fromEntries(Array.from({ length: 24 }, (_, i) => [`F${i + 1}`, 112 + i])),
 }
 
 // ── where an editor command's selection goes ─────────────────────────────────────────────────────────

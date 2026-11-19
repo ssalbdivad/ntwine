@@ -354,7 +354,12 @@ const EDITING_KEYS = new Set(["c", "x", "v", "z", "y", "a", "insert"])
 const SHIFTED_EDITING_KEYS = new Set(["z", "v"])
 const MODIFIER_KEYS = new Set(["Control", "Meta", "Shift", "Alt", "AltGraph", "CapsLock", "Fn", "OS"])
 
-type KeyLike = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey" | "defaultPrevented" | "repeat" | "isComposing">
+/** Keys that are no key yet: a dead key waiting for its letter, an IME's, one the browser cannot name. */
+const PENDING_KEYS = new Set(["Dead", "Process", "Unidentified"])
+const FUNCTION_KEY = /^F(?:[1-9]|1\d|2[0-4])$/u
+
+type KeyLike = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey" | "defaultPrevented" | "repeat" | "isComposing"> &
+  Partial<Pick<KeyboardEvent, "keyCode">>
 
 function editingChord(event: KeyLike): boolean {
   const key = event.key.toLowerCase()
@@ -362,13 +367,32 @@ function editingChord(event: KeyLike): boolean {
 }
 
 /**
- * The `ntwine:key` for a keydown, or null when it is not the host's: no Ctrl or Cmd held, a page handler
- * already took it, a bare modifier, an auto-repeat (holding ⌘⇧P must not open the palette forty times),
- * mid-IME composition, or an editing chord (above). Nothing is prevented here: a chord the host ignores
- * (Ctrl+← in a text box, Ctrl+Shift+C) must still do what it does natively.
+ * Alt making a character rather than a chord: ⌥K types ˚ on a Mac, and Ctrl+Alt is AltGr on Windows, where
+ * AltGr+Q types @ on a German layout. Read off the key: one character that is not the key's own letter or
+ * digit. Alt+↑ (no character), Alt+K off a Mac (`key` "k") and ⌘⌥K are chords.
+ */
+function altCharacter(event: KeyLike): boolean {
+  if (!event.altKey || event.metaKey || [...event.key].length !== 1) return false
+  const own = /^(?:Key|Digit)(.)$/u.exec(event.code)?.[1]
+  return event.key.toLowerCase() !== own?.toLowerCase()
+}
+
+/**
+ * The `ntwine:key` for a keydown, or null when it is not the host's. The host's: Ctrl or Cmd held, Alt held
+ * with a key that types nothing (Alt+↑), or a function key — VS Code resolves the rest (packages/vscode
+ * embed.ts § key chords). Not: a key a page handler already took, a bare modifier or a pending dead key, an
+ * auto-repeat (holding ⌘⇧P must not open the palette forty times), mid-IME composition, an editing chord
+ * (above), or Alt typing a character. Nothing is prevented here: a chord VS Code binds nothing to (Ctrl+← in
+ * a text box, Ctrl+Shift+C) must still do what it does natively.
  */
 export function hostKeyChord(event: KeyLike): EmbedKeyMessage | null {
-  if (!(event.ctrlKey || event.metaKey) || event.defaultPrevented || event.repeat || event.isComposing) return null
-  if (MODIFIER_KEYS.has(event.key) || editingChord(event)) return null
-  return { type: "ntwine:key", key: event.key, code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey }
+  if (event.defaultPrevented || event.repeat || event.isComposing) return null
+  if (MODIFIER_KEYS.has(event.key) || PENDING_KEYS.has(event.key)) return null
+  if (event.ctrlKey || event.metaKey) {
+    if (editingChord(event) || (event.altKey && altCharacter(event))) return null
+  } else if (event.altKey) {
+    if (altCharacter(event)) return null
+  } else if (!FUNCTION_KEY.test(event.key)) return null
+  const keyCode = typeof event.keyCode === "number" && event.keyCode > 0 && event.keyCode < 256 ? { keyCode: event.keyCode } : {}
+  return { type: "ntwine:key", key: event.key, code: event.code, ...keyCode, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey }
 }

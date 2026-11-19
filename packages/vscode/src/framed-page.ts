@@ -22,7 +22,7 @@ import type {
   EmbedReviewMessage,
 } from "@ntwine/shared/embed-protocol"
 import { readClipboardImage } from "./clipboard.ts"
-import { chordCommand } from "./embed.ts"
+import { ownChord } from "./embed.ts"
 
 type Vscode = typeof vscode
 
@@ -56,8 +56,8 @@ export interface FrameLink {
   post(message: EmbedHostMessage): Promise<boolean>
   /** The window's UI runs on a Mac, as this frame's relay said. */
   mac(): boolean
-  /** Run the VS Code command a forwarded chord maps to — a frame may mean something of its own by one. */
-  runChord(command: string): Promise<void>
+  /** ⌘L / Ctrl+L pressed in the page: back to the code — which, from a thread's tab, is not the tab's own group. */
+  backToEditor(): Promise<void>
   /** This frame's composer, for `ntwine:add-context`; undefined for the sidebar (see PageHost.addContext). */
   composer?: PageComposer
 }
@@ -86,13 +86,14 @@ export async function actOnPage(api: Vscode, page: SharedPageMessage, host: Page
       return image ? "read-image" : "read"
     }
     case "ntwine:key": {
-      const command = chordCommand(page, frame.mac())
-      // Recorded as it is RUN, not once it has finished: a command's effect (the Explorer taking the side
-      // bar) lands before VS Code resolves the call, and whoever reads the record after seeing the effect
-      // must find it there — the sidebar recorded first until the handling moved here, and the e2e's
-      // forwarded-chord step read an empty record behind a shown Explorer when it did not.
-      if (command) frame.runChord(command).catch((error: unknown) => host.log.warn(`${command} failed: ${(error as Error).message}`))
-      return command ?? "ignored"
+      // Every chord but ntwine's own was pressed in VS Code already, by the relay (embed.ts § key chords):
+      // "relayed" says only that it went there, since what VS Code ran — if anything — is its own business.
+      const own = ownChord(page, frame.mac())
+      if (!own) return "relayed"
+      // Recorded as it is RUN, not once it has finished: the effect (the editor taking the keyboard) lands
+      // before the call resolves, and whoever reads the record after seeing the effect must find it there.
+      frame.backToEditor().catch((error: unknown) => host.log.warn(`back to the editor failed: ${(error as Error).message}`))
+      return own
     }
     case "ntwine:add-context":
       return host.addContext(page, frame.composer)

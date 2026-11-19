@@ -58,12 +58,16 @@ interface Relay {
   frameLoad(): void
   /** VS Code rewrites the theme on this document: its custom properties and its body's class. */
   restyle(vars: Record<string, string>, bodyClass: string): void
+  /** The key events the relay dispatched on its window, where VS Code's webview host listens. */
+  pressed: Pressed[]
 }
+
+type Pressed = { type: string; key: string; code: string; keyCode: number; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean; bubbles: boolean }
 
 /** As VS Code 1.140 writes Default Dark Modern on a webview document (scripts/e2e-sidebar.ts c18). */
 const DARK_MODERN = { "--vscode-sideBar-background": "#181818", "--vscode-foreground": "#cccccc", "--vscode-focusBorder": "#0078d4", "--vscode-not-ours": "#123456" }
 
-function relay(html: string, theme: { vars: Record<string, string>; bodyClass: string } = { vars: DARK_MODERN, bodyClass: "vscode-dark" }): Relay {
+function relay(html: string, theme: { vars: Record<string, string>; bodyClass: string } = { vars: DARK_MODERN, bodyClass: "vscode-dark" }, platform = "Linux x86_64"): Relay {
   const script = /<script nonce="[^"]+">([\s\S]*?)<\/script>/u.exec(html)![1]!
   const toHost: unknown[] = []
   const toPage: { data: unknown; targetOrigin: string }[] = []
@@ -87,8 +91,14 @@ function relay(html: string, theme: { vars: Record<string, string>; bodyClass: s
   const observers: (() => void)[] = []
   const body = { classList: { contains: (name: string) => look.bodyClass.split(" ").includes(name) } }
   const documentElement = {}
+  const pressed: Pressed[] = []
   const window = {
     origin: WEBVIEW,
+    dispatchEvent: (event: Pressed) => {
+      const { type, key, code, keyCode, ctrlKey, metaKey, shiftKey, altKey, bubbles } = event
+      pressed.push({ type, key, code, keyCode, ctrlKey, metaKey, shiftKey, altKey, bubbles })
+      return true
+    },
     // As VS Code's injected API script leaves it in a webview document.
     get parent() {
       return window
@@ -104,7 +114,16 @@ function relay(html: string, theme: { vars: Record<string, string>; bodyClass: s
     acquireVsCodeApi: () => ({ postMessage: (message: unknown) => toHost.push(structuredClone(message)), setState: (value: unknown) => (state.kept = structuredClone(value)) }),
     window,
     document,
-    navigator: { platform: "Linux x86_64" },
+    navigator: { platform },
+    // A KeyboardEvent that drops `keyCode` from its init, as a browser may: the relay must still carry it.
+    KeyboardEvent: class {
+      keyCode = 0
+      constructor(type: string, init: Record<string, unknown>) {
+        const { keyCode: _, ...rest } = init
+        Object.assign(this, rest, { type })
+      }
+    },
+    Number,
     Element: class {},
     setTimeout,
     getComputedStyle: (element: unknown) => {
@@ -122,6 +141,7 @@ function relay(html: string, theme: { vars: Record<string, string>; bodyClass: s
   })
   return {
     toHost,
+    pressed,
     get state() {
       return state.kept
     },
@@ -168,6 +188,46 @@ test("the relay hands the host only what its own frame sent from ntwine's origin
   r.dispatch({ source: r.frameWindow, origin: NTWINE, data: { view: "reload" } })
   assert.deepEqual(r.toHost[1], { page: { view: "reload" } })
   assert.deepEqual(r.toPage, [])
+})
+
+test("a chord the page forwards is pressed on the relay's window for VS Code's keybindings, but ntwine's own ⌘L", () => {
+  const mac = relay(frameDocument({ nonce: "n", url: URL_, origin: NTWINE }), undefined, "MacIntel")
+  const key = (over: Record<string, unknown>) => ({ type: "ntwine:key", key: "1", code: "Digit1", ctrl: false, meta: true, shift: false, alt: false, ...over })
+  // ⌘1, from a page that sent no key code: a keydown and its keyup, the code derived.
+  mac.dispatch({ source: mac.frameWindow, origin: NTWINE, data: key({}) })
+  const press = { key: "1", code: "Digit1", keyCode: 49, ctrlKey: false, metaKey: true, shiftKey: false, altKey: false, bubbles: true }
+  assert.deepEqual(mac.pressed, [{ type: "keydown", ...press }, { type: "keyup", ...press }])
+  // The page's own key code wins: the layout's, which VS Code dispatches by on Windows.
+  mac.pressed.length = 0
+  mac.dispatch({ source: mac.frameWindow, origin: NTWINE, data: key({ key: "ArrowDown", code: "ArrowDown", keyCode: 40, meta: false, alt: true }) })
+  assert.deepEqual(mac.pressed.map(({ type, code, keyCode, altKey }) => ({ type, code, keyCode, altKey })), [
+    { type: "keydown", code: "ArrowDown", keyCode: 40, altKey: true },
+    { type: "keyup", code: "ArrowDown", keyCode: 40, altKey: true },
+  ])
+  // Every forwarded chord still reaches the extension, for its record and for ⌘L.
+  assert.equal(mac.toHost.filter((message) => (message as { page?: { type?: string } }).page?.type === "ntwine:key").length, 2)
+
+  // ⌘L is ntwine's way back to the editor, which the extension runs: never pressed in VS Code.
+  mac.pressed.length = 0
+  mac.dispatch({ source: mac.frameWindow, origin: NTWINE, data: key({ key: "l", code: "KeyL" }) })
+  assert.deepEqual(mac.pressed, [])
+  // …while Ctrl+L on a Mac is VS Code's to resolve, and Ctrl+L off one is ntwine's.
+  mac.dispatch({ source: mac.frameWindow, origin: NTWINE, data: key({ key: "l", code: "KeyL", ctrl: true, meta: false }) })
+  assert.equal(mac.pressed.length, 2)
+  const linux = relay(frameDocument({ nonce: "n", url: URL_, origin: NTWINE }))
+  linux.dispatch({ source: linux.frameWindow, origin: NTWINE, data: key({ key: "l", code: "KeyL", ctrl: true, meta: false }) })
+  assert.deepEqual(linux.pressed, [])
+
+  // Nothing pressed for a malformed chord, another origin, or another window.
+  linux.dispatch({ source: linux.frameWindow, origin: NTWINE, data: key({ ctrl: 1 }) })
+  linux.dispatch({ source: linux.frameWindow, origin: NTWINE, data: key({ code: "x".repeat(65) }) })
+  linux.dispatch({ source: linux.frameWindow, origin: "http://evil.example", data: key({ ctrl: true, meta: false }) })
+  linux.dispatch({ source: {}, origin: NTWINE, data: key({ ctrl: true, meta: false }) })
+  linux.dispatch({ source: linux.hostFrame, origin: WEBVIEW, data: key({ ctrl: true, meta: false }) })
+  assert.deepEqual(linux.pressed, [])
+  // A key code out of range is not trusted: the one the code names is used.
+  linux.dispatch({ source: linux.frameWindow, origin: NTWINE, data: key({ ctrl: true, meta: false, keyCode: 4096 }) })
+  assert.deepEqual(linux.pressed.map(({ keyCode }) => keyCode), [49, 49])
 })
 
 test("the relay posts the host's ntwine: messages to the page at ntwine's origin only, and keeps its own", () => {

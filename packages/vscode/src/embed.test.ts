@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { addRoute, chordCommand, composeInSidebar, type ComposeSidebar, embedTheme, embedUrl, frameTarget, isSlug, parsePageMessage, promptRoute, safeOrigin, threadEmbedUrl, threadOfHref, webUrl, type KeyChord } from "./embed.ts"
+import { addRoute, composeInSidebar, type ComposeSidebar, embedTheme, embedUrl, frameTarget, isSlug, KEY_CODES, ownChord, ownChordEvents, parsePageMessage, promptRoute, safeOrigin, threadEmbedUrl, threadOfHref, webUrl, type KeyChord } from "./embed.ts"
 
 test("VS Code's four theme kinds fold to the page's two", () => {
   // ColorThemeKind: Light 1, Dark 2, HighContrast 3, HighContrastLight 4.
@@ -64,6 +64,9 @@ test("every page message the contract names is taken, with only its own fields",
     meta: false,
     shift: true,
     alt: false,
+  })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:key", key: "1", code: "Digit1", keyCode: 49, ctrl: false, meta: true, shift: false, alt: false }), {
+    type: "ntwine:key", key: "1", code: "Digit1", keyCode: 49, ctrl: false, meta: true, shift: false, alt: false,
   })
   assert.deepEqual(parsePageMessage({ type: "ntwine:add-context", what: "selection", text: "x" }), { type: "ntwine:add-context", what: "selection" })
   assert.deepEqual(parsePageMessage({ type: "ntwine:add-context", what: "file", path: "/r/a.ts" }), { type: "ntwine:add-context", what: "file", path: "/r/a.ts" })
@@ -134,6 +137,8 @@ test("anything else from the page is nothing: unknown types, wrong shapes, other
     { type: "ntwine:open-external", url: "mailto:" },
     { type: "ntwine:key", key: "p", code: "KeyP", ctrl: true },
     { type: "ntwine:key", key: "p", code: "KeyP", ctrl: 1, meta: false, shift: false, alt: false },
+    { type: "ntwine:key", key: "p", code: "KeyP", keyCode: 80.5, ctrl: true, meta: false, shift: false, alt: false },
+    { type: "ntwine:key", key: "p", code: "KeyP", keyCode: "80", ctrl: true, meta: false, shift: false, alt: false },
     { type: "ntwine:add-context" },
     { type: "ntwine:add-context", what: "selection", path: "/r/a.ts" },
     { type: "ntwine:add-context", what: "file" },
@@ -168,35 +173,32 @@ test("anything else from the page is nothing: unknown types, wrong shapes, other
 
 const chord = (code: string, mods: Partial<Omit<KeyChord, "code">> = {}): KeyChord => ({ code, ctrl: false, meta: false, shift: false, alt: false, ...mods })
 
-test("a forwarded chord runs the command VS Code binds it to by default — Ctrl off a Mac, Cmd on one", () => {
-  assert.equal(chordCommand(chord("KeyP", { ctrl: true, shift: true }), false), "workbench.action.showCommands")
-  assert.equal(chordCommand(chord("KeyP", { meta: true, shift: true }), true), "workbench.action.showCommands")
-  assert.equal(chordCommand(chord("KeyP", { ctrl: true }), false), "workbench.action.quickOpen")
-  assert.equal(chordCommand(chord("KeyB", { meta: true }), true), "workbench.action.toggleSidebarVisibility")
-  assert.equal(chordCommand(chord("KeyJ", { ctrl: true }), false), "workbench.action.togglePanel")
-  // Cursor's ⌘L, pressed in the page: back to the editor the human came from.
-  assert.equal(chordCommand(chord("KeyL", { ctrl: true }), false), "workbench.action.focusActiveEditorGroup")
-  assert.equal(chordCommand(chord("KeyL", { meta: true }), true), "workbench.action.focusActiveEditorGroup")
-  assert.equal(chordCommand(chord("KeyL", { ctrl: true, shift: true }), false), undefined)
-  assert.equal(chordCommand(chord("Digit1", { ctrl: true }), false), "workbench.action.focusFirstEditorGroup")
-  assert.equal(chordCommand(chord("KeyE", { ctrl: true, shift: true }), false), "workbench.view.explorer")
-  // VS Code binds the terminal and source control to Ctrl on a Mac too.
-  assert.equal(chordCommand(chord("Backquote", { ctrl: true }), true), "workbench.action.terminal.toggleTerminal")
-  assert.equal(chordCommand(chord("KeyG", { ctrl: true, shift: true }), true), "workbench.view.scm")
+test("⌘L on a Mac and Ctrl+L elsewhere is ntwine's own chord, back to the editor; every other chord is VS Code's", () => {
+  assert.equal(ownChord(chord("KeyL", { meta: true }), true), "back-to-editor")
+  assert.equal(ownChord(chord("KeyL", { ctrl: true }), false), "back-to-editor")
+  const vscodes = [
+    [chord("KeyL", { ctrl: true }), true], // Ctrl on a Mac is not Cmd
+    [chord("KeyL", { meta: true }), false], // the Windows key off a Mac is not Ctrl
+    [chord("KeyL", { ctrl: true, shift: true }), false],
+    [chord("KeyL", { meta: true, alt: true }), true],
+    // What the allowlist this replaced got wrong: ⌘1 was "first editor group" whatever the human bound it to,
+    // and ⌘2, ⌘W, ⌥↓ went nowhere. All of them are VS Code's to resolve now.
+    [chord("Digit1", { meta: true }), true],
+    [chord("Digit2", { ctrl: true }), false],
+    [chord("KeyW", { meta: true }), true],
+    [chord("ArrowDown", { alt: true }), true],
+  ] as const
+  for (const [key, mac] of vscodes) assert.equal(ownChord(key, mac), undefined, JSON.stringify({ key, mac }))
+  // The relay is handed the same chord, in each platform's event form.
+  assert.deepEqual(ownChordEvents(true), [chord("KeyL", { meta: true })])
+  assert.deepEqual(ownChordEvents(false), [chord("KeyL", { ctrl: true })])
 })
 
-test("a chord the allowlist does not name, or with one modifier more or less, runs nothing", () => {
-  const none = [
-    [chord("KeyP", { ctrl: true, shift: true }), true], // Ctrl on a Mac is not Cmd
-    [chord("KeyP", { meta: true, shift: true }), false], // the Windows key off a Mac is not Ctrl
-    [chord("KeyP", { ctrl: true, shift: true, alt: true }), false],
-    [chord("KeyP", { ctrl: true, meta: true }), false],
-    [chord("KeyP"), false],
-    [chord("KeyW", { ctrl: true }), false], // closing an editor is not getting around
-    [chord("KeyC", { ctrl: true }), false],
-    [chord("Backquote", { meta: true }), true],
-  ] as const
-  for (const [key, mac] of none) assert.equal(chordCommand(key, mac), undefined, JSON.stringify({ key, mac }))
+test("the key codes a pressed chord carries for a page that sent none are the browser's, on a US layout", () => {
+  const codes = { KeyA: 65, KeyZ: 90, Digit0: 48, Digit9: 57, Numpad3: 99, F1: 112, F12: 123, F24: 135, ArrowUp: 38, ArrowDown: 40, Backquote: 192, BracketLeft: 219, Escape: 27 }
+  for (const [code, keyCode] of Object.entries(codes)) assert.equal(KEY_CODES[code], keyCode, code)
+  assert.equal(KEY_CODES.F25, undefined)
+  assert.equal(KEY_CODES.IntlBackslash, undefined)
 })
 
 test("Add to ntwine prompt goes to the sidebar whenever it is on and there is an ntwine to frame, opened or not", () => {

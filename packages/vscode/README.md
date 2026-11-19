@@ -98,7 +98,7 @@ command palette.
 | the sidebar, or a thread's tab | `Ctrl+L` / `⌘L` | back to the editor |
 | the sidebar's prompt box | `Ctrl+I` / `⌘I` | the editor's selection (or its file) into this box |
 | the sidebar | every shortcut the app's `?` sheet lists | what it does in the app |
-| the sidebar | `Ctrl+Shift+P`, `Ctrl+P`, `Ctrl+B`, `Ctrl+J`, ``Ctrl+` ``, `Ctrl+1`, `Ctrl+Shift+E/F/G/D/X` (`⌘` on macOS) | VS Code's own: palette, quick open, side bar, panel, terminal, back to the editor, the built-in views |
+| the sidebar, or a thread's tab | any other `Ctrl`/`⌘` or `Alt` chord, or a function key, that ntwine doesn't use | whatever you've bound it to in VS Code, `keybindings.json` included |
 
 ## Where the sidebar differs from ntwine in your browser
 
@@ -112,8 +112,10 @@ command palette.
 - **`Alt+K` in the editor is ntwine's**, with or without a selection — unless Claude Code's extension is
   installed, which binds the same chord; then it is Claude Code's, and the `?` sheet stops listing it.
   On macOS `⌥K` types `˚` in other apps; in the editor it adds to ntwine, as Claude Code's does.
-- **While the sidebar has focus, VS Code sees only the chords in the table above**; every other key goes
-  to ntwine, as in the browser. Copy, cut, paste, undo and select all stay the text box's.
+- **While the sidebar has focus, a chord ntwine uses is ntwine's** (`Ctrl+K`, `Ctrl+I`, `Ctrl+,`, any
+  you've rebound in the `?` sheet); every other `Ctrl`/`⌘` or `Alt` chord and function key goes to VS Code,
+  bound as you've bound it. Copy, cut, paste, undo and select all stay the text box's, and so does an
+  `Alt` chord that types a character (`⌥K` is `˚` on macOS, `AltGr` on Windows).
 - **The terminal's right-click menu**: on Windows a right-click in the terminal copies or pastes by
   default (`terminal.integrated.rightClickBehavior`); Shift+right-click opens the menu. Adding from the
   terminal borrows the clipboard for a moment and puts your text back: a clipboard holding an image

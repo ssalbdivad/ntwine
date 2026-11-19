@@ -333,8 +333,8 @@ export function registerSidebar(api: Vscode, context: vscode.ExtensionContext, h
   const link: FrameLink = {
     post: (message) => post(message),
     mac: () => mac,
-    runChord: async (command) => {
-      await api.commands.executeCommand(command)
+    backToEditor: async () => {
+      await api.commands.executeCommand("workbench.action.focusActiveEditorGroup")
     },
   }
 

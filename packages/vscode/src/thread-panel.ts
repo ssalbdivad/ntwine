@@ -302,12 +302,9 @@ export function registerThreadPanels(api: Vscode, context: vscode.ExtensionConte
     const link: FrameLink = {
       post: (message) => postTo(tab, message),
       mac: () => tab.mac,
-      // Ctrl+L / ⌘L in the page is "back to the editor" (embed.ts CHORDS). The sidebar runs it as "focus the
-      // active editor group"; from a tab, that group is the tab's own, and the keyboard would stay put.
-      runChord: async (command) => {
-        if (command === "workbench.action.focusActiveEditorGroup") await host.backToEditor()
-        else await api.commands.executeCommand(command)
-      },
+      // Ctrl+L / ⌘L in the page is "back to the editor" (embed.ts § key chords). The sidebar runs it as "focus
+      // the active editor group"; from a tab, that group is the tab's own, and the keyboard would stay put.
+      backToEditor: () => host.backToEditor(),
       composer: (input, ms) => tab.compose(input, ms),
     }
     const listeners: vscode.Disposable[] = [

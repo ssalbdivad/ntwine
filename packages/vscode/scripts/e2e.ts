@@ -229,6 +229,18 @@ try {
     "telemetry.telemetryLevel": "off",
     "git.enabled": false,
   }, null, 2))
+  // A human's own keybindings, as the sidebar must honour them from inside its frame (e2e/suite.ts, "a
+  // chord pressed in the page is the human's VS Code binding"): ⌘1 over VS Code's "first editor group", ⌘W
+  // over "close the editor", and chords VS Code binds nothing to. `e2e.keybinding` is the suite's own
+  // command, standing in for views this run has no extension for (GitHub's pull requests on ⌘3).
+  const primary = process.platform === "darwin" ? "cmd" : "ctrl"
+  writeFileSync(join(userData, "User", "keybindings.json"), `// a human's keybindings.json, comments and all\n${JSON.stringify([
+    { key: `${primary}+1`, command: "workbench.view.explorer" },
+    { key: `${primary}+3`, command: "e2e.keybinding", args: "workbench.view.extension.github-pull-requests" },
+    { key: `${primary}+w`, command: "e2e.keybinding", args: "workbench.action.terminal.toggleTerminal" },
+    { key: "alt+down", command: "e2e.keybinding", args: "workbench.action.nextSideBarView" },
+    { key: `${primary}+4`, command: "e2e.keybinding", args: "only in a text editor", when: "editorTextFocus" },
+  ], null, 2)}\n`)
 
   const pageClaims = stack ? true : process.env.NTWINE_E2E_PAGE_CLAIMS === "1"
   if (stack) {

@@ -156,7 +156,7 @@ test("actOnPage answers ntwine:read-clipboard with both text and image when pres
       return true
     },
     mac: () => true,
-    runChord: async () => {},
+    backToEditor: async () => {},
   }
   const api = {
     env: { clipboard: { readText: async () => "" } },

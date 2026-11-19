@@ -98,7 +98,7 @@ test("the title row's buttons are the app's own doors", () => {
 test("⌘L in the page goes back to the editor: forwarded to VS Code like its own chords, never taken here", () => {
   const key = (over: Partial<KeyboardEvent>) =>
     ({ key: "l", code: "KeyL", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, defaultPrevented: false, repeat: false, isComposing: false, ...over }) as KeyboardEvent
-  // The page forwards it (the extension maps it to "focus the editor": packages/vscode embed.ts CHORDS)…
+  // The page forwards it (the extension runs it as "back to the editor": packages/vscode embed.ts § key chords)…
   assert.deepEqual(hostKeyChord(key({})), { type: "ntwine:key", key: "l", code: "KeyL", ctrl: true, meta: false, shift: false, alt: false })
   assert.deepEqual(hostKeyChord(key({ ctrlKey: false, metaKey: true })), { type: "ntwine:key", key: "l", code: "KeyL", ctrl: false, meta: true, shift: false, alt: false })
   // …unless a box here took it first.
