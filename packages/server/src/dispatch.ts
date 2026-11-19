@@ -518,16 +518,16 @@ export const WORKER_DISPATCH_PERMISSION: Record<BackendKind, PermissionMode> = {
 
 // The permission mode a NEW worker of `kind` actually launches with, given the operator's Settings.
 //
-// Only ONE deviation from WORKER_DISPATCH_PERMISSION is honored: a Claude worker may be dispatched in
-// `bypassPermissions` (claude's `--dangerously-skip-permissions`) when Settings asks for it. That
-// direction is safe for a headless worker BECAUSE it is strictly more permissive than `auto` — nothing
-// can stall on an unanswerable prompt. The restrictive modes stay unreachable on purpose: `default`,
-// `acceptEdits` and `plan` are the softlock this function's floor exists to prevent, so a stored value
-// left over from an older build (Settings.permissionMode predates this control and accepts the whole
-// enum) coerces back to the floor rather than quietly wedging every dispatch. Codex has no equivalent
-// axis to raise — it already launches at danger-full-access.
+// Only ONE deviation from WORKER_DISPATCH_PERMISSION is honored: a Claude or ACP worker may be dispatched
+// in `bypassPermissions` (`--dangerously-skip-permissions`) when Settings asks for it. That direction is
+// safe for a headless worker BECAUSE it is strictly more permissive than `auto` — nothing can stall on an
+// unanswerable prompt. The restrictive modes stay unreachable on purpose: `default`, `acceptEdits` and
+// `plan` are the softlock this function's floor exists to prevent, so a stored value left over from an
+// older build (Settings.permissionMode predates this control and accepts the whole enum) coerces back to
+// the floor rather than quietly wedging every dispatch. Codex has no equivalent axis to raise — it
+// already launches at danger-full-access.
 export function workerDispatchPermission(kind: BackendKind, settings: Pick<Settings, "permissionMode">): PermissionMode {
-  if (kind === "claude" && settings.permissionMode === "bypassPermissions") return "bypassPermissions"
+  if ((kind === "claude" || kind === "acp") && settings.permissionMode === "bypassPermissions") return "bypassPermissions"
   return WORKER_DISPATCH_PERMISSION[kind]
 }
 
@@ -1275,7 +1275,7 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
         const firstPrompt = [loadWorkerPrompt("acp", workerCapabilities(deps.editors, workDir)), scratchpadOrientation(sessionId, kind, scratchPath), ntwineConfigBlock(deps.project.dir), deadlineBlock, prompt]
           .filter(Boolean).join("\n\n")
         try {
-          const spawned = await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: workDir, agentId, modelId: acpModelIdFromModel(model), effort, prompt: firstPrompt, userText: input.prompt })
+          const spawned = await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: workDir, agentId, modelId: acpModelIdFromModel(model), effort, permissionMode, prompt: firstPrompt, userText: input.prompt })
           deps.storage.upsertSession({
             slug,
             session_id: sessionId,

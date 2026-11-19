@@ -259,7 +259,7 @@ import { resolveThreadLink, threadLinkView } from "./thread-links.ts"
 import { humanMessageText, isHumanMessage, reactionExcerpt, reactionLine, threadReactionViews } from "./thread-reactions.ts"
 import { ghInstalled, ghAuthed, ghRepo, gitGithubRemote } from "./github.ts"
 import { createGithubHovercardService } from "./github-hovercard.ts"
-import { resolveLegacyThreadFile, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, ntwineConfigBlock, coldResumePermission, scratchDirRelPath, workerScratchPath } from "./dispatch.ts"
+import { resolveLegacyThreadFile, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, ntwineConfigBlock, coldResumePermission, workerDispatchPermission, scratchDirRelPath, workerScratchPath } from "./dispatch.ts"
 import { backgroundOpStoppable, claudeShellLabel, noticeClaudeShellStopped, stopBackgroundShell } from "./shell-stop.ts"
 import { liveShellBudget, SHELL_BUDGET_MAX_MS } from "./shell-budget.ts"
 import { readCodexModels } from "./backend/codex-models.ts"
@@ -2003,7 +2003,7 @@ export function createRouter(ctx: AppContext) {
         if (!bridge) throw new Error("The ACP bridge is unavailable; cannot deliver this follow-up")
         const result = await bridge.followUp({
           threadSlug: input.slug, sessionId: row.session_id, cwd: workDir,
-          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, acpSessionId: row.agent_session_id,
+          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, permissionMode: workerDispatchPermission("acp", ctx.getSettings()), acpSessionId: row.agent_session_id,
           text: messageForWorker, ...(input.deliveryId ? { deliveryId: input.deliveryId } : {}),
         })
         if (result.acpSessionId !== row.agent_session_id) ctx.storage.setAgentSession(input.slug, result.acpSessionId)

@@ -7,8 +7,8 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import Database from "../sqlite.ts"
 import { createInteractionStore, type InteractionStore } from "../interaction-store.ts"
-import { createAcpBridge, type AcpBridge } from "./acp-bridge.ts"
-import { daemonAcpHost, liveAcpDaemonRecord, liveAcpDaemonSessionIds, stopAcpDaemon, type AcpHost } from "./acp-host.ts"
+import { buildAcpPermissionInteraction, createAcpBridge, type AcpBridge } from "./acp-bridge.ts"
+import { daemonAcpHost, directAcpHost, liveAcpDaemonRecord, liveAcpDaemonSessionIds, stopAcpDaemon, type AcpHost } from "./acp-host.ts"
 import { spawnAcpChild } from "./acp-rpc.ts"
 import { processStartTime } from "../process-generation.ts"
 import { acpTranscriptPath, parseAcpRecord, projectAcpTranscript, type AcpRecord } from "./acp-transcript.ts"
@@ -23,7 +23,7 @@ const FAKE = fileURLToPath(new URL("./acp.fixtures/fake-acp-agent.mjs", import.m
 
 interface Rig { bridge: AcpBridge; stateDir: string; store: InteractionStore; status: number; diagnostics: string[] }
 
-function rig(mode = "", opts: { customCommand?: string; stateDir?: string; direct?: boolean; host?: AcpHost; agentLog?: string; ntwineCli?: NtwineCli; mountsMcp?: (slug: string) => boolean } = {}): Rig {
+function rig(mode = "", opts: { customCommand?: string; bypassArgs?: readonly string[]; stateDir?: string; direct?: boolean; host?: AcpHost; agentLog?: string; ntwineCli?: NtwineCli; mountsMcp?: (slug: string) => boolean } = {}): Rig {
   const stateDir = opts.stateDir ?? mkdtempSync(join(tmpdir(), "acp-bridge-"))
   const store = createInteractionStore(new Database(":memory:"))
   const r: Rig = { stateDir, store, status: 0, diagnostics: [], bridge: undefined as unknown as AcpBridge }
@@ -33,7 +33,7 @@ function rig(mode = "", opts: { customCommand?: string; stateDir?: string; direc
     interactions: store,
     env: { ...process.env, FAKE_ACP_MODE: mode, ...(opts.agentLog ? { FAKE_ACP_LOG: opts.agentLog } : {}) },
     // The fake is "installed" as an operator-configured agent whose command is node itself.
-    customAgents: () => [{ id: "fake", label: "Fake agent", command: opts.customCommand ?? process.execPath, args: opts.customCommand ? [] : [FAKE] }],
+    customAgents: () => [{ id: "fake", label: "Fake agent", command: opts.customCommand ?? process.execPath, args: opts.customCommand ? [] : [FAKE], ...(opts.bypassArgs ? { bypassArgs: opts.bypassArgs } : {}) }],
     ntwineMcp: { scriptPath: "/opt/ntwine/ntwine-mcp.mjs", stateDir: "/opt/state", projectId: "proj-1" },
     ...(opts.ntwineCli ? { ntwineCli: opts.ntwineCli } : {}),
     ...(opts.mountsMcp ? { mountsMcp: opts.mountsMcp } : {}),
@@ -366,6 +366,57 @@ test("acp-bridge: a session opens in the agent's auto mode, through whichever sh
   assert.deepEqual(await modeFrames("modes-config"), ["mode=auto", "prompt"], "agy's shape: a mode-category config option, set before the first prompt")
   assert.deepEqual(await modeFrames("modes-legacy"), ["set_mode auto", "prompt"], "the older `modes` field goes through session/set_mode")
   assert.deepEqual(await modeFrames(""), ["prompt"], "an agent with no auto mode is sent nothing")
+})
+
+test("acp-bridge: bypassPermissions appends bypassArgs and skips mode=auto; auto omits bypassArgs and switches to auto", async () => {
+  const runCase = async (permissionMode: "bypassPermissions" | "auto", bypassArgs?: readonly string[]) => {
+    const agentLog = join(mkdtempSync(join(tmpdir(), "acp-bypass-")), "agent.jsonl")
+    let spawnedArgs: string[] = []
+    const recordingHost: AcpHost = (opts) => {
+      spawnedArgs = [...opts.args]
+      // Strip the synthetic flag before running node on FAKE so node doesn't reject it as a node flag.
+      const nodeArgs = opts.args.filter((a) => a !== "--dangerously-skip-permissions")
+      return directAcpHost(spawnAcpChild)({ ...opts, args: nodeArgs })
+    }
+    const r = rig("modes-config", { agentLog, bypassArgs, host: recordingHost })
+    try {
+      await r.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", permissionMode, prompt: "hi", userText: "hi" })
+      await untilIdle(r, "s1")
+    } finally { await teardown(r) }
+    const frames = readFileSync(agentLog, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line) as { method?: string; params?: Record<string, unknown> })
+      .filter((frame) => frame.method === "session/set_mode" || frame.method === "session/set_config_option" || frame.method === "session/prompt")
+      .map((frame) => frame.method === "session/prompt" ? "prompt" : frame.method === "session/set_mode" ? `set_mode ${frame.params?.modeId}` : `${frame.params?.configId}=${frame.params?.value}`)
+    return { spawnedArgs, frames }
+  }
+  const bypassed = await runCase("bypassPermissions", ["--dangerously-skip-permissions"])
+  assert.ok(bypassed.spawnedArgs.includes("--dangerously-skip-permissions"), "bypassPermissions appends bypassArgs to the agent argv")
+  assert.deepEqual(bypassed.frames, ["prompt"], "bypassed daemon is not downgraded to mode=auto")
+
+  const auto = await runCase("auto", ["--dangerously-skip-permissions"])
+  assert.ok(!auto.spawnedArgs.includes("--dangerously-skip-permissions"), "auto mode omits bypassArgs")
+  assert.deepEqual(auto.frames, ["mode=auto", "prompt"], "auto mode switches the session to mode=auto")
+
+  const fallback = await runCase("bypassPermissions", undefined)
+  assert.deepEqual(fallback.frames, ["mode=auto", "prompt"], "an agent without bypassArgs still falls back to mode=auto")
+})
+
+test("acp-bridge: buildAcpPermissionInteraction recognizes agy's CommandLine rawInput as a command-approval", () => {
+  const built = buildAcpPermissionInteraction(
+    {
+      sessionId: "acp_1",
+      toolCall: { toolCallId: "tc_1", kind: "execute", title: "pnpm run vscode:install", rawInput: { CommandLine: "pnpm run vscode:install", BypassSandbox: true } },
+      options: [
+        { optionId: "allow", name: "Allow", kind: "allow_once" },
+        { optionId: "deny", name: "Deny", kind: "reject_once" },
+      ],
+    },
+    { projectId: "proj-1", threadSlug: "t1", sessionId: "s1", cwd: "/repo" },
+    { id: "antigravity", label: "Antigravity CLI" },
+  )
+  assert.ok(built)
+  assert.equal(built.request.payload.kind, "command-approval")
+  assert.equal(built.request.payload.command.summary, "pnpm run vscode:install")
+  assert.ok(!built.request.payload.command.preview.includes("CommandLine:"), "CommandLine is not duplicated in preview")
 })
 
 test("acp-bridge: agentModels reads the advertised list through a throwaway session and caches it", async () => {

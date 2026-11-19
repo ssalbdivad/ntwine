@@ -13,12 +13,16 @@ import { ACP_MODEL_PREFIX, acpAgentIdFromModel, acpModelSlug } from "@ntwine/sha
 // family with them. Anything else rides `settings.acpAgents`, the same shape, and wins on id collision.
 
 export interface AcpAgentSpec {
-  /** Stable id, used as the thread's `acp_agent` column and the composer's `acp:<id>` model slug. */
+  /** Stable id, used as the thread's `acp_agent` column and the composer's `acp:<agent>` model slug. */
   id: string
   label: string
   /** Executable name (looked up on PATH) or an absolute path. */
   command: string
   args: string[]
+  /** Extra CLI flags appended when the thread runs in `bypassPermissions`, paralleling Claude's
+   *  `--dangerously-skip-permissions`. Absent for agents with no verified bypass flag (those fall back
+   *  to switching into their advertised `auto` mode). */
+  bypassArgs?: readonly string[]
 }
 
 export const ACP_AGENT_CATALOGUE: readonly AcpAgentSpec[] = [
@@ -27,7 +31,7 @@ export const ACP_AGENT_CATALOGUE: readonly AcpAgentSpec[] = [
   // Antigravity CLI replaced Gemini CLI (retired 2026-06-18) as Google's terminal agent; `agy acp` is its
   // native ACP server since 1.5.0 (2026-11-04), and it is how ntwine runs Gemini 4 models (Neon …).
   // `brew install --cask antigravity-cli` or https://antigravity.google/cli/install.sh, then `agy` once to sign in.
-  { id: "antigravity", label: "Antigravity CLI", command: "agy", args: ["acp"] },
+  { id: "antigravity", label: "Antigravity CLI", command: "agy", args: ["acp"], bypassArgs: ["--dangerously-skip-permissions"] },
   { id: "copilot", label: "GitHub Copilot CLI", command: "copilot", args: ["--acp"] },
   { id: "kilo", label: "Kilo", command: "kilo", args: ["acp"] },
   { id: "qwen", label: "Qwen Code", command: "qwen", args: ["--acp"] },
@@ -78,7 +82,7 @@ export function findOnPath(command: string, env: NodeJS.ProcessEnv = process.env
 export function acpAgentSpecs(custom: readonly AcpAgentInput[] | undefined): AcpAgentSpec[] {
   const byId = new Map<string, AcpAgentSpec>()
   for (const spec of ACP_AGENT_CATALOGUE) byId.set(spec.id, spec)
-  for (const spec of custom ?? []) if (spec.id && spec.command) byId.set(spec.id, { ...spec, args: [...(spec.args ?? [])] })
+  for (const spec of custom ?? []) if (spec.id && spec.command) byId.set(spec.id, { ...spec, args: [...(spec.args ?? [])], ...(spec.bypassArgs ? { bypassArgs: [...spec.bypassArgs] } : {}) })
   return [...byId.values()]
 }
 

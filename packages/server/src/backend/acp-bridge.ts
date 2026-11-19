@@ -14,7 +14,7 @@ import {
 } from "./acp-types.ts"
 import { NTWINE_MCP, ntwineCliEnv, ntwineMcpEnv, withNtwineCliOnPath, type NtwineCli, type NtwineMcp } from "./types.ts"
 import { inheritWorkerEnvironment } from "./worker-env.ts"
-import { acpModelPreset, acpModelSlug, type AcpAgentModels } from "@ntwine/shared"
+import { acpModelPreset, acpModelSlug, type AcpAgentModels, type PermissionMode } from "@ntwine/shared"
 
 // The ACP backend's bridge: one live agent child per thread, driven over acp-rpc.ts, writing the
 // thread's transcript through acp-transcript.ts. It is the third of three transports and deliberately
@@ -79,6 +79,9 @@ export interface AcpSpawnDispatchInput {
   modelId?: string | null
   /** The thread's reasoning effort, set through the agent's effort option; nothing leaves the agent's own. */
   effort?: string | null
+  /** Launch permission mode: `bypassPermissions` appends the agent's `bypassArgs` (e.g. agy's
+   *  `--dangerously-skip-permissions`), otherwise the session switches to the agent's `auto` mode. */
+  permissionMode?: PermissionMode
   /** The full first prompt: worker contract, orientation, then the task. */
   prompt: string
   /** What the human actually wrote — the transcript records this, not the contract. */
@@ -98,6 +101,7 @@ export interface AcpFollowUpInput {
   agentId: string
   modelId?: string | null
   effort?: string | null
+  permissionMode?: PermissionMode
   /** The ACP session id pinned on the row, for a resume after a restart. */
   acpSessionId?: string | null
   text: string
@@ -245,7 +249,7 @@ export function buildAcpPermissionInteraction(
 ): { request: InteractionRequestType; optionByDecision: Map<string, string> } | null {
   const tc = params.toolCall
   const input = tc.rawInput && typeof tc.rawInput === "object" ? tc.rawInput as Record<string, unknown> : undefined
-  const command = typeof input?.command === "string" ? input.command : ""
+  const command = typeof input?.command === "string" ? input.command : typeof input?.CommandLine === "string" ? input.CommandLine : ""
   const isCommand = tc.kind === "execute" && command !== ""
   const isFile = (tc.kind === "edit" || tc.kind === "delete" || tc.kind === "move") && (tc.locations?.[0]?.path || typeof input?.filePath === "string" || typeof input?.path === "string")
   const payloadKind = isCommand ? "command-approval" : isFile ? "file-approval" : "permission-approval"
@@ -268,7 +272,7 @@ export function buildAcpPermissionInteraction(
   }
   if (!allowedDecisions.some((d) => d.semantic === "deny")) return null // nothing safe to press
   const title = clip(tc.title ?? (isCommand ? "Run a command?" : "Approve a tool call?"), 150)
-  const previewLines = [command || "", ...Object.entries(input ?? {}).filter(([k, v]) => k !== "command" && v !== "" && v !== null).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)].filter(Boolean)
+  const previewLines = [command || "", ...Object.entries(input ?? {}).filter(([k, v]) => k !== "command" && k !== "CommandLine" && v !== "" && v !== null).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)].filter(Boolean)
   const preview = clip(redactCredentialSyntax(previewLines.join("\n\n")), 6_000)
   const pathLabel = clip(tc.locations?.[0]?.path ?? (typeof input?.filePath === "string" ? input.filePath : typeof input?.path === "string" ? input.path : ""), 1_000)
   const base = {
@@ -340,16 +344,18 @@ export class AcpBridge {
     return this.options.host ?? (this.options.spawn ? directAcpHost(this.options.spawn) : daemonAcpHost)
   }
 
-  private async open(input: { threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; effort?: string | null; acpSessionId?: string | null }): Promise<{ live: LiveSession; resumed: "loaded" | "fresh" | "reattached" }> {
+  private async open(input: { threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; effort?: string | null; permissionMode?: PermissionMode; acpSessionId?: string | null }): Promise<{ live: LiveSession; resumed: "loaded" | "fresh" | "reattached" }> {
     const { threadSlug: slug, sessionId, cwd } = input
     const agent = this.resolveAgent(input.agentId)
+    const bypass = input.permissionMode === "bypassPermissions" && (agent.bypassArgs?.length ?? 0) > 0
+    const spawnArgs = bypass ? [...agent.args, ...agent.bypassArgs!] : agent.args
     // An ACP agent is one detached daemon PER THREAD (acp-host.ts), so its environment can say who is
     // calling — which is all `ntwinectl`, run from the agent's own shell, needs. Applied when the daemon
     // is forked; one that survived an ntwine restart keeps the environment it was born with.
     const cli = this.options.ntwineCli
     const inherited = inheritWorkerEnvironment(this.options.env ?? process.env)
     const env = cli ? withNtwineCliOnPath({ ...inherited, ...ntwineCliEnv(cli, slug) }, cli) : inherited
-    const attachment = await this.host()({ stateDir: this.options.stateDir, threadSlug: slug, sessionId, command: agent.bin!, args: agent.args, cwd, env })
+    const attachment = await this.host()({ stateDir: this.options.stateDir, threadSlug: slug, sessionId, command: agent.bin!, args: spawnArgs, cwd, env })
     const proc = attachment.process
     const writer = new AcpTranscriptWriter(acpTranscriptPath(this.options.stateDir, sessionId))
     let live: LiveSession | undefined
@@ -457,7 +463,9 @@ export class AcpBridge {
     if (modelProblem && acpModelPreset(acpModelSlug(agent.id, input.modelId))) return fail(new Error(modelProblem))
     // The effort after the model: the agent's effort option, and the levels in it, belong to the model.
     const effortProblem = await this.applyEffort(live, input.effort)
-    if (modeSwitch) await this.applyWorkerMode(live, modeSwitch)
+    // When the daemon launched with `bypassArgs` (e.g. agy's `--dangerously-skip-permissions`), do NOT
+    // switch the session mode to `auto` — that would re-enable the agent's classifier over the bypass.
+    if (!bypass && modeSwitch) await this.applyWorkerMode(live, modeSwitch)
     if (resumed === "fresh") {
       writer.append({ kind: "acp-session", at: this.now(), agent: { id: agent.id, ...(init.agentInfo?.name ? { name: init.agentInfo.name } : {}), ...(init.agentInfo?.version ? { version: init.agentInfo.version } : {}) }, acpSessionId: live.acpSessionId, cwd, ...(live.model ? { model: live.model } : {}) })
       if (input.acpSessionId) writer.append({ kind: "acp-note", at: this.now(), text: `Resumed with a fresh ${agent.label} session: the previous one (${input.acpSessionId}) could not be loaded, so the agent no longer has the earlier conversation.` })
@@ -692,7 +700,7 @@ export class AcpBridge {
   /** Boot-time reattach: every session in `rows` whose daemon is still running is re-opened NOW, so a
    *  turn that survived the restart is live on the board (and its in-flight prompt adopted) before the
    *  next input rather than after it. Fire-and-forget per row: one agent's trouble never blocks a boot. */
-  async warmUp(rows: ReadonlyArray<{ threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; effort?: string | null; acpSessionId?: string | null }>): Promise<void> {
+  async warmUp(rows: ReadonlyArray<{ threadSlug: string; sessionId: string; cwd: string; agentId: string; modelId?: string | null; effort?: string | null; permissionMode?: PermissionMode; acpSessionId?: string | null }>): Promise<void> {
     for (const row of rows) {
       if (this.closed) return
       if (!liveAcpDaemonRecord(this.options.stateDir, row.sessionId)) continue

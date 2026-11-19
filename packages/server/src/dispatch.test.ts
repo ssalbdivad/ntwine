@@ -540,6 +540,15 @@ test("workerDispatchPermission: a restrictive stored mode can never reach a Clau
   }
 })
 
+test("workerDispatchPermission: ACP parallels Claude (auto floor unless Settings asks to bypass)", () => {
+  assert.equal(workerDispatchPermission("acp", { permissionMode: "auto" }), "auto")
+  assert.equal(workerDispatchPermission("acp", { permissionMode: "bypassPermissions" }), "bypassPermissions")
+  assert.equal(WORKER_DISPATCH_PERMISSION.acp, "auto")
+  for (const mode of ["default", "acceptEdits", "plan"] as const) {
+    assert.equal(workerDispatchPermission("acp", { permissionMode: mode }), "auto")
+  }
+})
+
 test("workerDispatchPermission: codex ignores the Claude setting and stays at full access", () => {
   // Codex has no permission-mode axis to raise — it already dispatches at danger-full-access, and the
   // Settings control is Claude-only, so neither value may move it.

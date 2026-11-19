@@ -47,7 +47,7 @@ import { readTranscriptYielding } from "./transcript.ts"
 import { createTailer, defaultLogDir, type Tailer } from "./tailer.ts"
 import { backgroundShellStoppable, stopBackgroundShell } from "./shell-stop.ts"
 import type { WorkerCapabilities } from "./workerPrompt.ts"
-import { createDispatcher, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, ntwineConfigBlock, claudeCliConfig, codexWorkerThreadConfig, resolveNtwineCli, resolveNtwineMcp, workerPluginDir, coldResumePermission, workerScratchPath, type Dispatcher, type NtwineMcpTarget } from "./dispatch.ts"
+import { createDispatcher, loadWorkerPrompt, workerCapabilities, scratchpadOrientation, ntwineConfigBlock, claudeCliConfig, codexWorkerThreadConfig, resolveNtwineCli, resolveNtwineMcp, workerPluginDir, coldResumePermission, workerDispatchPermission, workerScratchPath, type Dispatcher, type NtwineMcpTarget } from "./dispatch.ts"
 import { deadlineSection } from "./deadline.ts"
 import { createScheduler, type Scheduler, probeIssueReadable, probePrReadable, type PrRef, type PrProbe } from "./scheduler.ts"
 import {
@@ -868,7 +868,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   void acpBridge.warmUp(
     storage.allSessions()
       .filter((row) => row.backend === "acp" && row.state !== "archived" && row.archived !== 1)
-      .map((row) => ({ threadSlug: row.slug, sessionId: row.session_id, cwd: workDirOf(project), agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, acpSessionId: row.agent_session_id })),
+      .map((row) => ({ threadSlug: row.slug, sessionId: row.session_id, cwd: workDirOf(project), agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, permissionMode: workerDispatchPermission("acp", getSettings(storage, home)), acpSessionId: row.agent_session_id })),
   )
 
   // The consumer for the broker's structured event stream. Until this existed the bridge forwarded
@@ -1380,7 +1380,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
       if (row?.backend === "acp") {
         return acpBridge.followUp({
           threadSlug: slug, sessionId: row.session_id, cwd: workDirOf(project),
-          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, acpSessionId: row.agent_session_id, text: deliveryMessage, deliveryId,
+          agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, permissionMode: workerDispatchPermission("acp", getSettings(storage, home)), acpSessionId: row.agent_session_id, text: deliveryMessage, deliveryId,
         }).then((r) => {
           if (r.acpSessionId !== row.agent_session_id) storage.setAgentSession(slug, r.acpSessionId)
           if (row.exited === 1) storage.setExitedIfCurrent(slug, row.session_id, row.runtime_generation ?? 0, false)
