@@ -2609,7 +2609,7 @@ function signoffNudgeText(needsInput: boolean): string {
   "  followed cold: a real Markdown link to every page and file it names, every command in a code span,",
   "  every value the act needs written in. ntwine reads them verbatim. Steps name the USER as the wait,",
   "  so the fence needs no other name and no `for:`, and the thread goes into their queue. Their Done",
-  "  comes back to you as their reply; anything else they need to say comes as a message of their own.",
+  "  comes back to you as a `<steps-done>` message; anything else they need to say comes as a message of their own.",
   "",
   "**STILL OWED counts things you are not going to do yourself.** A decision you are RECOMMENDING, a",
   "draft you wrote but did not send, follow-up work you discovered — all of it dies with the card, even",
@@ -2740,19 +2740,55 @@ export function parseSpinoffRequest(text: string): { id: string; instructions: s
 // the human's one-line marker rather than a bubble of agent-facing instructions (server transcript.ts
 // userProjection, acp-transcript.ts, and the browser's own read of an optimistic or held send). The body
 // is the instruction. The parser accepts any body, so a later rewording still renders old transcripts.
-export const KEEP_WORKING_MESSAGE = [
-  "<keep-working>",
+export const KEEP_WORKING_MESSAGE = cardActionMessage(
+  "keep-working",
   "I've seen your update and need nothing from you right now. Re-park on what is still running, with nothing under the fence. If none of it is still running, carry on.",
-  "</keep-working>",
-].join("\n")
-
-const KEEP_WORKING = /^<keep-working>\n[\s\S]*?\n<\/keep-working>\s*$/
+)
 
 /** Is this user turn the resting card's Keep working? Anchored at both ends, so a human who pastes the
  *  envelope inside a message of their own is still just talking. */
 export function isKeepWorkingMessage(text: string): boolean {
-  return KEEP_WORKING.test(text.trimStart())
+  return parseCardAction(text) === "keep-working"
 }
+
+// CARD ACTIONS — every message a BUTTON sends on the human's behalf: the resting card's Continue (Keep
+// working, above), the steps card's Done, the Retry / Continue now that restarts a stalled or failed
+// thread, and Restart worker. Each is the human's turn, but none is words they typed, so the chat draws
+// it as their one-line marker — a glyph and fixed wording on their side of the conversation, the way
+// "Asked for an update" is drawn — never as a bubble reading "Done" (maintainer 2026-11-18: every action
+// a button triggers gets "a dedicated ui element … and not just a message like 'Done'").
+//
+// Same envelope rule as Keep working, which was the first of them: the tag is what every projection reads
+// (server transcript.ts userProjection, delivery-ledger.ts, acp-transcript.ts, and the browser's read of
+// an optimistic send), and it rides in the text because the provider's transcript is the record — a
+// delivery-side flag would not survive a reload from it. The body is what the worker reads. The parser
+// accepts any body, so rewording one still draws old transcripts. A plain "Done" written before
+// 2026-11-18 stays a bubble: nothing distinguishes it from a typed one.
+export const CARD_ACTIONS = ["keep-working", "steps-done", "retry", "restart-worker"] as const
+export type CardAction = (typeof CARD_ACTIONS)[number]
+
+export function cardActionMessage(kind: CardAction, body: string): string {
+  return `<${kind}>\n${body}\n</${kind}>`
+}
+
+const CARD_ACTION = new RegExp(`^<(${CARD_ACTIONS.join("|")})>\\n[\\s\\S]*?\\n<\\/\\1>\\s*$`)
+
+/** Which button sent this user turn, if one did. Anchored at both ends, like Keep working's. */
+export function parseCardAction(text: string): CardAction | undefined {
+  return CARD_ACTION.exec(text.trimStart())?.[1] as CardAction | undefined
+}
+
+/** The steps card's Done: the human did what the steps asked. */
+export const STEPS_DONE_MESSAGE = cardActionMessage("steps-done", "Done — I've finished the steps you listed.")
+
+/** Retry / Continue now on a thread whose turn stalled, failed or hit a limit. */
+export const RETRY_MESSAGE = cardActionMessage("retry", "Continue exactly where you left off.")
+
+/** Restart worker: the thread continues in a freshly started process (web lib/restartWorker.ts says why). */
+export const RESTART_WORKER_MESSAGE = cardActionMessage(
+  "restart-worker",
+  "Your worker process was restarted so it picks up ntwine's current tooling (hooks and worker contract). Re-read whatever you left in your scratch directory, then continue exactly where you left off.",
+)
 
 /** The new thread's first prompt when it does not fork the parent: the human's words and where they came
  *  from, then the context ntwine assembled from the parent (spinoffContext). Written by the SERVER, so the
@@ -8503,6 +8539,11 @@ export const TranscriptMessage = z.object({
   // the worker, so the chat draws a one-line marker instead of their bubble, and the readers that look for
   // what the human last ASKED skip it the way they skip a spinoff request. Additive + optional.
   keepWorking: z.literal(true).optional(),
+  // A CARD ACTION (parseCardAction): a message a button sent for the human — Done, Retry, Restart worker,
+  // Continue. The chat draws a one-line marker instead of their bubble. A Keep working carries both this
+  // and `keepWorking`, which alone keeps it out of the readers looking for the human's last turn; the
+  // rest stay human turns, since the reply under them answers the click. Additive + optional.
+  cardAction: z.enum(CARD_ACTIONS).optional(),
 })
 export type TranscriptMessage = z.infer<typeof TranscriptMessage>
 

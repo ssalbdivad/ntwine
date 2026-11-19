@@ -54,10 +54,10 @@ export const AWAITING_NO_PROSE = "Waiting for an external update."
  *  words. */
 export const STEPS_CHIP = "Awaiting human"
 
-/** The steps card's one verb, and EXACTLY the message it sends — an ordinary reply from the human, the
- *  same thing typing the word would send. Nothing marks it as ntwine's, because nothing about it is: the
- *  worker reads it as the human's own answer to the steps it just posted, and the transcript draws it as
- *  their bubble. Anything more the human has to say goes through the prompt box. */
+/** The steps card's one verb. The click sends shared STEPS_DONE_MESSAGE, which the transcript draws as the
+ *  human's one-line marker rather than a bubble reading "Done" (lib/cardActions.ts; until 2026-11-18 it
+ *  sent exactly this word, indistinguishable from a typed one). Anything more the human has to say goes
+ *  through the prompt box. */
 export const STEPS_DONE = "Done"
 
 /** The PRs this fence is parked on, in fence order, deduped — clickable, because the fence line is the

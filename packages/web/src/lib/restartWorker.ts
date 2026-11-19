@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query"
+import { RESTART_WORKER_MESSAGE } from "@ntwine/shared"
 import { showToast } from "../store.ts"
 import { sendEagerFollowUp } from "./eagerComposerSubmission.ts"
 
@@ -19,8 +20,8 @@ import { sendEagerFollowUp } from "./eagerComposerSubmission.ts"
 // Delivering a message is the point rather than an afterthought. Retiring the daemon alone would leave
 // the operator staring at a card where nothing visibly happened until the thread's next natural wake;
 // carrying a continuation makes the restart the observable act it reads as.
-export const RESTART_WORKER_MESSAGE =
-  "Your worker process was restarted so it picks up ntwine's current tooling (hooks and worker contract). Re-read whatever you left in your scratch directory, then continue exactly where you left off."
+// The message is shared RESTART_WORKER_MESSAGE: a card action, drawn in the transcript as the human's
+// "Restarted the agent" marker (lib/cardActions.ts).
 
 // Live sub-agents do NOT gate this verb. A restart does kill the parent's in-memory children, and for a
 // while that reasoning disabled the button whenever any of them was running — but the operator reaching

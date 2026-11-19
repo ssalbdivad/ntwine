@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { KEEP_WORKING_MESSAGE, type TranscriptMessage } from "@ntwine/shared"
+import { KEEP_WORKING_MESSAGE, RETRY_MESSAGE, STEPS_DONE_MESSAGE, type TranscriptMessage } from "@ntwine/shared"
 import { parseTranscript } from "./transcript.ts"
 import { projectAcpTranscript } from "./backend/acp-transcript.ts"
 import { projectDeliveryLedger } from "./delivery-ledger.ts"
@@ -57,4 +57,17 @@ test("the queue card quotes the ask before a Keep working, over the handoff that
   ])
   assert.equal(handoff.asked, "Add the login flow")
   assert.equal(handoff.text, "**Done** — the e2e suite is green.")
+})
+
+// Every other button's send (shared parseCardAction) rides the same projection, and unlike Keep working it
+// IS the human's turn: the reply under a Done answers the Done, so the queue card opens at it and draws it
+// as the marker (web CardActionMarker) off the envelope it quotes.
+test("a steps Done or a Retry is tagged as its card action and quoted as the human's turn", () => {
+  const users = parseTranscript([userRecord("Publish it"), assistantText("Approve the npm sign-in."), userRecord(STEPS_DONE_MESSAGE), assistantText("Published."), userRecord(RETRY_MESSAGE)].join("\n")).filter((m) => m.role === "user")
+  assert.deepEqual(users.map((m) => [m.cardAction, m.keepWorking]), [[undefined, undefined], ["steps-done", undefined], ["retry", undefined]])
+  const keep = parseTranscript(userRecord(KEEP_WORKING_MESSAGE)).find((m) => m.role === "user")!
+  assert.deepEqual([keep.cardAction, keep.keepWorking], ["keep-working", true])
+  const msg = (role: "user" | "assistant", text: string, extra: Partial<TranscriptMessage> = {}) => ({ role, text, tools: [], parts: [], at: AT, ...extra }) as TranscriptMessage
+  const handoff = handoffOf([msg("user", "Publish it"), msg("assistant", "Approve the npm sign-in."), msg("user", STEPS_DONE_MESSAGE, { cardAction: "steps-done" }), msg("assistant", "**Fixed** — published.")])
+  assert.equal(handoff.asked, STEPS_DONE_MESSAGE)
 })

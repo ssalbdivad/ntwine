@@ -1,4 +1,4 @@
-import { isKeepWorkingMessage, stripFollowUpRiders, stripWakeDeliveryToken, type TranscriptMessage } from "@ntwine/shared"
+import { parseCardAction, stripFollowUpRiders, stripWakeDeliveryToken, type TranscriptMessage } from "@ntwine/shared"
 import type { Storage } from "./storage.ts"
 import { decodeDeliveryMarkers, deliveryTag, stripDeliveryMarkers } from "./delivery-marker.ts"
 
@@ -1133,9 +1133,16 @@ export function projectDeliveryLedger(messages: TranscriptMessage[], items: Deli
       deliveryId: item.id,
       deliveryState: item.state,
       ...(item.state === "failed" && item.error ? { deliveryError: item.error } : {}),
-      // The human's Keep working, tagged as transcript.ts userProjection tags the record it becomes.
-      ...(isKeepWorkingMessage(item.text) ? { keepWorking: true as const } : {}),
+      // A button's send (Continue, Done, Retry…), tagged as transcript.ts userProjection tags the record it becomes.
+      ...cardActionTags(item.text),
     })
   }
   return messages
+}
+
+/** A card action's transcript tags (shared parseCardAction), as transcript.ts userProjection sets them. */
+function cardActionTags(text: string): Pick<TranscriptMessage, "cardAction" | "keepWorking"> {
+  const cardAction = parseCardAction(text)
+  if (!cardAction) return {}
+  return { cardAction, ...(cardAction === "keep-working" ? { keepWorking: true as const } : {}) }
 }

@@ -31,7 +31,8 @@ import {
   type TranscriptTodo,
   type TranscriptToolCall,
   parseSpinoffRequest,
-  isKeepWorkingMessage,
+  parseCardAction,
+  type CardAction,
   parseSpinoffChildPrompt,
   moveLogOf,
 } from "@ntwine/shared"
@@ -261,7 +262,7 @@ function sessionPeerOf(session: { name?: string; socket?: string }): NonNullable
 // Both derive from the same raw record, and every site that pushes a user message needs both — keeping
 // them in one helper is what stops a new push site from shipping the display projection while silently
 // dropping the wake flag (which would put a scheduler steer back in the human's own bubble).
-function userProjection(text: string, first: boolean): { displayText?: string; spinoff?: { id: string; instructions: string }; spinoffOrigin?: { instructions: string; brief: string }; keepWorking?: true; wake?: true; wakeSteer?: GithubWakeSteer; peerFrom?: string; peerUnnamed?: true; sessionPeer?: TranscriptMessage["sessionPeer"] } {
+function userProjection(text: string, first: boolean): { displayText?: string; spinoff?: { id: string; instructions: string }; spinoffOrigin?: { instructions: string; brief: string }; keepWorking?: true; cardAction?: CardAction; wake?: true; wakeSteer?: GithubWakeSteer; peerFrom?: string; peerUnnamed?: true; sessionPeer?: TranscriptMessage["sessionPeer"] } {
   // A SIDEWAYS message — another top-level session's SendMessage into this one — is settled first for
   // the same reason as the upward one below: none of it is the human's, and its wrapper is not prose.
   const session = parseCrossSessionMessage(text)
@@ -274,9 +275,11 @@ function userProjection(text: string, first: boolean): { displayText?: string; s
   const peer = parseAgentMessage(text)
   if (peer) return { displayText: peer.body, peerFrom: peer.from }
   const displayText = userDisplayText(text, first)
-  // THE HUMAN'S KEEP WORKING (shared KEEP_WORKING_MESSAGE): their send, but worded for the worker, so the
-  // chat draws it as their one-line marker rather than a bubble of instructions.
-  if (isKeepWorkingMessage(displayText ?? text)) return { ...(displayText ? { displayText } : {}), keepWorking: true }
+  // A CARD ACTION (shared parseCardAction) — Continue, Done, Retry, Restart worker: the human's send, but
+  // a button's, worded for the worker, so the chat draws it as their one-line marker rather than a bubble.
+  // Keep working also keeps its own flag, which the human-turn readers skip.
+  const cardAction = parseCardAction(displayText ?? text)
+  if (cardAction) return { ...(displayText ? { displayText } : {}), cardAction, ...(cardAction === "keep-working" ? { keepWorking: true as const } : {}) }
   // A SPINOFF REQUEST an older build delivered to the parent's worker (parseSpinoffRequest). It is the
   // human's (they asked for it), but its text was ntwine's errand for the worker, so the chat draws the
   // human's instructions as the same spinoff card a request drawn from its row gets (withSpinoffCards).

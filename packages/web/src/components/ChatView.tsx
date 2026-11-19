@@ -133,8 +133,8 @@ import { CodexDirectiveCard, MermaidDiagram } from "./CodexRichOutput.tsx"
 import { LightboxGallery } from "./Lightbox.tsx"
 import { META_CARD_STEP, PICTURE_STEP, STEP, TIME_BREAK_ABOVE, TIME_BREAK_BELOW, USER_TAIL_EXTRA, VSpace } from "./rhythm.tsx"
 import { SpinoffButton, SpinoffCard, SpinoffOf, SpinoffOriginCard } from "./Spinoff.tsx"
-import { KeepWorkingMarker } from "./KeepWorking.tsx"
-import { drawsKeepWorkingMarker, KEEP_WORKING_LABEL } from "../lib/keepWorking.ts"
+import { CardActionMarker } from "./CardActionMarker.tsx"
+import { cardActionOf, CARD_ACTION_COPY } from "../lib/cardActions.ts"
 import { ThreadSlugContext } from "./threadSlugContext.ts"
 import { toolSchedule, type ToolSlot } from "../lib/toolQueue.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
@@ -3894,16 +3894,17 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
     // A message from ANOTHER NTWINE THREAD is delivered as a wake, but it is another agent speaking, so
     // it takes the agent-message bubble rather than ntwine's own chrome (AgentMessage.tsx). NtwineWake asks
     // this renderer for each part it draws, so one held and merged with other wakes is still a bubble.
-    // THE HUMAN'S KEEP WORKING (KeepWorking.tsx): their click on a resting card, sent as a message worded
-    // for the worker, so it is drawn as their one-line marker (lib/keepWorking.ts drawsKeepWorkingMarker).
+    // A BUTTON'S SEND (CardActionMarker.tsx) — Continue, Done, Retry, Restart agent: the human's click,
+    // sent as a message worded for the worker, so it is drawn as their one-line marker (lib/cardActions.ts).
     // A FAILED send keeps the marker and takes the bubble's failure row under it: Retry resends the
     // message itself, and Edit puts the button's words, not the worker's instructions, in the prompt box.
-    if (drawsKeepWorkingMarker(m)) {
+    const cardAction = cardActionOf(m)
+    if (cardAction) {
       const failed = m.deliveryState === "failed" && m.deliveryId
       return (
-        <KeepWorkingMarker sourceId={m.sourceId} dimmed={m.queued || !!failed}>
-          {failed && <FailedSendRow deliveryId={m.deliveryId!} text={KEEP_WORKING_LABEL} rawText={m.text} error={m.deliveryError} />}
-        </KeepWorkingMarker>
+        <CardActionMarker kind={cardAction} sourceId={m.sourceId} dimmed={m.queued || !!failed}>
+          {failed && <FailedSendRow deliveryId={m.deliveryId!} text={CARD_ACTION_COPY[cardAction].editText} rawText={m.text} error={m.deliveryError} />}
+        </CardActionMarker>
       )
     }
     if (m.wake) return <NtwineWake steer={m.wakeSteer} text={text} sourceId={m.sourceId} at={m.at} wrap={dense} agentMessage={threadMessageBubble} checkIns={m.checkIns} />

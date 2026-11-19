@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { STEPS_DONE_MESSAGE } from "@ntwine/shared"
 
 // Opt-in, like every other e2e here: start `vite` in packages/web and point this at its origin (or run
 // `pnpm run test:e2e`, which does both).
@@ -126,7 +127,7 @@ test("a steps card states the steps over one Done, and Done sends one ordinary r
     await page.waitForFunction(() => (window as unknown as { __rpc: Sent[] }).__rpc.some((c) => c.rpc === "followUp"), { timeout: 10_000 })
     const replies = await page.evaluate(() => (window as unknown as { __rpc: Sent[] }).__rpc.filter((c) => c.rpc === "followUp"))
     assert.equal(replies.length, 1, "one click is one reply")
-    assert.equal(replies[0].body.message, "Done", "exactly the word, as if the human had typed it")
+    assert.equal(replies[0].body.message, STEPS_DONE_MESSAGE, "the steps card's own message, which the transcript draws as a marker")
     assert.equal(replies[0].body.slug, "awaiting-bg-demo")
     assert.equal(replies[0].body.sessionId, "aaaaaaaa-bbbb-cccc-dddd-000000000001", "bound to the session that posted the steps")
     await page.waitForFunction((sel) => !document.querySelector(sel), { timeout: 10_000 }, CARD)

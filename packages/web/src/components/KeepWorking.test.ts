@@ -6,8 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { KEEP_WORKING_MESSAGE, type AwaitingHint, type TranscriptMessage } from "@ntwine/shared"
 import { AwaitingBackgroundCard } from "./AwaitingBackgroundCard.tsx"
 import { AwaitingSubAgentsCard } from "./AwaitingSubAgentsCard.tsx"
-import { KeepWorkingMarker } from "./KeepWorking.tsx"
-import { drawsKeepWorkingMarker, offersKeepWorking } from "../lib/keepWorking.ts"
+import { offersKeepWorking } from "../lib/keepWorking.ts"
 import { lastHumanTurnIndex } from "../lib/messagePresentation.ts"
 
 // KEEP WORKING: offered on a resting card for a `needs_input` park, or a rest with no fence at all, while
@@ -95,19 +94,6 @@ test("the queue's sub-agent batch card carries it too, which the queue draws in 
 })
 
 const user = (over: Partial<TranscriptMessage>): TranscriptMessage => ({ role: "user", text: KEEP_WORKING_MESSAGE, tools: [], parts: [], ...over })
-
-// ChatView's Message cannot load under node (it pulls in CSS), so its branch is pinned at the predicate it
-// calls and the marker it returns.
-test("the sent message draws as the human's marker, served or optimistic, and never as its raw words", () => {
-  assert.equal(drawsKeepWorkingMarker(user({ keepWorking: true })), true)
-  // The optimistic copy carries only the raw text.
-  assert.equal(drawsKeepWorkingMarker(user({ queued: true })), true)
-  // The envelope pasted inside a message of the human's own is just their message.
-  assert.equal(drawsKeepWorkingMarker(user({ text: `look at this:\n${KEEP_WORKING_MESSAGE}` })), false)
-  const marker = renderToStaticMarkup(createElement(KeepWorkingMarker, { sourceId: "u1" }))
-  assert.equal(marker.replace(/<[^>]+>/g, ""), "Told it to continue")
-  assert.match(renderToStaticMarkup(createElement(KeepWorkingMarker, { dimmed: true })), /opacity-50/)
-})
 
 test("it is not the human's turn the queue card opens at", () => {
   const ask = user({ text: "Add the login flow", sourceId: "u0" })

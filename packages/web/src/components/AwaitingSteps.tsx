@@ -15,6 +15,7 @@
 import { useState, type ReactNode } from "react"
 import { Check } from "lucide-react"
 import { STEPS_DONE } from "../lib/awaitingPresentation.ts"
+import { STEPS_DONE_MESSAGE } from "@ntwine/shared"
 import { useEagerFollowUp } from "../lib/eagerComposerSubmission.ts"
 import { useTickedSteps } from "../lib/stepsTicked.ts"
 import { useMarkdownHtml } from "../lib/useMarkdown.ts"
@@ -121,13 +122,13 @@ export function StepsDone({ slug, onReplied, onReplyFailed, send, lead }: {
       // The same order the eager send keeps: the card leaves first, then the network, and a failure puts
       // both back.
       onReplied?.()
-      send(STEPS_DONE).catch(() => {
+      send(STEPS_DONE_MESSAGE).catch(() => {
         setSent(false)
         onReplyFailed?.()
       })
       return
     }
-    const started = followUp.submit(STEPS_DONE, {
+    const started = followUp.submit(STEPS_DONE_MESSAGE, {
       onOptimistic: () => onReplied?.(),
       onRollback: () => {
         setSent(false)

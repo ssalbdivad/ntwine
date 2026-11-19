@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { RETRY_MESSAGE } from "@ntwine/shared"
 
 // The stalled row's one-click Retry is a HOVER affordance whose click must (a) fire the recovery
 // follow-up and (b) NOT also navigate the row — two behaviors only a real browser proves: that the
@@ -68,7 +69,7 @@ test("hovering a stalled sidebar row reveals a Retry button that restarts the se
     const [call] = calls
     assert.equal(call.slug, "stalled-migration")
     assert.equal(call.sessionId, "")
-    assert.equal(call.message, "Continue exactly where you left off.")
+    assert.equal(call.message, RETRY_MESSAGE)
     assert.equal(typeof call.deliveryId, "string", "it went through the eager path — a ledger deliveryId rides the send")
     assert.ok(call.deliveryId.length > 0, "…and it is non-empty")
 
@@ -109,7 +110,7 @@ test("hovering a stalled sidebar row reveals a Retry button that restarts the se
     const [, limitCall] = allCalls
     assert.equal(limitCall.slug, "limit-killed")
     assert.equal(limitCall.sessionId, "")
-    assert.equal(limitCall.message, "Continue exactly where you left off.")
+    assert.equal(limitCall.message, RETRY_MESSAGE)
     assert.equal(typeof limitCall.deliveryId, "string", "the limit-killed retry goes through the same eager path")
     assert.ok(limitCall.deliveryId.length > 0, "…and carries its own ledger handle")
 

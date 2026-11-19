@@ -1,4 +1,4 @@
-import { awaitingQuestions, awaitingStatus, awaitingSteps, isDirectSubAgent, isKeepWorkingMessage, type AwaitingHint, type ThreadView, type TranscriptMessage } from "@ntwine/shared"
+import { awaitingQuestions, awaitingStatus, awaitingSteps, isDirectSubAgent, type AwaitingHint, type ThreadView } from "@ntwine/shared"
 
 // KEEP WORKING — the resting card's answer to a worker that parked `status: needs_input` while work it
 // named is still running, because it offered the human something to look at ("try the dev server now").
@@ -6,7 +6,7 @@ import { awaitingQuestions, awaitingStatus, awaitingSteps, isDirectSubAgent, isK
 // KEEP_WORKING_MESSAGE (shared) through the ordinary reply path and the worker re-parks `working`. ntwine
 // never moves the thread itself: the worker's last word decides where it sits.
 
-/** The button's label, and the marker's verb in the transcript (KeepWorkingMarker). It read "Keep
+/** The button's label, and the marker's verb in the transcript (CardActionMarker). It read "Keep
  *  working" until 2026-10-15 (maintainer: replace it with "Continue"); the code keeps the old name, and
  *  the message keeps its `<keep-working>` envelope so transcripts already written still draw the marker. */
 export const KEEP_WORKING_LABEL = "Continue"
@@ -58,11 +58,4 @@ export function offersKeepWorking(
   if (runningSubAgent) return true
   const live = liveWorkHandles(thread)
   return hints.some((h) => (h.kind === "shell" || h.kind === "agent") && live.has(h.value.trim()))
-}
-
-/** Does the chat draw this user turn as the Keep working marker rather than the human's bubble?
- *  `keepWorking` is the server's tell (transcript.ts userProjection, delivery-ledger.ts); the text read
- *  covers the optimistic copy, which no projection has seen. */
-export function drawsKeepWorkingMarker(m: Pick<TranscriptMessage, "text" | "keepWorking">): boolean {
-  return m.keepWorking === true || isKeepWorkingMessage(m.text)
 }

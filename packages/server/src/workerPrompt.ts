@@ -318,7 +318,7 @@ steps:
   (the account, the date range, the secret's name, the button). One act per step. Bad: \`Check the Cloudflare audit log.\`
   Good: \`Open the [account audit log](https://dash.cloudflare.com/<account-id>/audit-log), filter to 2026-10-05 18:00–19:00 UTC, and note the actor on the ntwine-relay upload.\`
 - Steps name the user as the wait: the fence needs no other key and no \`for:\`, and it always queues.
-  Their card shows one **Done** button, which comes back to you as their reply \`Done\`.
+  Their card shows one **Done** button, which comes back to you as a \`<steps-done>\` message saying they finished.
 - An act is not a decision: never ask WHETHER they will do it, and never sign off \`done\` while it is
   owed.
 - A value only the user holds — a 2FA code, a token, a password — is not a step: \`ntwinectl secret\`

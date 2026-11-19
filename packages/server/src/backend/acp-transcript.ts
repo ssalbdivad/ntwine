@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { isKeepWorkingMessage, parseSpinoffChildPrompt, parseSpinoffRequest, type TranscriptMessage, type TranscriptToolCall } from "@ntwine/shared"
+import { parseCardAction, parseSpinoffChildPrompt, parseSpinoffRequest, type TranscriptMessage, type TranscriptToolCall } from "@ntwine/shared"
 import type { AgentBackend, BuiltCommand, FoldState, NormalizedEvent, ResumeOpts, SpawnOpts } from "./types.ts"
 import { applyEvent } from "../tailer.ts"
 
@@ -195,9 +195,9 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
         // `m.spinoff` to find one, and operatorMessages described the thread by the spinoff.
         const spinoff = !rec.synthetic ? parseSpinoffRequest(text) : null
         sawUser = true
-        // …and the human's Keep working, which the chat draws as their one-line marker (userProjection).
-        const keepWorking = !rec.synthetic && isKeepWorkingMessage(text)
-        const projected = spinoff ? { displayText: spinoff.instructions, spinoff } : origin ? { displayText: origin.instructions, spinoffOrigin: origin } : keepWorking ? { keepWorking: true as const } : {}
+        // …and a button's send (Continue, Done, Retry…), which the chat draws as their one-line marker (userProjection).
+        const cardAction = !rec.synthetic ? parseCardAction(text) : undefined
+        const projected = spinoff ? { displayText: spinoff.instructions, spinoff } : origin ? { displayText: origin.instructions, spinoffOrigin: origin } : cardAction ? { cardAction, ...(cardAction === "keep-working" ? { keepWorking: true as const } : {}) } : {}
         out.push({ sourceId: `${identityPrefix}:${i}`, role: "user", text, ...projected, tools: [], parts: [], ...(rec.at ? { at: rec.at } : {}), ...(rec.synthetic ? { wake: true } : {}) })
         break
       }

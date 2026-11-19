@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { RETRY_MESSAGE } from "@ntwine/shared"
 
 // The two in-drawer cards that RESTART A TURN on an at-rest thread — a provider sign-in fault
 // (ProviderFaultCard) and a usage-limit pause (LimitPauseCard). Both used to call rpc.followUp
@@ -47,7 +48,7 @@ test("the provider-fault Retry and limit-pause Continue both send through the ea
     assert.ok(retry.deliveryId.length > 0, "provider-fault Retry rides the eager path — a ledger deliveryId is present")
 
     assert.equal(cont.slug, "limit-paused")
-    assert.equal(cont.message, "Continue exactly where you left off.", "the limit-pause card sends the shared restart message")
+    assert.equal(cont.message, RETRY_MESSAGE, "the limit-pause card sends the shared restart message")
     assert.equal(typeof cont.deliveryId, "string")
     assert.ok(cont.deliveryId.length > 0, "limit-pause Continue rides the eager path — a ledger deliveryId is present")
 

@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query"
+import { RETRY_MESSAGE } from "@ntwine/shared"
 import { showToast } from "../store.ts"
 import { sendEagerFollowUp } from "./eagerComposerSubmission.ts"
 
@@ -20,7 +21,9 @@ import { sendEagerFollowUp } from "./eagerComposerSubmission.ts"
 // in the CODE as well as in the prose. The session guard it used to resolve by hand comes with it —
 // sendEagerFollowUp binds the id at send time from the live board, which is strictly better than the
 // render-time read this did.
-export const STALLED_RETRY_MESSAGE = "Continue exactly where you left off."
+// The message is shared RETRY_MESSAGE: a card action, drawn in the transcript as the human's "Retried"
+// marker rather than a bubble of the worker's instruction (lib/cardActions.ts).
+export const STALLED_RETRY_MESSAGE = RETRY_MESSAGE
 
 export function retrySession(queryClient: QueryClient, slug: string): Promise<void> {
   return new Promise<void>((resolve) => {

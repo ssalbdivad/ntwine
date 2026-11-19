@@ -22,7 +22,7 @@ import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, use
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Anchor, Check, CheckCheck, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react"
 import { useNavigate } from "react-router"
-import { expandUserCommandDraft, heldQuestionViews, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
+import { expandUserCommandDraft, heldQuestionViews, parseCardAction, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
 import { projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { prefetchProjectTranscript } from "../hooks.ts"
@@ -58,6 +58,7 @@ import { AwaitingBackgroundCard, showsRestingCard, WaitRowOpenContext } from "./
 import { drawsSubAgentWaitCard, showsSubAgentWait } from "../lib/subAgentWait.ts"
 import { useThreadComposerControls } from "../hooks/useThreadComposerControls.tsx"
 import { UpdateRequestedMarker } from "./NtwineWake.tsx"
+import { CardActionMarker } from "./CardActionMarker.tsx"
 import { SpinoffButton, SpinoffOf } from "./Spinoff.tsx"
 import { HEADER_ICON_CLASS, HEADER_ICON_SQUARE } from "../lib/headerIcon.ts"
 import { LastActive } from "./LastActive.tsx"
@@ -369,6 +370,8 @@ function CardArticle({
     placeholderData: (previous) => previous,
   })
   const text = handoff.data?.text
+  // A button's send (Done, Retry…) is the human's turn too, drawn as the transcript draws it.
+  const askedCardAction = handoff.data?.asked ? parseCardAction(handoff.data.asked) : undefined
   const parts = useMemo(() => (text ? handoffParts(text, thread.questions) : null), [text, thread.questions])
   // Every rest since the human's message before the newest (router handoffOf): their prose, never their
   // fences, which the newest rest's supersede — and never dropped for anything the newest one says.
@@ -698,6 +701,8 @@ function CardArticle({
               draws it rather than quoting the worker's wake text as if they had typed it. */}
           {handoff.data?.asked && (parseParkWake(handoff.data.asked)?.kind === "requested"
             ? <UpdateRequestedMarker />
+            : askedCardAction
+            ? <CardActionMarker kind={askedCardAction} />
             : <AskedBubble text={parseScheduledRunPrompt(handoff.data.asked)?.prompt || handoff.data.asked} />)}
           {/* THE PROSE OF EVERY REST SINCE THE HUMAN'S MESSAGE, oldest first, in ONE keyed list: a block is
               keyed by when its rest was written, so when a newer rest lands the newest block moves up into

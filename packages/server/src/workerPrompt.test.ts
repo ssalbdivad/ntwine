@@ -128,7 +128,7 @@ test("steps hand over only the user's own acts, each clickable and complete", ()
     assert.match(c, /A step is only what needs the user's BODY or IDENTITY/)
     assert.match(c, /Do everything up to their first act, hand over only that/)
     assert.match(c, /Good: `Open the \[account audit log\]\(https:\/\/dash\.cloudflare\.com\//)
-    assert.match(c, /reply `Done`/)
+    assert.match(c, /a `<steps-done>` message saying they finished/)
     assert.match(c, /`ntwinectl secret`/)
   }
 })
