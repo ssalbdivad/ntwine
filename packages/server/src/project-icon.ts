@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, dirname, extname, join, relative, sep } from "node:path"
+import { parse as parseYaml } from "yaml"
 import { imageDimensions, MEASURABLE_IMAGE_EXTENSIONS, svgDeclaresColour, type ImageDimensions } from "./image-header.ts"
 import { projectStateDir } from "./ntwine-paths.ts"
 import { readRegistry, resolveProjectIcon } from "./project-registry.ts"
@@ -73,7 +74,8 @@ const BRAND_KIT_DIRECTORIES = ["logos", "logo", "brand", "branding"]
 const ASSET_DIRECTORIES = [
   "",
   "public", "static", "assets", "resources", "images", "img", "icons", "media", "design",
-  "public/images", "public/img", "public/icons", "public/assets", "public/static",
+  // `public/image` singular is arktype's docs site (fumadocs), where its favicon and logo live.
+  "public/images", "public/image", "public/img", "public/icons", "public/assets", "public/static",
   "static/img", "static/images", "static/icons",
   "assets/images", "assets/img", "assets/icons",
   "resources/icons", "src/app", "src/assets",
@@ -269,21 +271,75 @@ export function iconDirectories(root: string): string[] {
   }
   for (const extra of EXTRA_DIRECTORIES) directories.push(under(root, extra))
 
-  for (const container of WORKSPACE_CONTAINERS) {
-    if (!children.has(container)) continue
-    let members: string[]
+  const { containers, members: declaredMembers } = declaredWorkspaces(root)
+  const memberDirectories = [...declaredMembers]
+  for (const container of new Set([...WORKSPACE_CONTAINERS.filter((name) => children.has(name)), ...containers])) {
     try {
-      members = readdirSync(join(root, container), { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-        .map((entry) => entry.name)
+      for (const entry of readdirSync(join(root, container), { withFileTypes: true })) {
+        if (entry.isDirectory() && !entry.name.startsWith(".")) memberDirectories.push(join(container, entry.name))
+      }
     } catch {
       continue
     }
-    for (const member of members) {
-      for (const asset of ASSET_DIRECTORIES) directories.push(under(join(root, container, member), asset))
-    }
+  }
+  for (const member of memberDirectories) {
+    for (const asset of ASSET_DIRECTORIES) directories.push(under(join(root, member), asset))
   }
   return [...new Set(directories)]
+}
+
+type DeclaredWorkspaces = {
+  /** Directories whose every child is a package: `ark` from `ark/*`. */
+  containers: string[]
+  /** Packages named outright: `docs` from `docs`. */
+  members: string[]
+}
+
+/**
+ * The workspace containers a monorepo DECLARES, from `pnpm-workspace.yaml` and `package.json`.
+ *
+ * The fixed WORKSPACE_CONTAINERS table guesses the conventional names, and a repo that picked its own
+ * misses entirely: arktype keeps every package under `ark/` (`packages: ["ark/*"]`), so its logo at
+ * `ark/docs/public/image/logo.png` was never looked at and the rail drew a monogram (2026-11-18). The
+ * workspace file names the containers outright, so it is read rather than extending the guess list.
+ *
+ * Still one level, never a walk: a glob contributes only the literal path before its first wildcard,
+ * and only when that wildcard is the last segment (`ark/*`, `packages/**`). Anything deeper or
+ * stranger (a wildcard mid-path, a negation) is skipped; the fixed table still covers the common shapes.
+ */
+function declaredWorkspaces(root: string): DeclaredWorkspaces {
+  const patterns: string[] = []
+  try {
+    const parsed = parseYaml(readFileSync(join(root, "pnpm-workspace.yaml"), "utf8")) as { packages?: unknown }
+    if (Array.isArray(parsed?.packages)) patterns.push(...parsed.packages.filter((p) => typeof p === "string"))
+  } catch {
+    // absent or malformed — no declared workspaces from this file
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { workspaces?: unknown }
+    const workspaces = parsed?.workspaces
+    const list = Array.isArray(workspaces)
+      ? workspaces
+      : Array.isArray((workspaces as { packages?: unknown })?.packages)
+        ? (workspaces as { packages: unknown[] }).packages
+        : []
+    patterns.push(...list.filter((p): p is string => typeof p === "string"))
+  } catch {
+    // absent or malformed
+  }
+
+  const containers: string[] = []
+  const members: string[] = []
+  for (const raw of patterns) {
+    if (raw.startsWith("!")) continue
+    const segments = raw.replace(/^\.\//u, "").replace(/\/+$/u, "").split("/")
+    // Never outside the repo, and never node_modules.
+    if (segments.some((segment) => segment === ".." || segment === "node_modules" || segment === "")) continue
+    const wildcard = segments.findIndex((segment) => /[*?[{]/u.test(segment))
+    if (wildcard === -1) members.push(segments.join("/"))
+    else if (wildcard === segments.length - 1 && wildcard > 0) containers.push(segments.slice(0, -1).join("/"))
+  }
+  return { containers, members }
 }
 
 /** `icons[]` out of a web app manifest, as absolute paths. Bad JSON is simply no icons. */

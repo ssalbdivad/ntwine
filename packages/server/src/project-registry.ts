@@ -539,8 +539,11 @@ export function findProjectBySegment(segment: string, home = homedir()): Registr
  * 4 — a brand kit (`logos/`, `branding/`, under `public/` and friends too) is searched, and its
  *     `-square` cut counts as an app icon. Pullfrog had stored a 180px disc from `app/` while a 600px
  *     square sat unread in `public/logos/`.
+ * 5 — workspace containers a repo declares in `pnpm-workspace.yaml` / `package.json` are expanded,
+ *     and `public/image` is an asset directory. arktype's logo under `ark/docs/public/image/` had
+ *     never been reached.
  */
-export const ICON_SCAN_VERSION = 4
+export const ICON_SCAN_VERSION = 5
 
 /**
  * How long one scan's answer stands — a miss or a pick — before the next icon request scans again.

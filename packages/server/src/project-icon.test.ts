@@ -154,6 +154,30 @@ test("a monorepo's web package is reached, though no fixed table could name it",
   assert.equal(picked(root), join("apps", "whatever-we-called-it", "public", "icon.png"))
 })
 
+test("a workspace container the repo declares is reached, though no fixed table names it (arktype)", (t) => {
+  // Measured wrong: arktype keeps every package under `ark/`, so `ark/docs/public/image/logo.png`
+  // was never looked at and the rail drew a monogram.
+  const root = project(t, "arktype", {
+    "pnpm-workspace.yaml": 'packages:\n  - "ark/*"\n',
+    "ark/docs/public/image/favicon.svg": svg(32),
+    "ark/docs/public/image/logo.png": png(512, 512),
+  })
+  assert.equal(picked(root), join("ark", "docs", "public", "image", "logo.png"))
+})
+
+test("package.json workspaces name containers and members, but never reach outside the repo", (t) => {
+  const outside = project(t, "outside", { "public/icon.png": png(512, 512) })
+  const root = project(t, "app", {
+    "package.json": JSON.stringify({ workspaces: { packages: ["modules/**", "site-src", `../${relative(dirname(dirname(outside)), outside)}`] } }),
+    "modules/ui/public/icon.png": png(256, 256),
+    "site-src/static/logo.png": png(512, 512),
+  })
+  const found = projectIconCandidates(root).map((c) => relative(root, c.path))
+  assert.ok(found.includes(join("modules", "ui", "public", "icon.png")))
+  assert.ok(found.includes(join("site-src", "static", "logo.png")))
+  assert.ok(!found.some((path) => path.startsWith("..")))
+})
+
 test("a wordmark and a social card are not icons, however large", (t) => {
   const root = project(t, "app", {
     // 1200×630 in `public/` beside the favicon: the largest image in a great many repos.
