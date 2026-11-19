@@ -510,8 +510,9 @@ function workerPermissionMode(m: PermissionMode): PermissionMode {
 export const WORKER_DISPATCH_PERMISSION: Record<BackendKind, PermissionMode> = {
   claude: "auto",
   codex: "bypassPermissions",
-  // An ACP agent's permissions are its own (plans/acp-backend.md, decision 7): ntwine sends no mode and
-  // mirrors whatever the agent asks as a card. The value here is recorded on the row and nothing else.
+  // An ACP agent's permissions are its own (plans/acp-backend.md, decision 7): the bridge switches a
+  // session into the agent's own `auto` mode when it offers one (ACP_WORKER_MODE) and mirrors whatever
+  // the agent still asks as a card. The value here is recorded on the row and nothing else.
   acp: "auto",
 }
 

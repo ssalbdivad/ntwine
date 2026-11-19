@@ -186,6 +186,29 @@ export function acpEffortOption(configOptions: readonly AcpConfigOption[]): { id
   return { id: option.id, values, ...(typeof option.currentValue === "string" ? { current: option.currentValue } : {}) }
 }
 
+/** The mode a worker runs an ACP session in, when the agent offers it: Claude Code's and Antigravity's
+ *  `auto` — edits and safe commands approved by the agent's own judgement, irreversible actions still
+ *  asked about. It is the ACP counterpart of the `auto` a Claude worker launches in
+ *  (WORKER_DISPATCH_PERMISSION). Left in the agent's `default`, `agy acp` asked about every command, and
+ *  each ask became a card the operator clicked through dozens of times a turn (2026-11-19). */
+export const ACP_WORKER_MODE = "auto"
+
+type AcpModeSwitch = { via: "config"; configId: string } | { via: "set_mode" }
+
+/** How to put a session in ACP_WORKER_MODE, or nothing when it is already there or not offered. The
+ *  agent advertises its modes as a `mode`-category config option (agy 1.5) or as the older `modes`
+ *  field; the config option wins when both are present, since it is what ACP superseded `modes` with. */
+export function acpWorkerModeSwitch(result: { configOptions?: readonly AcpConfigOption[] | null; modes?: unknown }): AcpModeSwitch | undefined {
+  const option = result.configOptions?.find((o) => o.category === "mode")
+  if (option) {
+    if (option.currentValue === ACP_WORKER_MODE || !option.options?.some((o) => o.value === ACP_WORKER_MODE)) return undefined
+    return { via: "config", configId: option.id }
+  }
+  const modes = result.modes as { currentModeId?: unknown; availableModes?: Array<{ id?: unknown }> } | null | undefined
+  if (!modes || modes.currentModeId === ACP_WORKER_MODE || !modes.availableModes?.some((m) => m?.id === ACP_WORKER_MODE)) return undefined
+  return { via: "set_mode" }
+}
+
 function clip(text: string, max: number): string { return text.length > max ? `${text.slice(0, max - 1)}…` : text }
 
 function ntwineMcpServer(mcp: NtwineMcp | undefined, slug: string): AcpMcpServerStdio[] {
@@ -402,12 +425,14 @@ export class AcpBridge {
       return new Error(`${AUTH_HINT}${agent.label} refused to open a session: ${err.error.message}.${hint ? ` ${hint}.` : ""}`)
     }
     let resumed: "loaded" | "fresh" = "fresh"
+    let modeSwitch: AcpModeSwitch | undefined
     if (input.acpSessionId && init.agentCapabilities?.loadSession) {
       live.loading = true
       try {
         const loaded = AcpLoadSessionResult.parse(await conn.request("session/load", { sessionId: input.acpSessionId, cwd, mcpServers }))
         live.acpSessionId = input.acpSessionId
         this.adoptModel(live, loaded.configOptions)
+        modeSwitch = acpWorkerModeSwitch(loaded)
         resumed = "loaded"
       } catch (err) {
         if (err instanceof AcpRemoteError && err.error.code === ACP_ERROR_AUTH_REQUIRED) return fail(authError(err))
@@ -419,6 +444,7 @@ export class AcpBridge {
         const created = AcpNewSessionResult.parse(await conn.request("session/new", { cwd, mcpServers }))
         live.acpSessionId = created.sessionId
         this.adoptModel(live, created.configOptions)
+        modeSwitch = acpWorkerModeSwitch(created)
       } catch (err) {
         if (err instanceof AcpRemoteError && err.error.code === ACP_ERROR_AUTH_REQUIRED) return fail(authError(err))
         return fail(err instanceof Error ? new Error(`${agent.label} could not open a session: ${err.message}`) : err)
@@ -431,6 +457,7 @@ export class AcpBridge {
     if (modelProblem && acpModelPreset(acpModelSlug(agent.id, input.modelId))) return fail(new Error(modelProblem))
     // The effort after the model: the agent's effort option, and the levels in it, belong to the model.
     const effortProblem = await this.applyEffort(live, input.effort)
+    if (modeSwitch) await this.applyWorkerMode(live, modeSwitch)
     if (resumed === "fresh") {
       writer.append({ kind: "acp-session", at: this.now(), agent: { id: agent.id, ...(init.agentInfo?.name ? { name: init.agentInfo.name } : {}), ...(init.agentInfo?.version ? { version: init.agentInfo.version } : {}) }, acpSessionId: live.acpSessionId, cwd, ...(live.model ? { model: live.model } : {}) })
       if (input.acpSessionId) writer.append({ kind: "acp-note", at: this.now(), text: `Resumed with a fresh ${agent.label} session: the previous one (${input.acpSessionId}) could not be loaded, so the agent no longer has the earlier conversation.` })
@@ -496,6 +523,18 @@ export class AcpBridge {
       const message = err instanceof AcpRemoteError ? err.error.message : (err as Error).message
       this.diagnostic(live.slug, "protocol", `session/set_config_option ${option.id}=${effort} failed: ${message}`)
       return `${live.agent.label} could not set ${effort} effort (${clip(message, 200)}); it runs at ${option.current ?? "its own"}.`
+    }
+  }
+
+  /** Put the session in ACP_WORKER_MODE. A refusal is a diagnostic, not a note: the thread still works,
+   *  it only asks more, and every ask is already a card. */
+  private async applyWorkerMode(live: LiveSession, change: AcpModeSwitch): Promise<void> {
+    try {
+      if (change.via === "set_mode") await live.conn.request("session/set_mode", { sessionId: live.acpSessionId, modeId: ACP_WORKER_MODE })
+      else this.adoptModel(live, AcpSetConfigOptionResult.parse(await live.conn.request("session/set_config_option", { sessionId: live.acpSessionId, configId: change.configId, value: ACP_WORKER_MODE })).configOptions)
+    } catch (err) {
+      const message = err instanceof AcpRemoteError ? err.error.message : (err as Error).message
+      this.diagnostic(live.slug, "protocol", `switching to ${ACP_WORKER_MODE} mode failed: ${message}`)
     }
   }
 

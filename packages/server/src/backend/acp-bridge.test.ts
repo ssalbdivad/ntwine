@@ -351,6 +351,23 @@ test("acp-bridge: a thread's effort is set through the model's effort option, an
   } finally { await teardown(r) }
 })
 
+test("acp-bridge: a session opens in the agent's auto mode, through whichever shape the agent advertises it in", async () => {
+  const modeFrames = async (fakeMode: string) => {
+    const agentLog = join(mkdtempSync(join(tmpdir(), "acp-mode-")), "agent.jsonl")
+    const r = rig(fakeMode, { agentLog })
+    try {
+      await r.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", prompt: "hi", userText: "hi" })
+      await untilIdle(r, "s1")
+    } finally { await teardown(r) }
+    return readFileSync(agentLog, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line) as { method?: string; params?: Record<string, unknown> })
+      .filter((frame) => frame.method === "session/set_mode" || frame.method === "session/set_config_option" || frame.method === "session/prompt")
+      .map((frame) => frame.method === "session/prompt" ? "prompt" : frame.method === "session/set_mode" ? `set_mode ${frame.params?.modeId}` : `${frame.params?.configId}=${frame.params?.value}`)
+  }
+  assert.deepEqual(await modeFrames("modes-config"), ["mode=auto", "prompt"], "agy's shape: a mode-category config option, set before the first prompt")
+  assert.deepEqual(await modeFrames("modes-legacy"), ["set_mode auto", "prompt"], "the older `modes` field goes through session/set_mode")
+  assert.deepEqual(await modeFrames(""), ["prompt"], "an agent with no auto mode is sent nothing")
+})
+
 test("acp-bridge: agentModels reads the advertised list through a throwaway session and caches it", async () => {
   const r = rig()
   try {

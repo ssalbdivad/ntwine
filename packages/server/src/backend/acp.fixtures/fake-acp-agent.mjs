@@ -10,6 +10,8 @@
 //   ask-permission  every prompt runs one `execute` tool call gated on session/request_permission
 //   cancel-error    session/cancel makes the in-flight prompt FAIL with -32603 "aborted" (Gemini does this)
 //   no-load         advertises loadSession:false
+//   modes-config    advertises default/auto as a `mode`-category config option (agy 1.5's shape)
+//   modes-legacy    advertises default/auto as the older `modes` field, switched by session/set_mode
 //   shell           a prompt line `RUN: <command>` is run by `sh -c` in the agent's OWN environment, which
 //                   is what a real agent's shell tool does; the result goes to FAKE_ACP_LOG
 //
@@ -45,11 +47,14 @@ let sessionSeq = 0
 // Like opencode, only a model with effort levels carries an `effort` option, and it appears once that
 // model is set. Its `default` value means "send none".
 const EFFORTS = ["low", "medium", "high", "default"]
-function modelOptions(current, effort) {
+const MODES = ["default", "auto"]
+function modelOptions(current, effort, permMode = "default") {
   const options = [{ id: "model", name: "Model", category: "model", type: "select", currentValue: current, options: [{ value: "fake/small", name: "Fake Small" }, { value: "fake/large", name: "Fake Large" }] }]
   if (current === "fake/large") options.push({ id: "effort", name: "Effort", category: "thought_level", type: "select", currentValue: effort ?? "low", options: EFFORTS.map((value) => ({ value, name: value })) })
+  if (mode === "modes-config") options.push({ id: "mode", name: "Mode", category: "mode", type: "select", currentValue: permMode, options: MODES.map((value) => ({ value, name: value })) })
   return options
 }
+const legacyModes = (current) => mode === "modes-legacy" ? { modes: { currentModeId: current, availableModes: MODES.map((id) => ({ id, name: id })) } } : {}
 
 async function handle(msg) {
   if (logPath) appendFileSync(logPath, JSON.stringify(msg) + "\n")
@@ -76,7 +81,7 @@ async function handle(msg) {
     case "session/new": {
       const sessionId = `fake_${process.pid}_${++sessionSeq}`
       sessions.set(sessionId, { cancelled: false })
-      reply({ sessionId, configOptions: modelOptions("fake/small") })
+      reply({ sessionId, configOptions: modelOptions("fake/small"), ...legacyModes("default") })
       notify(sessionId, { sessionUpdate: "available_commands_update", availableCommands: [{ name: "help", description: "n/a" }] })
       return
     }
@@ -147,9 +152,17 @@ async function handle(msg) {
       reply({ stopReason: "end_turn", usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 } })
       return
     }
+    case "session/set_mode": {
+      if (mode !== "modes-legacy" || !MODES.includes(p.modeId)) return fail(-32602, `unknown mode ${p.modeId}`)
+      return reply({})
+    }
     case "session/set_config_option": {
       const known = ["fake/small", "fake/large"]
       const s = sessions.get(p.sessionId)
+      if (p.configId === "mode") {
+        if (mode !== "modes-config" || !MODES.includes(p.value)) return fail(-32602, `unknown mode ${p.value}`)
+        return reply({ configOptions: modelOptions(s?.model ?? "fake/small", s?.effort, p.value) })
+      }
       if (p.configId === "effort") {
         if (s?.model !== "fake/large" || !EFFORTS.includes(p.value)) return fail(-32602, `unknown effort ${p.value}`)
         s.effort = p.value
