@@ -9,7 +9,8 @@ import { hostFocusGate } from "./hostFocusGate.ts"
 import { finishStuckTransitions } from "./stuckTransitions.ts"
 import { repostRoute } from "./embedRoute.ts"
 import { closeSettingsAnimated } from "./overlays.ts"
-import { installEmbedEditKeys, takeHostClipboard } from "./embedEditKeys.ts"
+import { installEmbedEditKeys } from "./embedEditKeys.ts"
+import { takeHostClipboard, takeHostClipboardWritten } from "./embedClipboard.ts"
 import { EMBED_READY, embedded, hostKeyChord, parseHostMessage, postToHost } from "./embed.ts"
 import { bindingLookup, effectiveBindings, matchAction } from "./keybindings.ts"
 import { basename } from "./paths.ts"
@@ -154,6 +155,10 @@ async function handle(message: EmbedHostMessage): Promise<void> {
   if (message.type === "ntwine:command" || message.type === "ntwine:navigate" || (message.type === "ntwine:compose" && message.focus)) allowHostFocus()
   if (message.type === "ntwine:clipboard") {
     takeHostClipboard(message)
+    return
+  }
+  if (message.type === "ntwine:clipboard-written") {
+    takeHostClipboardWritten(message)
     return
   }
   if (message.type === "ntwine:theme") {

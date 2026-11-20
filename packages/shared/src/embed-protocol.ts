@@ -279,6 +279,7 @@ export type EmbedHostMessage =
   | EmbedContextPicksMessage
   | EmbedHostStateMessage
   | EmbedClipboardMessage
+  | EmbedClipboardWrittenMessage
 
 /** Raster image MIME types accepted on `ntwine:clipboard` (mirrors `ATTACHMENT_IMAGE_EXTENSIONS`). */
 export const EMBED_CLIPBOARD_IMAGE_MIMES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const
@@ -294,6 +295,16 @@ export interface EmbedClipboardImage {
   base64: string
   /** Original filename when copied as a file (e.g. from Finder); absent for raw clipboard screenshots. */
   name?: string
+}
+
+/** The ceiling on the text of `ntwine:write-clipboard`. */
+export const EMBED_CLIPBOARD_MAX_TEXT_CHARS = 10_000_000
+
+/** The answer to `ntwine:write-clipboard`: whether the text is on the clipboard now. */
+export interface EmbedClipboardWrittenMessage {
+  type: "ntwine:clipboard-written"
+  id: string
+  ok: boolean
 }
 
 /** The answer to `ntwine:read-clipboard`: the clipboard's text and, when present, its image. */
@@ -450,6 +461,7 @@ export type EmbedPageMessage =
   | EmbedReviewMessage
   | EmbedPickContextMessage
   | EmbedReadClipboardMessage
+  | EmbedWriteClipboardMessage
 
 /**
  * ⌘V in a Mac sidebar: the page cannot read the clipboard from inside VS Code's webview (the read is
@@ -459,6 +471,20 @@ export type EmbedPageMessage =
 export interface EmbedReadClipboardMessage {
   type: "ntwine:read-clipboard"
   id: string
+}
+
+/**
+ * Every copy in an editor frame — a copy button, ⌘C on selected text. VS Code grants the clipboard
+ * permissions only to its own webview and workbench URLs, so the framed page (at ntwine's origin) is
+ * refused `navigator.clipboard.writeText`, and ⌘C on a Mac runs `execCommand("copy")` in the webview's
+ * own document, never the frame. The extension writes it with `env.clipboard.writeText` and answers
+ * `ntwine:clipboard-written` (lib/clipboard.ts).
+ */
+export interface EmbedWriteClipboardMessage {
+  type: "ntwine:write-clipboard"
+  id: string
+  /** At most `EMBED_CLIPBOARD_MAX_TEXT_CHARS` characters. */
+  text: string
 }
 
 // ── more ways in: files by name or dropped, the file's problems, the terminal's last command ─────────

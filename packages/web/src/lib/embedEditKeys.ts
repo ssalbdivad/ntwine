@@ -5,13 +5,16 @@
 // that document, so the command lands on the frame's wrapper and nothing happens in the text box the
 // human is typing in (David, 2026-11-12: "all the ctrl+a, ctrl+c etc. shortcuts dont work in there").
 // The keydown still reaches the page first, so the page does each one on its focused text field and
-// prevents the default, which keeps the accelerator from running too.
+// prevents the default, which keeps the accelerator from running too. ⌘C also copies text selected
+// anywhere else on the page (a message, a code block), for the same reason. Copies go through the
+// extension (lib/embedClipboard.ts): the editor refuses this frame `navigator.clipboard`.
 //
 // Mac only: elsewhere these are Ctrl chords Chromium handles in the focused frame, and taking paste over
 // there would only lose what a native paste carries. Installed only in embed mode (lib/embedHost.ts).
 
-import type { EmbedClipboardImage, EmbedClipboardMessage } from "@ntwine/shared"
-import { postToHost } from "./embed.ts"
+import type { EmbedClipboardImage } from "@ntwine/shared"
+import { copyTextToClipboard } from "./clipboard.ts"
+import { hostClipboard } from "./embedClipboard.ts"
 
 type TextField =HTMLInputElement | HTMLTextAreaElement
 
@@ -28,31 +31,6 @@ function selectedText(field: TextField | HTMLElement): string {
     return field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0)
   }
   return document.getSelection()?.toString() ?? ""
-}
-
-interface HostClipboard {
-  text: string
-  image?: EmbedClipboardImage
-}
-
-const pendingReads = new Map<string, (clip: HostClipboard) => void>()
-
-/** The clipboard's text and optional image as the extension reads them; empty if it never answers (an older extension). */
-function hostClipboard(): Promise<HostClipboard> {
-  const id = crypto.randomUUID()
-  return new Promise((resolve) => {
-    const done = (clip: HostClipboard) => {
-      pendingReads.delete(id)
-      resolve(clip)
-    }
-    pendingReads.set(id, done)
-    setTimeout(() => done({ text: "" }), 5000)
-    postToHost({ type: "ntwine:read-clipboard", id })
-  })
-}
-
-export function takeHostClipboard(message: EmbedClipboardMessage): void {
-  pendingReads.get(message.id)?.({ text: message.text, ...(message.image ? { image: message.image } : {}) })
 }
 
 /** Decode a host-supplied clipboard image into a `File` the composer's `onPaste` can upload. */
@@ -99,11 +77,24 @@ async function paste(field: TextField | HTMLElement): Promise<void> {
   if (text) document.execCommand("insertText", false, text)
 }
 
+/** Text selected on the page outside any text field — a message, a code block — or "". */
+function pageSelection(): string {
+  const selection = document.getSelection()
+  return selection && !selection.isCollapsed ? selection.toString() : ""
+}
+
 /** Does the page's own edit for a ⌘ editing chord on a focused text field; true when it took the key. */
 function handle(event: KeyboardEvent): boolean {
   if (!event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented || event.isComposing) return false
   const field = focusedTextField()
-  if (!field) return false
+  if (!field) {
+    // ⌘C on text selected in the transcript: VS Code's copy would run on its own document, not this frame.
+    if (event.shiftKey || event.key.toLowerCase() !== "c") return false
+    const text = pageSelection()
+    if (!text) return false
+    void copyTextToClipboard(text).catch(() => {})
+    return true
+  }
   const key = event.key.toLowerCase()
   if (event.shiftKey) {
     if (key !== "z") return false
@@ -119,7 +110,7 @@ function handle(event: KeyboardEvent): boolean {
     case "x": {
       const text = selectedText(field)
       if (!text) return true
-      void navigator.clipboard.writeText(text).catch(() => {})
+      void copyTextToClipboard(text).catch(() => {})
       // Deleted in the keydown itself: done once the write resolved, the cut copied and left the text.
       if (key === "x") document.execCommand("delete")
       return true

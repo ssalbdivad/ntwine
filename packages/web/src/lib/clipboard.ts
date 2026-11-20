@@ -1,3 +1,5 @@
+import { hostWriteClipboard } from "./embedClipboard.ts"
+
 // The one clipboard write behind every copy affordance in the app. `navigator.clipboard` exists only
 // in a SECURE context — https, or localhost — and ntwine is routinely read from neither: `--host`
 // serves the board over plain http to a LAN address, which is exactly the origin a phone is reading.
@@ -8,7 +10,13 @@
 //
 // The fallback also runs when `writeText` REJECTS (a focus/activation blip, a denied permission): the
 // textarea path may still land the copy, and when it does the user never needs to hear about it.
+//
+// In an editor frame neither lands — the editor refuses the frame its clipboard — so the extension writes
+// it (lib/embedClipboard.ts), and the page's own ways run only when no extension answered.
 export async function copyTextToClipboard(text: string): Promise<void> {
+  const viaHost = await hostWriteClipboard(text)
+  if (viaHost) return
+  if (viaHost === false) throw new Error("the editor refused the clipboard write")
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text)

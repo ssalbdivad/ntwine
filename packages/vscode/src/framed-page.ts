@@ -85,6 +85,12 @@ export async function actOnPage(api: Vscode, page: SharedPageMessage, host: Page
       void frame.post({ type: "ntwine:clipboard", id: page.id, text, ...(image ? { image } : {}) })
       return image ? "read-image" : "read"
     }
+    case "ntwine:write-clipboard": {
+      // Answered always: the page holds its copy button's feedback on this id.
+      const ok = await Promise.resolve(api.env.clipboard.writeText(page.text)).then(() => true, () => false)
+      void frame.post({ type: "ntwine:clipboard-written", id: page.id, ok })
+      return ok ? "written" : "write-failed"
+    }
     case "ntwine:key": {
       // Every chord but ntwine's own was pressed in VS Code already, by the relay (embed.ts § key chords):
       // "relayed" says only that it went there, since what VS Code ran — if anything — is its own business.

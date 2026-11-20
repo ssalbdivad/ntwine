@@ -186,3 +186,20 @@ test("actOnPage answers ntwine:read-clipboard with both text and image when pres
   assert.equal(await actOnPage(textApi, { type: "ntwine:read-clipboard", id: "req-2" }, noImageHost, frame), "read")
   assert.deepEqual(posted, [{ type: "ntwine:clipboard", id: "req-2", text: "hello" }])
 })
+
+test("actOnPage writes ntwine:write-clipboard with env.clipboard and answers whether it landed", async () => {
+  const posted: unknown[] = []
+  const frame: FrameLink = { post: async (message) => (posted.push(message), true), mac: () => true, backToEditor: async () => {} }
+  const host = { log: { info() {}, warn() {} } } as unknown as PageHost
+  let clipboard = ""
+  const api = { env: { clipboard: { writeText: async (text: string) => void (clipboard = text) } } } as unknown as Parameters<typeof actOnPage>[0]
+  assert.equal(await actOnPage(api, { type: "ntwine:write-clipboard", id: "w1", text: "pnpm run test" }, host, frame), "written")
+  assert.equal(clipboard, "pnpm run test")
+  assert.deepEqual(posted, [{ type: "ntwine:clipboard-written", id: "w1", ok: true }])
+
+  // A refused write still answers, so the page can say the copy failed rather than wait it out.
+  posted.length = 0
+  const refusing = { env: { clipboard: { writeText: async () => { throw new Error("denied") } } } } as unknown as Parameters<typeof actOnPage>[0]
+  assert.equal(await actOnPage(refusing, { type: "ntwine:write-clipboard", id: "w2", text: "x" }, host, frame), "write-failed")
+  assert.deepEqual(posted, [{ type: "ntwine:clipboard-written", id: "w2", ok: false }])
+})

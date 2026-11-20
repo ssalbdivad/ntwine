@@ -195,6 +195,9 @@ export function parseHostMessage(data: unknown): EmbedHostMessage | null {
     const image = clipboardImage(data.image)
     return image ? { type: "ntwine:clipboard", id: data.id, text: data.text, image } : null
   }
+  if (data.type === "ntwine:clipboard-written") {
+    return typeof data.id === "string" && typeof data.ok === "boolean" ? { type: "ntwine:clipboard-written", id: data.id, ok: data.ok } : null
+  }
   if (data.type === "ntwine:theme") {
     const theme = parseTheme(data.theme)
     if (!theme) return null

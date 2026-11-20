@@ -13,7 +13,7 @@
 //   --dev    run the extension from the source tree (dist/ as scripts/build.ts makes it) instead of the
 //            packaged .vsix. The default is the .vsix, unpacked, because the maintainer's "the icon
 //            doesn't display" was a package with no icon in it: the source tree had it all along.
-//   --only   run only these checks (c1…c24); the boot, the seed and the view opening always run.
+//   --only   run only these checks (c1…c25); the boot, the seed and the view opening always run.
 //   --icon-before=<png>   an earlier top-dark activity-bar strip (1x enlarged 6x, as c1 writes it) to set
 //            beside this run's, for the eye.
 //   --worktree  open the window on a thread's git worktree (`.ntwine/worktrees/<slug>` of the workspace)
@@ -92,6 +92,9 @@
 //   c24 a page that reloaded into an error page (a reload that landed while ntwine was down): the sidebar
 //      stops calling it ready, the title row stops claiming its view, and the view frames the page again
 //      on its own, ready, on the queue
+//   c25 copying out of the sidebar: a code block's copy button (the extension writes the clipboard, since
+//      VS Code refuses the frame its own) and Ctrl+C on selected text, each read back off the X clipboard
+//      against a control that held other text
 //   c17 a restart and a window reload (last: the test runner's VS Code ends with a reload, so the same
 //      profile is reopened by a VS Code of the harness's own): the framed page's localStorage survives
 //      both, and so does the eye, which is the VS Code setting
@@ -2903,6 +2906,58 @@ try {
     const rows = await waitFor("the queue in the page", async () => (await inPage(() => document.querySelectorAll("[data-xq-thread-row]").length)) || undefined, 30_000).catch(() => 0)
     expect("c24", "…on the queue, with the title row's buttons back", rows > 0 && (await titleRow()).buttons.includes("New thread"), { rows, row: await titleRow() })
     await shot("c24-framed-again-w300")
+  })
+
+  // ── c25: copying out of the sidebar ──
+  await run("c25", "a code block's copy button and Ctrl+C on selected text put the text on the OS clipboard", async () => {
+    await resetPage()
+    await openThreadRow()
+    // A reply with a fenced block, appended to the thread's transcript as Claude writes one: the real
+    // tailer brings it into the page, and its block draws the copy button every fence gets.
+    const fenced = "echo copied-by-the-button"
+    const prose = "a sentence-to-select-by-keys in the reply"
+    appendFileSync(seeded!.thread.jsonl, `${JSON.stringify({ type: "assistant", sessionId: seeded!.thread.sessionId, cwd: workspace.dir, timestamp: new Date().toISOString(), message: { role: "assistant", id: "m-copy", stop_reason: "end_turn", content: [{ type: "text", text: `${prose}\n\n\`\`\`sh\n${fenced}\n\`\`\`` }], usage: { input_tokens: 2, output_tokens: 20 } } })}\n`)
+    await waitFor("the fenced reply's copy button", async () => (await inPage(() => !!document.querySelector(".md-code-copy"))) || undefined, 20_000)
+    const read = () => execFileSync(xclip(), ["-o", "-selection", "clipboard"], { encoding: "utf8", timeout: 5_000 })
+    const sentinel = join(scratch, "copy-sentinel.txt")
+    writeFileSync(sentinel, "the clipboard before the copy")
+    let stop = clipboard("text/plain", sentinel)
+    try {
+      await sleep(300)
+      // The control: the harness reads the OS clipboard, and the copy has not happened yet.
+      const before = read()
+      expect("c25", "control: the OS clipboard holds what was there before", before === "the clipboard before the copy", { before })
+      const eventsBefore = (await status()).sidebar.events.length
+      await clickInPage(".md-code-copy", "the code block's copy button")
+      const copied = await waitFor("the copied block", () => (read() === fenced ? read() : undefined), 5_000).catch(() => read())
+      const flashed = await inPage(() => !!document.querySelector(".md-code-copy.md-code-copied"))
+      const events = (await status()).sidebar.events.slice(eventsBefore)
+      notes.copyButton = { copied, flashed, events }
+      expect("c25", "the copy button puts the block on the OS clipboard, through the extension, and shows its check", copied === fenced && flashed && events.some((e) => e.type === "ntwine:write-clipboard" && e.outcome === "written"), notes.copyButton)
+      stop()
+      stop = clipboard("text/plain", sentinel)
+      await sleep(300)
+      // Ctrl+C on text selected in the reply (off a Mac Chromium copies it natively in the frame).
+      await inPage((text) => {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const at = node.textContent?.indexOf(text) ?? -1
+          if (at < 0) continue
+          const range = document.createRange()
+          range.setStart(node, at)
+          range.setEnd(node, at + text.length)
+          document.getSelection()?.removeAllRanges()
+          document.getSelection()?.addRange(range)
+          return
+        }
+      }, "sentence-to-select-by-keys")
+      await press("Control+KeyC")
+      const byKeys = await waitFor("the selected text", () => (read() === "sentence-to-select-by-keys" ? read() : undefined), 5_000).catch(() => read())
+      expect("c25", "Ctrl+C on selected text puts it on the OS clipboard", byKeys === "sentence-to-select-by-keys", { byKeys })
+      await shot("c25-copied-w300")
+    } finally {
+      stop()
+    }
   })
 
   // ── c17: a restart and a window reload (LAST: it ends the agent's VS Code) ──

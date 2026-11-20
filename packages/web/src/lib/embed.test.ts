@@ -163,6 +163,8 @@ test("host messages are accepted in the contract's shapes only", () => {
     { type: "ntwine:clipboard", id: "c3", text: "shot.jpg", image: { mime: "image/jpeg", base64: "AQID", name: "shot.jpg" } },
   )
 
+  assert.deepEqual(parseHostMessage({ type: "ntwine:clipboard-written", id: "w1", ok: false, extra: 1 }), { type: "ntwine:clipboard-written", id: "w1", ok: false })
+
   const refused: unknown[] = [
     null,
     "ntwine:theme",
@@ -172,6 +174,8 @@ test("host messages are accepted in the contract's shapes only", () => {
     { type: "ntwine:clipboard", id: "c1", text: "", image: { mime: "image/png", base64: "" } },
     { type: "ntwine:clipboard", id: "c1", text: "", image: { mime: "image/png", base64: "AQID", name: "" } },
     { type: "ntwine:clipboard", id: "c1", text: "", image: "not-an-object" },
+    { type: "ntwine:clipboard-written", id: "w1", ok: "yes" },
+    { type: "ntwine:clipboard-written", ok: true },
     { type: "ntwine:navigate", to: "everything" },
     { type: "ntwine:navigate", to: { thread: "fix" } },
     { ...compose, id: "" },

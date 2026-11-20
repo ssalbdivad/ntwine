@@ -5,6 +5,7 @@
 
 import { isAbsolute } from "node:path"
 import {
+  EMBED_CLIPBOARD_MAX_TEXT_CHARS,
   EMBED_MAX_DROPPED,
   EMBED_MAX_QUERY,
   EMBED_PARAM,
@@ -171,6 +172,11 @@ export function parsePageMessage(value: unknown, origin?: string): EmbedPageMess
     }
     case "ntwine:read-clipboard":
       return typeof value.id === "string" && value.id && value.id.length <= 200 ? { type: "ntwine:read-clipboard", id: value.id } : undefined
+    case "ntwine:write-clipboard": {
+      const { id, text } = value
+      if (typeof id !== "string" || !id || id.length > 200) return undefined
+      return typeof text === "string" && text.length <= EMBED_CLIPBOARD_MAX_TEXT_CHARS ? { type: "ntwine:write-clipboard", id, text } : undefined
+    }
     case "ntwine:key": {
       const { key, code, ctrl, meta, shift, alt } = value
       if (typeof key !== "string" || typeof code !== "string" || key.length > 64 || code.length > 64) return undefined

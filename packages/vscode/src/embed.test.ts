@@ -54,6 +54,7 @@ test("every page message the contract names is taken, with only its own fields",
     column: 3,
     endLine: 20,
   })
+  assert.deepEqual(parsePageMessage({ type: "ntwine:write-clipboard", id: "w", text: "", extra: 1 }), { type: "ntwine:write-clipboard", id: "w", text: "" })
   assert.deepEqual(parsePageMessage({ type: "ntwine:open-file", path: "C:\\r\\a.ts" }), { type: "ntwine:open-file", path: "C:\\r\\a.ts" })
   assert.deepEqual(parsePageMessage({ type: "ntwine:open-external", url: "https://github.com/x/y/pull/1" }), { type: "ntwine:open-external", url: "https://github.com/x/y/pull/1" })
   assert.deepEqual(parsePageMessage({ type: "ntwine:key", key: "P", code: "KeyP", ctrl: true, meta: false, shift: true, alt: false }), {
@@ -139,6 +140,9 @@ test("anything else from the page is nothing: unknown types, wrong shapes, other
     { type: "ntwine:key", key: "p", code: "KeyP", ctrl: 1, meta: false, shift: false, alt: false },
     { type: "ntwine:key", key: "p", code: "KeyP", keyCode: 80.5, ctrl: true, meta: false, shift: false, alt: false },
     { type: "ntwine:key", key: "p", code: "KeyP", keyCode: "80", ctrl: true, meta: false, shift: false, alt: false },
+    { type: "ntwine:write-clipboard", id: "w", text: 3 },
+    { type: "ntwine:write-clipboard", id: "", text: "x" },
+    { type: "ntwine:write-clipboard", id: "w", text: "x".repeat(10_000_001) },
     { type: "ntwine:add-context" },
     { type: "ntwine:add-context", what: "selection", path: "/r/a.ts" },
     { type: "ntwine:add-context", what: "file" },
