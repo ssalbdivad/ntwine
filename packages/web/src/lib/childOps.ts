@@ -68,6 +68,12 @@ export const CHILD_STALE_TITLE = "stale — no recent output"
 export const CHILD_RESTED_DOT_CLASS = "block h-1.5 w-1.5 rounded-full border border-muted/45"
 export const CHILD_RESTED_TITLE = "rested — it stopped, but the work it launched is still running"
 
+// An Antigravity SWARM member (server agy-swarm.ts) in agy's own two non-working readings. WAITING is
+// parked on its swarm's board until a post wakes it: alive and resumable, so it takes the rested hollow
+// dot. STOPPED is not running at all, and takes the flat stale dot. Neither holds its thread back.
+export const CHILD_WAITING_TITLE = "waiting for a post on its swarm's board"
+export const CHILD_STOPPED_TITLE = "stopped — not running"
+
 // A background SHELL reads "stale" for exactly one reason: the OS confirmed nobody holds its output file
 // open, so its process is gone, and no terminal notification ever arrived (tailer `shellIsGone`, since
 // 2026-08-19; a Monitor has no output file, is never probed, and never goes stale). So it takes the same
@@ -259,7 +265,8 @@ export function childOpSubtree<T extends { readonly id?: string; readonly parent
   return out
 }
 
-const unresolved = (op: ChildOpRecord): boolean => op.state === "running" || op.state === "stale" || op.state === "rested"
+const unresolved = (op: ChildOpRecord): boolean =>
+  op.state === "running" || op.state === "stale" || op.state === "rested" || op.state === "waiting" || op.state === "stopped"
 
 export function visibleChildOps<T extends ChildOpRecord>(ops: readonly T[], surface: "rail"): readonly (T & { id: string })[]
 export function visibleChildOps<T extends ChildOpRecord>(ops: readonly T[], surface: "card" | "sheet"): readonly T[]

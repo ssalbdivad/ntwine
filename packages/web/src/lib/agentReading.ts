@@ -40,7 +40,7 @@ export interface AgentReadingInput {
   /** Dispatch→completion elapsed, from the harness. */
   agentElapsedMs?: number
   /** The client's live record for this child, while it still holds one. */
-  liveState?: "running" | "stale" | "rested"
+  liveState?: "running" | "stale" | "rested" | "waiting" | "stopped"
   /** Elapsed since dispatch. Passed in rather than computed so this stays pure and the live clock drives it. */
   liveElapsedMs?: number
   /** The dispatch CALL's own status — the only signal left when no child record exists. */

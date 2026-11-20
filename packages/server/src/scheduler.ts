@@ -2672,8 +2672,10 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       // that RETURNED reads `rested` in telemetry, and a timer that FIRED keeps its settled row — ntwine
       // can tell all three apart from a typo'd id, and the note below spends that knowledge. `stale`
       // stays out: it means "completion signal lost", which is genuinely ambiguous, not finished.
+      // An agy swarm member parked on its board (`waiting`) or `stopped` has ended its run the same way:
+      // what it had to say is on the board, and the coordinator is woken to read it, not to hunt a typo.
       for (const a of tele.subAgents ?? []) {
-        if (a.state !== "rested") continue
+        if (a.state !== "rested" && a.state !== "waiting" && a.state !== "stopped") continue
         for (const h of [a.taskId, a.id, a.label]) if (h) finishedHandles.add(h)
       }
       // A DEMOTED shell is a third case, neither finished nor missing: ntwine has its launch, saw no

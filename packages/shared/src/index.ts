@@ -304,7 +304,11 @@ export const SubAgentView = z.object({
   // tailer.ts. Only ever emitted for a DIRECT child that still has something running under it, so it
   // clears itself when that work does. Every liveness reading keys on "running", so a rested row holds
   // nothing back: it does not block a rest, hold the queue, or gate Mark-as-done.
-  state: z.enum(["running", "stale", "rested"]),
+  // waiting / stopped — an Antigravity (`agy`) native SWARM member (server/agy-swarm.ts), in agy's own
+  // words: `waiting` is parked on the swarm's board until a post wakes it, `stopped` is not running. Both
+  // are live rows that, like `rested`, hold nothing back; a working member is plain `running`, and a
+  // killed one leaves the live list for the finished ring.
+  state: z.enum(["running", "stale", "rested", "waiting", "stopped"]),
   // The worker-profile cell (model+effort) for the dispatch — RESOLVED, not the raw `subagent_type`:
   // an effort-only profile carries no model, so the server composes it from the call's own `model` or
   // the dispatching turn's (server/subagent-profile.ts). It is NO LONGER drawn as a tag on the child
@@ -6616,6 +6620,10 @@ export const ThreadActivityItem = z.object({
   /** A SHELL's runtime-budget deadline (ISO8601) — when ntwine warns about it and, unextended, stops it
    *  ten minutes later. Its own field rather than `until`, which reads as "fires at" everywhere else. */
   budgetEndsAt: z.string().optional(),
+  /** An agy SWARM member that is live but NOT working: `waiting` is parked on its swarm's board, `stopped`
+   *  is not running (server/agy-swarm.ts). Listed so a worker sees its whole swarm, but it is not running
+   *  work: no fence names it. Absent on every item that is running. */
+  state: z.enum(["waiting", "stopped"]).optional(),
 }).strict()
 export type ThreadActivityItem = z.infer<typeof ThreadActivityItem>
 
@@ -6783,7 +6791,7 @@ export const SubAgentDirectoryEntry = z.object({
   /** The drill-in id of the sub-agent that dispatched it; absent for the thread's own children. */
   parentId: z.string().optional(),
   depth: z.number().int().min(1),
-  state: z.enum(["running", "stale", "rested", "done"]),
+  state: z.enum(["running", "stale", "rested", "waiting", "stopped", "done"]),
   outcome: z.enum(["completed", "failed", "killed"]).optional(),
   startedAt: z.string().optional(),
   finishedAt: z.string().optional(),

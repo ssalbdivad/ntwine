@@ -21,6 +21,7 @@ import { claudeBrokerDiagnosticLogPath } from "./backend/claude-broker-diagnosti
 import { claudeBrokerRecordPath, readBrokerRecord } from "./backend/claude-broker-host.ts"
 import { parseDeliveryLedger, correlateDeliveryRecord, ageDeliveries, serializeDeliveryLedger, type DeliveryLedgerItem } from "./delivery-ledger.ts"
 import { createCodexSubAgentTracker, type CodexSubAgentTracker } from "./codex-subagents.ts"
+import { createAgySwarmTracker, type AgySwarmTracker } from "./agy-swarm.ts"
 import { defaultCodexHome, readCodexThreadNames, scanForeignRollouts } from "./backend/codex.ts"
 import {
   isModelFacingCarrier, reportKind, blockTaskIds, parseReportBlock, relayedTaskIds,
@@ -702,7 +703,8 @@ export interface SubAgentView {
   startedAt: string // ISO8601 of the dispatch record
   // "rested" = a DIRECT child whose run ended (the harness reported completed/failed) while the fan-out
   // it dispatched is still running. See anchorRoots below for why `completed` is not "finished".
-  state: "running" | "stale" | "rested"
+  // "waiting" / "stopped" = an agy swarm member parked on its board, or not running (agy-swarm.ts).
+  state: "running" | "stale" | "rested" | "waiting" | "stopped"
   subagentType?: string // the dispatch's input.subagent_type verbatim (e.g. "ntwine:ntwine-opus-high"); absent when unset
   id: string // the dispatch tool_use id — the drill-in drawer's stable handle to this exact child
   // The RUNTIME agent id (Claude's `agentId: a01b2d20b32feab11` in the Agent launch ack) — the handle the
@@ -850,8 +852,13 @@ interface SubAgentEntry {
   // `sessionId` is the ack record's own (harness-written) session id, the one fact the check needs from it.
   promotedAck?: PromotedAck
   // Transcript SCHEMA of `outputFile` when it isn't Claude's own JSONL. A codex sub-agent's output file
-  // is the CHILD's codex rollout, which the drill-in drawer must parse with the codex reader instead.
-  outputFormat?: "codex"
+  // is the CHILD's codex rollout, which the drill-in drawer must parse with the codex reader instead; an
+  // agy swarm member's is its own agy `transcript.jsonl` (agy-swarm.ts), read by the agy reader.
+  outputFormat?: "codex" | "agy"
+  // AGY SWARM MEMBERS ONLY: agy's own reading of the member (agy-swarm.ts). `working` projects as an
+  // ordinary running child; `waiting` (parked on the swarm board) and `stopped` are live rows that hold
+  // nothing back. Absent on every other entry.
+  swarmState?: "working" | "waiting" | "stopped"
   // The RUNTIME task id (Bash "…with ID: <id>", Monitor "(task <id>…)", Agent "agentId: <id>"), parsed
   // from the launch ack. This is the ONE identifier a `TaskStop` references (its `input.task_id`) and
   // it also rides every natural completion notification as `<task-id>` — so it is the correlation key
@@ -979,7 +986,7 @@ interface RetiredSubAgent {
   label: string
   subagentType?: string
   outputFile?: string
-  outputFormat?: "codex" // see SubAgentEntry.outputFormat
+  outputFormat?: "codex" | "agy" // see SubAgentEntry.outputFormat
   // ISO8601 of the DISPATCH, carried over from the live entry. A retired row is normally never rendered,
   // but one holding a live fan-out is (see the RESTED anchor in descendantSubtrees), and that row needs
   // the same honest "working for 12m" instant every other child row shows rather than a derived one.
@@ -3066,7 +3073,7 @@ function sameForeign(a: { id: string }[], b: { id: string }[]): boolean {
 
 export interface SubAgentLookup {
   outputFile?: string
-  outputFormat?: "codex"
+  outputFormat?: "codex" | "agy"
   state: "running" | "stale" | "done"
   direct: boolean
   taskId?: string
@@ -3228,6 +3235,7 @@ export interface TailerDeps {
   brokerDaemonAlive?: (sessionId: string) => boolean
   sessionLogDir?: string // injectable transcript dir (tests); defaults to the Claude Code path
   codexHome?: string // injectable $CODEX_HOME (tests); where a codex sub-agent's child rollout is located
+  agyHome?: string // injectable agy data dir (tests); where an agy thread's swarm roster and members live
   mtimeMs?: (path: string) => number | undefined // injectable file mtime (tests); a sub-agent transcript's staleness clock
   // Awake milliseconds between two wall instants (awake-clock.ts): what a child's silence is measured in,
   // so a host that slept is not a child that died. Defaults to the process's own clock — unless `now` is
@@ -3814,7 +3822,7 @@ export function createTailer(deps: TailerDeps): Tailer {
     if (!path) return false
     // Only an agent's file is a Claude transcript: a shell's is its raw output, and a codex child's is
     // its rollout, which records calls in codex's own schema.
-    return quietPastWindow(path, mtimeMs(path), nowMs, e.kind === "agent" && e.outputFormat !== "codex")
+    return quietPastWindow(path, mtimeMs(path), nowMs, e.kind === "agent" && e.outputFormat === undefined)
   }
 
   // Has a child's transcript been quiet past its window? The plain clock — SUBAGENT_STALE_MS since the
@@ -3937,7 +3945,7 @@ export function createTailer(deps: TailerDeps): Tailer {
       out.push({
         label: e.label,
         startedAt: e.startedAt,
-        state: entryStale(state, e, nowMs) ? "stale" : "running",
+        state: e.swarmState === "waiting" || e.swarmState === "stopped" ? e.swarmState : entryStale(state, e, nowMs) ? "stale" : "running",
         subagentType: e.subagentType,
         id: e.toolUseId,
         ...(e.taskId ? { taskId: e.taskId } : {}),
@@ -4631,7 +4639,9 @@ export function createTailer(deps: TailerDeps): Tailer {
     if (live) return {
       ...(live.kind === "shell" ? {} : { outputFile: live.outputFile }),
       ...(live.outputFormat ? { outputFormat: live.outputFormat } : {}),
-      state: entryStale(state, live, now()) ? "stale" : "running",
+      // A WAITING agy swarm member is still live — a board post can wake it any second, so its drawer keeps
+      // polling. A STOPPED one is not running and reads as quiet.
+      state: live.swarmState === "stopped" ? "stale" : live.swarmState === "waiting" ? "running" : entryStale(state, live, now()) ? "stale" : "running",
       // A workflow is not a conversation: a steer addressed to its tool_use id reaches nobody.
       direct: live.kind === "agent" && !live.workflow,
       ...(live.workflow ? { workflow: workflowLookup(live.workflow.runDir, true) } : {}),
@@ -5478,6 +5488,67 @@ export function createTailer(deps: TailerDeps): Tailer {
     return (line: string) => tracker.onLine(line)
   }
 
+  // The AGY counterpart (agy-swarm.ts): an Antigravity thread's native `swarm` workers live in agy's own
+  // data dir, not on the ACP pipe, so they are POLLED rather than folded. Keyed by the TailState object
+  // itself, never stored on it: the tracker is a live object the tail cache cannot round-trip, and a
+  // rebuilt state (a new session, a new generation) must start a fresh tracker, whose first poll
+  // republishes the whole roster into the new maps. Undefined for every row that is not an agy thread
+  // with a known conversation id, so the claude and codex paths never stat anything for it.
+  const agySwarms = new WeakMap<TailState, AgySwarmTracker>()
+  function agySwarmOf(row: SessionRow, state: TailState): AgySwarmTracker | undefined {
+    if (row.backend !== "acp" || row.acp_agent !== "antigravity" || !row.agent_session_id) return undefined
+    const known = agySwarms.get(state)
+    if (known) return known
+    const tracker = createAgySwarmTracker({
+      home: deps.agyHome,
+      conversationId: row.agent_session_id,
+      sink: {
+        setLive: (id, e) => {
+          // A member the roster brought back is live again under its original id: drop its finished copy.
+          state.retiredSubAgents.delete(id)
+          const previous = state.subAgents.get(id)
+          state.subAgents.set(id, {
+            kind: "agent",
+            toolUseId: id,
+            // The member's NAME is what the coordinator itself calls it (`swarm{action:"kill", name}`), so it
+            // is both the row's label and the runtime id a fence or a watch names it by.
+            taskId: e.name,
+            label: e.name,
+            startedAt: e.startedAt,
+            ...(e.model ? { subagentType: e.model } : {}),
+            outputFile: e.transcriptPath,
+            outputFormat: "agy",
+            swarmState: e.state,
+            ...(e.activity || e.activityDetail
+              ? { progress: { ...previous?.progress, activity: e.activity, activityDetail: e.activityDetail } }
+              : {}),
+          })
+        },
+        retire: (id, e, status) => {
+          const live = state.subAgents.get(id)
+          if (live) {
+            retireLive(state, live, e?.finishedAt, status)
+            return
+          }
+          if (!e) return
+          retireToRing(state, {
+            kind: "agent",
+            toolUseId: id,
+            taskId: e.name,
+            label: e.name,
+            startedAt: e.startedAt ?? e.finishedAt ?? "",
+            ...(e.model ? { subagentType: e.model } : {}),
+            outputFile: e.transcriptPath,
+            outputFormat: "agy",
+          }, e.finishedAt, status)
+        },
+        liveIds: () => [...state.subAgents.values()].filter((e) => e.outputFormat === "agy").map((e) => e.toolUseId),
+      },
+    })
+    agySwarms.set(state, tracker)
+    return tracker
+  }
+
   // ---- durable prime cache (tail-cache.ts) ------------------------------------------------------
   // Loaded lazily on the first tick, consumed once per slug. Entries that miss their fence are simply
   // never applied: the row then folds from byte 0, exactly as it always did.
@@ -6272,6 +6343,7 @@ export function createTailer(deps: TailerDeps): Tailer {
         const primeLedger = ledgerFold(row, nowMs, state)
         consume(state, backend, chainOnLine(primeLedger.onLine, codexSubAgentOnLine(row, state)))
         state.codexSubAgents?.poll(nowMs)
+        agySwarmOf(row, state)?.poll(nowMs)
         const primedLedger = primeLedger.finish()
         state.deliveryLedgerSeen = primedLedger.changed ? primedLedger.value : row.delivery_ledger ?? null
         if (primedLedger.changed) transcriptDirty.push(row.slug)
@@ -6351,6 +6423,8 @@ export function createTailer(deps: TailerDeps): Tailer {
       // appended. This is what flips a finished codex child out of the live set (and, once every
       // child is done, releases the thread from Active into the queue).
       state.codexSubAgents?.poll(nowMs)
+      // An agy swarm's members move on their own clocks too, and nothing on the thread's ACP pipe says so.
+      agySwarmOf(row, state)?.poll(nowMs)
       const ledgerResult = ledger.finish()
       state.deliveryLedgerSeen = ledgerResult.changed ? ledgerResult.value : rowLedger
       if (ledgerDrifted || ledgerResult.changed) {

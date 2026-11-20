@@ -246,6 +246,14 @@ import {
   threadTranscriptSource,
 } from "./transcript.ts"
 import { readThreadStats, unrecordedStats } from "./thread-stats.ts"
+import { readAgyTranscriptFile } from "./backend/agy-transcript.ts"
+import { isAgySwarmMemberId } from "./agy-swarm.ts"
+
+// A sub-agent's "output file" is a transcript in its OWN runtime's schema: a codex child's is a codex
+// rollout, an agy swarm member's is agy's own transcript.jsonl, and anything else is Claude JSONL.
+function subAgentReader(format: "codex" | "agy" | undefined): (path: string) => TranscriptMessage[] {
+  return format === "codex" ? readCodexTranscriptFile : format === "agy" ? readAgyTranscriptFile : readTranscriptFile
+}
 import { terminalControllerOf, terminalNotesOf, terminalThreadView } from "./thread-terminals.ts"
 import { liftCheckout, resolveThreadWorkingDir, subAgentFolders, terminalFolder, terminalFolders } from "./thread-cwd.ts"
 import { isDirectory } from "./path-probe.ts"
@@ -1463,7 +1471,9 @@ export function createRouter(ctx: AppContext) {
     if (!child) return { found: false, subAgentOf: threadHandle, known: subAgentAddresses(threadHandle, agents) }
     const address = agents.find((a) => a.id === child.id)?.address ?? subAgentAddress(threadHandle, path)
     const info = ctx.tailer.subAgent(slug, child.id)
-    const state = child.state === "done" ? "done" as const : child.state === "rested" ? "resting" as const : "running" as const
+    // An agy swarm member parked on its board (`waiting`) or not running (`stopped`) is at rest, as a rested
+    // child is: its latest words are what it last said, and nothing is coming until something wakes it.
+    const state = child.state === "done" ? "done" as const : child.state === "rested" || child.state === "waiting" || child.state === "stopped" ? "resting" as const : "running" as const
     const outcome = child.outcome ?? info?.outcome
     const base = { found: true, handle: address, slug, state, subAgentOf: threadHandle, ...(outcome ? { outcome } : {}) }
     if (info?.workflow) {
@@ -1471,7 +1481,7 @@ export function createRouter(ctx: AppContext) {
       const lines = runAgents.map((a) => `- @${a.address ?? a.label} — ${a.state === "done" ? a.outcome === "failed" ? "failed" : "finished" : a.state}`)
       return { ...base, ...(lines.length ? { latest: lines.join("\n") } : {}) }
     }
-    const read = info?.outputFormat === "codex" ? readCodexTranscriptFile : readTranscriptFile
+    const read = subAgentReader(info?.outputFormat)
     const messages = info?.outputFile ? read(info.outputFile) : []
     const said = (m: (typeof messages)[number]) => (m.displayText ?? m.text).trim()
     const opening = messages.find((m) => m.role === "user" && !m.kind && said(m))
@@ -3531,7 +3541,7 @@ export function createRouter(ctx: AppContext) {
         if (!info) return { messages: [], state: "gone" as const, steerable: false, steerNote: null, stoppable: false, stopNote: null }
         // A CODEX sub-agent is itself a codex thread, so its "output file" is a rollout in codex's own
         // schema — parse it with the codex reader or the drawer renders empty.
-        const read = info.outputFormat === "codex" ? readCodexTranscriptFile : readTranscriptFile
+        const read = subAgentReader(info.outputFormat)
         const messages = mergeSubAgentSteers(
           info.outputFile ? read(info.outputFile) : [],
           ctx.storage.listSubAgentSteers(input.slug, input.id),
@@ -4701,9 +4711,14 @@ export function createRouter(ctx: AppContext) {
         const directory = subAgentDirectoryOf(input.slug)
         const addressOf = new Map(directory.agents.flatMap((row) => (row.address ? [[row.id, row.address] as const] : [])))
         for (const a of tele?.subAgents ?? []) {
-          if (a.state !== "running") continue
+          // An agy SWARM member is listed in every live state, each SAYING it (agy-swarm.ts): a worker that
+          // runs swarms needs to see who is parked on the board as well as who is working. Only a working
+          // one is running work a fence may name; the CLI keeps the others out of its ready-to-paste fence.
+          const swarm = a.state === "waiting" || a.state === "stopped" ? a.state : undefined
+          if (a.state !== "running" && !swarm) continue
           const address = a.id ? addressOf.get(a.id) : undefined
-          if (a.id) activity.push({ kind: "agent", id: a.taskId ?? a.id, label: a.label, since: a.startedAt, ...(address ? { address } : {}), ...watchFor("agent", [a.taskId, a.id, a.label]) })
+          const label = isAgySwarmMemberId(a.id) ? `${a.label} (swarm worker${a.subagentType ? `, ${a.subagentType}` : ""})` : a.label
+          if (a.id) activity.push({ kind: "agent", id: a.taskId ?? a.id, label, since: a.startedAt, ...(address ? { address } : {}), ...(swarm ? { state: swarm } : {}), ...watchFor("agent", [a.taskId, a.id, a.label]) })
         }
         for (const t of ctx.storage.listThreadTimers(input.slug, { armedOnly: true })) {
           // A REPLY WAIT is listed as the THREAD it waits on, by the handle a `threads:` fence entry names;

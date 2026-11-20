@@ -618,3 +618,25 @@ test("every ntwinectl example the worker contract writes out runs as written, an
     fake.close()
   }
 })
+
+// AN AGY SWARM (server/agy-swarm.ts): every live member is listed, each saying how it stands, but only the
+// working ones are running work — a member parked on its swarm's board is not something to wait on, so the
+// ready-to-paste fence never names it and the running count leaves it out.
+test("`activity` lists an agy swarm's parked members apart from its working ones, and the fence names only the working", async () => {
+  const fake = await fakeNtwine((procedure) => procedure === "listOwnThreadActivity" ? { result: {
+    handle: "overnight",
+    activity: [
+      { kind: "agent", id: "armstrong-ga-pr", label: "armstrong-ga-pr (swarm worker, gemini-4-neon-xhigh)", since: "2026-11-20T20:39:35Z", address: "overnight.armstrong-ga-pr" },
+      { kind: "agent", id: "monitor", label: "monitor (swarm worker, gemini-4-neon-high)", since: "2026-11-20T07:05:06Z", address: "overnight.monitor", state: "waiting" },
+    ],
+  } } : undefined)
+  try {
+    const ran = await run(["activity"], { env: worker(fake) })
+    assert.equal(ran.code, 0, ran.stderr)
+    assert.match(ran.stdout, /1 thing running on this thread:\n\n {2}agent: armstrong-ga-pr {2}\(since 2026-11-20T20:39:35Z\)\n {4}@overnight\.armstrong-ga-pr — armstrong-ga-pr \(swarm worker, gemini-4-neon-xhigh\)/)
+    assert.match(ran.stdout, /```awaiting\n {2}agents: \[armstrong-ga-pr\]\n```/)
+    assert.match(ran.stdout, /1 swarm worker not working right now \(not running work; no fence names it\):\n\n {2}agent: monitor {2}\(waiting on the swarm board; since 2026-11-20T07:05:06Z\)\n {4}@overnight\.monitor — monitor/)
+  } finally {
+    fake.close()
+  }
+})

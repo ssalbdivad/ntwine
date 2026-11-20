@@ -37,6 +37,11 @@ test("a SETTLED row keeps its ×: clearing a finished op is the escape hatch, an
   }
 })
 
+test("an agy swarm member parked on its board or stopped gets no ×: agy owns it, and a clear would not stick", () => {
+  assert.equal(has({ id: "agy-swarm:c1", state: "waiting" }), false)
+  assert.equal(has({ id: "agy-swarm:c1", state: "stopped" }), false)
+})
+
 test("no handle, no ×: an id-less row and a descendant are both unactionable", () => {
   assert.equal(has({ state: "stale" }), false, "nothing to address the call with")
   assert.equal(has({ id: "toolu_g", state: "running", stoppable: true, depth: 2 }), false, "a descendant's dispatch lives in an ANCESTOR's transcript, so the row would not clear")

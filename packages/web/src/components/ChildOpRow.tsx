@@ -19,6 +19,8 @@ import {
   CHILD_STALE_DOT_CLASS,
   CHILD_STALE_SHELL_TITLE,
   CHILD_STALE_TITLE,
+  CHILD_STOPPED_TITLE,
+  CHILD_WAITING_TITLE,
 } from "../lib/childOps.ts"
 
 // GITHUB is a PR watcher the worker parked on. It is a child op in every way that matters to this row —
@@ -89,7 +91,8 @@ export function ChildOpRow({
   // "rested" is a sub-AGENT only reading: its own run ended while the fan-out it dispatched kept going
   // (see CHILD_RESTED_TITLE). It draws a hollow dot in place of the live/stale one and nothing else on
   // the row changes — the live children still pulse, indented one step beneath it.
-  state: "running" | "stale" | "rested" | "returned"
+  // "waiting" / "stopped" are an Antigravity swarm member's own readings (CHILD_WAITING_TITLE).
+  state: "running" | "stale" | "rested" | "waiting" | "stopped" | "returned"
   density: ChildOpDensity
   // How far down the dispatch tree this row sits: 1 (or absent) = a child the THREAD dispatched, 2 = a
   // child of that child, and so on. Each level past the first steps the row right by one indent, so a
@@ -186,7 +189,11 @@ export function ChildOpRow({
   // confirmed gone, so only its words differ (see CHILD_STALE_SHELL_TITLE).
   const quiet = state === "rested"
     ? <span className={CHILD_RESTED_DOT_CLASS} title={CHILD_RESTED_TITLE} />
-    : <span className={CHILD_STALE_DOT_CLASS} title={kind === "SHELL" ? CHILD_STALE_SHELL_TITLE : CHILD_STALE_TITLE} />
+    : state === "waiting"
+      ? <span className={CHILD_RESTED_DOT_CLASS} title={CHILD_WAITING_TITLE} />
+      : state === "stopped"
+        ? <span className={CHILD_STALE_DOT_CLASS} title={CHILD_STOPPED_TITLE} />
+        : <span className={CHILD_STALE_DOT_CLASS} title={kind === "SHELL" ? CHILD_STALE_SHELL_TITLE : CHILD_STALE_TITLE} />
   const indicator = rail ? (
     <span className="flex w-3.5 shrink-0 items-center justify-center">
       {running ? <BoxSpinner size={12} /> : quiet}
@@ -231,7 +238,7 @@ export function ChildOpRow({
       {(counter || budget) && elapsed && <span aria-hidden className="text-muted-25">·</span>}
       {elapsed && (returned
         ? <span title={`${outcomeWord[0]!.toUpperCase()}${outcomeWord.slice(1)} ${elapsed}`} style={outcome === "failed" ? { color: PRIMER.fgDanger } : undefined}>{outcomeWord} {elapsed}</span>
-        : <span title={`Working for ${elapsed}`}>{elapsed}</span>)}
+        : <span title={state === "waiting" || state === "stopped" ? `Started ${elapsed} ago` : `Working for ${elapsed}`}>{elapsed}</span>)}
     </span>
   ) : null
 

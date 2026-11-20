@@ -91,6 +91,9 @@ export function childOpDismisser(
 ): (() => void) | undefined {
   if (!op.id || !isDirectSubAgent(op)) return undefined
   if (op.state === "running" && !op.stoppable) return undefined
+  // An Antigravity swarm member that is waiting or stopped is still a member of agy's own swarm: only its
+  // coordinator can kill it, and clearing the row would only see the roster bring it back on the next read.
+  if (op.state === "waiting" || op.state === "stopped") return undefined
   const id = op.id
   return () => dismissChildOp(slug, id, kind, api)
 }

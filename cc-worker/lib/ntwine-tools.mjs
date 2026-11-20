@@ -1542,7 +1542,7 @@ async function title(args) {
  * @returns {Promise<string>} */
 async function activity() {
   const result = (await callRpc("listOwnThreadActivity", { slug: threadSlug() }))?.result
-  const items = Array.isArray(result?.activity) ? result.activity : []
+  let items = Array.isArray(result?.activity) ? result.activity : []
   // A question the user TYPED PAST is listed apart: it holds nothing, so it is never named in a fence.
   const allQuestions = Array.isArray(result?.questions) ? result.questions : []
   const questions = allQuestions.filter((q) => !q?.passedOver)
@@ -1578,19 +1578,28 @@ async function activity() {
     "do not block `done` and are not asked again."
   )
   const askedBlock = heldBlock + passedOverBlock
+  // An agy SWARM member that is live but not working — parked on its swarm's board, or stopped — carries a
+  // `state`. It is listed so the worker sees its whole swarm, in its own block, but it is not running work:
+  // no fence names it, and it is not counted as running.
+  const idle = items.filter((i) => i?.state === "waiting" || i?.state === "stopped")
+  const idleBlock = idle.length === 0 ? "" : (
+    `\n\n${idle.length} swarm worker${idle.length === 1 ? "" : "s"} not working right now (not running work; no fence names ${idle.length === 1 ? "it" : "them"}):\n\n` +
+    idle.map((i) => `  agent: ${i.id}  (${i.state === "waiting" ? "waiting on the swarm board" : "stopped"}${i.since ? `; since ${i.since}` : ""})\n    ${i.address ? `@${i.address} — ` : ""}${i.label}`).join("\n")
+  )
+  if (idle.length) items = items.filter((i) => !idle.includes(i))
   if (!items.length) {
     if (questions.length > 0) {
       return selfLine + (
         "Nothing is RUNNING on this thread — no background shells, no sub-agents, no armed timers, no " +
         "registered PRs. Your open questions are your sign-off: rest with no fence." +
-        askedBlock + linksBlock
+        idleBlock + askedBlock + linksBlock
       )
     }
     return selfLine + (
       "Nothing is running on this thread — no background shells, no sub-agents, no armed timers, no " +
       "registered PRs, and no question still owed an answer.\n\nSo there is nothing to wait on: an ```awaiting fence " +
       "would have nothing to name, and a fence naming nothing is not a park. End with ```done, or " +
-      "register a question with `ntwinectl ask` if you need the user." + passedOverBlock + linksBlock
+      "register a question with `ntwinectl ask` if you need the user." + idleBlock + passedOverBlock + linksBlock
     )
   }
   const lines = items.map((i) => {
@@ -1626,7 +1635,7 @@ async function activity() {
     "```\n\nDrop the lines you are not actually waiting on — a dev server you left running is not a wait." +
     "\n\nA `ntwinectl watch` registration (marked `[watched as …]` above) keeps the WAKE across a compaction and a " +
     "restart, but it does not replace the fence: name the work in the fence all the same." +
-    askedBlock + linksBlock
+    idleBlock + askedBlock + linksBlock
   )
 }
 

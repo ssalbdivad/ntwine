@@ -88,7 +88,7 @@ import { FOREGROUND_MARK_AFTER_MS, foregroundToolIsRunning, hasRunningToolIndica
 import { formatRuntimeElapsed, formatToolDuration } from "../lib/durationLabels.ts"
 import { githubRefUrl } from "../lib/githubRef.ts"
 import { useNowMs } from "../lib/liveClock.ts"
-import { CHILD_OPEN_TITLE, CHILD_RESTED_DOT_CLASS, CHILD_RESTED_TITLE, CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE, checksCounterLabel, childOpSubtree, issueCounterLabel, transcriptBackgroundShells, visibleChildOps, type TranscriptShellRecord } from "../lib/childOps.ts"
+import { CHILD_OPEN_TITLE, CHILD_RESTED_DOT_CLASS, CHILD_RESTED_TITLE, CHILD_STALE_DOT_CLASS, CHILD_STALE_SHELL_TITLE, CHILD_STALE_TITLE, CHILD_STOPPED_TITLE, CHILD_WAITING_TITLE, checksCounterLabel, childOpSubtree, issueCounterLabel, transcriptBackgroundShells, visibleChildOps, type TranscriptShellRecord } from "../lib/childOps.ts"
 import { childOpDismisser } from "../lib/dismissChildOp.ts"
 import { agentCompletionCall, subAgentCompletionOutcome } from "../lib/subAgentCompletion.ts"
 import { agentReading } from "../lib/agentReading.ts"
@@ -3335,6 +3335,10 @@ export function AgentBlock({
       <span className={CHILD_STALE_DOT_CLASS} title={CHILD_STALE_TITLE} />
     ) : live?.state === "rested" ? (
       <span className={CHILD_RESTED_DOT_CLASS} title={CHILD_RESTED_TITLE} />
+    ) : live?.state === "waiting" ? (
+      <span className={CHILD_RESTED_DOT_CLASS} title={CHILD_WAITING_TITLE} />
+    ) : live?.state === "stopped" ? (
+      <span className={CHILD_STALE_DOT_CLASS} title={CHILD_STOPPED_TITLE} />
     ) : null
 
   function openDrawer() {

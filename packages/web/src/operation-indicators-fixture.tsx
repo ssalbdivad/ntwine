@@ -59,6 +59,10 @@ const thread: ThreadView = {
     // RESTED: its own run ended while the fan-out it launched kept going — the hollow dot, on every
     // density and on the dispatch card that opens it.
     { id: "agent-rested", label: "Fan out the migration sweep", startedAt: agoIso(23), state: "rested", subagentType: "ntwine:opus-high", lastActivityAt: agoIso(18) },
+    // An Antigravity SWARM member in agy's two non-working readings (server agy-swarm.ts): WAITING is
+    // parked on its swarm's board (the rested hollow dot, its own title), STOPPED is not running (flat).
+    { id: "agy-swarm:waiting", taskId: "critic", label: "critic", startedAt: agoIso(31), state: "waiting", subagentType: "claude-opus-5-5-high", lastActivityAt: agoIso(9) },
+    { id: "agy-swarm:stopped", taskId: "scout", label: "scout", startedAt: agoIso(40), state: "stopped", subagentType: "gemini-4-neon-xhigh", lastActivityAt: agoIso(30) },
   ],
   bgShells: [
     { label: "Watch CI", startedAt: agoIso(34), state: "running", lastActivityAt: agoIso(1) },
