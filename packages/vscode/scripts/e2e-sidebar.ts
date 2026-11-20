@@ -2928,9 +2928,15 @@ try {
       const before = read()
       expect("c25", "control: the OS clipboard holds what was there before", before === "the clipboard before the copy", { before })
       const eventsBefore = (await status()).sidebar.events.length
+      // The check is up for 1.5s: watched for, rather than looked for once the clipboard has been read.
+      await inPage(() => {
+        const w = window as unknown as { __copyFlashed?: boolean }
+        w.__copyFlashed = false
+        new MutationObserver(() => { if (document.querySelector(".md-code-copy.md-code-copied")) w.__copyFlashed = true }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] })
+      })
       await clickInPage(".md-code-copy", "the code block's copy button")
       const copied = await waitFor("the copied block", () => (read() === fenced ? read() : undefined), 5_000).catch(() => read())
-      const flashed = await inPage(() => !!document.querySelector(".md-code-copy.md-code-copied"))
+      const flashed = await inPage(() => (window as unknown as { __copyFlashed?: boolean }).__copyFlashed === true)
       const events = (await status()).sidebar.events.slice(eventsBefore)
       notes.copyButton = { copied, flashed, events }
       expect("c25", "the copy button puts the block on the OS clipboard, through the extension, and shows its check", copied === fenced && flashed && events.some((e) => e.type === "ntwine:write-clipboard" && e.outcome === "written"), notes.copyButton)
