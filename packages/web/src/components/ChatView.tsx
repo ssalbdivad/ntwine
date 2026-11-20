@@ -1750,7 +1750,11 @@ function VirtualizedThreadTranscript({
             data-index={virtualRow.index}
             data-transcript-row-key={row.key}
             data-transcript-source-id={row.kind === "message" ? row.message.sourceId : undefined}
-            className="absolute left-0 top-0 w-full"
+            // Virtualized rows sit in DOM order with `transform`, so each row is its own stacking context
+            // and row N+1's top padding otherwise paints and hit-tests over anything overflowing row N
+            // (the hover highlight's -my-1.5 and the zero-height reaction button under an agent message).
+            // Elevating the hovered/focused/open row keeps those controls reachable without shifting layout.
+            className="absolute left-0 top-0 w-full hover:z-[1] focus-within:z-[1] has-[[data-state=open]]:z-[1]"
             style={{ transform: `translateY(${virtualRow.start}px)` }}
           >
             {row.kind === "head-anchor" ? null
@@ -1822,7 +1826,7 @@ function VirtualizedThreadTranscript({
                     message. On the message alone, not the row: the row also carries the gap and the time
                     break above it. -mx/px and -my/py cancel, so the tint gets air without moving a pixel; flex-col
                     because a user bubble places itself with `self-end`. */}
-                <div data-message-at={row.timeBreakAt} className="-mx-3 -my-1.5 flex flex-col rounded-lg px-3 py-1.5 transition-colors hover:bg-fg/[0.035]">
+                <div data-message-at={row.timeBreakAt} className="group/msg -mx-3 -my-1.5 flex flex-col rounded-lg px-3 py-1.5 transition-colors hover:bg-fg/[0.035]">
                   <Message
                     m={row.message}
                     answering={fencesLive ? answeringForMessage(row.message) : undefined}

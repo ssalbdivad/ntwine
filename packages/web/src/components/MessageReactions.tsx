@@ -105,7 +105,7 @@ export function AgentMessageReactions({ sourceId, excerpt }: { sourceId?: string
           data-add-reaction
           aria-label="Add a reaction"
           title="Add a reaction"
-          className={`inline-flex h-[22px] w-[26px] items-center justify-center rounded-full text-muted outline-none transition-opacity hover:bg-elevated hover:text-fg focus-visible:opacity-100 ${open ? "opacity-100 bg-elevated" : "opacity-0 group-hover/msg:opacity-100"}`}
+          className={`inline-flex h-[22px] w-[26px] items-center justify-center rounded-full text-muted outline-none transition-opacity hover:bg-elevated hover:text-fg focus-visible:pointer-events-auto focus-visible:opacity-100 ${open ? "opacity-100 bg-elevated" : "pointer-events-none opacity-0 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100"}`}
         >
           <SmilePlus size={15} strokeWidth={1.75} aria-hidden />
         </button>
@@ -132,8 +132,10 @@ export function AgentMessageReactions({ sourceId, excerpt }: { sourceId?: string
   if (!mine.length) {
     return (
       <div data-message-reactions="human" className="relative h-0 overflow-visible">
-        {/* -7px puts the glyph's INK, not its box, on the prose's left edge (see SMILE_INSET). */}
-        <div className="absolute left-[-7px] top-[2px]">{picker}</div>
+        {/* -7px puts the glyph's INK, not its box, on the prose's left edge (see SMILE_INSET).
+            top-0 + pt-[2px] (not top-[2px]) keeps the hit box flush with group/msg so moving
+            down to the button never crosses a 2px hover gap. */}
+        <div className={`absolute left-[-7px] top-0 pt-[2px] ${open ? "pointer-events-auto" : "pointer-events-none group-hover/msg:pointer-events-auto"}`}>{picker}</div>
       </div>
     )
   }
