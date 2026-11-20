@@ -3,6 +3,14 @@ import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import {
+  PR_WATCH_SPENT_TRAILER,
+  humanGapNote,
+  mergedWakeMessage,
+  parseMergedWake,
+  wakeDeliveryToken,
+  wakeTimeHeader,
+} from "@ntwine/shared"
 import { AcpTranscriptWriter, acpTranscriptPath, createAcpBackend, parseAcpLine, projectAcpTranscript, type AcpRecord } from "./acp-transcript.ts"
 import { newTailState } from "../tailer.ts"
 
@@ -157,4 +165,36 @@ test("acp-transcript: reasoning chunks in a turn coalesce without fragmenting to
   assert.deepEqual(msgs[2]!.parts.map((p) => p.kind), ["tools", "text"])
   assert.equal(msgs[4]!.text, "Next turn thought.")
   assert.equal(msgs[5]!.tools.length, 1)
+})
+
+test("acp-transcript: wakes and follow-up riders take the shared user projection and correction sink", () => {
+  const token = wakeDeliveryToken("19856da8866a4bc9838f43addd66fda36f59d3c666b8201f8ef957db77610890")
+  const clock = wakeTimeHeader(Date.parse("2026-11-20T01:55:00.000Z"), "2026-11-20T01:52:00.000Z")
+  const merged = `${mergedWakeMessage([
+    { reason: "pr-watch acme/app#17 merged", message: `⏰ acme/app#17 was MERGED.\n\n${PR_WATCH_SPENT_TRAILER}` },
+    { reason: "awaiting park named 1 dead item(s)", message: "⚠️ Your ```awaiting fence names something that is not running, so it is not a park and your thread stayed in the queue.\n\n- `prs: [acme/app#17]` — NOT REGISTERED" },
+  ], Date.parse("2026-11-20T01:55:00.000Z"), "2026-11-20T01:52:00.000Z")}\n\n${token}`
+  const loneCorrection = `⚠️ Your \`\`\`awaiting fence names something that is not running, so it is not a park.\n\n${clock}\n\n${token}`
+  const gap = humanGapNote(Date.parse("2026-11-20T02:30:00.000Z"), "2026-11-20T01:55:00.000Z")!
+  const recs: AcpRecord[] = [
+    { kind: "user-message", at: T(0), text: "ship it", synthetic: false },
+    { kind: "assistant-text", at: T(1), text: "```awaiting\nprs: [acme/app#17]\n```", final: true, messageId: "m1" },
+    { kind: "user-message", at: T(2), text: merged, synthetic: false },
+    { kind: "assistant-text", at: T(3), text: "```awaiting\nshells: [b1]\n```", final: true, messageId: "m2" },
+    { kind: "user-message", at: T(4), text: loneCorrection, synthetic: false },
+    { kind: "user-message", at: T(5), text: `looks good\n\n${gap}`, synthetic: false },
+  ]
+  const msgs = projectAcpTranscript(recs.map((r) => JSON.stringify(r)).join("\n"), "acp:s")
+  // Merged wake: flagged as wake, delivery token + clock stripped from displayText, and its park-correction part refused the awaiting fence above it.
+  assert.equal(msgs[1]!.fenceRefused, true)
+  assert.equal(msgs[2]!.wake, true)
+  assert.doesNotMatch(msgs[2]!.displayText ?? "", /ntwine-wake|⏱/)
+  assert.equal(parseMergedWake(msgs[2]!.displayText ?? "")?.length, 2)
+  assert.equal(msgs[2]!.text, merged, "raw stored text keeps the delivery token for ack matching")
+  // Lone park correction: dropped from the transcript, while still marking the preceding fence refused.
+  assert.equal(msgs[3]!.fenceRefused, true)
+  assert.equal(msgs.length, 5, "the lone correction record is dropped")
+  // Human follow-up with gap note: rider stripped from displayText, never misclassified as a wake.
+  assert.equal(msgs[4]!.wake, undefined)
+  assert.equal(msgs[4]!.displayText, "looks good")
 })

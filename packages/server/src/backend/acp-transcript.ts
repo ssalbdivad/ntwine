@@ -1,8 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { parseCardAction, parseSpinoffChildPrompt, parseSpinoffRequest, type TranscriptMessage, type TranscriptToolCall } from "@ntwine/shared"
+import { isWakeDelivery, parseGithubWakeSteer, type TranscriptMessage, type TranscriptToolCall } from "@ntwine/shared"
 import type { AgentBackend, BuiltCommand, FoldState, NormalizedEvent, ResumeOpts, SpawnOpts } from "./types.ts"
 import { applyEvent } from "../tailer.ts"
+import { createCorrectionSink, normalizeNewlines, pushUserRecord, userDisplayText } from "../user-projection.ts"
 
 // The ACP backend's transcript: a JSONL file NTWINE writes, one per thread, at
 // `<stateDir>/acp/<ntwineSessionId>.jsonl`.
@@ -144,11 +145,11 @@ function upgradeToolTarget(call: TranscriptToolCall, acp: AcpToolMeta | undefine
 /** The drawer's messages from the raw file. `identityPrefix` seeds `sourceId`s the client keys on. */
 export function projectAcpTranscript(raw: string, identityPrefix = "acp"): TranscriptMessage[] {
   const out: TranscriptMessage[] = []
+  const dropCorrection = createCorrectionSink(out)
   let current: TranscriptMessage | undefined // the open assistant message
   let currentMessageId: string | undefined
   let turnReasoning: TranscriptMessage | undefined
   const openTools = new Map<string, TranscriptToolCall>()
-  let sawUser = false
   const lines = raw.split("\n")
 
   const close = () => { current = undefined; currentMessageId = undefined }
@@ -187,20 +188,20 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
       case "user-message": {
         close()
         turnReasoning = undefined
-        const text = rec.text ?? ""
-        // A spinoff child's opening prompt projects into its spinoff header, exactly as the Claude/Codex
-        // projection does it (transcript.ts userProjection). The bridge records the human-side prompt
-        // with no dispatch envelope, so the first user record IS the composed spinoffChildPrompt.
-        const origin = !sawUser && !rec.synthetic ? parseSpinoffChildPrompt(text) : null
-        // …and a SPINOFF REQUEST an older build delivered to the worker is stamped the same way too.
-        // Without the stamp the request read as the human's own latest turn to every reader that skips
-        // `m.spinoff` to find one, and operatorMessages described the thread by the spinoff.
-        const spinoff = !rec.synthetic ? parseSpinoffRequest(text) : null
-        sawUser = true
-        // …and a button's send (Continue, Done, Retry…), which the chat draws as their one-line marker (userProjection).
-        const cardAction = !rec.synthetic ? parseCardAction(text) : undefined
-        const projected = spinoff ? { displayText: spinoff.instructions, spinoff } : origin ? { displayText: origin.instructions, spinoffOrigin: origin } : cardAction ? { cardAction, ...(cardAction === "keep-working" ? { keepWorking: true as const } : {}) } : {}
-        out.push({ sourceId: `${identityPrefix}:${i}`, role: "user", text, ...projected, tools: [], parts: [], ...(rec.at ? { at: rec.at } : {}), ...(rec.synthetic ? { wake: true } : {}) })
+        const text = normalizeNewlines(rec.text ?? "")
+        if (rec.synthetic) {
+          // A synthetic record is machine-originated by declaration (never a human card action or
+          // spinoff), so keep it flagged `wake` even when it carries no delivery token.
+          if (dropCorrection(text)) break
+          const displayText = userDisplayText(text, false)
+          const steer = isWakeDelivery(text) ? parseGithubWakeSteer(displayText ?? text) : undefined
+          out.push({ sourceId: `${identityPrefix}:${i}`, role: "user", text, ...(displayText ? { displayText } : {}), wake: true, ...(steer ? { wakeSteer: steer } : {}), tools: [], parts: [], ...(rec.at ? { at: rec.at } : {}) })
+        } else {
+          // Same projection Claude and Codex use: strips delivery tokens, wake clocks, follow-up
+          // riders and trailers, flags wakes + parses GitHub steers, drops park corrections (marking
+          // the refused awaiting fence), and projects spinoffs/card actions/peer messages.
+          pushUserRecord(out, `${identityPrefix}:${i}`, text, rec.at, dropCorrection)
+        }
         break
       }
       case "turn-start":
