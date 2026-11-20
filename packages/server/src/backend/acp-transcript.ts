@@ -146,6 +146,7 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
   const out: TranscriptMessage[] = []
   let current: TranscriptMessage | undefined // the open assistant message
   let currentMessageId: string | undefined
+  let turnReasoning: TranscriptMessage | undefined
   const openTools = new Map<string, TranscriptToolCall>()
   let sawUser = false
   const lines = raw.split("\n")
@@ -185,6 +186,7 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
         break
       case "user-message": {
         close()
+        turnReasoning = undefined
         const text = rec.text ?? ""
         // A spinoff child's opening prompt projects into its spinoff header, exactly as the Claude/Codex
         // projection does it (transcript.ts userProjection). The bridge records the human-side prompt
@@ -205,10 +207,22 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
         break
       case "turn-end":
         close()
+        turnReasoning = undefined
         break
       case "reasoning": {
-        close()
-        out.push({ sourceId: `${identityPrefix}:${i}`, role: "assistant", kind: "reasoning", text: rec.text, tools: [], parts: [], ...(rec.at ? { at: rec.at } : {}) })
+        // Coalesce all reasoning chunks in a turn into one expandable block, matching Codex
+        // (transcript.ts). Only the first chunk closes the open assistant message; subsequent chunks
+        // append upstream without closing `current`, so thinking between tool calls (e.g. Gemini's
+        // `agent_thought_chunk` before every batch) does not shatter tool-call collapsing into tiny runs.
+        const text = rec.text.replace(/\r\n?/g, "\n").trim()
+        if (!text) break
+        if (turnReasoning) {
+          turnReasoning.text = `${turnReasoning.text}\n\n${text}`
+        } else {
+          close()
+          turnReasoning = { sourceId: `${identityPrefix}:${i}`, role: "assistant", kind: "reasoning", text, tools: [], parts: [], ...(rec.at ? { at: rec.at } : {}) }
+          out.push(turnReasoning)
+        }
         break
       }
       case "assistant-text": {

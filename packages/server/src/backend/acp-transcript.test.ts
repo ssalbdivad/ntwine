@@ -121,3 +121,40 @@ test("acp-transcript: a tool-result carrying the target the call lacked names th
   ].join("\n") + "\n"
   assert.equal(projectAcpTranscript(raw2, "x")[0]!.tools[0]!.detail, "cat x")
 })
+
+test("acp-transcript: reasoning chunks in a turn coalesce without fragmenting tool calls, and reset on the next turn", () => {
+  // Gemini emits an agent_thought_chunk before nearly every tool batch. Appending to the turn's
+  // existing reasoning block must not close the open assistant message, so consecutive tools stay in
+  // one collapsible run (matching Codex in transcript.ts).
+  const recs: AcpRecord[] = [
+    { kind: "user-message", at: T(0), text: "investigate", synthetic: false },
+    { kind: "turn-start", at: T(0) },
+    { kind: "reasoning", at: T(1), text: "First thought." },
+    { kind: "tool-call", at: T(2), id: "c1", name: "read", input: { path: "a.ts" } },
+    { kind: "tool-result", at: T(3), id: "c1", text: "ok" },
+    { kind: "reasoning", at: T(4), text: "Second thought." },
+    { kind: "tool-call", at: T(5), id: "c2", name: "read", input: { path: "b.ts" } },
+    { kind: "tool-result", at: T(6), id: "c2", text: "ok" },
+    { kind: "reasoning", at: T(7), text: "   \n  " },
+    { kind: "assistant-text", at: T(8), text: "All clear.", final: true, messageId: "m1" },
+    { kind: "turn-end", at: T(8), finalText: "All clear.", successful: true },
+    { kind: "user-message", at: T(10), text: "follow-up", synthetic: false },
+    { kind: "turn-start", at: T(10) },
+    { kind: "reasoning", at: T(11), text: "Next turn thought." },
+    { kind: "tool-call", at: T(12), id: "c3", name: "read", input: { path: "c.ts" } },
+  ]
+  const msgs = projectAcpTranscript(recs.map((r) => JSON.stringify(r)).join("\n"), "g")
+  assert.deepEqual(msgs.map((m) => [m.role, m.kind ?? "message"]), [
+    ["user", "message"],
+    ["assistant", "reasoning"],
+    ["assistant", "message"],
+    ["user", "message"],
+    ["assistant", "reasoning"],
+    ["assistant", "message"],
+  ])
+  assert.equal(msgs[1]!.text, "First thought.\n\nSecond thought.")
+  assert.equal(msgs[2]!.tools.length, 2)
+  assert.deepEqual(msgs[2]!.parts.map((p) => p.kind), ["tools", "text"])
+  assert.equal(msgs[4]!.text, "Next turn thought.")
+  assert.equal(msgs[5]!.tools.length, 1)
+})

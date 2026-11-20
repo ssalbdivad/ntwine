@@ -611,7 +611,12 @@ process the user asked to keep and use themselves; \`ntwinectl read-thread\` and
 \`ntwinectl message-thread\` read and type into one.
 
 A message the user sends while you work is queued and arrives as your next turn: rest promptly when
-the work is done, and read the newest user message first.`,
+the work is done, and read the newest user message first.
+
+During long multi-step work, write a brief one-sentence status update in your assistant message between
+major phases (after exploring, before a large edit or verification pass, or when findings change the
+plan) — not before every tool call, and not on short tasks. Your internal thoughts are collapsed in the
+transcript, so an occasional visible line lets the user follow progress without opening tool logs.`,
 }
 
 const THREADS = `## Other threads
