@@ -64,7 +64,7 @@ import { useUnqueueFollowUp, useUnqueueSupported } from "../lib/unqueueFollowUp.
 import { useFailedDeliveryActions } from "../lib/failedDelivery.ts"
 import { useDeliverQueuedNow, useDeliverQueuedNowSupported } from "../lib/deliverQueuedNow.ts"
 import { SessionMessageLine } from "./SessionMessageLine.tsx"
-import { lastAskIndex, messagePresentationText } from "../lib/messagePresentation.ts"
+import { lastAskIndex, messagePresentationText, updateReplyIndexes } from "../lib/messagePresentation.ts"
 import { ICON_LABEL_NUDGE } from "../lib/iconAlign.ts"
 import { getThemeSnapshot, subscribeTheme } from "../lib/theme.ts"
 import { isVisualizationThemeAck, visualizationThemeMessage } from "../lib/visualizationThemeProtocol.ts"
@@ -369,6 +369,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
     [settledPlacement],
   )
   const paired = useMemo(() => pairAllAnswers(messages).map((rows) => withoutSettledAnswers(rows, settledKeys)), [messages, settledKeys])
+  const updateReplies = useMemo(() => updateReplyIndexes(presentationMessages), [presentationMessages])
   // What the human's in-flight answer still has to SAY — the rows of it no message above is already
   // drawing, so the pinned card stands down instead of doubling one the transcript now carries itself.
   const inFlightAnswers = useMemo(() => {
@@ -612,6 +613,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
                     paired={paired[messageIndex]}
                     staleAwaiting={awaitingCut >= 0 && messageIndex < awaitingCut}
                     restingCardShown={messageIndex === lastAgentIdx && restingShown}
+                    updateReply={updateReplies.has(messageIndex)}
                     shadowedBy={shadowedByMessage.get(messageIndex)}
                     placed={placement.placed.get(messageIndex)}
                     settledPlaced={settledPlacement.placed.get(messageIndex)}
@@ -1083,6 +1085,7 @@ function VirtualizedThreadTranscript({
     [activityMessages, awaitingCut, restingShown],
   )
   const lastUserIdx = useMemo(() => lastAskIndex(messages), [messages])
+  const updateReplies = useMemo(() => updateReplyIndexes(messages), [messages])
   // A completion the worker REGISTERED rather than fenced: the last rung of the ladder below, drawn here
   // because no message carries it (lib/registeredDone). Keyed on the final assistant message so a worker
   // that also wrote the fence gets one card, from the message, not two.
@@ -1827,6 +1830,7 @@ function VirtualizedThreadTranscript({
                     paired={paired[row.messageIndex]}
                     staleAwaiting={awaitingCut >= 0 && row.messageIndex < awaitingCut}
                     restingCardShown={row.messageIndex === lastAgentIdx && restingShown}
+                    updateReply={updateReplies.has(row.messageIndex)}
                     shadowedBy={shadowedByMessage.get(row.messageIndex)}
                     placed={placement.placed.get(row.messageIndex)}
                     settledPlaced={settledPlacement.placed.get(row.messageIndex)}
@@ -3854,7 +3858,7 @@ function UserBubble({ text, rawText, queued, held, deliveryUnconfirmed, delivery
 // NO `thread` PROP. It was passed for the spinoff card alone, and a thread object is new on every board
 // tick, so it re-rendered every row of a running thread's transcript many times a minute for the sake of
 // one card. The spinoff cards read the board themselves (Spinoff.tsx useTranscriptThread).
-export const Message = memo(function Message({ m, answering, dense, paired, showSendButton, staleAwaiting, shadowedBy, placed, settledPlaced, restingCardShown }: { m: ChatMessage; answering?: MessageAnswering; dense?: boolean; paired?: PairedAnswer[] | null; showSendButton?: boolean; staleAwaiting?: boolean; shadowedBy?: readonly RegisteredQuestionView[]; placed?: readonly RegisteredQuestionView[]; settledPlaced?: readonly SettledQuestion[]; restingCardShown?: boolean }) {
+export const Message = memo(function Message({ m, answering, dense, paired, showSendButton, staleAwaiting, shadowedBy, placed, settledPlaced, restingCardShown, updateReply }: { m: ChatMessage; answering?: MessageAnswering; dense?: boolean; paired?: PairedAnswer[] | null; showSendButton?: boolean; staleAwaiting?: boolean; shadowedBy?: readonly RegisteredQuestionView[]; placed?: readonly RegisteredQuestionView[]; settledPlaced?: readonly SettledQuestion[]; restingCardShown?: boolean; updateReply?: boolean }) {
   // ANSWERING ON A PHONE happens in a sheet, one question at a time (MobileAnswerSheet) — the cards in
   // the transcript stay READ-ONLY there, so the questions are still visible in the context that
   // produced them but a 44pt-thumb answer never has to land on a 24pt chip inside a scrolling message.
@@ -4028,7 +4032,11 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
         }
         if (fseg.fenceKind === "awaiting" && (m.fenceRefused || restingCardShown)) continue
         if (fseg.fenceKind === "awaiting" && staleAwaiting) {
-          if (fseg.body.trim()) push(<SettledAwaitingNote key={`${keyBase}-f${fi}`} body={fseg.body} wrap={dense} />)
+          if (fseg.body.trim()) {
+            push(updateReply
+              ? <ProseHtml key={`${keyBase}-f${fi}`} md={fseg.body} wrap={dense} />
+              : <SettledAwaitingNote key={`${keyBase}-f${fi}`} body={fseg.body} wrap={dense} />)
+          }
           continue
         }
         // A FENCE THAT NAMES QUESTIONS DRAWS NO CARD — the question cards after this rest are its ending

@@ -22,8 +22,8 @@ test("a fence that is not a live wait is skipped before it ever reaches a card",
   )
   assert.match(
     renderText(),
-    /if \(fseg\.fenceKind === "awaiting" && staleAwaiting\) \{\n\s*if \(fseg\.body\.trim\(\)\) push\(<SettledAwaitingNote[^\n]*\n\s*continue/,
-    "a settled fence draws its body as a note, never a card, and nothing when it has no body",
+    /if \(fseg\.fenceKind === "awaiting" && staleAwaiting\) \{\n\s*if \(fseg\.body\.trim\(\)\) \{\n\s*push\(updateReply\n\s*\? <ProseHtml [^\n]*\n\s*: <SettledAwaitingNote[^\n]*\n\s*\}\n\s*continue/,
+    "a settled fence draws its body as prose for an update reply, else as a muted note, never a card, and nothing when it has no body",
   )
   // SKIPPED, not returned as null from the card: the block list is interleaved with explicit spacers, so
   // a slot that renders nothing still spends one.

@@ -1,4 +1,5 @@
 import { BURIED_ANSWERS_HEADER, parseParkWake, userCommandDisplayText, type TranscriptMessage } from "@ntwine/shared"
+import { agentCompletionCall, type CompletionMessageLike } from "./subAgentCompletion.ts"
 
 // Rendering-only text choice. The server keeps a generated prompt's full `text` for transcript logic
 // and supplies `displayText` only when an exact presentation boundary was validated. A USER COMMAND
@@ -70,4 +71,31 @@ export function lastHumanTurnIndex(messages: readonly HumanTurnLike[]): number {
     return i
   }
   return 0
+}
+
+export type UpdateReplyMessageLike = CompletionMessageLike &
+  Partial<Pick<TranscriptMessage, "displayText" | "boundary">>
+
+// Assistant message indexes answering an "Asked for an update" click (`parseParkWake(...).kind === "requested"`).
+// A worker that still puts that update under an awaiting fence's `---` (including transcripts recorded before
+// parkExpiredWakeMessage asked for prose above the fence) would otherwise settle into SettledAwaitingNote —
+// a muted left-bordered aside right under `Ran N tool calls >` that reads as tool-call output rather than
+// the reply to the human's request. Marking those turns lets ChatView render the settled fence body as
+// ordinary assistant prose instead.
+export function updateReplyIndexes(messages: readonly UpdateReplyMessageLike[]): Set<number> {
+  const indexes = new Set<number>()
+  let inUpdate = false
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i]
+    if (m.role === "user" && !m.kind) {
+      inUpdate = parseParkWake((m.displayText ?? m.text).trim())?.kind === "requested"
+      continue
+    }
+    if ((m.kind === "event" && (m.boundary === "rest" || m.boundary === "wake")) || agentCompletionCall(m)) {
+      inUpdate = false
+      continue
+    }
+    if (m.role === "assistant" && !m.kind && inUpdate) indexes.add(i)
+  }
+  return indexes
 }

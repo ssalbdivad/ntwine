@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query"
 import type { ThreadView } from "@ntwine/shared"
 import { projectRpc } from "../api/rpc.ts"
 import { useTranscript, type ChatMessage, type TranscriptData } from "../hooks.ts"
-import { lastHumanTurnIndex } from "../lib/messagePresentation.ts"
+import { lastHumanTurnIndex, updateReplyIndexes } from "../lib/messagePresentation.ts"
 import { coalesceToolActivityMessages, historicalToolActivityMessages, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, toolActivityLabel } from "../lib/toolActivity.ts"
 import type { QueuesProject } from "../lib/allQueues.ts"
 import type { HeldReply } from "../lib/queueHold.ts"
@@ -86,12 +86,13 @@ function Turn({ messages, projectDir, slug, running: threadRunning, sent, onTool
   const liveToolRun = running ? liveToolActivityRun(coalesced) : undefined
   const liveTool = running ? liveToolActivityTail(coalesced) : undefined
   const rows = activity.map((entry) => entry.message)
+  const updateReplies = useMemo(() => updateReplyIndexes(rows), [rows])
   return (
     <ThreadSlugContext.Provider value={slug}>
       <div data-transcript-column data-held-live-turn className="flex min-w-0 flex-col">
         {/* Every fence in a turn still running is stale: no awaiting card while the worker works (ChatView
             `awaitingCut`). */}
-        {withMessageSpacers(rows, (m, i) => <Message key={i} m={m} staleAwaiting={running} />)}
+        {withMessageSpacers(rows, (m, i) => <Message key={i} m={m} staleAwaiting={running} updateReply={updateReplies.has(i)} />)}
         {running && (
           <>
             {rows.length > 0 && <VSpace h={workingIndicatorGap(rows)} />}

@@ -2989,11 +2989,15 @@ export function parkExpiredWakeMessage(status: readonly string[], checkIn = fals
     ...status,
     "",
     // THE HUMAN PRESSED "Ask for update" on the resting card (router.requestParkCheckIn): the same wake as
-    // the expiry, early, and with a reader waiting on the answer — so the note is owed to the queue.
+    // the expiry, early, and with a reader waiting on the answer — so the update is owed as normal prose
+    // above the fence, never tucked under `---` (where settling turns it into a muted aside beside a tool
+    // digest, making the reply look trapped inside a tool call block). `status: needs_input` ensures even a
+    // short update under AWAITING_WRITE_UP_MIN_CHARS reaches the queue.
     ...(requested
       ? [
-        "The user is waiting to read this one: write the progress note — what landed, what is running,",
-        "what changed — under your re-park's `---`, so it reaches them.",
+        "The user is waiting to read this one: write the progress update as normal prose above your",
+        "re-park fence — what landed, what is running, what changed — and end with the bare YAML",
+        "fence (with `status: needs_input` so it reaches their queue).",
         "",
       ]
       : []),
@@ -3013,9 +3017,13 @@ export function parkExpiredWakeMessage(status: readonly string[], checkIn = fals
         // 2026-10-06 had to grow a "keep the status your last park answered" branch after it overrode a
         // worker's own `watching` (@3-0 jumped from Snoozed to Working with nothing changed). A re-park
         // naming the same things now lands where the last one did by construction; only the note's place
-        // is the worker's call.
-        "   Put it under the fence's `---` only when the user can read or act on something now: that",
-        "   puts the thread in their queue.",
+        // is the worker's call. Omitted on `requested`, which already asks for prose above the fence.
+        ...(!requested
+          ? [
+            "   Put it under the fence's `---` only when the user can read or act on something now: that",
+            "   puts the thread in their queue.",
+          ]
+          : []),
         "4. Ask now. A decision the work has surfaced that is the user's to make goes to `ntwinectl ask`",
         "   at this check-in — never into the note or a file \"for the user\", which nobody is prompted to",
         "   answer. The children keep running while it waits; rest on the question, with no fence.",

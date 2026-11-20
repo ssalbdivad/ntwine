@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { parkExpiredWakeMessage, questionAnswerMessage, questionsCancelledWakeMessage, wakeDeliveryToken } from "@ntwine/shared"
-import { lastAskIndex, lastHumanTurnIndex, messagePresentationText } from "./messagePresentation.ts"
+import { lastAskIndex, lastHumanTurnIndex, messagePresentationText, updateReplyIndexes } from "./messagePresentation.ts"
 
 test("messagePresentationText prefers a validated display projection without changing full text", () => {
   const message = { text: "compact\n\n<!-- boundary -->\n\nlarge machine tail", displayText: "compact" }
@@ -96,4 +96,25 @@ test("lastHumanTurnIndex agrees with the server's handoff cut on what it added",
   assert.equal(lastHumanTurnIndex([ask, reply, { role: "user" as const, text: "<spinoff-request>…", spinoff: { id: "s1", instructions: "" } }]), 0)
   assert.equal(lastHumanTurnIndex([ask, reply, { role: "user" as const, text: "Agent rested", kind: "event" as const }]), 0)
   assert.equal(lastHumanTurnIndex([ask, reply, { role: "user" as const, text: "   " }]), 0)
+})
+
+test("updateReplyIndexes marks only assistant turns directly answering an update request", () => {
+  const update = delivered(parkExpiredWakeMessage(["- `agents: [a1]` — still running"], true, true))
+  const expired = delivered(parkExpiredWakeMessage(["- `agents: [a1]` — still running"], true, false))
+  const completion = {
+    role: "assistant" as const,
+    text: "",
+    tools: [{ id: "t1", name: "Agent", detail: "error-names", agentCompletion: true, agentStatus: "completed" as const }],
+  }
+  const msgs = [
+    ask,
+    reply,          // 1: ordinary reply
+    update,         // 2: "Asked for an update"
+    reply,          // 3: reply to update request
+    completion,     // 4: sub-agent finished divider ends the update turn
+    reply,          // 5: work after sub-agent finished
+    expired,        // 6: unrequested expiry check-in
+    reply,          // 7: unrequested check-in reply (stays a SettledAwaitingNote)
+  ]
+  assert.deepEqual([...updateReplyIndexes(msgs)], [3])
 })
