@@ -21,8 +21,9 @@ export const DEADLINE_MIN_MS = 60_000
 /** The longest. A deadline is a working session's clock; a week is already past anything that means. */
 export const DEADLINE_MAX_MS = 7 * 24 * 60 * 60_000
 
-/** Who set the current deadline. Only the human may move or clear one the human set: an agent moving
- *  its own goalposts defeats the point (ARCHITECTURE.md § Time limits). */
+/** Who set the current deadline. Only the human may extend one the human set: an agent moving
+ *  its own goalposts defeats the point; a worker may still clear a stale deadline once its goal is
+ *  done and the thread moves on to new work (ARCHITECTURE.md § Time limits). */
 export type DeadlineSetter = "human" | "worker"
 
 // ---- THE CHECK-IN STAGES ---------------------------------------------------------------------------

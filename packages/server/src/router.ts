@@ -2584,7 +2584,7 @@ export function createRouter(ctx: AppContext) {
     return info.taskId ? ctx.tailer.liveMailboxes?.(slug).find((m) => m.agentId === info.taskId) : undefined
   }
 
-  function reachChildren(target: AppContext, slug: string, change: { kind: "set"; atMs: number; note?: string } | { kind: "cleared" }, nowMs: number): number {
+  function reachChildren(target: AppContext, slug: string, change: { kind: "set"; atMs: number; note?: string } | { kind: "cleared"; by?: "human" | "worker" }, nowMs: number): number {
     let reached = 0
     for (const child of target.tailer.liveMailboxes?.(slug) ?? []) {
       try {
@@ -2592,7 +2592,8 @@ export function createRouter(ctx: AppContext) {
           const lifted = setChildDeadline(child.sessionDir, child.agentId, null, nowMs)
           if (!lifted) continue
           // A child left with its dispatcher's own limit is told so by its hook's introduction instead.
-          if (lifted === "lifted") postToAgentInbox(child.sessionDir, child.agentId, { from: "operator", text: "The user removed the time limit on this work. Carry on to the best result, not to a clock." })
+          const lead = change.by === "worker" ? "The time limit on this work was removed." : "The user removed the time limit on this work."
+          if (lifted === "lifted") postToAgentInbox(child.sessionDir, child.agentId, { from: "operator", text: `${lead} Carry on to the best result, not to a clock.` })
         } else {
           const ceilingMs = childDeadlineMs({ nowMs, parentDeadlineMs: change.atMs }) ?? change.atMs
           const moved = setChildDeadline(child.sessionDir, child.agentId, ceilingMs, nowMs)
@@ -5211,12 +5212,13 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // ---- THE THREAD'S TIME LIMIT (ARCHITECTURE.md § Time limits, deadline.ts) ----------------------------------
-    // Two doors onto one row, because the rule between them is the point: ONLY THE HUMAN may move or
-    // clear a deadline the human set. `setThreadDeadline` is the drawer's (and refuses a worker's
-    // transport, which app.ts records for this route — dispatch-caller.ts); `ownDeadline` is
-    // `ntwinectl deadline`, which may read any deadline, set one where there is none, and move or clear
-    // only one the worker set itself. Every write is a new GENERATION (`deadline_set_at`), so the
-    // check-ins start over against the new budget.
+    // Two doors onto one row, because the rule between them is the point: ONLY THE HUMAN may extend a
+    // deadline the human set. `setThreadDeadline` is the drawer's (and refuses a worker's transport,
+    // which app.ts records for this route — dispatch-caller.ts); `ownDeadline` is `ntwinectl deadline`,
+    // which may read any deadline, set one where there is none, extend one the worker set itself, and
+    // clear any deadline (so a thread that finished its time-boxed goal and moved on to new work can
+    // drop a stale limit). Every write is a new GENERATION (`deadline_set_at`), so the check-ins start
+    // over against the new budget.
     setThreadDeadline: mutation({
       input: SetThreadDeadlineInput,
       output: z.object({ deadline: ThreadDeadlineView.nullable() }),
@@ -5324,8 +5326,9 @@ export function createRouter(ctx: AppContext) {
         if (input.action === "read") return { deadline: deadlineView(input.slug) }
         const humans = current?.setBy === "human"
         if (input.action === "clear") {
-          if (humans) throw new Error("The user set this deadline, and only the user can remove it. Work to it, and say in your handoff if it is not enough.")
-          ctx.storage.clearDeadline(input.slug)
+          if (ctx.storage.clearDeadline(input.slug)) {
+            reachChildren(ctx, input.slug, { kind: "cleared", by: "worker" }, Date.now())
+          }
         } else {
           if (input.action === "set" && current) {
             throw new Error(humans

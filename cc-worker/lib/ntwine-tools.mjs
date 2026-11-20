@@ -1129,22 +1129,24 @@ const REACTIONS = {
   inputSchema: { type: "object", properties: {}, required: [] },
 }
 
-// THE THREAD'S TIME LIMIT (2026-10-06, ARCHITECTURE.md § Time limits). Read it, or set one on a thread that has
-// none. Only the human may move or clear a deadline the human set — an agent moving its own goalposts
-// defeats the point — so `extend` and `clear` work on a deadline the worker set itself, and the server
-// (router `ownDeadline`) holds the same rule.
+// THE THREAD'S TIME LIMIT (2026-10-06, ARCHITECTURE.md § Time limits). Read it, set one on a thread that has
+// none, or clear a stale one. Only the human may extend a deadline the human set — an agent moving its own
+// goalposts defeats the point — so `extend` works only on a deadline the worker set itself, while `clear`
+// may remove any deadline once the time-boxed goal it was set for is done and the thread has moved on to
+// new work. The server (router `ownDeadline`) holds the same rule.
 const DEADLINE = {
   name: "deadline",
   description:
-    "READ OR SET THIS THREAD'S TIME LIMIT — the instant you owe your best deliverable by.\n\n" +
+    "READ, SET, EXTEND OR CLEAR THIS THREAD'S TIME LIMIT — the instant you owe your best deliverable by.\n\n" +
     "A thread may carry a deadline: the user sets it when dispatching or from the board, or you may set one on a " +
     "thread that has none. While one is set, ntwine checks in with you mid-turn at half-time, at 80%, shortly before " +
     "the deadline and at it, and every wake's clock line shows the time left. Nothing is ever stopped at the deadline: " +
     "the job is the best deliverable you can hand over by then, not the complete one eventually.\n\n" +
     "`read` prints the deadline (or that there is none). `set` gives a thread with NO deadline one — `--for` a duration " +
-    "from now (`30m`, `2h`, `1h 30m`), or `--at` an ISO instant. `extend` moves a deadline YOU set to a later one; " +
-    "`clear` removes a deadline you set. A deadline the USER set is theirs: you can read it, and only they can move " +
-    "or remove it — `extend` and `clear` refuse it.\n\n" +
+    "from now (`30m`, `2h`, `1h 30m`), or `--at` an ISO instant. `extend` moves a deadline YOU set to a later one " +
+    "(a deadline the USER set cannot be extended by you — `extend` refuses it). `clear` removes the thread's deadline " +
+    "— use it on a user-set deadline ONLY once the time-boxed goal it was set for is achieved and the thread is moving " +
+    "on to new work, never to buy more time on the goal it was set for.\n\n" +
     "To give a SUB-AGENT a budget, do not run this: write `Time limit: 20m` on a line of its own in its prompt.",
   inputSchema: {
     type: "object",
@@ -1343,7 +1345,7 @@ async function deadline(args) {
   if (!d) return action === "clear" ? "This thread has no deadline now. Work to the best deliverable, not to a clock." : "This thread has no deadline."
   const leftMs = Date.parse(d.at) - Date.now()
   const left = leftMs > 0 ? `${budgetSpan(leftMs)} left` : `over by ${budgetSpan(-leftMs)}`
-  const who = d.setBy === "human" ? "the user (only they can move or clear it)" : "you"
+  const who = d.setBy === "human" ? "the user (only they can extend it; `clear` once its goal is done and you move on)" : "you"
   return `Deadline: ${d.at} — ${left}. Set ${d.setAt} by ${who}. ntwine checks in at half-time, at 80%, shortly before it and at it.`
 }
 
@@ -3346,9 +3348,9 @@ const CLI = {
   },
   deadline: {
     group: "This thread",
-    summary: "Read this thread's time limit, or set one on a thread that has none",
+    summary: "Read, set, extend or clear this thread's time limit",
     positional: ["action"],
-    examples: ["ntwinectl deadline read", "ntwinectl deadline set --for 2h"],
+    examples: ["ntwinectl deadline read", "ntwinectl deadline set --for 2h", "ntwinectl deadline clear"],
   },
   editor: {
     group: "This thread",

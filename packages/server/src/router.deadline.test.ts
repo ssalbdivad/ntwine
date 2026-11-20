@@ -1,7 +1,7 @@
 // THE THREAD'S TIME LIMIT AT THE RPC BOUNDARY — the real router against real SQLite (ARCHITECTURE.md § Time limits).
 //
-// The rule these pin is the one the plan calls irreversible-in-spirit: ONLY THE HUMAN may move or clear a
-// deadline the human set. A worker reads it, sets one where there is none, and moves only its own.
+// The rule these pin: ONLY THE HUMAN may extend a deadline the human set. A worker reads it, sets one
+// where there is none, extends only its own, and may clear any deadline once its time-boxed goal is done.
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
@@ -48,6 +48,7 @@ function row(slug: string): SessionRow {
 }
 
 const inMs = (ms: number) => new Date(Date.now() + ms).toISOString()
+const tick = () => new Promise((r) => setTimeout(r, 2))
 const asWorker = <T>(fn: () => T) => withDispatchCaller({ origin: undefined, userAgent: "node" }, fn)
 const asBrowser = <T>(fn: () => T) => withDispatchCaller({ origin: "http://localhost:9393", userAgent: "Mozilla/5.0" }, fn)
 
@@ -86,7 +87,7 @@ test("a worker's transport cannot use the human's control", async () => {
   }
 })
 
-test("ONLY THE HUMAN moves or clears a deadline the human set; the worker may read it", async () => {
+test("ONLY THE HUMAN extends a deadline the human set; the worker may read or clear it", async () => {
   const h = harness()
   try {
     h.storage.upsertSession(row("t"))
@@ -94,17 +95,39 @@ test("ONLY THE HUMAN moves or clears a deadline the human set; the worker may re
     const read = await h.router.ownDeadline.handler({ input: { slug: "t", action: "read" } })
     assert.equal(read.deadline?.setBy, "human")
     await assert.rejects(h.router.ownDeadline.handler({ input: { slug: "t", action: "extend", for: "2h" } }), /only the user can extend/)
-    await assert.rejects(h.router.ownDeadline.handler({ input: { slug: "t", action: "clear" } }), /only the user can remove/)
     await assert.rejects(h.router.ownDeadline.handler({ input: { slug: "t", action: "set", for: "2h" } }), /only the user can move/)
     // Untouched by every refusal.
     assert.equal(h.storage.getSession("t")!.deadline_at, read.deadline?.at)
-    // …and the human can.
+    // …and the human can extend and clear it.
+    await tick()
     const moved = await asBrowser(() => h.router.setThreadDeadline.handler({ input: { slug: "t", deadline: inMs(3 * 3_600_000) } }))
     assert.ok(Date.parse(moved.deadline!.at) > Date.parse(read.deadline!.at))
     assert.match(h.notices().at(-1)!.message, /extended your deadline/)
+    await tick()
     await asBrowser(() => h.router.setThreadDeadline.handler({ input: { slug: "t", deadline: null } }))
     assert.equal(h.storage.getSession("t")!.deadline_at, null)
     assert.match(h.notices().at(-1)!.message, /removed your time limit/)
+  } finally {
+    h.close()
+  }
+})
+
+test("a worker can clear a human-set deadline once its goal is done, lifting its running children's share too", async () => {
+  const h = harness()
+  try {
+    h.storage.upsertSession(row("t"))
+    const sessionDir = join(h.dir, "session")
+    h.children.set("t", [{ agentId: "ddddddddddddddddd", sessionDir, label: "child" }])
+    await asBrowser(() => h.router.setThreadDeadline.handler({ input: { slug: "t", deadline: inMs(3_600_000) } }))
+    assert.equal(childDeadline(sessionDir, "ddddddddddddddddd").setBy, "user")
+    const noticesBefore = h.notices().length
+
+    const cleared = await h.router.ownDeadline.handler({ input: { slug: "t", action: "clear" } })
+    assert.equal(cleared.deadline, null)
+    assert.equal(h.storage.getSession("t")!.deadline_at, null)
+    assert.equal(h.notices().length, noticesBefore, "the worker cleared it itself, so no notice is queued to it")
+    assert.deepEqual(childDeadline(sessionDir, "ddddddddddddddddd"), { none: true })
+    assert.match(childInbox(sessionDir, "ddddddddddddddddd").at(-1).text, /time limit on this work was removed/)
   } finally {
     h.close()
   }
@@ -120,6 +143,7 @@ test("a worker sets one where there is none, then moves and clears its own", asy
     assert.ok(ms > 89 * 60_000 && ms <= 90 * 60_000, String(ms))
     await assert.rejects(h.router.ownDeadline.handler({ input: { slug: "t", action: "set", for: "2h" } }), /use `extend`/)
     await assert.rejects(h.router.ownDeadline.handler({ input: { slug: "t", action: "extend", for: "30m" } }), /moves a deadline later/)
+    await tick()
     const moved = await h.router.ownDeadline.handler({ input: { slug: "t", action: "extend", for: "2h" } })
     assert.ok(Date.parse(moved.deadline!.at) > Date.parse(set.deadline!.at))
     assert.notEqual(moved.deadline!.setAt, set.deadline!.setAt, "a move is a new generation")
@@ -174,6 +198,7 @@ test("the machine-wide wrap-up: every Running thread gets the deadline and the n
     )
     const soonAt = inMs(5 * 60_000)
     await asBrowser(() => h.router.setThreadDeadline.handler({ input: { slug: "soon", deadline: soonAt } }))
+    await tick()
     const at = inMs(15 * 60_000)
     const got = await asBrowser(() => h.router.setRunningDeadlines.handler({ input: { deadline: at, note: "Restarting the machine in 15m.\nOptimize resumability." } }))
     assert.deepEqual(got, { threads: 2, projects: 1, children: 0 })

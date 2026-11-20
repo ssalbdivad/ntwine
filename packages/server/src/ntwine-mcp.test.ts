@@ -192,7 +192,8 @@ test("the ntwine MCP server identifies as `ntwine` and exposes its worker tools"
     assert.deepEqual(deadlineTool.inputSchema.required, ["action"])
     assert.deepEqual(deadlineTool.inputSchema.properties.action.enum, ["read", "set", "extend", "clear"])
     assert.ok(!("slug" in deadlineTool.inputSchema.properties))
-    assert.ok(deadlineTool.description.includes("only they can move"))
+    assert.ok(deadlineTool.description.includes("cannot be extended by you"))
+    assert.ok(deadlineTool.description.includes("`clear` removes the thread's deadline"))
     // `schedule` — `action` alone is required, like its action-switch siblings, and NO thread parameter:
     // the caller (who proposed, who skipped) comes from the env. The echo instruction is the point of
     // the description: the human catches a mistranslated time only if the worker relays it.

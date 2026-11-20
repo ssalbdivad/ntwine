@@ -192,7 +192,7 @@ export interface SessionRow {
   // set — with `deadline_at` it gives the budget the check-in stages are fractions of, and it is the
   // GENERATION: moving the deadline mints a new one, the way `recurring_armed_at` does for a Goal, so an
   // extension starts a fresh set of check-ins. `deadline_set_by` is who set it ('human' | 'worker'); only
-  // the human may move or clear a deadline the human set. `deadline_stage` is the last check-in stage
+  // the human may extend a deadline the human set (a worker may clear a stale one once its goal is done). `deadline_stage` is the last check-in stage
   // queued for THIS generation — the durable "never twice", like `shell_budget.warned_deadline`, so a
   // restart (or a pruned outbox row) never sends a stage again.
   deadline_at?: string | null

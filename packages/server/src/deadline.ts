@@ -137,7 +137,7 @@ export function deadlineSection(row: Parameters<typeof rowDeadline>[0], nowMs = 
   const left = d.atMs - nowMs
   const status = left > 0 ? `${spanLabel(left)} from now` : `already passed, ${spanLabel(-left)} ago`
   const extend = d.setBy === "human"
-    ? "The user set it, and only the user can move or remove it: `ntwinectl deadline read` reads it, and `extend` refuses it."
+    ? "The user set it, and only the user can extend it (`ntwinectl deadline read` reads it, `extend` refuses it). Once the time-boxed goal it was set for is done and this thread moves on to new work, remove the stale limit with `ntwinectl deadline clear` — never clear it just to buy more time on the original goal."
     : "You set it yourself with `ntwinectl deadline`, which can also move (`extend`) or `clear` it."
   return (
     "## Your time limit\n\n" +
