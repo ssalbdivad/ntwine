@@ -102,3 +102,69 @@ test("acp daemon: a loser dying while the record is absent leaves its successor'
     await waitForExit(survivor.daemonPid, 5_000, "the survivor, at teardown")
   }
 })
+
+// Window B: the client reconnects and receives `hello` with `session/prompt` still outstanding, then
+// the agent finishes `session/prompt` BEFORE the client's `adopt` control frame reaches the daemon.
+// Pre-fix, the daemon rewrote the response to the dead client's id and deleted it from pending, so the
+// subsequent `adopt` was a silent no-op and the turn hung forever.
+test("acp daemon: a session/prompt finishing after hello but before adopt is delivered on adopt", async () => {
+  const stateDir = mkdtempSync(join(tmpdir(), "acp-daemon-test-"))
+  const first = await daemonAcpHost(options(stateDir))
+  const record = liveAcpDaemonRecord(stateDir, SESSION)!
+  const readFrames = (stream: NodeJS.ReadableStream) => {
+    const lines: Array<Record<string, unknown>> = []
+    let buf = ""
+    stream.on("data", (chunk: Buffer) => {
+      buf += chunk.toString("utf8")
+      for (;;) {
+        const nl = buf.indexOf("\n")
+        if (nl < 0) break
+        const raw = buf.slice(0, nl).trim()
+        buf = buf.slice(nl + 1)
+        if (!raw) continue
+        try { lines.push(JSON.parse(raw) as Record<string, unknown>) } catch {}
+      }
+    })
+    const waitFor = async (pred: (f: Record<string, unknown>) => boolean, ms = 5_000): Promise<Record<string, unknown>> => {
+      const deadline = Date.now() + ms
+      while (Date.now() < deadline) {
+        const hit = lines.find(pred)
+        if (hit) return hit
+        await delay(15)
+      }
+      assert.fail(`timed out waiting for frame; saw ${JSON.stringify(lines.slice(-5))}`)
+    }
+    return { lines, waitFor }
+  }
+  try {
+    const f1 = readFrames(first.process.stdout!)
+    first.process.stdin!.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: 1, clientCapabilities: {} } })}\n`)
+    await f1.waitFor((m) => m.id === 1)
+    first.process.stdin!.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "session/new", params: { cwd: stateDir, mcpServers: [] } })}\n`)
+    const opened = await f1.waitFor((m) => m.id === 2)
+    const acpSessionId = (opened.result as { sessionId: string }).sessionId
+    // Start a prompt that finishes in 300ms, then immediately detach client 1.
+    first.process.stdin!.write(`${JSON.stringify({ jsonrpc: "2.0", id: 77, method: "session/prompt", params: { sessionId: acpSessionId, prompt: [{ type: "text", text: "WAIT:300" }] } })}\n`)
+    await delay(50)
+    first.process.kill()
+
+    // Reattach client 2 while the prompt is STILL running, but delay sending `adopt` until AFTER the
+    // 300ms prompt has finished inside the agent.
+    const second = await daemonAcpHost(options(stateDir))
+    assert.equal(second.reattached, true)
+    const outstanding = second.hello.outstanding.find((o) => o.method === "session/prompt")
+    assert.ok(outstanding, "session/prompt is listed as outstanding in hello")
+    const f2 = readFrames(second.process.stdout!)
+
+    await delay(500) // agent finishes WAIT:300 and writes its response BEFORE client 2 sends adopt
+    assert.equal(f2.lines.some((m) => m.id === 77), false, "response was NOT sent under the dead client's id 77")
+
+    second.adopt(outstanding.daemonId, 99)
+    const reply = await f2.waitFor((m) => m.id === 99)
+    assert.equal((reply.result as { stopReason?: string })?.stopReason, "end_turn", "adopt immediately delivered the held response under id 99")
+    second.process.kill()
+  } finally {
+    await stopAcpDaemon(stateDir, SESSION)
+    assert.ok(record)
+  }
+})

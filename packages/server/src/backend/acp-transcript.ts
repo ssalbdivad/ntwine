@@ -66,6 +66,20 @@ export function parseAcpLine(line: string): NormalizedEvent[] {
   return [ev as NormalizedEvent]
 }
 
+/** True when the transcript's last turn bracket is an unclosed `turn-start` (no later `turn-end`). */
+export function hasOpenAcpTurn(path: string): boolean {
+  let raw: string
+  try { raw = readFileSync(path, "utf8") } catch { return false }
+  const lines = raw.split("\n")
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const rec = parseAcpRecord(lines[i]!)
+    if (!rec) continue
+    if (rec.kind === "turn-end") return false
+    if (rec.kind === "turn-start") return true
+  }
+  return false
+}
+
 /** Appends records; creates the directory and file on first write so the tailer can find it at once. */
 export class AcpTranscriptWriter {
   readonly path: string

@@ -5,7 +5,7 @@ import { log } from "../logging.ts"
 import { acpAgentSpecs, resolveAcpAgent, type AcpAgentInput, type AcpAgentSpec, type ResolvedAcpAgent } from "./acp-agents.ts"
 import { AcpConnection, AcpConnectionClosed, AcpRemoteError, AcpRequestError, spawnAcpChild, type AcpSpawn } from "./acp-rpc.ts"
 import { daemonAcpHost, directAcpHost, liveAcpDaemonRecord, stopAcpDaemon, type AcpHost } from "./acp-host.ts"
-import { AcpTranscriptWriter, acpTranscriptPath, type AcpRecord } from "./acp-transcript.ts"
+import { AcpTranscriptWriter, acpTranscriptPath, hasOpenAcpTurn, type AcpRecord } from "./acp-transcript.ts"
 import {
   ACP_ERROR_AUTH_REQUIRED, ACP_ERROR_INTERNAL, ACP_ERROR_METHOD_NOT_FOUND, ACP_PROTOCOL_VERSION,
   AcpInitializeResult, AcpLoadSessionResult, AcpNewSessionResult, AcpPromptResult, AcpRequestPermissionParams, AcpSessionNotification, AcpSetConfigOptionResult, type AcpConfigOption,
@@ -464,6 +464,14 @@ export class AcpBridge {
         current.turn = turn
         this.options.onStatusChange?.()
         void this.awaitTurn(current, turn, conn.adoptPending("session/prompt", (id) => attachment.adopt(prompt.daemonId, id)))
+      } else if (hasOpenAcpTurn(writer.path)) {
+        // The daemon reports no in-flight or unadopted `session/prompt` (the agent is idle), yet the
+        // transcript still has an unclosed `turn-start` — e.g. from a pre-fix daemon that dropped a
+        // response while detached. Close the bracket so the thread does not spin in-flight forever.
+        const at = this.now()
+        writer.append({ kind: "acp-note", at, text: "The previous turn finished while ntwine was away and its ending could not be recovered." })
+        writer.append({ kind: "turn-end", at, successful: false })
+        this.options.onStatusChange?.()
       }
       ready()
       return { live, resumed: "reattached" }

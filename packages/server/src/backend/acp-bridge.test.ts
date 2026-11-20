@@ -11,7 +11,7 @@ import { buildAcpPermissionInteraction, createAcpBridge, type AcpBridge } from "
 import { daemonAcpHost, directAcpHost, liveAcpDaemonRecord, liveAcpDaemonSessionIds, stopAcpDaemon, type AcpHost } from "./acp-host.ts"
 import { spawnAcpChild } from "./acp-rpc.ts"
 import { processStartTime } from "../process-generation.ts"
-import { acpTranscriptPath, parseAcpRecord, projectAcpTranscript, type AcpRecord } from "./acp-transcript.ts"
+import { AcpTranscriptWriter, acpTranscriptPath, parseAcpRecord, projectAcpTranscript, type AcpRecord } from "./acp-transcript.ts"
 import { newTailState } from "../tailer.ts"
 import { createAcpBackend } from "./acp-transcript.ts"
 import type { NtwineCli } from "./types.ts"
@@ -634,4 +634,68 @@ test("buildAcpPermissionInteraction: multi-line agy CommandLine/title and hostil
   assert.ok(hostile.request.providerRequestId.length <= 256)
   assert.ok(hostile.request.payload.command.preview.split("\n").length <= 256)
   assert.ok(store.create(hostile.request).interaction.id)
+})
+
+// Window A (live on @overnight-hardening, 2026-11-20): the turn finished WHILE ntwine was restarting
+// (nobody attached to the daemon). Pre-fix, the daemon deleted `session/prompt` from pending and queued
+// its response under the dead client's id; on reattach `hello.outstanding` was empty, `live.turn` stayed
+// undefined, all queued `agent_message_chunk`s were dropped, and `turn-end` was never written.
+test("acp-bridge: a turn that finishes while detached is replayed and closed on reattach", async () => {
+  const a = rig()
+  let b: Rig | undefined
+  try {
+    await a.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: a.stateDir, agentId: "fake", prompt: "WAIT:250", userText: "WAIT:250" })
+    await untilTurnActive(a, "s1")
+    await a.bridge.shutdown() // detach while the agent is still inside WAIT:250
+    const record = liveAcpDaemonRecord(a.stateDir, "s1")
+    assert.ok(record, "the daemon survived shutdown")
+    // Wait long enough for the fake agent to finish WAIT:250, emit PONG + usage_update, and reply
+    // to `session/prompt` while NO client is attached.
+    await new Promise((res) => setTimeout(res, 500))
+
+    b = rig("", { stateDir: a.stateDir })
+    await b.bridge.warmUp([{ threadSlug: "t1", sessionId: "s1", cwd: a.stateDir, agentId: "fake" }])
+    await untilIdle(b, "s1", "t1", 5_000)
+
+    const after = records(b, "s1")
+    assert.equal(after.filter((x) => x.kind === "turn-start").length, 1, "one turn, not two")
+    const ends = after.filter((x) => x.kind === "turn-end") as Array<{ successful: boolean; finalText?: string }>
+    assert.equal(ends.length, 1, "turn-end was written after adopting the completed prompt")
+    assert.equal(ends[0]!.successful, true)
+    assert.equal(ends[0]!.finalText, "PONG", "the assistant text streamed while detached was replayed")
+    assert.equal(after.filter((x) => x.kind === "assistant-text").map((x) => (x as { text: string }).text).join(""), "PONG")
+    assert.equal(b.bridge.turnLiveness("t1", "s1")?.turnActive, false, "thread is idle after adopting the finished turn")
+    // Follow-up still works on the same daemon.
+    const follow = await b.bridge.followUp({ threadSlug: "t1", sessionId: "s1", cwd: a.stateDir, agentId: "fake", text: "next", acpSessionId: record.sessionId })
+    assert.equal(follow.state, "delivered")
+    await untilIdle(b, "s1", "t1", 5_000)
+    assert.equal(liveAcpDaemonRecord(a.stateDir, "s1")?.generation, record.generation)
+  } finally {
+    await teardown(a)
+    if (b) await teardown(b)
+  }
+})
+
+test("acp-bridge: reattaching to an idle daemon closes an orphaned open turn in the transcript", async () => {
+  const a = rig()
+  let b: Rig | undefined
+  try {
+    await a.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: a.stateDir, agentId: "fake", prompt: "hi", userText: "hi" })
+    await untilIdle(a, "s1", "t1", 5_000)
+    await a.bridge.shutdown()
+    // Simulate a transcript left with an unclosed turn-start (e.g. from a pre-fix daemon).
+    const writer = new AcpTranscriptWriter(acpTranscriptPath(a.stateDir, "s1"))
+    writer.append({ kind: "turn-start", at: new Date().toISOString() })
+
+    b = rig("", { stateDir: a.stateDir })
+    await b.bridge.warmUp([{ threadSlug: "t1", sessionId: "s1", cwd: a.stateDir, agentId: "fake" }])
+    const after = records(b, "s1")
+    const lastTurn = [...after].reverse().find((x) => x.kind === "turn-start" || x.kind === "turn-end") as { kind: string; successful?: boolean } | undefined
+    assert.equal(lastTurn?.kind, "turn-end", "orphaned turn-start was closed on reattach")
+    assert.equal(lastTurn?.successful, false)
+    assert.equal(b.bridge.turnLiveness("t1", "s1")?.turnActive, false)
+  } finally {
+    await teardown(a)
+    if (b) await teardown(b)
+  }
 })

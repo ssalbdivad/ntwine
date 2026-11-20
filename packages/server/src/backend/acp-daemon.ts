@@ -192,9 +192,17 @@ function main(): void {
   const control = (payload: Record<string, unknown>): string => JSON.stringify({ [DAEMON_CONTROL_KEY]: 1, ...payload })
 
   // ---- id bookkeeping -----------------------------------------------------------------------------
-  // daemon id -> the client id that currently owns the request (rewritten by `adopt` after a restart),
-  // plus the method so the hello can tell a reattaching client what is still in flight.
-  const pendingFromClient = new Map<number, { clientId: string | number; method: string; params?: unknown }>()
+  // daemon id -> the client id that currently owns the request (null while detached or before a
+  // reattached client sends `adopt`), plus the method so the hello can tell a reattaching client
+  // what is still in flight. When a `session/prompt` finishes while `clientId === null` (either while
+  // nobody is attached, or during the reattach handshake before `adopt` arrives), its raw response is
+  // held here instead of being queued under the dead client's id: the next client still sees the
+  // prompt in `hello.outstanding`, opens the turn, drains the queued `session/update` chunks into it,
+  // and receives this response the moment it sends `adopt`.
+  const pendingFromClient = new Map<number, { clientId: string | number | null; method: string; params?: unknown; response?: Record<string, unknown> }>()
+  const orphanPending = (): void => {
+    for (const owner of pendingFromClient.values()) owner.clientId = null
+  }
   let nextDaemonId = 1_000_000 // start well clear of any client's id space
   let initializeResult: unknown = null
   let initializeDaemonId: number | null = null
@@ -212,7 +220,6 @@ function main(): void {
     if (message.id !== undefined && message.method === undefined && typeof message.id === "number") {
       const owner = pendingFromClient.get(message.id)
       if (owner !== undefined) {
-        pendingFromClient.delete(message.id)
         if (message.id === initializeDaemonId && message.error === undefined) initializeResult = message.result ?? null
         if (owner.method === "session/new" && message.error === undefined) {
           const result = message.result as { sessionId?: unknown } | undefined
@@ -222,7 +229,23 @@ function main(): void {
           const params = owner.params as { sessionId?: unknown } | undefined
           if (typeof params?.sessionId === "string") acpSessionId = params.sessionId
         }
-        toClient(JSON.stringify({ ...message, id: owner.clientId }))
+        if (owner.clientId !== null && client) {
+          try {
+            client.write(`${JSON.stringify({ ...message, id: owner.clientId })}\n`)
+            pendingFromClient.delete(message.id)
+            return
+          } catch {
+            // The attached socket broke mid-write: fall through to unadopted handling below so a
+            // `session/prompt` response is held for the next client's `adopt`, not queued under a
+            // dead client id.
+            owner.clientId = null
+          }
+        }
+        if (owner.method === "session/prompt") {
+          owner.response = message
+        } else {
+          pendingFromClient.delete(message.id)
+        }
         return
       }
     }
@@ -246,10 +269,25 @@ function main(): void {
     try { message = JSON.parse(line) as Record<string, unknown> } catch { return }
     if (message[DAEMON_CONTROL_KEY] === 1) {
       // `adopt`: a reattached client takes ownership of a request the dead client left in flight.
+      // If the response already arrived while nobody owned it, deliver it immediately under the
+      // adopted id (after the queued `session/update` notifications that preceded it).
       const adopt = message.adopt as { daemonId?: unknown; clientId?: unknown } | undefined
       if (adopt && typeof adopt.daemonId === "number" && (typeof adopt.clientId === "number" || typeof adopt.clientId === "string")) {
         const owner = pendingFromClient.get(adopt.daemonId)
-        if (owner) owner.clientId = adopt.clientId
+        if (owner) {
+          if (owner.response !== undefined) {
+            if (client) {
+              try {
+                client.write(`${JSON.stringify({ ...owner.response, id: adopt.clientId })}\n`)
+                pendingFromClient.delete(adopt.daemonId)
+              } catch {
+                owner.clientId = null
+              }
+            }
+          } else {
+            owner.clientId = adopt.clientId
+          }
+        }
       }
       return
     }
@@ -289,6 +327,7 @@ function main(): void {
   const server = createServer((sock) => {
     // One client at a time: a new ntwine generation supersedes the old one's socket outright.
     if (client) { try { client.destroy() } catch {} }
+    orphanPending()
     client = sock
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
     sock.setNoDelay(true)
@@ -319,6 +358,7 @@ function main(): void {
     const drop = (): void => {
       if (client !== sock) return
       client = null
+      orphanPending()
       armIdleExit()
     }
     sock.on("close", drop)
@@ -348,6 +388,7 @@ function main(): void {
     dropped++
     const lostClient = client
     client = null
+    orphanPending()
     lostClient?.destroy()
     armIdleExit()
   }))

@@ -134,6 +134,10 @@ async function handle(msg) {
         notify(sessionId, { sessionUpdate: "tool_call", toolCallId: "call_w", title: "write", kind: "edit", status: "pending", locations: [], rawInput: {} })
         notify(sessionId, { sessionUpdate: "tool_call_update", toolCallId: "call_w", status: "completed", title: "hello.txt", locations: [{ path: "/tmp/hello.txt" }], rawInput: { filePath: "/tmp/hello.txt", content: "hi" }, content: [{ type: "content", content: { type: "text", text: "Wrote file successfully." } }] })
       }
+      const waitMatch = /WAIT:(\d+)/.exec(text)
+      if (waitMatch) {
+        await sleep(Number(waitMatch[1]))
+      }
       if (text.includes("SLOW")) {
         // Stream until cancelled — the shape a long turn has when the human presses stop.
         for (let i = 1; i <= 200; i++) {
