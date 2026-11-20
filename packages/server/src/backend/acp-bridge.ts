@@ -714,15 +714,27 @@ export class AcpBridge {
   }
 
   /** `session/cancel`, then wait (bounded) for the prompt to return. `interrupted: false` when no turn
-   *  was running. The queue is NOT discarded — a follow-up typed during the turn still goes out. */
-  async interruptTurn(threadSlug: string, sessionId: string): Promise<{ interrupted: boolean }> {
+   *  was running (or when `onlyIfQueued` is set and the queue is already empty). The queue is NOT
+   *  discarded — queued follow-ups run immediately as the next turn. */
+  async interruptTurn(threadSlug: string, sessionId: string, opts?: { onlyIfQueued?: boolean }): Promise<{ interrupted: boolean }> {
     const live = this.sessions.get(sessionId)
     if (!live || live.slug !== threadSlug || !live.turn) return { interrupted: false }
+    if (opts?.onlyIfQueued && live.queue.length === 0) return { interrupted: false }
     live.turn.cancelRequested = true
     live.conn.notify("session/cancel", { sessionId: live.acpSessionId })
     const settled = await Promise.race([live.turn.done.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 15_000).unref?.())])
     if (!settled) { await live.conn.close(1_000); return { interrupted: true } }
     return { interrupted: true }
+  }
+
+  /** Drop a queued follow-up before it starts its turn. `false` when it already left the queue. */
+  cancelFollowUp(threadSlug: string, sessionId: string, deliveryId: string): boolean {
+    const live = this.sessions.get(sessionId)
+    if (!live || live.slug !== threadSlug) return false
+    const idx = live.queue.findIndex((item) => item.deliveryId === deliveryId)
+    if (idx === -1) return false
+    live.queue.splice(idx, 1)
+    return true
   }
 
   /** END the session's agent: cancel its turn, drop its cards, and stop the daemon holding it. This is
@@ -834,10 +846,11 @@ export class AcpBridge {
     return { startedAt: this.now(), ...(deliveryId ? { deliveryId } : {}), text: "", messageText: "", thought: "", cancelRequested: false, done, finish }
   }
 
-  private async runTurn(live: LiveSession, sendText: string, recordText: string, deliveryId: string | undefined): Promise<void> {
+  private async runTurn(live: LiveSession, sendText: string, recordTexts: string | readonly string[], deliveryId: string | undefined): Promise<void> {
     const turn = this.newTurn(deliveryId)
     live.turn = turn
-    live.writer.append({ kind: "user-message", at: turn.startedAt, text: recordText, synthetic: false })
+    const texts = typeof recordTexts === "string" ? [recordTexts] : recordTexts
+    for (const text of texts) live.writer.append({ kind: "user-message", at: turn.startedAt, text, synthetic: false })
     live.writer.append({ kind: "turn-start", at: turn.startedAt })
     this.options.onStatusChange?.()
     await this.awaitTurn(live, turn, live.conn.requestOpenEnded("session/prompt", { sessionId: live.acpSessionId, prompt: [{ type: "text", text: sendText }] }))
@@ -889,8 +902,12 @@ export class AcpBridge {
       if (live.turn === turn) live.turn = undefined
       turn.finish()
       this.options.onStatusChange?.()
-      const next = live.queue.shift()
-      if (next && !live.exited && !live.conn.closed) void this.runTurn(live, next.text, next.text, next.deliveryId)
+      const queued = live.queue.splice(0)
+      if (queued.length > 0 && !live.exited && !live.conn.closed) {
+        const sendText = queued.map((q) => q.text).join("\n\n")
+        const recordTexts = queued.map((q) => q.text)
+        void this.runTurn(live, sendText, recordTexts, queued[queued.length - 1]!.deliveryId)
+      }
     }
   }
 

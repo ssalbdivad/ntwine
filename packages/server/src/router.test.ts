@@ -1850,24 +1850,56 @@ test("followUp with interrupt:true on an app-server Codex row steers the turn an
   }
 })
 
-test("followUp with interrupt:true on an ACP row queues behind the turn and never cancels it", async () => {
+test("ACP follow-up supports interrupt-and-send, deliverQueuedNow, and unqueueFollowUp", async () => {
   const h = harness()
-  const slug = "acp-queue-not-cancel"
+  const slug = "acp-interrupt-and-unqueue"
+  const sessionId = `sid-${slug}`
   h.storage.upsertSession({ ...row(slug), exited: 0 })
   h.storage.setBackend(slug, "acp")
-  h.storage.setAcpAgent(slug, "gemini")
-  const delivered: string[] = []
+  h.storage.setAcpAgent(slug, "antigravity")
+  const calls: string[] = []
+  const queue = new Map<string, string>()
   ;(h.ctx as { acpBridge?: unknown }).acpBridge = {
-    followUp: async ({ text }: { text: string }) => {
-      delivered.push(text)
-      return { acpSessionId: "acp-1", state: "queued", sessionLive: true, turnActive: true, queued: 1, resumed: false }
+    followUp: async ({ text, deliveryId }: { text: string; deliveryId?: string }) => {
+      calls.push(`followUp:${text}`)
+      if (deliveryId) queue.set(deliveryId, text)
+      return { acpSessionId: "acp-1", state: "queued", sessionLive: true, turnActive: true, queued: queue.size, resumed: "live" }
     },
-    interruptTurn: async () => { throw new Error("an ACP turn must never be cancelled for a follow-up") },
+    interruptTurn: async (_slug: string, _sid: string, opts?: { onlyIfQueued?: boolean }) => {
+      calls.push(`interruptTurn:${opts?.onlyIfQueued ? "queued" : "any"}`)
+      if (opts?.onlyIfQueued && queue.size === 0) return { interrupted: false }
+      queue.clear()
+      return { interrupted: true }
+    },
+    cancelFollowUp: (_slug: string, _sid: string, deliveryId: string) => {
+      calls.push(`cancel:${deliveryId}`)
+      return queue.delete(deliveryId)
+    },
   }
   try {
-    await h.router.followUp.handler({ input: { slug, sessionId: `sid-${slug}`, message: "also check the tests", interrupt: true, deliveryId: "d-1" } })
-    assert.deepEqual(delivered, ["also check the tests"], "the message queues behind the running turn")
+    // 1. Plain queued follow-up, then unqueue it.
+    await h.router.followUp.handler({ input: { slug, sessionId, message: "retract me", deliveryId: "d-1" } })
     assert.equal(h.storage.getSession(slug)?.agent_session_id, "acp-1", "the bridge's session id is pinned on the row")
+    assert.equal(parseDeliveryLedger(h.storage.getSession(slug)!.delivery_ledger)[0].state, "enqueued")
+    const unq = await h.router.unqueueFollowUp.handler({ input: { slug, sessionId, deliveryId: "d-1" } })
+    assert.deepEqual(unq, { unqueued: true })
+    assert.equal(parseDeliveryLedger(h.storage.getSession(slug)!.delivery_ledger)[0].state, "cancelled")
+    // 2. Queued follow-up, then ↑ deliverQueuedNow.
+    await h.router.followUp.handler({ input: { slug, sessionId, message: "push me", deliveryId: "d-2" } })
+    const pushed = await h.router.deliverQueuedNow.handler({ input: { slug, sessionId } })
+    assert.deepEqual(pushed, { interrupted: true })
+    assert.equal(parseDeliveryLedger(h.storage.getSession(slug)!.delivery_ledger).find((e) => e.id === "d-2")?.state, "delivered")
+    // 3. ⌘⏎ interrupt-and-send queues then immediately interrupts and flips to delivered.
+    await h.router.followUp.handler({ input: { slug, sessionId, message: "stop now", deliveryId: "d-3", interrupt: true } })
+    assert.equal(parseDeliveryLedger(h.storage.getSession(slug)!.delivery_ledger).find((e) => e.id === "d-3")?.state, "delivered")
+    assert.deepEqual(calls, [
+      "followUp:retract me",
+      "cancel:d-1",
+      "followUp:push me",
+      "interruptTurn:queued",
+      "followUp:stop now",
+      "interruptTurn:queued",
+    ])
   } finally {
     h.storage.close()
   }

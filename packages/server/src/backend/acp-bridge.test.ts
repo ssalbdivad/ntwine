@@ -208,6 +208,28 @@ test("acp-bridge: a follow-up during a turn queues and runs after it; one after 
   } finally { await teardown(r) }
 })
 
+test("acp-bridge: interruptTurn honors onlyIfQueued, coalesces multiple queued follow-ups, and cancelFollowUp drops one before it runs", async () => {
+  const r = rig()
+  try {
+    await r.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", prompt: "count SLOW", userText: "count SLOW" })
+    await new Promise((res) => setTimeout(res, 60))
+    const noop = await r.bridge.interruptTurn("t1", "s1", { onlyIfQueued: true })
+    assert.equal(noop.interrupted, false, "onlyIfQueued refuses to cancel a turn with nothing queued")
+    await r.bridge.followUp({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", text: "first queued", deliveryId: "q1" })
+    await r.bridge.followUp({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", text: "dropped", deliveryId: "q-drop" })
+    await r.bridge.followUp({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", text: "second queued", deliveryId: "q2" })
+    assert.equal(r.bridge.cancelFollowUp("t1", "s1", "q-drop"), true)
+    assert.equal(r.bridge.cancelFollowUp("t1", "s1", "q-drop"), false, "already dropped")
+    assert.equal(r.bridge.turnLiveness("t1", "s1")?.queued, 2)
+    const stop = await r.bridge.interruptTurn("t1", "s1", { onlyIfQueued: true })
+    assert.equal(stop.interrupted, true)
+    await untilIdle(r, "s1")
+    const userTexts = records(r, "s1").filter((x) => x.kind === "user-message").map((x) => (x as { text?: string }).text)
+    assert.deepEqual(userTexts, ["count SLOW", "first queued", "second queued"], "dropped item never ran; remaining two recorded separately and drained in one turn")
+    assert.equal(records(r, "s1").filter((x) => x.kind === "turn-end").length, 2, "both remaining queued messages ran in one coalesced turn")
+  } finally { await teardown(r) }
+})
+
 test("acp-bridge: a permission request becomes a card with canonical decision ids; resolving it answers the agent with its own optionId", async () => {
   const r = rig("ask-permission")
   try {

@@ -149,7 +149,7 @@ export function ThreadComposerBox({
 
   // INTERRUPT AND SEND is offered only when there is something to interrupt AND a runtime that can be
   // preempted — `runtime === "running"` is exactly "process alive, turn in flight". The backend policy
-  // (Claude only; Codex steers, ACP queues) lives in canInterruptAndSend, pinned by its test.
+  // (Claude + ACP; Codex steers) lives in canInterruptAndSend, pinned by its test.
   const canInterrupt = canInterruptAndSend(thread, submitOverride !== undefined)
   // ⌘/Ctrl-Enter in an EMPTY box pushes the queued follow-up through — the queued bubble's ↑, from the
   // keyboard. Same gate as the forced send, plus a queued message in the transcript cache, read at

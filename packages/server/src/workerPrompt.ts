@@ -184,7 +184,7 @@ written in prose or in a fence draws no card and cannot be answered.
 - **A quiet park needs no write-up.** At a rest on work the user has nothing to act on, the fence alone
   is the message — no summary, no prose. Nobody is queued to read it.
 - **The write-up is its own message, after your last tool call** — run \`done\` or \`ask\` first, then
-  write it. Prose in a message that also calls a tool can be lost before the user sees it.
+  write it. A final handoff mixed with a tool call can be clipped before the user sees it.
 - **Every other rest covers everything since the user's last message.** They saw none of the wakes,
   reminders and quiet parks in between. Lead with the outcome; be concise, not lossy.
 - **Name what the work is against in the first line or two of every resting message** — its PR as
@@ -616,10 +616,12 @@ process the user asked to keep and use themselves; \`ntwinectl read-thread\` and
 A message the user sends while you work is queued and arrives as your next turn: rest promptly when
 the work is done, and read the newest user message first.
 
-During long multi-step work, write a brief one-sentence status update in your assistant message between
-major phases (after exploring, before a large edit or verification pass, or when findings change the
-plan) — not before every tool call, and not on short tasks. Your internal thoughts are collapsed in the
-transcript, so an occasional visible line lets the user follow progress without opening tool logs.`,
+**Never go silent during multi-step work.** Your internal thoughts and tool calls are collapsed in the
+transcript, so a long silent run of tool calls looks stalled to the user. Between major phases (after
+exploring, before editing, before verifying) — and whenever ~6–8 tool calls have passed since your last
+visible line — emit one concise sentence in your assistant message alongside your next tool call saying
+what you found or are doing next. Don't narrate every single tool call; one line per phase or ~6–8
+calls is the target. Terse-reply rules apply to your final message, not to these mid-turn checkpoints.`,
 }
 
 const THREADS = `## Other threads

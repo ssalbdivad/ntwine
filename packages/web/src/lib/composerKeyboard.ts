@@ -66,20 +66,20 @@ export function shouldPushQueuedComposerEnter(event: ComposerKeyboardEvent, isEm
 
 /**
  * Whether the forced chord may INTERRUPT at all on this thread — the policy behind the keystroke.
- * Only a running broker-backed Claude turn can be preempted: the SDK interrupt aborts the turn and
- * (since the query declares `perTaskStopAffordance`, 2026-09-24) spares its sub-agents. Codex is
- * excluded because its app-server owns the steer-vs-start decision and a follow-up STEERS the running
- * turn — ntwine never sends `turn/interrupt` for a message, and a `spawn_agent` child would die with
- * an interrupted turn. An ACP agent has no steer, so a follow-up queues behind the running turn, and
- * `session/cancel` is reserved for ending the thread. On both, ⌘-Enter is a plain send. A
- * `submitOverride` surface is excluded: that is the queue card, whose every send — a plain reply as much
- * as its staged answers — goes through its answering controller, which has no interrupting send.
+ * A running broker-backed Claude turn or ACP turn can be preempted: Claude's SDK interrupt aborts the
+ * turn and (since the query declares `perTaskStopAffordance`, 2026-09-24) spares its sub-agents, and
+ * ACP's `session/cancel` cancels the in-flight `session/prompt` and immediately drains queued follow-ups
+ * into the next turn on the same session. Codex is excluded because its app-server owns the
+ * steer-vs-start decision and a follow-up STEERS the running turn — ntwine never sends `turn/interrupt`
+ * for a message, and a `spawn_agent` child would die with an interrupted turn. A `submitOverride`
+ * surface is excluded: that is the queue card, whose every send — a plain reply as much as its staged
+ * answers — goes through its answering controller, which has no interrupting send.
  */
 export function canInterruptAndSend(
   thread: { runtime?: string; backend?: string } | undefined,
   submitOverride: boolean,
 ): boolean {
-  return !submitOverride && thread?.runtime === "running" && thread.backend !== "codex" && thread.backend !== "acp"
+  return !submitOverride && thread?.runtime === "running" && thread.backend !== "codex"
 }
 
 /**

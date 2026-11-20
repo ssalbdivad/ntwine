@@ -13,9 +13,10 @@ const flat = (kind: BackendKind) => buildWorkerPrompt(kind).replace(/\s+/g, " ")
 // paragraph earning its place on the day it was added. A ceiling makes every addition a conscious one:
 // raise it in the same commit as the rule that needs the room, and say which rule. acp 26k → 26.5k for
 // the `ntwinectl react` line (2026-11-09). codex 32k → 32.5k and acp 26.5k → 27k for "Feedback on a
-// PR is the user's call" (2026-11-16). acp 27k → 27.5k for mid-turn phase updates (2026-11-19).
+// PR is the user's call" (2026-11-16). acp 27k → 27.5k for mid-turn phase updates (2026-11-19),
+// → 28k for concrete cadence and anti-silence rule (2026-11-20).
 test("each backend's contract stays inside its size budget", () => {
-  const budget: Record<BackendKind, number> = { claude: 31_000, codex: 32_500, acp: 27_500 }
+  const budget: Record<BackendKind, number> = { claude: 31_000, codex: 32_500, acp: 28_000 }
   for (const kind of ALL) {
     const size = buildWorkerPrompt(kind).length
     assert.ok(size <= budget[kind], `${kind}: ${size} chars, over its ${budget[kind]} budget`)
@@ -260,6 +261,7 @@ test("sub-agent dispatch: each backend's own mechanics, and no child is ever int
   assert.match(claude, /`CronCreate` and `ScheduleWakeup` do not fire here/)
   assert.match(flat("codex"), /never `interrupt_agent` unless the user names that interruption/)
   assert.match(flat("acp"), /let each child finish/)
-  assert.match(flat("acp"), /brief one-sentence status update in your assistant message between major phases/)
+  assert.match(flat("acp"), /Never go silent during multi-step work/)
+  assert.match(flat("acp"), /whenever ~6–8 tool calls have passed/)
   for (const kind of ["codex", "acp"] as const) assert.doesNotMatch(flat(kind), /run_in_background|ntwine:<effort>/, kind)
 })

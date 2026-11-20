@@ -103,10 +103,10 @@ test("a staged answer box never submits a non-Enter key or an IME confirmation",
 // ACP follow-up queues behind it; neither runtime is ever sent an interrupt for a message, so a
 // worker's sub-agents on those backends cannot be ended by ⌘-Enter (maintainer 2026-09-24: "make sure
 // that we don't kill subagents unnecessarily for Codex either. Or any of the ACPs").
-test("⌘-Enter may interrupt only a running Claude turn — never Codex or an ACP agent", () => {
+test("⌘-Enter may interrupt a running Claude or ACP turn — never Codex", () => {
   assert.equal(canInterruptAndSend({ runtime: "running", backend: "claude" }, false), true)
   assert.equal(canInterruptAndSend({ runtime: "running", backend: "codex" }, false), false, "codex: the chord is a plain send that steers")
-  assert.equal(canInterruptAndSend({ runtime: "running", backend: "acp" }, false), false, "acp: the chord is a plain send that queues")
+  assert.equal(canInterruptAndSend({ runtime: "running", backend: "acp" }, false), true, "acp: ⌘⏎ cancels the in-flight prompt and drains the queue")
   assert.equal(canInterruptAndSend({ runtime: "rested", backend: "claude" }, false), false, "nothing in flight to interrupt")
   assert.equal(canInterruptAndSend(undefined, false), false)
   assert.equal(canInterruptAndSend({ runtime: "running", backend: "claude" }, true), false, "a staged-answer surface sends a whole answer set")

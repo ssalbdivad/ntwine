@@ -2018,10 +2018,17 @@ export function createRouter(ctx: AppContext) {
         })
         if (result.acpSessionId !== row.agent_session_id) ctx.storage.setAgentSession(input.slug, result.acpSessionId)
         if (row.exited === 1) ctx.storage.setExitedIfCurrent(input.slug, row.session_id, row.runtime_generation ?? 0, false)
-        if (input.deliveryId) {
-          appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message, state: result.state === "queued" ? "enqueued" : "delivered" })
-          ctx.transcriptChange.emit([input.slug])
+        // "Interrupt and send" (⌘⏎): the message is already queued in `live.queue`, so cancelling the
+        // in-flight turn (`session/cancel`) drains the whole queue into the next turn immediately.
+        let preempted = false
+        if (input.interrupt === true && result.state === "queued") {
+          preempted = (await bridge.interruptTurn(input.slug, row.session_id, { onlyIfQueued: true })).interrupted
         }
+        if (input.deliveryId) {
+          appendDelivery(ctx.storage, input.slug, { id: input.deliveryId, text: input.message, state: result.state === "queued" && !preempted ? "enqueued" : "delivered" })
+        }
+        if (preempted) deliverOutstandingDeliveries(ctx.storage, input.slug)
+        if (input.deliveryId || preempted) ctx.transcriptChange.emit([input.slug])
         ctx.board.refresh()
         return
       }
@@ -3924,6 +3931,21 @@ export function createRouter(ctx: AppContext) {
           ctx.board.refresh()
           return { unqueued: true }
         }
+        if (row.backend === "acp") {
+          const bridge = ctx.acpBridge
+          if (!bridge) throw new Error("The ACP bridge is unavailable; cannot unqueue this follow-up")
+          const tooLate = { unqueued: false, reason: "Too late — that message has already left the queue, so ntwine can't take it back" }
+          const item = deliveryItem(ctx.storage, input.slug, input.deliveryId)
+          if (item?.state === "cancelled") return { unqueued: true }
+          if (item?.state === "sending") return { unqueued: false, reason: "That message is still being sent — try again in a moment" }
+          if (item?.state === "failed") return { unqueued: false, reason: "That message was never delivered — use Edit on it to get the text back" }
+          if (!item) return tooLate
+          if (!bridge.cancelFollowUp(input.slug, row.session_id, input.deliveryId)) return tooLate
+          cancelDelivery(ctx.storage, input.slug, input.deliveryId)
+          ctx.transcriptChange.emit([input.slug])
+          ctx.board.refresh()
+          return { unqueued: true }
+        }
         if (row.backend !== "claude" || row.claude_runtime !== "broker") {
           return { unqueued: false, reason: "This thread's runtime can't take a message back once it's been sent" }
         }
@@ -3995,6 +4017,18 @@ export function createRouter(ctx: AppContext) {
         const released = await releaseHeldFollowUps(input.slug, { force: true })
         if (input.releaseOnly) {
           return released > 0 ? { interrupted: false, released } : { interrupted: false, reason: "That message has already been sent" }
+        }
+        if (row.backend === "acp") {
+          const bridge = ctx.acpBridge
+          if (!bridge) throw new Error("The ACP bridge is unavailable; cannot interrupt this turn")
+          const { interrupted } = await bridge.interruptTurn(input.slug, row.session_id, { onlyIfQueued: true })
+          if (!interrupted) {
+            return released > 0
+              ? { interrupted: false, released }
+              : { interrupted: false, reason: "Nothing to interrupt — this thread has no turn running" }
+          }
+          if (deliverOutstandingDeliveries(ctx.storage, input.slug)) ctx.transcriptChange.emit([input.slug])
+          return { interrupted: true, ...(released > 0 ? { released } : {}) }
         }
         if (row.backend !== "claude" || row.claude_runtime !== "broker") {
           return released > 0
