@@ -1146,7 +1146,7 @@ function AwaitingAskUpdate({ thread }: { thread: Pick<ThreadView, "id" | "sessio
   )
 }
 
-export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed, reply }: {
+export function AwaitingBackgroundCard({ thread, fence, body, onReplied, onReplyFailed, reply }: {
   // `id` joins the Pick because the rows OPEN things now: a shell's output drawer and a sub-agent's
   // transcript are both addressed by the parent thread's slug. `lastFence` joined on 2026-08-24: the
   // fence's prose is this card's opening stratum, so the card reads it directly off the thread.
@@ -1172,6 +1172,10 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
    *  any more — the tailer clears `lastFence` on the very user record that bumps it — so the caller that
    *  parsed it out of the message hands it in here instead of a second renderer growing around it. */
   fence?: { body: string; hints: readonly AwaitingHint[] }
+  /** Full, untruncated fence body from the handoff/transcript when rendering the live resting card
+   *  (`fence` omitted). The board snapshot caps `thread.lastFence.body` at 500 chars (`capFenceBody`),
+   *  which slices long bodies mid-sentence and mid-backtick when the resting card falls back to it. */
+  body?: string
   // The optimistic exit for the verbs that REPLY (the steps' Done, Keep working): the reply takes the
   // thread out of the queue, and puts it back if the send fails. Only a surface with a card to fade
   // passes it.
@@ -1206,7 +1210,7 @@ export function AwaitingBackgroundCard({ thread, fence, onReplied, onReplyFailed
   // FenceCard now renders THIS card rather than one of its own, so the prose lives here or nowhere.
   // Null for a rest with no awaiting fence (a bare sub-agent rest, a shell-only rest) or a fence with
   // no prose; the divider comes and goes with it.
-  const prose = awaitingProseBlock(stated?.body)
+  const prose = awaitingProseBlock(body ?? stated?.body)
   const proseHtml = useMarkdownHtml(prose ?? "")
   // Live-ticking, so a shell's "running · 4m" keeps counting while the board sends nothing (a quiet
   // child pushes no delta). One clock read for the whole card rather than one per row.

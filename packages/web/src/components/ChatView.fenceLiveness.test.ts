@@ -224,7 +224,7 @@ test("the resting card owns the heading, the glyph, the prose and the chips", ()
   assert.match(code, /awaitingBackgroundLabel\(work, hints\)/, "the heading reads the stated fence's hints")
   assert.match(code, /const onReader = steps\.length > 0 \|\| machine !== null/)
   assert.match(code, /icon=\{onReader \? ListTodo : shellsAlone\(work\) \? TerminalSquare : Hourglass\}/, "three titles, three glyphs, and no fourth — steps and a machine to move to are the waits on the reader")
-  assert.match(code, /const prose = awaitingProseBlock\(stated\?\.body\)/)
+  assert.match(code, /const prose = awaitingProseBlock\(body \?\? stated\?\.body\)/)
   assert.match(code, /const unrowed = unrowedWatchRefs\(work, hints\)/, "a PR the table already rows gets no chip — one PR, one place")
   // THE VERBS ARE THE ONLY THINGS THE RUNTIME MAY CHANGE, and each is withheld rather than re-styled: a
   // thread that has left the rest its steps were posted at has nobody waiting on the steps' Done
@@ -239,5 +239,12 @@ test("the resting card owns the heading, the glyph, the prose and the chips", ()
   assert.equal(code.match(/restingOnSteps\(/g)?.length, 1, "…and the steps' Done once")
   assert.equal(code.match(/restingOnMachine\(/g)?.length, 1, "…and the suggested move once")
   assert.doesNotMatch(code, /\.runtime\b/, "and nothing in the card reads the runtime directly")
+})
+
+test("both resting-card surfaces forward the full untruncated fence body from the message", () => {
+  assert.match(source, /case "resting":\n\s*return <AwaitingBackgroundCard thread=\{thread!\} body=\{restingFenceBody\} \/>/)
+  assert.equal(source.match(/restingFenceBody=\{restingFenceBodyOf\(/g)?.length, 3, "every RuntimeStatusLadder call forwards the transcript's full fence body")
+  const queueCard = readFileSync(new URL("./AllQueuesCard.tsx", import.meta.url), "utf8")
+  assert.match(queueCard, /body=\{parts\?\.fences\.findLast\(\(f\) => f\.kind === "awaiting"\)\?\.body\}/, "the queue resting card forwards the handoff's full fence body")
 })
 

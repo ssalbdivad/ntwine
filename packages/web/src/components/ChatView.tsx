@@ -639,6 +639,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
                 state={runtimeStatus}
                 slug={slug}
                 retryText={lastUserIdx >= 0 ? messages[lastUserIdx]?.text : undefined}
+                restingFenceBody={restingFenceBodyOf(lastAgentIdx >= 0 ? presentationMessages[lastAgentIdx]?.text : undefined)}
                 liveRuntimeStart={liveRuntimeStart}
                 liveActivityLabel={liveActivityLabel}
                 liveToolRun={liveToolRun}
@@ -681,6 +682,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
                   state={runtimeStatus}
                   slug={slug}
                   retryText={lastUserIdx >= 0 ? messages[lastUserIdx]?.text : undefined}
+                  restingFenceBody={restingFenceBodyOf(lastAgentIdx >= 0 ? presentationMessages[lastAgentIdx]?.text : undefined)}
                   liveRuntimeStart={liveRuntimeStart}
                   liveActivityLabel={liveActivityLabel}
                   liveToolRun={liveToolRun}
@@ -927,10 +929,24 @@ export function runtimeStatusGapFor(state: RuntimeStatusState, messages: readonl
   return runtimeStatusRung(state) === "working" ? workingIndicatorGap(messages) : STEP
 }
 
+/** Full, untruncated body of the last ```awaiting fence in a message, or undefined when it carries none.
+ *  The board snapshot caps `thread.lastFence.body` at 500 chars (`capFenceBody`), so the resting card reads
+ *  the transcript's full copy instead of truncating mid-sentence. */
+export function restingFenceBodyOf(text: string | undefined): string | undefined {
+  if (!text) return undefined
+  const segs = splitFenceBlocks(text)
+  for (let i = segs.length - 1; i >= 0; i--) {
+    const seg = segs[i]!
+    if (seg.kind === "fence" && seg.fenceKind === "awaiting") return seg.body
+  }
+  return undefined
+}
+
 export function RuntimeStatusLadder({
   state,
   slug,
   retryText,
+  restingFenceBody,
   liveRuntimeStart,
   liveActivityLabel,
   liveToolRun,
@@ -939,6 +955,8 @@ export function RuntimeStatusLadder({
   slug: string
   /** The human's last ask, for the fault card's retry. */
   retryText: string | undefined
+  /** Full awaiting-fence body from the last assistant message, overriding the board's 500-char cap. */
+  restingFenceBody?: string
   liveRuntimeStart: string | undefined
   liveActivityLabel: string | undefined
   liveToolRun: { tools: readonly TranscriptToolCall[]; at?: string } | undefined
@@ -958,7 +976,7 @@ export function RuntimeStatusLadder({
     case "snooze":
       return <SnoozeCard thread={thread!} />
     case "resting":
-      return <AwaitingBackgroundCard thread={thread!} />
+      return <AwaitingBackgroundCard thread={thread!} body={restingFenceBody} />
     // THE THREAD'S OWN ENDING, for a sign-off that came in as a tool call rather than a fence: the same
     // card the fence draws, in the slot the fence would have occupied at the transcript's end. Below
     // everything because `done` refuses while anything above could still be true — an open question or an
@@ -1821,6 +1839,7 @@ function VirtualizedThreadTranscript({
                   state={runtimeStatus}
                   slug={slug}
                   retryText={lastUserIdx >= 0 ? messages[lastUserIdx]?.text : undefined}
+                  restingFenceBody={restingFenceBodyOf(lastAgentIdx >= 0 ? messages[lastAgentIdx]?.text : undefined)}
                   liveRuntimeStart={liveRuntimeStart}
                   liveActivityLabel={liveActivityLabel}
                   liveToolRun={liveToolRun}

@@ -759,7 +759,15 @@ function CardArticle({
               event-snooze), each of which takes this card out the way a reply does. Held until the handoff is read, as the
               gates below are: it carries buttons, and the full handoff landing above it would move them. */}
           {restingShown && (handoff.data || handoff.isError) && (
-            <CardAwaiting project={project} thread={thread} onLeave={onLeave} onSent={onSent} onLanded={onLanded} onReturn={onReturn} />
+            <CardAwaiting
+              project={project}
+              thread={thread}
+              body={parts?.fences.findLast((f) => f.kind === "awaiting")?.body}
+              onLeave={onLeave}
+              onSent={onSent}
+              onLanded={onLanded}
+              onReturn={onReturn}
+            />
           )}
           {/* A DONE THE WORKER REGISTERED (`mcp__ntwine__done`) rather than fenced — the sign-off the worker
               contract now asks for first — is in no message, so the handoff text above carries no fence
@@ -1213,10 +1221,11 @@ function useCardReply(project: QueuesProject, thread: ThreadView, onLanded: () =
  *   • a row opens its thread in place, and the row's own drawer over it only when the card's project is
  *     the one in focus (WaitRowOpenContext) — the terminal rows' route (`openProcess` above).
  */
-function CardAwaiting({ project, thread, fence, onLeave, onSent, onLanded, onReturn }: {
+function CardAwaiting({ project, thread, fence, body, onLeave, onSent, onLanded, onReturn }: {
   project: QueuesProject
   thread: ThreadView
   fence?: { body: string; hints: AwaitingHint[] }
+  body?: string
   onLeave: () => void
   onSent: () => void
   onLanded: () => void
@@ -1235,6 +1244,7 @@ function CardAwaiting({ project, thread, fence, onLeave, onSent, onLanded, onRet
         <AwaitingBackgroundCard
           thread={thread}
           fence={fence}
+          body={body}
           onReplied={onSent}
           onReplyFailed={onReturn}
           reply={reply}

@@ -512,3 +512,28 @@ test("a machine fence at rest leads the footer with the move to that paired mach
   assert.doesNotMatch(withPeers(resting([{ kind: "machine", value: "ssalb-xps" }], { runtime: "running" })), /data-suggested-move/, "not at rest on it")
   assert.doesNotMatch(withPeers(resting([{ kind: "machine", value: "ssalb-xps" }], { movedTo: { peerId: peer.id, peerName: "ssalb-xps", at: "2026-11-12T00:00:00.000Z" } })), /data-suggested-move/, "already moved")
 })
+
+// A resting card whose handoff/transcript passes the full fence `body` renders it untruncated instead of
+// falling back to the board snapshot's 500-char `thread.lastFence.body` cap, while keeping live verbs.
+test("a live resting card renders the full passed body instead of the board's 500-char cap", () => {
+  const full = `${"x".repeat(520)} in \`ark/aot/declare.ts\` and finished.`
+  const capped = `${full.slice(0, 500)}…`
+  const t = {
+    ...thread([], []),
+    lastFence: { kind: "awaiting" as const, body: capped, hints: [{ kind: "pr", value: "acme/app#391" }] },
+  } as Parameters<typeof AwaitingBackgroundCard>[0]["thread"]
+  const prevDoc = globalThis.document
+  globalThis.document = {
+    createElement: () => ({ innerHTML: "", content: { children: [] } }),
+  } as never
+  try {
+    const html = renderToStaticMarkup(
+      createElement(QueryClientProvider, { client: new QueryClient() }, createElement(AwaitingBackgroundCard, { thread: t, body: full })),
+    )
+    assert.match(html, /<code>ark\/aot\/declare\.ts<\/code> and finished\./, "full body past 500 chars renders cleanly")
+    assert.doesNotMatch(html, /…/, "the board snapshot's truncation ellipsis is gone")
+    assert.match(html, /Ask for update/, "passing body preserves live resting-card verbs")
+  } finally {
+    globalThis.document = prevDoc
+  }
+})

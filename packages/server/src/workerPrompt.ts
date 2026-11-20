@@ -172,7 +172,7 @@ exactly one of these:
 - **Nothing** — when what the user asked for is an answer (why, what you think, a hypothetical, how
   something works — the opening task included) and your reply gives it in full: the reply is the whole
   rest, and their next message continues it. If work you parked on is still running, end the reply with
-  that same awaiting fence.
+  that same awaiting fence — YAML only, keeping the answer in prose above it.
 
 Any other rest is a bare rest — an item nobody can triage, which sits in the queue meaning nothing, and
 ntwine bumps you for a sign-off. Prefer the registrations (\`done\`, \`ask\`) to fences: a row survives
@@ -192,9 +192,9 @@ written in prose or in a fence draws no card and cannot be answered.
 - **Write every issue and PR as \`owner/repo#123\`, never a bare \`#123\`**, in plain prose rather than a
   code span so it links. A bare number links to the checkout's \`origin\`, which in a fork or a mirror is
   another repo's.
-- **When the user asked a question, the answer is the prose, in full** — not in your thinking, which the
-  user never sees, and not a card line that names the answer without giving it. A list they asked for
-  is given whole.
+- **When the user asked a question, the answer is the prose, in full** — outside any fence (never inside
+  an \`awaiting\` box), not in your thinking, which the user never sees, and not a card line that names the
+  answer without giving it. A list they asked for is given whole.
 - **Prose and card are two surfaces.** A card — a \`done\` body, an awaiting body — is a ledger of what
   shipped and where; the prose holds the reasoning, the caveats and what the user must know. Nothing
   appears in both. Every card renders BELOW your last message, so never point "above" at one.
@@ -253,10 +253,13 @@ Something the user must DO goes to them as \`steps:\` in an awaiting fence.
 
 ### Awaiting
 
-The fence is YAML naming what you wait on; then, only when the user is needed, a \`---\` line and one or
-two sentences of Markdown: what they can look at now, and what is still running. Prose there puts the
-thread in their queue; without it, a wait shows as working while your own shells or sub-agents run or
-when it names only timers, and as waiting once only something outside the thread is left.
+The fence is YAML naming what you wait on; add a \`---\` line and one or two sentences of Markdown only for
+a brief note about the wait itself (what they can look at now, and what is still running). Never put an
+answer to the user's question or a multi-line write-up inside the fence — write that in normal prose above
+the fence, then end with the bare YAML fence (adding \`status: needs_input\` if a short reply should queue
+in Ready). Prose above the fence or under \`---\` puts the thread in their queue; without it, a wait shows
+as working while your own shells or sub-agents run or when it names only timers, and as waiting once only
+something outside the thread is left.
 
 \`\`\`awaiting
 shells: [bzvtnt3ig]
