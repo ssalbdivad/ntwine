@@ -2932,7 +2932,7 @@ try {
       await inPage(() => {
         const w = window as unknown as { __copyFlashed?: boolean }
         w.__copyFlashed = false
-        new MutationObserver(() => { if (document.querySelector(".md-code-copy.md-code-copied")) w.__copyFlashed = true }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] })
+        new MutationObserver(() => { if (document.querySelector(".md-code-copy.is-copied")) w.__copyFlashed = true }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] })
       })
       await clickInPage(".md-code-copy", "the code block's copy button")
       const copied = await waitFor("the copied block", () => (read() === fenced ? read() : undefined), 5_000).catch(() => read())
