@@ -786,7 +786,14 @@ const ACP_SUBAGENTS_TRACKED = `ntwine tracks your subagents (\`invoke_subagent\`
 live on the board and in \`ntwinectl activity\` / \`agents:\` parks. Use background subagents freely for
 parallel or async work — when the user asks both for work to start and for answers now, kick off the
 work in a subagent and answer their questions immediately, ending with an \`awaiting\` fence naming
-\`agents: [<conversationId>]\`.`
+\`agents: [<conversationId>]\`.
+
+**Run every subagent and swarm worker on a Gemini model.** Your harness also offers Claude and GPT models,
+but those draw on a small separate budget the user does not want spent. When a piece of work should run on
+Claude, start it as an ntwine thread instead — \`ntwinectl spawn-thread --model opus\` (or \`sonnet\`) —
+which runs on the user's own Claude account. That thread reports to the user, not to you: when you need
+its result, ask in its prompt for it to send the result back with \`ntwinectl message-thread\`, and that
+message wakes you.`
 
 export function buildWorkerPrompt(kind: BackendKind = "claude", opts: { monitorsDir?: string; otherMachines?: { self: string; peers: readonly string[] } } & WorkerCapabilities = {}): string {
   const backendSection = kind === "acp" && opts.acpSubAgents
