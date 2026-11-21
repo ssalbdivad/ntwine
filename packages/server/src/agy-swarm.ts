@@ -1,4 +1,4 @@
-import { closeSync, openSync, readFileSync, readSync, statSync } from "node:fs"
+import { closeSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
@@ -34,8 +34,8 @@ import { join } from "node:path"
 // the row into the finished ring with outcome `killed` — agy has no separate "completed": a coordinator
 // kills a helper "when its work is done", so kill IS the ordinary end, and the outcome says what agy said.
 
-export type AgySwarmState = "working" | "waiting" | "stopped" | "killed"
-export type AgySwarmLiveState = Exclude<AgySwarmState, "killed">
+export type AgySwarmState = "working" | "waiting" | "stopped" | "killed" | "completed"
+export type AgySwarmLiveState = Exclude<AgySwarmState, "killed" | "completed">
 
 export function defaultAgyHome(): string {
   return join(homedir(), ".gemini", "antigravity-cli")
@@ -43,6 +43,10 @@ export function defaultAgyHome(): string {
 
 export function agySwarmRosterPath(home: string, coordinatorConv: string): string {
   return join(home, "brain", coordinatorConv, ".system_generated", "swarm", "members.json")
+}
+
+export function agySubAgentsDir(home: string, parentConv: string): string {
+  return join(home, "brain", parentConv, ".system_generated", "subagents")
 }
 
 export function agyTranscriptPath(home: string, conv: string): string {
@@ -57,6 +61,41 @@ export function agySwarmMemberId(conv: string): string {
 
 export function isAgySwarmMemberId(id: string | undefined): boolean {
   return !!id && id.startsWith("agy-swarm:")
+}
+
+export function agySubAgentId(conv: string): string {
+  return `agy-subagent:${conv}`
+}
+
+export function isAgySubAgentId(id: string | undefined): boolean {
+  return !!id && id.startsWith("agy-subagent:")
+}
+
+type AgySubAgentRecord = {
+  conversationId: string
+  typeName?: string
+  role?: string
+  state?: string
+}
+
+export function parseAgySubAgent(text: string): AgySubAgentRecord | undefined {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  if (!raw || typeof raw !== "object") return undefined
+  const obj = raw as { conversationId?: unknown; subagentDescriptor?: unknown; state?: unknown }
+  const conversationId = str(obj.conversationId)
+  if (!conversationId) return undefined
+  const desc = obj.subagentDescriptor && typeof obj.subagentDescriptor === "object"
+    ? (obj.subagentDescriptor as { typeName?: unknown; role?: unknown })
+    : undefined
+  const typeName = str(desc?.typeName)
+  const role = str(desc?.role)
+  const state = str(obj.state)
+  return { conversationId, ...(typeName ? { typeName } : {}), ...(role ? { role } : {}), ...(state ? { state } : {}) }
 }
 
 type RosterMember = {
@@ -215,6 +254,8 @@ export function summarizeAgyTranscript(path: string, size: number): AgyTranscrip
 
 export type AgySwarmMember = {
   id: string
+  /** Runtime id a fence or watch names this child by (swarm: roster name; subagent: conversationId). */
+  taskId?: string
   name: string
   conversationId: string
   role?: string
@@ -229,6 +270,8 @@ export type AgySwarmMember = {
 
 export type AgySwarmLiveEntry = {
   name: string
+  /** Runtime id a fence or watch names this child by; defaults to `name` when omitted. */
+  taskId?: string
   startedAt: string
   model?: string
   transcriptPath: string
@@ -239,6 +282,7 @@ export type AgySwarmLiveEntry = {
 
 export type AgySwarmRetiredEntry = {
   name: string
+  taskId?: string
   startedAt?: string
   finishedAt?: string
   model?: string
@@ -292,10 +336,13 @@ const sameStamp = (a: FileStamp | undefined, b: FileStamp | undefined) => !!a &&
 export function createAgySwarmTracker(deps: AgySwarmTrackerDeps): AgySwarmTracker {
   const home = deps.home ?? defaultAgyHome()
   const rosterPath = agySwarmRosterPath(home, deps.conversationId)
+  const subAgentsDir = agySubAgentsDir(home, deps.conversationId)
   const interval = deps.intervalMs ?? POLL_INTERVAL_MS
   let nextPollMs = 0
   let rosterStamp: FileStamp | undefined
   let roster: AgyRoster | undefined
+  // Per subagents/<conv>.json file: cached stamp and parsed record so unchanged descriptors aren't re-read.
+  const subAgentFiles = new Map<string, { stamp: FileStamp; record: AgySubAgentRecord | undefined }>()
   // Per transcript path: the stamp it was summarised at, and the summary. A killed member's transcript is
   // read once (its head, for the start instant) and never again while it does not change.
   const summaries = new Map<string, { stamp: FileStamp; summary: AgyTranscriptSummary | undefined }>()
@@ -313,7 +360,7 @@ export function createAgySwarmTracker(deps: AgySwarmTrackerDeps): AgySwarmTracke
     return value
   }
 
-  function readMembers(): AgySwarmMember[] | undefined {
+  function readSwarmMembers(): AgySwarmMember[] | undefined {
     const stamp = stampOf(rosterPath)
     if (!stamp) return undefined
     if (!sameStamp(stamp, rosterStamp)) {
@@ -330,6 +377,79 @@ export function createAgySwarmTracker(deps: AgySwarmTrackerDeps): AgySwarmTracke
       rosterStamp = stamp
     }
     return roster ? membersOf(roster) : undefined
+  }
+
+  function readSubAgentMembers(skipConvs: ReadonlySet<string>): AgySwarmMember[] | undefined {
+    let entries: string[]
+    try {
+      entries = readdirSync(subAgentsDir)
+    } catch {
+      return undefined
+    }
+    const out: AgySwarmMember[] = []
+    const liveFiles = new Set<string>()
+    for (const file of entries) {
+      if (!file.endsWith(".json")) continue
+      const fullPath = join(subAgentsDir, file)
+      const fStamp = stampOf(fullPath)
+      if (!fStamp) continue
+      liveFiles.add(fullPath)
+      let rec: AgySubAgentRecord | undefined
+      const cached = subAgentFiles.get(fullPath)
+      if (cached && sameStamp(cached.stamp, fStamp)) {
+        rec = cached.record
+      } else {
+        try {
+          const parsed = parseAgySubAgent(readFileSync(fullPath, "utf8"))
+          // Mid-write tear: keep the last good record if we had one.
+          rec = parsed ?? cached?.record
+          if (parsed) subAgentFiles.set(fullPath, { stamp: fStamp, record: parsed })
+        } catch {
+          rec = cached?.record
+        }
+      }
+      if (!rec) continue
+      const conv = rec.conversationId
+      if (conv === deps.conversationId || skipConvs.has(conv)) continue
+      const transcriptPath = agyTranscriptPath(home, conv)
+      const stamp = stampOf(transcriptPath)
+      const killed = rec.state === "SUBAGENT_STATE_KILLED"
+      const s = stamp ? (killed ? headOnly(transcriptPath, stamp) : summary(transcriptPath, stamp)) : undefined
+      // Unlike a swarm member (which parks on a board in `waiting`), an `invoke_subagent` child stays
+      // `SUBAGENT_STATE_ALIVE` even after its turn finishes so the parent can still `send_message` it.
+      // Once its transcript ends (`idle === true`), retire it as `completed`; a later message flips
+      // `idle` back to `false` and resurrects it into the live map.
+      const state: AgySwarmState = killed ? "killed" : s?.idle === true ? "completed" : "working"
+      const name = rec.role ?? rec.typeName ?? conv.slice(0, 8)
+      out.push({
+        id: agySubAgentId(conv),
+        taskId: conv,
+        name,
+        conversationId: conv,
+        ...(rec.role ? { role: rec.role } : {}),
+        ...(rec.typeName ? { model: rec.typeName } : {}),
+        state,
+        transcriptPath,
+        ...(s?.startedAt ? { startedAt: s.startedAt } : {}),
+        ...(stamp ? { lastActivityAt: new Date(stamp.mtimeMs).toISOString() } : {}),
+        ...(state === "working" && s?.activity ? { activity: s.activity } : {}),
+        ...(state === "working" && s?.activityDetail ? { activityDetail: s.activityDetail } : {}),
+      })
+    }
+    for (const k of subAgentFiles.keys()) {
+      if (!liveFiles.has(k)) subAgentFiles.delete(k)
+    }
+    return out
+  }
+
+  function readMembers(): AgySwarmMember[] | undefined {
+    const swarm = readSwarmMembers()
+    // Swarm workers also have descriptors under `subagents/*.json`; deduplicate by conversationId so
+    // `swarm/members.json` (which carries the short roster name, model, phase and wake_mode) wins.
+    const swarmConvs = new Set((swarm ?? []).map((m) => m.conversationId))
+    const subAgents = readSubAgentMembers(swarmConvs)
+    if (!swarm && !subAgents) return undefined
+    return [...(swarm ?? []), ...(subAgents ?? [])]
   }
 
   function membersOf(r: AgyRoster): AgySwarmMember[] {
@@ -391,21 +511,26 @@ export function createAgySwarmTracker(deps: AgySwarmTrackerDeps): AgySwarmTracke
       const ordered = [...members].sort((a, b) => rank(a) - rank(b) || (a.lastActivityAt ?? "").localeCompare(b.lastActivityAt ?? ""))
       for (const m of ordered) {
         seen.add(m.id)
-        const sig = m.state === "killed" ? "killed" : `${m.state}|${m.activity ?? ""}|${m.activityDetail ?? ""}|${m.model ?? ""}|${m.startedAt ?? ""}`
-        if (published.get(m.id) === sig) continue
-        published.set(m.id, sig)
-        if (m.state === "killed") {
+        if (m.state === "killed" || m.state === "completed") {
+          const sig = m.state
+          if (published.get(m.id) === sig) continue
+          published.set(m.id, sig)
           deps.sink.retire(m.id, {
             name: m.name,
+            ...(m.taskId ? { taskId: m.taskId } : {}),
             transcriptPath: m.transcriptPath,
             ...(m.startedAt ? { startedAt: m.startedAt } : {}),
             ...(m.lastActivityAt ? { finishedAt: m.lastActivityAt } : {}),
             ...(m.model ? { model: m.model } : {}),
-          }, "killed")
+          }, m.state)
           continue
         }
+        const sig = `${m.state}|${m.activity ?? ""}|${m.activityDetail ?? ""}|${m.model ?? ""}|${m.startedAt ?? ""}`
+        if (published.get(m.id) === sig) continue
+        published.set(m.id, sig)
         deps.sink.setLive(m.id, {
           name: m.name,
+          ...(m.taskId ? { taskId: m.taskId } : {}),
           // A member with no transcript yet has just been added: its first sighting is the honest instant.
           startedAt: m.startedAt ?? new Date(nowMs).toISOString(),
           transcriptPath: m.transcriptPath,
@@ -426,4 +551,4 @@ export function createAgySwarmTracker(deps: AgySwarmTrackerDeps): AgySwarmTracke
   }
 }
 
-const rank = (m: AgySwarmMember) => (m.state === "killed" ? 0 : 1)
+const rank = (m: AgySwarmMember) => (m.state === "killed" || m.state === "completed" ? 0 : 1)

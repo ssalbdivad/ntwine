@@ -255,7 +255,7 @@ export function loadWorkerPrompt(kind: BackendKind = "claude", caps: WorkerCapab
 // connected" would list the tool to every project's workers whenever one window is open anywhere, and
 // it would answer them all "none has this project open".
 export function workerCapabilities(editors: Pick<EditorBridge, "editorState"> | undefined, dir: string, also: readonly string[] = []): Required<WorkerCapabilities> {
-  return { editor: (editors?.editorState(dir, also).windows.length ?? 0) > 0 }
+  return { editor: (editors?.editorState(dir, also).windows.length ?? 0) > 0, acpSubAgents: false }
 }
 
 // The portable CI/review monitors, which ship inside the worker plugin (`sync-portable-monitors.mjs`
@@ -1272,7 +1272,8 @@ export function createDispatcher(deps: DispatchDeps): Dispatcher {
           cleanupDispatchFiles(scratchRel, { argv: [], env: {}, prewrite: [] }, sessionId)
           throw new Error(!bridge ? "The ACP bridge is unavailable; cannot start this thread." : `An ACP dispatch needs an agent: pick one in the composer (model \`acp:<agent>\`), got ${JSON.stringify(model ?? null)}.`)
         }
-        const firstPrompt = [loadWorkerPrompt("acp", workerCapabilities(deps.editors, workDir)), scratchpadOrientation(sessionId, kind, scratchPath), ntwineConfigBlock(deps.project.dir), deadlineBlock, prompt]
+        const caps = { ...workerCapabilities(deps.editors, workDir), ...(agentId === "antigravity" ? { acpSubAgents: true } : {}) }
+        const firstPrompt = [loadWorkerPrompt("acp", caps), scratchpadOrientation(sessionId, kind, scratchPath), ntwineConfigBlock(deps.project.dir), deadlineBlock, prompt]
           .filter(Boolean).join("\n\n")
         try {
           const spawned = await bridge.spawnDispatch({ threadSlug: slug, sessionId, cwd: workDir, agentId, modelId: acpModelIdFromModel(model), effort, permissionMode, prompt: firstPrompt, userText: input.prompt })

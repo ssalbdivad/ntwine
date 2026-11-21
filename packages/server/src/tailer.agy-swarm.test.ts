@@ -11,7 +11,7 @@ import type { AgentBackend } from "./backend/types.ts"
 import { createClaudeBackend } from "./backend/claude.ts"
 import { acpTranscriptPath, createAcpBackend } from "./backend/acp-transcript.ts"
 import { readAgyTranscriptFile } from "./backend/agy-transcript.ts"
-import { agySwarmMemberId, agySwarmRosterPath, agyTranscriptPath } from "./agy-swarm.ts"
+import { agySubAgentId, agySubAgentsDir, agySwarmMemberId, agySwarmRosterPath, agyTranscriptPath } from "./agy-swarm.ts"
 
 // THE WHOLE PATH, through the real tailer tick: an agy thread's ACP row, its own ntwine-written transcript,
 // and agy's swarm files on disk under an injected agy home. What a board, the drill-in drawer and
@@ -140,4 +140,40 @@ test("tailer: a non-agy ACP thread never looks for a swarm", () => {
   h.transcript(WORKER, [brief, working])
   h.tailer.tick()
   assert.deepEqual(h.tailer.get("t")?.subAgents ?? [], [])
+})
+
+test("tailer: an agy thread surfaces invoke_subagent children with conversationId taskId and retires them on turn end", () => {
+  const h = setup()
+  const subDir = agySubAgentsDir(join(dirname(h.transcript(WORKER, [brief, working])), "..", "..", "..", ".."), COORD)
+  mkdirSync(subDir, { recursive: true })
+  writeFileSync(join(subDir, `${WORKER}.json`), JSON.stringify({
+    conversationId: WORKER,
+    subagentDescriptor: { typeName: "research", role: "Codebase Researcher" },
+    state: "SUBAGENT_STATE_ALIVE",
+  }))
+  h.tailer.tick()
+
+  const id = agySubAgentId(WORKER)
+  const sub = h.tailer.get("t")?.subAgents?.find((a) => a.id === id)
+  assert.deepEqual(sub && { id: sub.id, taskId: sub.taskId, label: sub.label, state: sub.state, subagentType: sub.subagentType, activity: sub.activity, activityDetail: sub.activityDetail }, {
+    id,
+    taskId: WORKER,
+    label: "Codebase Researcher",
+    state: "running",
+    subagentType: "research",
+    activity: "run_command",
+    activityDetail: "Git log for target commits",
+  })
+
+  // Subagent finishes its turn -> retired as completed (even though state JSON stays SUBAGENT_STATE_ALIVE).
+  const workerPath = h.tailer.subAgent("t", id)!.outputFile!
+  appendFileSync(workerPath, [
+    step({ step_index: 2, type: "GENERIC", created_at: "2026-11-20T20:39:40Z", content: "ok" }),
+    step({ step_index: 3, type: "PLANNER_RESPONSE", created_at: "2026-11-20T20:40:10Z", content: "Done." }),
+  ].join("\n") + "\n")
+  h.clock.ms += 5_000
+  h.tailer.tick()
+  assert.deepEqual(h.tailer.get("t")?.subAgents ?? [], [])
+  const finished = h.tailer.subAgent("t", id)
+  assert.deepEqual([finished?.state, finished?.outcome, finished?.outputFormat], ["done", "completed", "agy"])
 })

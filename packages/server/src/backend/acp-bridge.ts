@@ -1,5 +1,7 @@
+import { statSync } from "node:fs"
 import { INTERACTION_PROTOCOL_VERSION, InteractionRequest, type InteractionRequest as InteractionRequestType } from "@ntwine/shared"
 import type { InteractionSessionScope, InteractionStore } from "../interaction-store.ts"
+import { agyTranscriptPath, defaultAgyHome, summarizeAgyTranscript } from "../agy-swarm.ts"
 import { redactCredentialSyntax } from "../credential-redaction.ts"
 import { log } from "../logging.ts"
 import { acpAgentSpecs, resolveAcpAgent, type AcpAgentInput, type AcpAgentSpec, type ResolvedAcpAgent } from "./acp-agents.ts"
@@ -68,6 +70,11 @@ export interface AcpBridgeOptions {
   initializeTimeoutMs?: number
   /** How long streamed text sits before it is flushed as a transcript record. */
   flushMs?: number
+  /** How long an unsolicited turn (updates outside `session/prompt`, e.g. an agy subagent wake) waits
+   *  with no open tools/permissions and no new updates before closing. */
+  unsolicitedIdleMs?: number
+  /** Test seam for Antigravity's data dir when checking parent `transcript.jsonl` on unsolicited turns. */
+  agyHome?: string
 }
 
 export interface AcpSpawnDispatchInput {
@@ -141,6 +148,11 @@ interface Turn {
   messageText: string
   thought: string
   flushTimer?: NodeJS.Timeout
+  /** True when the agent woke autonomously (e.g. a subagent finished) with no `session/prompt` in flight. */
+  unsolicited?: boolean
+  /** Tool call ids currently in flight during an unsolicited turn; while non-empty, idle close is held. */
+  openTools?: Set<string>
+  idleTimer?: NodeJS.Timeout
   cancelRequested: boolean
   done: Promise<void>
   finish: () => void
@@ -359,6 +371,7 @@ export class AcpBridge {
         const decisionId = change.lifecycle === "resolved" ? record?.resolution?.decisionId : undefined
         const optionId = decisionId ? pending.optionByDecision.get(decisionId) : undefined
         pending.resolve(optionId ? { outcome: { outcome: "selected", optionId } } : { outcome: { outcome: "cancelled" } })
+        this.touchUnsolicitedTurn(live)
       }
     })
   }
@@ -682,9 +695,8 @@ export class AcpBridge {
     if (live.exited) return
     live.exited = true
     this.retirePermissions(live, "provider-cancelled")
-    if (live.turn) {
-      // The child died under a turn: the prompt request already rejected (AcpConnectionClosed) and the
-      // turn's own handler writes the error; nothing more to do here.
+    if (live.turn?.unsolicited) {
+      this.closeUnsolicitedTurn(live, live.turn, false)
     }
     if (this.sessions.get(live.sessionId) === live) this.sessions.delete(live.sessionId)
     this.options.onStatusChange?.()
@@ -728,6 +740,12 @@ export class AcpBridge {
     const live = this.sessions.get(sessionId)
     if (!live || live.slug !== threadSlug || !live.turn) return { interrupted: false }
     if (opts?.onlyIfQueued && live.queue.length === 0) return { interrupted: false }
+    if (live.turn.unsolicited) {
+      live.turn.cancelRequested = true
+      live.conn.notify("session/cancel", { sessionId: live.acpSessionId })
+      this.closeUnsolicitedTurn(live, live.turn, false)
+      return { interrupted: true }
+    }
     live.turn.cancelRequested = true
     live.conn.notify("session/cancel", { sessionId: live.acpSessionId })
     const settled = await Promise.race([live.turn.done.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 15_000).unref?.())])
@@ -754,7 +772,9 @@ export class AcpBridge {
       this.sessions.delete(sessionId)
       live.queue.length = 0
       this.retirePermissions(live, "provider-cancelled")
+      if (live.turn?.idleTimer) { clearTimeout(live.turn.idleTimer); live.turn.idleTimer = undefined }
       if (live.turn) live.conn.notify("session/cancel", { sessionId: live.acpSessionId })
+      if (live.turn?.unsolicited) { live.turn.finish(); live.turn = undefined }
       void live.conn.close(3_000)
     }
     void reason
@@ -825,6 +845,13 @@ export class AcpBridge {
     this.sessions.clear()
     await Promise.all(all.map(async (live) => {
       live.detaching = true
+      if (live.turn?.idleTimer) { clearTimeout(live.turn.idleTimer); live.turn.idleTimer = undefined }
+      if (live.turn?.unsolicited) {
+        if (live.turn.flushTimer) { clearTimeout(live.turn.flushTimer); live.turn.flushTimer = undefined }
+        this.flushThought(live)
+        this.flushText(live, false)
+        live.turn.finish()
+      }
       this.dropPermissionCards(live)
       await live.conn.close(1_000)
     }))
@@ -948,42 +975,113 @@ export class AcpBridge {
     turn.flushTimer.unref?.()
   }
 
+  /** Open an unsolicited turn when an ACP agent (e.g. agy waking on a background subagent's reply)
+   *  streams updates with no `session/prompt` in flight. Without this, text/thought chunks were dropped
+   *  and no turn-start/turn-end bracket reached the transcript or board. */
+  private ensureUnsolicitedTurn(live: LiveSession): Turn {
+    if (live.turn) return live.turn
+    const turn = this.newTurn(undefined)
+    turn.unsolicited = true
+    turn.openTools = new Set()
+    live.turn = turn
+    live.writer.append({ kind: "turn-start", at: turn.startedAt })
+    this.options.onStatusChange?.()
+    return turn
+  }
+
+  private touchUnsolicitedTurn(live: LiveSession): void {
+    const turn = live.turn
+    if (!turn?.unsolicited) return
+    if (turn.idleTimer) clearTimeout(turn.idleTimer)
+    turn.idleTimer = setTimeout(() => this.checkUnsolicitedIdle(live, turn), this.options.unsolicitedIdleMs ?? 2_500)
+    turn.idleTimer.unref?.()
+  }
+
+  private checkUnsolicitedIdle(live: LiveSession, turn: Turn): void {
+    turn.idleTimer = undefined
+    if (live.turn !== turn || live.exited || live.detaching) return
+    if ((turn.openTools?.size ?? 0) > 0 || live.pendingPerms.size > 0) return
+    if (live.agent.id === "antigravity") {
+      // Antigravity writes its own transcript to disk; consulting `agyTurnEnded` avoids closing an
+      // unsolicited turn mid-pause while the model is thinking between two tool calls.
+      const path = agyTranscriptPath(this.options.agyHome ?? defaultAgyHome(), live.acpSessionId)
+      try {
+        const s = statSync(path)
+        const summary = summarizeAgyTranscript(path, s.size)
+        if (summary && !summary.idle) {
+          this.touchUnsolicitedTurn(live)
+          return
+        }
+      } catch { /* no on-disk transcript yet — fall through to idle close */ }
+    }
+    this.closeUnsolicitedTurn(live, turn, true)
+  }
+
+  private closeUnsolicitedTurn(live: LiveSession, turn: Turn, successful: boolean): void {
+    if (live.turn !== turn) return
+    if (turn.idleTimer) { clearTimeout(turn.idleTimer); turn.idleTimer = undefined }
+    if (turn.flushTimer) { clearTimeout(turn.flushTimer); turn.flushTimer = undefined }
+    this.flushThought(live)
+    const finalText = this.flushText(live, true)
+    live.writer.append({ kind: "turn-end", at: this.now(), ...(finalText !== undefined ? { finalText } : {}), successful })
+    if (turn.cancelRequested) live.writer.append({ kind: "acp-note", at: this.now(), text: "Turn cancelled." })
+    this.retirePermissions(live, "turn-ended")
+    live.turn = undefined
+    turn.finish()
+    this.options.onStatusChange?.()
+    const queued = live.queue.splice(0)
+    if (queued.length > 0 && !live.exited && !live.conn.closed) {
+      const sendText = queued.map((q) => q.text).join("\n\n")
+      const recordTexts = queued.map((q) => q.text)
+      void this.runTurn(live, sendText, recordTexts, queued[queued.length - 1]!.deliveryId)
+    }
+  }
+
   private handleNotification(live: LiveSession, params: unknown): void {
     if (live.loading) return
     const parsed = AcpSessionNotification.safeParse(params)
     if (!parsed.success) { this.diagnostic(live.slug, "protocol", "malformed session/update"); return }
     const update = parseSessionUpdate(parsed.data.update)
-    const turn = live.turn
     switch (update.sessionUpdate) {
       case "agent_thought_chunk": {
-        if (!turn) return
         const t = contentText(update.content)
-        if (t) turn.thought += t
+        if (!t) return
+        const turn = this.ensureUnsolicitedTurn(live)
+        turn.thought += t
+        this.touchUnsolicitedTurn(live)
         return
       }
       case "agent_message_chunk": {
-        if (!turn) return
-        this.flushThought(live)
         const t = contentText(update.content)
         if (!t) return
+        const turn = this.ensureUnsolicitedTurn(live)
+        this.flushThought(live)
         if (update.messageId && turn.messageId && update.messageId !== turn.messageId) { this.flushText(live, false); turn.messageText = "" }
         if (update.messageId) turn.messageId = update.messageId
         turn.text += t
         turn.messageText += t
         this.scheduleFlush(live)
+        this.touchUnsolicitedTurn(live)
         return
       }
       case "tool_call": {
+        const turn = this.ensureUnsolicitedTurn(live)
         this.flushThought(live)
         this.flushText(live, false)
-        if (turn) turn.messageText = "" // text before a tool call is commentary, not the answer
+        turn.messageText = "" // text before a tool call is commentary, not the answer
         const meta: ToolMeta = { ...(update.kind ? { kind: update.kind } : {}), ...(update.title ? { title: update.title } : {}), locations: (update.locations ?? []).map((l) => l.path), written: true }
         live.tools.set(update.toolCallId, meta)
         live.writer.append({ kind: "tool-call", at: this.now(), id: update.toolCallId, name: update.title ?? update.kind ?? "tool", input: update.rawInput ?? {}, acp: { ...(meta.kind ? { kind: meta.kind } : {}), ...(meta.title ? { title: meta.title } : {}), locations: meta.locations ?? [] } })
-        if (update.status === "completed" || update.status === "failed") this.recordToolResult(live, update)
+        if (update.status === "completed" || update.status === "failed") {
+          this.recordToolResult(live, update)
+        } else {
+          turn.openTools?.add(update.toolCallId)
+          this.touchUnsolicitedTurn(live)
+        }
         return
       }
       case "tool_call_update": {
+        const turn = this.ensureUnsolicitedTurn(live)
         let meta = live.tools.get(update.toolCallId)
         if (!meta) {
           // An update-first agent (or v2): the first sighting creates the call.
@@ -996,10 +1094,16 @@ export class AcpBridge {
         if (!meta.written) {
           this.flushThought(live)
           this.flushText(live, false)
+          turn.messageText = ""
           meta.written = true
           live.writer.append({ kind: "tool-call", at: this.now(), id: update.toolCallId, name: meta.title ?? meta.kind ?? "tool", input: update.rawInput ?? {}, acp: { ...(meta.kind ? { kind: meta.kind } : {}), ...(meta.title ? { title: meta.title } : {}), locations: meta.locations ?? [] } })
         }
-        if (update.status === "completed" || update.status === "failed") this.recordToolResult(live, update)
+        if (update.status === "completed" || update.status === "failed") {
+          this.recordToolResult(live, update)
+        } else {
+          turn.openTools?.add(update.toolCallId)
+          this.touchUnsolicitedTurn(live)
+        }
         return
       }
       case "usage_update":
@@ -1029,11 +1133,13 @@ export class AcpBridge {
     const meta = live.tools.get(tc.toolCallId)
     if (meta?.status === "completed" || meta?.status === "failed") return // already recorded
     if (meta) meta.status = tc.status
+    live.turn?.openTools?.delete(tc.toolCallId)
     // opencode's `tool_call` carries neither `rawInput` nor `locations`; both arrive on the completing
     // `tool_call_update` (live 2026-09-15). The result record carries them so the drawer's "edited N
     // files" can name the file instead of the tool.
     const input = tc.rawInput && typeof tc.rawInput === "object" ? tc.rawInput as Record<string, unknown> : undefined
     live.writer.append({ kind: "tool-result", at: this.now(), id: tc.toolCallId, text: clip(toolResultText(tc), 20_000), acp: { ...(tc.status ? { kind: tc.status } : {}), ...(meta?.locations?.length ? { locations: meta.locations } : {}), ...(input && Object.keys(input).length ? { input } : {}) } })
+    this.touchUnsolicitedTurn(live)
   }
 
   // ---- the agent asking us ------------------------------------------------------------------------

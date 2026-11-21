@@ -154,6 +154,18 @@ async function handle(msg) {
       notify(sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "ONG" }, messageId: "m2" })
       notify(sessionId, { sessionUpdate: "usage_update", used: 1234, size: 200000, cost: { amount: 0, currency: "USD" } })
       reply({ stopReason: "end_turn", usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 } })
+      if (mode === "unsolicited-wake" && text.includes("SPAWN")) {
+        // Simulate an autonomous subagent completion waking the parent after session/prompt already returned.
+        void (async () => {
+          await sleep(40)
+          notify(sessionId, { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "subagent returned" }, messageId: "u1" })
+          notify(sessionId, { sessionUpdate: "tool_call", toolCallId: "wake_call_1", title: "read", kind: "read", status: "in_progress", rawInput: { path: "result.txt" } })
+          await sleep(140)
+          notify(sessionId, { sessionUpdate: "tool_call_update", toolCallId: "wake_call_1", status: "completed", content: [{ type: "content", content: { type: "text", text: "42" } }] })
+          notify(sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Subagent finished: " }, messageId: "u2" })
+          notify(sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "result is 42" }, messageId: "u2" })
+        })()
+      }
       return
     }
     case "session/set_mode": {

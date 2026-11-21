@@ -5,6 +5,8 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import {
   agyMemberState,
+  agySubAgentId,
+  agySubAgentsDir,
   agySwarmMemberId,
   agySwarmRosterPath,
   agyTranscriptPath,
@@ -200,4 +202,64 @@ test("tracker: a roster caught mid-write keeps the last good reading instead of 
   writeFileSync(agySwarmRosterPath(fx.home, COORD), '{"title":"Hardening","members":{"scout":{"conver')
   tracker.poll(2_000)
   assert.deepEqual(sink.calls.map((c) => c.op), ["live"], "a torn roster retires nobody")
+})
+
+test("tracker: discovers standalone invoke_subagent children, retires on turn end, resurrects on wake, and deduplicates against swarm", () => {
+  const fx = swarmFixture()
+  const writeSub = (conv: string, rec: { [key: string]: unknown }) => {
+    const dir = agySubAgentsDir(fx.home, COORD)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `${conv}.json`), JSON.stringify({ conversationId: conv, ...rec }))
+  }
+  // SCOUT is a standalone invoke_subagent child; CRITIC is in BOTH swarm/members.json and subagents/*.json.
+  writeSub(SCOUT, { subagentDescriptor: { typeName: "research", role: "Schema Auditor" }, state: "SUBAGENT_STATE_ALIVE" })
+  writeSub(CRITIC, { subagentDescriptor: { typeName: "worker", role: "Swarm Worker (critic)" }, state: "SUBAGENT_STATE_ALIVE" })
+  writeSub(OLD, { subagentDescriptor: { typeName: "self", role: "Killed Helper" }, state: "SUBAGENT_STATE_KILLED" })
+  fx.roster({ critic: { conversation_id: CRITIC, ...running({ model: "gemini-4-neon-high" }) } })
+  const scoutTranscript = fx.transcript(SCOUT, [system(0, "audit"), planner(1, [{ name: "read_file", summary: "Reading schema" }])])
+  fx.transcript(CRITIC, [system(0, "review"), planner(1, [{ name: "run_command" }])])
+  fx.transcript(OLD, [system(0, "old")])
+
+  const sink = recordingSink()
+  const tracker = createAgySwarmTracker({ home: fx.home, conversationId: COORD, sink, intervalMs: 0 })
+  tracker.poll(1_000)
+
+  // Deduplication: CRITIC appears once as agy-swarm:CRITIC, never duplicated as agy-subagent:CRITIC.
+  assert.deepEqual([...sink.live].sort(), [agySubAgentId(SCOUT), agySwarmMemberId(CRITIC)].sort())
+  const scoutLive = sink.calls.find((c) => c.op === "live" && c.id === agySubAgentId(SCOUT)) as Extract<Call, { op: "live" }>
+  assert.deepEqual(scoutLive.entry, {
+    name: "Schema Auditor",
+    taskId: SCOUT,
+    startedAt: at(0),
+    model: "research",
+    transcriptPath: scoutTranscript,
+    state: "working",
+    activity: "read_file",
+    activityDetail: "Reading schema",
+  })
+  const oldRetire = sink.calls.find((c) => c.op === "retire" && c.id === agySubAgentId(OLD)) as Extract<Call, { op: "retire" }>
+  assert.equal(oldRetire.status, "killed")
+  assert.equal(oldRetire.entry?.name, "Killed Helper")
+  assert.equal(oldRetire.entry?.taskId, OLD)
+
+  // SCOUT finishes its turn while state stays SUBAGENT_STATE_ALIVE -> retired as completed.
+  sink.calls.splice(0)
+  appendFileSync(scoutTranscript, [result(2), planner(3, [], "Audit complete.")].join("\n") + "\n")
+  tracker.poll(2_000)
+  assert.equal(sink.calls.length, 1)
+  const doneCall = sink.calls.at(0)
+  assert.equal(doneCall?.op, "retire")
+  assert.equal(doneCall?.id, agySubAgentId(SCOUT))
+  assert.equal((doneCall as Extract<Call, { op: "retire" }>).status, "completed")
+  assert.equal(sink.live.has(agySubAgentId(SCOUT)), false)
+
+  // Parent sends SCOUT a follow-up message -> transcript flips back to !idle -> resurrected live.
+  sink.calls.splice(0)
+  appendFileSync(scoutTranscript, system(4, "check one more file") + "\n")
+  tracker.poll(3_000)
+  assert.equal(sink.calls.length, 1)
+  const wakeCall = sink.calls.at(0)
+  assert.equal(wakeCall?.op, "live")
+  assert.equal(wakeCall?.id, agySubAgentId(SCOUT))
+  assert.equal(sink.live.has(agySubAgentId(SCOUT)), true)
 })

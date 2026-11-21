@@ -774,9 +774,24 @@ const MONITORS_DIR_FALLBACK = "<ntwine>/cc-worker/skills/gh/scripts"
 export interface WorkerCapabilities {
   /** An editor window has this project open (dispatch.ts workerCapabilities), so the contract teaches `ntwinectl editor`. */
   editor?: boolean
+  /** The ACP agent's native subagents are tracked on the board and in `agents:` parks (Antigravity CLI). */
+  acpSubAgents?: boolean
 }
 
+const ACP_SUBAGENTS_UNTRACKED = `ntwine cannot see sub-agents your
+harness runs, so prefer working inline; when you fan out, let each child finish, and fold every result
+into your own write-up before you rest.`
+
+const ACP_SUBAGENTS_TRACKED = `ntwine tracks your subagents (\`invoke_subagent\`) and swarms (\`swarm\`)
+live on the board and in \`ntwinectl activity\` / \`agents:\` parks. Use background subagents freely for
+parallel or async work — when the user asks both for work to start and for answers now, kick off the
+work in a subagent and answer their questions immediately, ending with an \`awaiting\` fence naming
+\`agents: [<conversationId>]\`.`
+
 export function buildWorkerPrompt(kind: BackendKind = "claude", opts: { monitorsDir?: string; otherMachines?: { self: string; peers: readonly string[] } } & WorkerCapabilities = {}): string {
+  const backendSection = kind === "acp" && opts.acpSubAgents
+    ? BACKEND.acp.replace(ACP_SUBAGENTS_UNTRACKED, ACP_SUBAGENTS_TRACKED)
+    : BACKEND[kind]
   const sections: (string | null)[] = [
     INTRO,
     ACTIVITY_CAPTIONS,
@@ -784,7 +799,7 @@ export function buildWorkerPrompt(kind: BackendKind = "claude", opts: { monitors
     SIGNALS,
     QUESTIONS,
     STOP_CRITERION,
-    BACKEND[kind],
+    backendSection,
     THREADS,
     opts.editor ? HUMAN_EDITOR : null,
     opts.otherMachines?.peers.length ? otherMachinesSection(opts.otherMachines) : null,

@@ -23,7 +23,7 @@ const FAKE = fileURLToPath(new URL("./acp.fixtures/fake-acp-agent.mjs", import.m
 
 interface Rig { bridge: AcpBridge; stateDir: string; store: InteractionStore; status: number; diagnostics: string[] }
 
-function rig(mode = "", opts: { customCommand?: string; bypassArgs?: readonly string[]; stateDir?: string; direct?: boolean; host?: AcpHost; agentLog?: string; ntwineCli?: NtwineCli; mountsMcp?: (slug: string) => boolean } = {}): Rig {
+function rig(mode = "", opts: { customCommand?: string; bypassArgs?: readonly string[]; stateDir?: string; direct?: boolean; host?: AcpHost; agentLog?: string; ntwineCli?: NtwineCli; mountsMcp?: (slug: string) => boolean; unsolicitedIdleMs?: number } = {}): Rig {
   const stateDir = opts.stateDir ?? mkdtempSync(join(tmpdir(), "acp-bridge-"))
   const store = createInteractionStore(new Database(":memory:"))
   const r: Rig = { stateDir, store, status: 0, diagnostics: [], bridge: undefined as unknown as AcpBridge }
@@ -40,6 +40,7 @@ function rig(mode = "", opts: { customCommand?: string; bypassArgs?: readonly st
     onStatusChange: () => { r.status++ },
     onDiagnostic: (d) => { if (d.kind !== "stderr") r.diagnostics.push(`${d.kind}: ${d.message}`) },
     flushMs: 20,
+    ...(opts.unsolicitedIdleMs !== undefined ? { unsolicitedIdleMs: opts.unsolicitedIdleMs } : {}),
     initializeTimeoutMs: 5_000,
     // The default host forks a REAL detached daemon per session — the production transport — so every
     // test below exercises the daemon too; `direct` is the pre-daemon plain child, for the control.
@@ -698,4 +699,29 @@ test("acp-bridge: reattaching to an idle daemon closes an orphaned open turn in 
     await teardown(a)
     if (b) await teardown(b)
   }
+})
+
+test("acp-bridge: unsolicited updates after session/prompt open a turn, hold it while a tool is open, and record final text on idle close", async () => {
+  // unsolicitedIdleMs (60ms) is SHORTER than the fake agent's 140ms tool call, proving an open tool holds the turn.
+  const r = rig("unsolicited-wake", { direct: true, unsolicitedIdleMs: 60 })
+  try {
+    await r.bridge.spawnDispatch({ threadSlug: "t1", sessionId: "s1", cwd: r.stateDir, agentId: "fake", prompt: "SPAWN", userText: "SPAWN" })
+    await untilIdle(r, "s1")
+    // Wait for the autonomous wake to start and finish (40ms delay + 140ms tool + 60ms idle close).
+    const t0 = Date.now()
+    while (records(r, "s1").filter((x) => x.kind === "turn-end").length < 2) {
+      if (Date.now() - t0 > 3_000) throw new Error("unsolicited turn did not complete")
+      await new Promise((res) => setTimeout(res, 20))
+    }
+    const recs = records(r, "s1")
+    assert.equal(recs.filter((x) => x.kind === "turn-start").length, 2, "unsolicited wake opened a second turn")
+    const ends = recs.filter((x) => x.kind === "turn-end") as Array<{ successful: boolean; finalText?: string }>
+    assert.equal(ends.length, 2, "open tool held the turn until it finished, producing one clean turn-end")
+    assert.equal(ends[1]!.successful, true)
+    assert.equal(ends[1]!.finalText, "Subagent finished: result is 42")
+    assert.ok(recs.some((x) => x.kind === "reasoning" && (x as { text?: string }).text === "subagent returned"))
+    assert.ok(recs.some((x) => x.kind === "tool-call" && (x as { id?: string }).id === "wake_call_1"))
+    assert.ok(recs.some((x) => x.kind === "tool-result" && (x as { id?: string }).id === "wake_call_1"))
+    assert.equal(r.bridge.turnLiveness("t1", "s1")?.turnActive, false)
+  } finally { await teardown(r) }
 })

@@ -5510,9 +5510,9 @@ export function createTailer(deps: TailerDeps): Tailer {
           state.subAgents.set(id, {
             kind: "agent",
             toolUseId: id,
-            // The member's NAME is what the coordinator itself calls it (`swarm{action:"kill", name}`), so it
-            // is both the row's label and the runtime id a fence or a watch names it by.
-            taskId: e.name,
+            // Swarm members are named by roster name (`swarm{action:"kill", name}`); standalone
+            // `invoke_subagent` children pass `taskId = conversationId` (what `invoke_subagent` returns).
+            taskId: e.taskId ?? e.name,
             label: e.name,
             startedAt: e.startedAt,
             ...(e.model ? { subagentType: e.model } : {}),
@@ -5534,7 +5534,7 @@ export function createTailer(deps: TailerDeps): Tailer {
           retireToRing(state, {
             kind: "agent",
             toolUseId: id,
-            taskId: e.name,
+            taskId: e.taskId ?? e.name,
             label: e.name,
             startedAt: e.startedAt ?? e.finishedAt ?? "",
             ...(e.model ? { subagentType: e.model } : {}),
