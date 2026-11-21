@@ -76,6 +76,8 @@ function deadline(ms: number, signal?: AbortSignal): AbortSignal {
 // is its current level.
 const QUOTA_READING = "text-[9px]"
 
+const QUOTA_LEFT_TIGHT = "@max-[20rem]/status:hidden"
+
 // THE PROVIDER MARK IS AN ICON IN THIS ROW, and carries an icon's size and weight (maintainer
 // 2026-08-19: "logos should be the same brightness and size as the other icons. The text should just
 // be small"). `text-fg/75` is exactly STATUS_ROW_ACTION's tone, so the two marks sit at the same
@@ -240,6 +242,7 @@ export function QuotaChips() {
           loading={quota.isLoading}
           fetching={quota.isFetching || rechecking}
           onRecheck={(force) => recheck(provider, force)}
+          tight={shown.length > 2}
           visibility={reading.length > 1 ? { reading, shown, onChange: setShown } : undefined}
         />
       ))}
@@ -272,6 +275,8 @@ type QuotaChipProps = {
   onRecheck: (force: boolean) => void
   /** Absent when only one provider has a reading: there is nothing to choose between. */
   visibility?: ChipVisibilityProps
+  /** Three chips share the row: drop "left" where the row is too narrow to hold all three words. */
+  tight?: boolean
 }
 
 // The write behind the checklist. Optimistic: every cached settings entry takes the new list at once, so
@@ -337,6 +342,7 @@ function QuotaChip({
   fetching,
   onRecheck,
   visibility,
+  tight,
 }: QuotaChipProps) {
   const providerLabel = QUOTA_LABEL[backend]
 
@@ -370,7 +376,11 @@ function QuotaChip({
                 (or even as a context-window fill), when it is the quota REMAINING. Same word as the
                 popover's rows, so the chip and its breakdown speak one vocabulary. The word takes the
                 number's tone so an amber/red chip warns as one unit. */}
-            <span className={`tabular-nums ${toneText(remaining)}`}>{remaining}% left</span>
+            {/* THREE CHIPS DO NOT FIT THE COLUMN'S FLOOR. At 272px (the tablet band) the row holds two chips
+                exactly and ran three 44px past the prompt box's border, so with three a row under 20rem
+                (StatusRow's `@container/status`) drops the word: the number keeps its place, the popover
+                and the aria-label still say "left". Two chips keep it at every width. */}
+            <span className={`tabular-nums ${toneText(remaining)}`}>{remaining}%<span className={tight ? QUOTA_LEFT_TIGHT : undefined}> left</span></span>
           </button>
         </PopoverTrigger>
         {/* Drops DOWN from the row, which sits at the top of the sidebar column. */}

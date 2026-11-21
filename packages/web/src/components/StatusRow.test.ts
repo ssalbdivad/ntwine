@@ -105,7 +105,7 @@ test("the row is LOOSE on the page — no fill, no border, no shadow, nothing fi
   // It was a fixed, opaque, shadowed chip in the page's top-left corner until 2026-08-19, because a
   // full sidebar or a scrolling narrow rail would paint through it. In the column there is nothing to
   // pass behind it, and a surface here would read as a second box stacked on the prompt box.
-  assert.match(html, /class="mb-2\.5 flex min-w-0 items-center gap-3 text-\[12px\]"/)
+  assert.match(html, /class="mb-2\.5 flex min-w-0 items-center gap-3 text-\[12px\] @container\/status"/)
   for (const gone of [/\bfixed\b/, /\bz-20\b/, /bg-panel/, /shadow-sm/, /rounded-lg border border-border/]) {
     assert.doesNotMatch(html, gone)
   }
@@ -208,7 +208,11 @@ test("Gemini has a chip of its own, and a hidden provider draws none", () => {
     return renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(MemoryRouter, null, createElement(StatusRow, null))))
   }
   const labels = (html: string) => [...html.matchAll(/aria-label="(\w+) quota: (\d+)% remaining"/g)].map((m) => `${m[1]} ${m[2]}`)
-  assert.deepEqual(labels(rowWith([])), ["Claude 83", "Codex 59", "Gemini 89"], "the Gemini chip reads its Gemini 5h window")
+  const three = rowWith([])
+  assert.deepEqual(labels(three), ["Claude 83", "Codex 59", "Gemini 89"], "the Gemini chip reads its Gemini 5h window")
+  // Three chips overran the column's 272px floor by 44px; a narrow row drops their "left" (QuotaBar).
+  assert.equal(three.split('<span class="@max-[20rem]/status:hidden"> left</span>').length - 1, 3)
+  assert.doesNotMatch(rowWith(["codex"]), /@max-\[20rem\]\/status:hidden/, "two chips keep the word at every width")
   assert.deepEqual(labels(rowWith(["codex"])), ["Claude 83", "Gemini 89"])
   const none = rowWith(["claude", "codex", "gemini"])
   assert.doesNotMatch(none, /data-quota-bar/)
