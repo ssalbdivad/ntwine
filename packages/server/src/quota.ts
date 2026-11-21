@@ -1,6 +1,7 @@
-import type { QuotaSnapshot, ProviderQuota } from "@ntwine/shared"
+import type { QuotaSnapshot, ProviderQuota, QuotaProvider } from "@ntwine/shared"
 import { readCodexQuota } from "./backend/codex-quota.ts"
 import { readClaudeQuota } from "./backend/claude-quota.ts"
+import { readGeminiQuota } from "./backend/gemini-quota.ts"
 import { log as ntwineLog } from "./logging.ts"
 
 // The polled provider-quota snapshot the sidebar status bar renders. Codex comes from the app-server's
@@ -8,6 +9,8 @@ import { log as ntwineLog } from "./logging.ts"
 // rollout cannot say which account wrote it). Claude reads the OAuth usage endpoint with the
 // credential already on the machine, and starts Claude Code only to refresh a token that endpoint
 // rejected — never for a machine that is signed out or offline (claude-quota.ts has the bound).
+// Gemini is the Antigravity CLI's own `agy -p /usage`, which answers without an agent turn
+// (gemini-quota.ts); it is omitted from the snapshot on a machine with no `agy`.
 //
 // FIXTURE SEAM: set NTWINE_QUOTA_FIXTURE to one of the named states below to return deterministic data
 // instead of touching the live sources. This lets the UI be exercised (and screenshotted) across all
@@ -32,9 +35,21 @@ async function fixture(name: string): Promise<QuotaSnapshot | undefined> {
       { key: "weekly", label: "Weekly", usedPercent: 47, resetsAt: now + 5 * 24 * hour },
     ],
   }
+  const geminiOk: ProviderQuota = {
+    status: "ok",
+    windows: [
+      { key: "5h", label: "5h", usedPercent: 11, resetsAt: now + hour + 1800 },
+      { key: "weekly", label: "Weekly", usedPercent: 18, resetsAt: now + 6 * 24 * hour },
+      { key: "3p-5h", label: "5h", group: "Claude/GPT", usedPercent: 0, resetsAt: now + 5 * hour },
+      { key: "3p-weekly", label: "Weekly", group: "Claude/GPT", usedPercent: 88, resetsAt: now + 6 * 24 * hour },
+    ],
+  }
   switch (name) {
     case "ok":
-      return { claude: claudeOk, codex: codexOk }
+      return { claude: claudeOk, codex: codexOk, gemini: geminiOk }
+    case "claude-gemini":
+      // The maintainer's machine: Claude and Antigravity signed in, Codex not.
+      return { claude: claudeOk, codex: { status: "unavailable", windows: [], detail: "No recent Codex session" }, gemini: geminiOk }
     case "near-limit":
       return {
         claude: { ...claudeOk, windows: [
@@ -44,6 +59,10 @@ async function fixture(name: string): Promise<QuotaSnapshot | undefined> {
         codex: { ...codexOk, windows: [
           { key: "5h", label: "5h", usedPercent: 99, resetsAt: now + 12 * 60 },
           { key: "weekly", label: "Weekly", usedPercent: 88, resetsAt: now + 6 * 24 * hour },
+        ] },
+        gemini: { ...geminiOk, windows: [
+          { key: "5h", label: "5h", usedPercent: 81, resetsAt: now + 25 * 60 },
+          ...geminiOk.windows.slice(1),
         ] },
       }
     case "fable-fallback":
@@ -67,6 +86,9 @@ async function fixture(name: string): Promise<QuotaSnapshot | undefined> {
       // REAL Codex quota (live app-server read, rollout tail as fallback), with Claude stubbed
       // unavailable so QA never invokes the user's Claude CLI. Proves the Codex path end-to-end in the UI.
       return { claude: { status: "unavailable", windows: [], detail: "Live call disabled for QA" }, codex: await readCodexQuota() }
+    case "gemini-real":
+      // REAL Gemini quota (`agy -p /usage`), with Claude stubbed and Codex absent, the same way.
+      return { claude: { status: "unavailable", windows: [], detail: "Live call disabled for QA" }, codex: { status: "unavailable", windows: [] }, gemini: await readGeminiQuota() }
     default:
       return undefined
   }
@@ -81,7 +103,11 @@ async function fixture(name: string): Promise<QuotaSnapshot | undefined> {
 // skips its freshness window: a recheck of Codex must not spend Claude's rate-limited endpoint budget,
 // and a recheck of Claude must not start a `codex app-server`. A bare `true` is Claude's, which is all
 // it meant before Codex's reader had a window worth skipping.
-export async function readQuota(opts: { claudeBin?: string; codexBin?: string; force?: boolean | "claude" | "codex" } = {}): Promise<QuotaSnapshot> {
+//
+// `gemini: false` leaves Gemini out: the server's own readers (the limit waker, the Fable fallback) act
+// on Claude and Codex only, and have no reason to start an `agy`.
+type ReadQuotaOptions = { claudeBin?: string; codexBin?: string; force?: boolean | QuotaProvider; gemini?: boolean }
+export async function readQuota(opts: ReadQuotaOptions = {}): Promise<QuotaSnapshot> {
   // The fixture seam is a DEV/QA affordance only — never honor it in a production build, so an env var
   // leaking into a real deploy can't silently paint fabricated quota numbers.
   const fx = process.env.NTWINE_QUOTA_FIXTURE
@@ -93,9 +119,10 @@ export async function readQuota(opts: { claudeBin?: string; codexBin?: string; f
     }
   }
   const force = opts.force === true ? "claude" : opts.force || undefined
-  const [claude, codex] = await Promise.all([
+  const [claude, codex, gemini] = await Promise.all([
     readClaudeQuota(opts.claudeBin, {}, { force: force === "claude" }),
     readCodexQuota(undefined, opts.codexBin, { force: force === "codex" }),
+    opts.gemini === false ? undefined : readGeminiQuota({ force: force === "gemini" }),
   ])
-  return { claude, codex }
+  return gemini ? { claude, codex, gemini } : { claude, codex }
 }

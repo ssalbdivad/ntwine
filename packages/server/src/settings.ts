@@ -93,6 +93,9 @@ export const defaultSettings = (): Settings => ({
   deleteDoneThreadsUntouchedDays: 0,
   // Off — it moves work onto Fable; see the schema and backend/fable-fallback.ts.
   fableFallback: false,
+  // Every quota chip with a reading shows; the human hides one from its popover (QuotaBar.tsx). An empty
+  // list rather than an absent key, for the same reason as deleteDoneThreadsUntouchedDays.
+  hiddenQuotaChips: [],
 })
 
 // Settings persist as one JSON blob under settings['settings']. Read merges over defaults

@@ -1233,7 +1233,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     codexModels: () => readCodexModels(undefined, opts.codexVersion),
     claudeBin: opts.claudeBin,
     // The Fable fallback's quota reading — the same cached snapshot the status row polls.
-    readClaudeQuota: async () => (await readQuota({ claudeBin: opts.claudeBin })).claude,
+    readClaudeQuota: async () => (await readQuota({ claudeBin: opts.claudeBin, gemini: false })).claude,
     backendFor,
     codexAppServer,
     acpBridge,
@@ -1347,7 +1347,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     // instant for a weekly limit, whose message text carries a clock but no date; readQuota memoizes,
     // so consulting it per tick costs a live request only every few minutes. Read through the resolved
     // runtimes, as the quota RPC does: a bare call would start whatever `codex` is first on PATH.
-    readQuota: () => readQuota({ claudeBin: opts.claudeBin, codexBin: opts.codexBin }),
+    readQuota: () => readQuota({ claudeBin: opts.claudeBin, codexBin: opts.codexBin, gemini: false }),
     fableFallback: () => getSettings(storage, home).fableFallback === true,
     refreshBoard: () => board.refresh(),
     // The only runtime that can answer is the broker: its daemon record is on disk while the daemon

@@ -190,6 +190,31 @@ test("a provider with NO DATA renders nothing at all — and takes the divider w
   assert.equal(none.split('class="h-3 w-px shrink-0 bg-border"').length - 1, 0)
 })
 
+// WHICH CHIPS SHOW is the human's (maintainer 2026-11-20: "be able to check which you want to see in
+// menu"): Gemini draws beside Claude by default, and a provider in `hiddenQuotaChips` draws nothing — nor
+// does a hidden-everything list leave the divider behind.
+test("Gemini has a chip of its own, and a hidden provider draws none", () => {
+  const rowWith = (hiddenQuotaChips: string[]) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(["quota"], {
+      claude: { status: "ok", planType: "max", windows: [{ key: "5h", label: "5h", usedPercent: 17 }] },
+      codex: { status: "ok", planType: "pro", windows: [{ key: "5h", label: "5h", usedPercent: 41 }] },
+      gemini: { status: "ok", windows: [{ key: "5h", label: "5h", usedPercent: 11 }, { key: "3p-5h", label: "5h", group: "Claude/GPT", usedPercent: 0 }] },
+    })
+    client.setQueryData(["authStatus"], { claude: "authed", codex: "authed", emails: {} })
+    client.setQueryData(["settingsGet"], { hiddenQuotaChips })
+    store.board = null
+    store.connection = "open"
+    return renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(MemoryRouter, null, createElement(StatusRow, null))))
+  }
+  const labels = (html: string) => [...html.matchAll(/aria-label="(\w+) quota: (\d+)% remaining"/g)].map((m) => `${m[1]} ${m[2]}`)
+  assert.deepEqual(labels(rowWith([])), ["Claude 83", "Codex 59", "Gemini 89"], "the Gemini chip reads its Gemini 5h window")
+  assert.deepEqual(labels(rowWith(["codex"])), ["Claude 83", "Gemini 89"])
+  const none = rowWith(["claude", "codex", "gemini"])
+  assert.doesNotMatch(none, /data-quota-bar/)
+  assert.equal(none.split('class="h-3 w-px shrink-0 bg-border"').length - 1, 0)
+})
+
 // IN AN EDITOR'S SIDEBAR the row draws neither the gear nor the ⌨ — VS Code's title row carries Settings
 // and, under its ⋯, Keyboard shortcuts — and is not drawn at all when nothing is left. The real-page run
 // found the ⌨ alone on a 36px row above the prompt box (scripts/e2e-sidebar.ts, 2026-10-01): an ntwine with

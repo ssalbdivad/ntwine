@@ -1,14 +1,23 @@
-import { useRef, useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { Fragment, useRef, useState } from "react"
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { RotateCw } from "lucide-react"
-import type { AccountBackend, AuthSnapshot, ProviderAuth, ProviderQuota, QuotaWindow } from "@ntwine/shared"
+import type { AuthSnapshot, ProviderAuth, ProviderQuota, QuotaProvider, QuotaSnapshot, QuotaWindow, Settings } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { ProviderMark } from "./ProviderMark.tsx"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/Popover.tsx"
 import { PROVIDER_LABEL } from "../lib/signIn.ts"
+import { SETTINGS_WRITE_KEY, publishMachineSettings, publishOwnSettings } from "../hooks/useSettingsAutosave.tsx"
 
 // THE QUOTA CHIPS — the readouts at the left of the StatusRow above the prompt box, one compact chip
 // per backend showing REMAINING subscription quota. Click a chip for the full per-window breakdown.
+//
+// THREE PROVIDERS: Claude, Codex and Gemini (the Antigravity CLI's account, read from `agy -p /usage` —
+// server/backend/gemini-quota.ts). WHICH chips show is the human's (maintainer 2026-11-20: "be able to
+// check which you want to see in menu"): every chip with a reading by default, and each popover carries a
+// "Show" checklist that hides the others. The choice is the machine setting `hiddenQuotaChips` — a list
+// of what is HIDDEN, so a provider that starts reporting later shows up on its own. The default is every
+// reading rather than "the default model's provider" because the default model is per project and the
+// row is global, and because that is what the row already did for Claude and Codex.
 //
 // A chip renders ONLY when it has a percentage to show (see hasReading). It used to be the provider
 // AUTH surface too — a signed-out account drew an em dash whose popover offered Sign in — and that is
@@ -82,9 +91,47 @@ const QUOTA_READING = "text-[9px]"
 // `!` on both because ProviderMark composes its own `text-muted-65` and `size-*` ahead of this
 // className, and Tailwind resolves a same-property collision by CSS SOURCE order, not class order —
 // without it these silently lose to the defaults.
-const PROVIDER_MARK_AS_ICON: Record<AccountBackend, string> = {
+const PROVIDER_MARK_AS_ICON: Record<QuotaProvider, string> = {
   claude: "text-fg/75! size-[14px]! translate-y-0!",
   codex: "text-fg/75! size-[12.75px]! translate-y-0!",
+  // The Gemini sparkle paints only 26% of its box (Claude's asterisk 48%, the OpenAI knot 49%, measured
+  // with ink-gaps.mjs at dsf 4, 2026-11-20), all of it in four thin points, so at the 12px of ink the
+  // gear paints it read a size smaller than the marks beside it. 14px — the asterisk's box, the other
+  // radial mark — matches them. Its ink is symmetric in the box, so `items-center` leaves it 0.08px off
+  // the digits' centre, the same residual as the other two.
+  gemini: "text-fg/75! size-[14px]! translate-y-0!",
+}
+
+/** Every provider the row can draw, in the order it draws them. */
+const QUOTA_PROVIDERS = ["claude", "codex", "gemini"] as const satisfies readonly QuotaProvider[]
+
+const QUOTA_LABEL: Record<QuotaProvider, string> = { ...PROVIDER_LABEL, gemini: "Gemini" }
+
+/** Gemini has no ProviderMark backend of its own: it runs as the Antigravity agent, which wears the Gemini glyph. */
+function QuotaMark({ provider, className }: { provider: QuotaProvider; className?: string }) {
+  return provider === "gemini"
+    ? <ProviderMark backend="acp" model="acp:antigravity" className={className} />
+    : <ProviderMark backend={provider} className={className} />
+}
+
+/** Gemini has no sign-in surface in ntwine, so no auth verdict: its reading alone decides. */
+function authOf(auth: AuthSnapshot | undefined, provider: QuotaProvider): ProviderAuth | undefined {
+  return provider === "gemini" ? undefined : auth?.[provider]
+}
+
+function quotaOf(snapshot: QuotaSnapshot | undefined, provider: QuotaProvider): ProviderQuota | undefined {
+  return snapshot?.[provider]
+}
+
+/** The providers that have a reading, and of those the ones the human has not hidden. */
+function chipSets(quota: QuotaSnapshot | undefined, auth: AuthSnapshot | undefined, loading: boolean, hidden: readonly QuotaProvider[]) {
+  const reading = QUOTA_PROVIDERS.filter((p) => hasReading(quotaOf(quota, p), authOf(auth, p), loading))
+  return { reading, shown: reading.filter((p) => !hidden.includes(p)) }
+}
+
+function useHiddenQuotaChips(): readonly QuotaProvider[] {
+  const settings = useQuery({ queryKey: ["settingsGet"], queryFn: () => rpc.settingsGet() })
+  return settings.data?.hiddenQuotaChips ?? []
 }
 
 /**
@@ -98,9 +145,8 @@ const PROVIDER_MARK_AS_ICON: Record<AccountBackend, string> = {
 export function useQuotaChipsVisible(): boolean {
   const quota = useQuery({ queryKey: ["quota"], queryFn: () => rpc.quota(), staleTime: 10_000 })
   const auth = useQuery({ queryKey: ["authStatus"], queryFn: () => rpc.authStatus(), staleTime: 30_000 })
-  return (["claude", "codex"] as const).some((backend) =>
-    hasReading(quota.data?.[backend], auth.data?.[backend], quota.isLoading),
-  )
+  const hidden = useHiddenQuotaChips()
+  return chipSets(quota.data, auth.data, quota.isLoading, hidden).shown.length > 0
 }
 
 /**
@@ -132,6 +178,8 @@ export function QuotaChips() {
     refetchInterval: (query) => {
       const d = query.state.data
       const signedIn = queryClient.getQueryData<AuthSnapshot>(["authStatus"])
+      // Gemini is left out: its reading is held a minute server-side, so a faster poll would only re-read
+      // that, and a machine whose `agy` is signed out would sit on the fast cadence for good.
       const degraded = !d || (["claude", "codex"] as const).some((b) => d[b].status !== "ok" && signedIn?.[b] !== "signed-out")
       return degraded ? 15_000 : 30_000
     },
@@ -148,7 +196,18 @@ export function QuotaChips() {
     refetchOnWindowFocus: true,
   })
 
-  const recheck = (backend: AccountBackend, force: boolean) => {
+  const hidden = useHiddenQuotaChips()
+  const { reading, shown } = chipSets(quota.data, auth.data, quota.isLoading, hidden)
+  const visibility = useMutation({
+    mutationKey: SETTINGS_WRITE_KEY,
+    mutationFn: (next: QuotaProvider[]) => saveHiddenQuotaChips(queryClient, next),
+  })
+  const setShown = (provider: QuotaProvider, show: boolean) => {
+    const next = show ? hidden.filter((p) => p !== provider) : [...new Set([...hidden, provider])]
+    visibility.mutate(next)
+  }
+
+  const recheck = (backend: QuotaProvider, force: boolean) => {
     if (recheckInFlight.current) return
     setRechecking(true)
     const request = Promise.all([
@@ -171,8 +230,19 @@ export function QuotaChips() {
     // chip (mark → percentage) is deliberately half of it — that is what keeps each mark reading as
     // one pill rather than four loose glyphs.
     <div data-quota-bar className={`flex shrink-0 items-center gap-3 ${QUOTA_READING}`}>
-      <QuotaChip backend="claude" quota={quota.data?.claude} auth={auth.data?.claude} email={auth.data?.emails?.claude} loading={quota.isLoading} fetching={quota.isFetching || rechecking} onRecheck={(force) => recheck("claude", force)} />
-      <QuotaChip backend="codex" quota={quota.data?.codex} auth={auth.data?.codex} email={auth.data?.emails?.codex} loading={quota.isLoading} fetching={quota.isFetching || rechecking} onRecheck={(force) => recheck("codex", force)} />
+      {shown.map((provider) => (
+        <QuotaChip
+          key={provider}
+          backend={provider}
+          quota={quotaOf(quota.data, provider)}
+          auth={authOf(auth.data, provider)}
+          email={provider === "gemini" ? undefined : auth.data?.emails?.[provider]}
+          loading={quota.isLoading}
+          fetching={quota.isFetching || rechecking}
+          onRecheck={(force) => recheck(provider, force)}
+          visibility={reading.length > 1 ? { reading, shown, onChange: setShown } : undefined}
+        />
+      ))}
     </div>
   )
 }
@@ -185,6 +255,79 @@ export function QuotaChips() {
 // endpoint all render nothing rather than the em dash and the "··" placeholder they used to. The
 // popover's own branches for signed-out and unavailable are therefore unreachable from this row and
 // have been removed with them; the sign-in door is the composer's dispatch gate and `/login`.
+type ChipVisibilityProps = {
+  /** Providers with a reading — the only ones a checkbox can mean anything for. */
+  reading: readonly QuotaProvider[]
+  shown: readonly QuotaProvider[]
+  onChange: (provider: QuotaProvider, show: boolean) => void
+}
+
+type QuotaChipProps = {
+  backend: QuotaProvider
+  quota: ProviderQuota | undefined
+  auth: ProviderAuth | undefined
+  email: string | undefined
+  loading: boolean
+  fetching: boolean
+  onRecheck: (force: boolean) => void
+  /** Absent when only one provider has a reading: there is nothing to choose between. */
+  visibility?: ChipVisibilityProps
+}
+
+// The write behind the checklist. Optimistic: every cached settings entry takes the new list at once, so
+// the chip goes on the click, then the server's copy replaces it. The write carries the WHOLE object on a
+// fresh read, as every settings write here does (lib/editorBridge.ts sendCodeFilesTo); a failed one puts
+// the cache back to what the server holds.
+async function saveHiddenQuotaChips(queryClient: QueryClient, next: QuotaProvider[]): Promise<void> {
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: ["settingsGet"] })) {
+    const cached = query.state.data as Settings | undefined
+    if (cached) query.setData({ ...cached, hiddenQuotaChips: next }, { manual: true })
+  }
+  try {
+    const current = await rpc.settingsGet()
+    publishOwnSettings(queryClient, await rpc.settingsSet({ ...current, hiddenQuotaChips: next }))
+  } catch {
+    const fresh = await rpc.settingsGet().catch(() => undefined)
+    if (fresh) publishMachineSettings(queryClient, fresh)
+  }
+}
+
+// THE "SHOW" CHECKLIST at the foot of every chip's popover: one row per provider with a reading. The last
+// chip still showing cannot be unticked — with no chip left there would be no popover to tick one back
+// from.
+function ChipVisibility({ reading, shown, onChange }: ChipVisibilityProps) {
+  return (
+    <div data-quota-visibility className="mt-2.5 border-t border-border pt-2">
+      <div className="mb-1 text-muted-55">Show</div>
+      <ul className="flex flex-col gap-0.5">
+        {reading.map((provider) => {
+          const on = shown.includes(provider)
+          const locked = on && shown.length === 1
+          return (
+            <li key={provider}>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={on}
+                disabled={locked}
+                title={locked ? "One chip always shows" : undefined}
+                onClick={() => onChange(provider, !on)}
+                className="-mx-1 flex w-[calc(100%+0.5rem)] items-center gap-2 rounded px-1 py-0.5 text-left text-muted-80 outline-none transition-colors hover:bg-elevated hover:text-fg focus-visible:ring-1 focus-visible:ring-border-strong disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-muted-80"
+              >
+                <span aria-hidden className={`flex size-3 shrink-0 items-center justify-center rounded-[3px] border ${on ? "border-accent bg-accent" : "border-control-border"}`}>
+                  {on && <svg viewBox="0 0 10 10" className="size-2.5 text-bg"><path d="M2 5.2 4.1 7.3 8 3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                </span>
+                <QuotaMark provider={provider} />
+                <span>{QUOTA_LABEL[provider]}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 function QuotaChip({
   backend,
   quota,
@@ -193,16 +336,9 @@ function QuotaChip({
   loading,
   fetching,
   onRecheck,
-}: {
-  backend: AccountBackend
-  quota: ProviderQuota | undefined
-  auth: ProviderAuth | undefined
-  email: string | undefined
-  loading: boolean
-  fetching: boolean
-  onRecheck: (force: boolean) => void
-}) {
-  const providerLabel = PROVIDER_LABEL[backend]
+  visibility,
+}: QuotaChipProps) {
+  const providerLabel = QUOTA_LABEL[backend]
 
   // A positive signed-out outranks any quota reading: a signed-out account HAS no usable quota, and
   // "Usage endpoint unreachable" would be a misdiagnosis. Fails open — unknown/loading render quota.
@@ -229,7 +365,7 @@ function QuotaChip({
             className="flex items-center gap-1.5 min-w-0 rounded outline-none transition-opacity hover:opacity-80 focus-visible:ring-1 focus-visible:ring-border-strong"
           >
             {/* The mark carries an ICON's size and weight; only the number is small. */}
-            <ProviderMark backend={backend} className={PROVIDER_MARK_AS_ICON[backend]} />
+            <QuotaMark provider={backend} className={PROVIDER_MARK_AS_ICON[backend]} />
             {/* "left" says which way the number runs: a bare "72%" beside a model mark read as usage
                 (or even as a context-window fill), when it is the quota REMAINING. Same word as the
                 popover's rows, so the chip and its breakdown speak one vocabulary. The word takes the
@@ -246,7 +382,7 @@ function QuotaChip({
               original mt-0.5/mb-1.5 those gaps were 12.9 and 16.9 — too close to call either way. */}
           <div className="mb-2">
             <div className="flex items-center gap-1.5 font-medium">
-              <ProviderMark backend={backend} />
+              <QuotaMark provider={backend} />
               <span>{providerLabel}</span>
               {quota?.planType && <span className="text-muted-70">· {cap(quota.planType)} plan</span>}
               {/* THE MANUAL REFRESH: a true server-side cache bypass, which for Claude reaches past the
@@ -278,21 +414,28 @@ function QuotaChip({
           {/* No signed-out or unavailable branch: this popover only exists on a chip that HAS a
               reading, and a chip without one no longer renders. */}
           <ul className="flex flex-col gap-1">
-            {quota!.windows.map((w) => {
+            {quota!.windows.map((w, i) => {
               const left = clampPct(100 - w.usedPercent)
               const reset = resetText(w)
+              // A second budget on the same account (Antigravity's Claude and GPT models) gets its name
+              // over its own rows, so each row keeps the bare "5h" / "Weekly" the first budget reads in.
+              const group = w.group && w.group !== quota!.windows[i - 1]?.group ? w.group : undefined
               return (
-                <li key={w.key} className="flex items-center justify-between gap-3">
-                  <span className="text-muted-80">{w.label}</span>
-                  <span className="flex items-center gap-2 tabular-nums">
-                    <span className={toneText(left)}>{left}% left</span>
-                    {reset && <span className="text-muted-55">resets {reset}</span>}
-                  </span>
-                </li>
+                <Fragment key={w.key}>
+                  {group && <li className="pt-1.5 text-muted-55">{group}</li>}
+                  <li className="flex items-center justify-between gap-3">
+                    <span className="text-muted-80">{w.label}</span>
+                    <span className="flex items-center gap-2 tabular-nums">
+                      <span className={toneText(left)}>{left}% left</span>
+                      {reset && <span className="text-muted-55">resets {reset}</span>}
+                    </span>
+                  </li>
+                </Fragment>
               )
             })}
             {quota!.detail && <li className="pt-1 text-muted-55">{quota!.detail}</li>}
           </ul>
+          {visibility && <ChipVisibility {...visibility} />}
         </PopoverContent>
       </Popover>
     </>
@@ -325,10 +468,10 @@ export function QuotaMeters() {
     queryFn: ({ signal }) => rpc.authStatus(undefined, { signal: deadline(POLL_TIMEOUT_MS, signal) }),
     staleTime: 30_000,
   })
-  const rows = (["claude", "codex"] as const).flatMap((backend) => {
-    const q = quota.data?.[backend]
-    if (!hasReading(q, auth.data?.[backend], quota.isLoading)) return []
-    return q!.windows.map((w) => ({ key: `${backend}-${w.key}`, label: `${PROVIDER_LABEL[backend]} · ${w.label}`, left: clampPct(100 - w.usedPercent) }))
+  const rows = QUOTA_PROVIDERS.flatMap((backend) => {
+    const q = quotaOf(quota.data, backend)
+    if (!hasReading(q, authOf(auth.data, backend), quota.isLoading)) return []
+    return q!.windows.map((w) => ({ key: `${backend}-${w.key}`, label: `${QUOTA_LABEL[backend]} · ${w.group ? `${w.group} ` : ""}${w.label}`, left: clampPct(100 - w.usedPercent) }))
   })
   if (rows.length === 0) return null
   return (

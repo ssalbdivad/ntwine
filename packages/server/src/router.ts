@@ -66,6 +66,7 @@ import {
   ClaudeModel,
   CodexModel,
   QuotaSnapshot,
+  QuotaProvider,
   AuthSnapshot,
   AccountLogoutInput,
   AccountLogoutResult,
@@ -6404,7 +6405,7 @@ export function createRouter(ctx: AppContext) {
     // (claude-quota.ts — which also says when, and how rarely, it may start Claude Code instead).
     // Never throws — degrades to per-provider "unavailable".
     quota: query({
-      input: z.object({ force: z.union([z.boolean(), z.enum(["claude", "codex"])]).optional() }).strict().optional(),
+      input: z.object({ force: z.union([z.boolean(), QuotaProvider]).optional() }).strict().optional(),
       output: QuotaSnapshot,
       handler: async ({ input }) => readQuota({ claudeBin: ctx.claudeBin, codexBin: ctx.codexBin, force: input?.force }),
     }),

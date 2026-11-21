@@ -19,6 +19,9 @@ import "./styles.css"
 //                       headline used to hijack it and show the weekly figure instead.
 //   ?state=signedout  — Codex signed out, which now renders NO Codex chip at all
 //   ?state=longemail  — an account address past the popover's width, to check the truncation
+//   ?state=gemini     — Claude and Gemini reporting, Codex not (the maintainer's machine)
+//   ?state=three      — all three providers reporting
+//   ?hidden=codex,…   — the stored `hiddenQuotaChips`; the popover's Show checklist writes it back here
 //   ?width=272                     — the column's width. 489 is the column at a 1440px viewport; 272 is
 //                                    its floor in the tablet band.
 //   ?font=mono                     — this app renders in TWO type families (html[data-font], applied
@@ -36,8 +39,27 @@ function windows(fiveHourUsed: number, weeklyUsed: number) {
   ]
 }
 
+const geminiWindows = [
+  { key: "5h", label: "5h", usedPercent: 11, resetsAt: nowSeconds + 3600 + 1800 },
+  { key: "weekly", label: "Weekly", usedPercent: 18, resetsAt: nowSeconds + 6 * 86400 },
+  { key: "3p-5h", label: "5h", group: "Claude/GPT", usedPercent: 0, resetsAt: nowSeconds + 5 * 3600 },
+  { key: "3p-weekly", label: "Weekly", group: "Claude/GPT", usedPercent: 88, resetsAt: nowSeconds + 6 * 86400 },
+]
+
 const quota =
-  state === "low"
+  state === "gemini"
+    ? {
+        claude: { status: "ok", planType: "max", windows: windows(4, 38) },
+        codex: { status: "unavailable", windows: [] },
+        gemini: { status: "ok", windows: geminiWindows },
+      }
+    : state === "three"
+    ? {
+        claude: { status: "ok", planType: "max", windows: windows(17, 38) },
+        codex: { status: "ok", planType: "pro", windows: windows(41, 29) },
+        gemini: { status: "ok", windows: geminiWindows },
+      }
+    : state === "low"
     ? {
         claude: { status: "ok", planType: "max", windows: windows(82, 64) },
         codex: { status: "ok", planType: "pro", windows: windows(95, 71) },
@@ -67,6 +89,8 @@ const auth =
     ? { claude: "authed", codex: "signed-out", emails }
     : { claude: "authed", codex: "authed", emails }
 
+let settings: Record<string, unknown> = { hiddenQuotaChips: (params.get("hidden") ?? "").split(",").filter(Boolean) }
+
 const nativeFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
@@ -76,7 +100,11 @@ window.fetch = async (input, init) => {
   // Every RPC response is the {result} envelope, never the payload bare.
   if (url.pathname === "/_ntwine/rpc/quota") return json({ result: quota })
   if (url.pathname === "/_ntwine/rpc/authStatus") return json({ result: auth })
-  if (url.pathname === "/_ntwine/rpc/settingsGet") return json({ result: {} })
+  if (url.pathname === "/_ntwine/rpc/settingsGet") return json({ result: settings })
+  if (url.pathname === "/_ntwine/rpc/settingsSet") {
+    settings = JSON.parse(String(init?.body ?? "{}"))
+    return json({ result: settings })
+  }
   return nativeFetch(input, init)
 }
 
