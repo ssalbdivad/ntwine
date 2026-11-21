@@ -81,6 +81,8 @@ const SPAWN_THREAD = {
           "so a high-intensity task takes `opus` at a higher `effort`, not a different model — `fable` only " +
           "when the user explicitly asks for it. For " +
           "the `codex` backend use a codex model id instead (e.g. `gpt-5.6-sol`/`gpt-5.6-terra`/`gpt-5.6-luna`). " +
+          "For an ACP agent (Gemini through Antigravity, and others) write `acp:<agent>@<model>`, e.g. " +
+          "`acp:antigravity@gemini-4-neon` — a bare `neon` or `gemini-4-neon` is refused. " +
           "Match the model to the backend you choose. Bias toward Opus/a strong model when the task is " +
           "non-trivial or its outcome is load-bearing.",
       },
@@ -94,8 +96,8 @@ const SPAWN_THREAD = {
       },
       backend: {
         type: "string",
-        enum: ["claude", "codex"],
-        description: "Optional agent backend (default `claude`). If `codex`, `model` must be a codex model id.",
+        enum: ["claude", "codex", "acp"],
+        description: "Optional agent backend; omitted, it follows `model` (`acp:…` ⇒ `acp`, `gpt-…` ⇒ `codex`, else `claude`). A model the backend does not carry is refused.",
       },
       project: {
         type: "string",
@@ -2121,7 +2123,7 @@ async function spawnThread(args) {
   // model (e.g. the project's cheap default) is exactly the bug this guards. Enforced server-side too,
   // not only in the tool schema, so a lenient client can't skip the decision.
   const model = typeof args.model === "string" ? args.model.trim() : ""
-  if (!model) throw new Error("`model` is required — choose one by the new task's complexity (claude: opus/sonnet/haiku, opus being the top tier; codex: a gpt-5.6 model id). There is no default.")
+  if (!model) throw new Error("`model` is required — choose one by the new task's complexity (claude: opus/sonnet/haiku, opus being the top tier; codex: a gpt-5.6 model id; an ACP agent: acp:<agent>@<model>, e.g. acp:antigravity@gemini-4-neon). There is no default.")
   const effort = typeof args.effort === "string" ? args.effort.trim() : ""
   if (!effort) throw new Error("`effort` is required — choose one by complexity (low/medium/high/xhigh/max). There is no default.")
 
@@ -2136,7 +2138,7 @@ async function spawnThread(args) {
   /** @type {Record<string, unknown>} */
   const body = { prompt: prompt + footer, model, effort }
   if (typeof args.title === "string" && args.title.trim()) body.title = args.title.trim()
-  if (args.backend === "claude" || args.backend === "codex") body.backend = args.backend
+  if (args.backend === "claude" || args.backend === "codex" || args.backend === "acp") body.backend = args.backend
   if (typeof args.project === "string" && args.project.trim()) body.project = args.project.trim()
   // The caller, from our own identity: it marks this as a WORKER's dispatch, whose prompt the server
   // checks for another project's checkout when no `project` was named (server spawn-project.ts).

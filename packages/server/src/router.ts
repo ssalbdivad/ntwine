@@ -263,6 +263,7 @@ import { editorKindsForOpener, folderEditor, mainCheckoutCopy, openLocalFile, op
 import { openableFileRoots, workDirOf } from "./project.ts"
 import { projectsNamedIn, resolveSpawnProject, spawnProjectList, type SpawnProject } from "./spawn-project.ts"
 import { dispatchCaller } from "./dispatch-caller.ts"
+import { spawnModelFor } from "./spawn-model.ts"
 import { resolveThreadLink, threadLinkView } from "./thread-links.ts"
 import { humanMessageText, isHumanMessage, reactionExcerpt, reactionLine, threadReactionViews } from "./thread-reactions.ts"
 import { ghInstalled, ghAuthed, ghRepo, gitGithubRemote } from "./github.ts"
@@ -3804,7 +3805,12 @@ export function createRouter(ctx: AppContext) {
             // rather than refused, so the spawn itself still goes through. The spawned thread's own worker may
             // set a deadline with `ntwinectl deadline`.
             const { deadline: askedDeadline, ...undated } = dispatched
-            const rest = dispatchCaller() === "worker" ? undated : dispatched
+            // The shim always sends a model; a no-Origin board request (a PWA) may send none and take the default.
+            const fromWorker = (dispatchCaller() === "worker" || spawnedFrom !== undefined) && !!undated.model?.trim()
+            // A worker names its model in words, and a word the backend does not carry starts a thread that
+            // dies on launch (spawn-model.ts). Refused here, with the right names, before anything starts.
+            const checked = fromWorker ? spawnModelFor(undated.model, undated.backend) : undefined
+            const rest = fromWorker ? { ...undated, ...checked } : dispatched
             void askedDeadline
             // A worker's spawn is checked for another project's checkout. A current shim says so with
             // `spawnedFrom`; one older than it (a session started before 2026-10-06 16:44 keeps its shim for
@@ -3813,7 +3819,7 @@ export function createRouter(ctx: AppContext) {
             const target = await spawnTarget(project, spawnedFrom === undefined && !staleShim ? undefined : rest.prompt, staleShim)
             const on = target?.ctx ?? ctx
             if (target) landedIn = { id: target.ctx.project.id, dir: target.ctx.project.dir }
-            const started = await on.dispatcher.dispatch(rest, { backend: input.backend })
+            const started = await on.dispatcher.dispatch(rest, { backend: rest.backend })
             if (target) target.ctx.board.refresh()
             // Another project's thread is named in the answer, so a caller with no handle to give links
             // `/project/<slug>/thread/…`: a bare `/thread/…` resolves against the CALLER's project.
