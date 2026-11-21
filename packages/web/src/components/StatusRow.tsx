@@ -99,7 +99,7 @@ export function StatusRow({ title, identity, crumb = false, settings = true, sho
       // `mb-2.5` is the only thing holding the row off the prompt box, and the row carries no padding
       // of its own: it is flush with the composer's border on both sides, so the column reads as one
       // block rather than a strip parked above a box.
-      className="mb-2.5 flex min-w-0 items-center gap-3 text-[12px]"
+      className="mb-2.5 flex min-w-0 items-center gap-3 text-[12px] @container/status"
     >
       {crumb && (
         <>

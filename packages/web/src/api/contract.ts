@@ -139,6 +139,7 @@ import type {
   AcpAgentModels,
   AcpAgentModelsInput,
   QuotaSnapshot,
+  QuotaProvider,
   AuthSnapshot,
   AccountLogoutInput,
   AccountLogoutResult,
@@ -460,7 +461,7 @@ export interface Api {
   acpAgentModels(input: AcpAgentModelsInput): Promise<AcpAgentModels>
   // Provider subscription quota (5h + weekly windows) for the sidebar status bar. `force` names the
   // provider whose freshness window an explicit user recheck bypasses (a bare `true` is Claude's).
-  quota(input?: { force?: boolean | "claude" | "codex" }, opts?: RpcCallOpts): Promise<QuotaSnapshot>
+  quota(input?: { force?: boolean | QuotaProvider }, opts?: RpcCallOpts): Promise<QuotaSnapshot>
   // Per-provider LOCAL credential presence for the new-thread dispatch gate. Distinct from quota's
   // overloaded "unavailable" — reports only whether a credential exists. Never rejects.
   authStatus(input?: { fresh?: boolean }, opts?: RpcCallOpts): Promise<AuthSnapshot>

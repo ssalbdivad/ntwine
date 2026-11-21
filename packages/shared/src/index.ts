@@ -5977,6 +5977,9 @@ export const QuotaWindow = z.object({
   label: z.string(), // short human label for the chip ("5h", "Weekly") — house duration grammar
   usedPercent: z.number(), // 0..100
   resetsAt: z.number().optional(), // unix seconds; absent when the source doesn't report it
+  // The budget this window belongs to when a provider meters more than one: Antigravity's Claude and
+  // GPT models draw on their own 5h and weekly limits beside Gemini's. The popover heads them with it.
+  group: z.string().optional(),
 })
 export type QuotaWindow = z.infer<typeof QuotaWindow>
 
@@ -5990,10 +5993,19 @@ export const ProviderQuota = z.object({
 })
 export type ProviderQuota = z.infer<typeof ProviderQuota>
 
-// The polled quota snapshot the sidebar status bar renders — one entry per agent backend.
+// The providers the status row can draw a quota chip for. Gemini is not an AccountBackend — it runs
+// as the Antigravity ACP agent, with no sign-in surface of ntwine's own — so it gets a quota entry
+// without joining the dispatch gate's AuthSnapshot.
+export const QuotaProvider = z.enum(["claude", "codex", "gemini"])
+export type QuotaProvider = z.infer<typeof QuotaProvider>
+
+// The polled quota snapshot the sidebar status bar renders — one entry per agent backend. `gemini` is
+// the Antigravity CLI's account quota (server/backend/gemini-quota.ts), absent where `agy` is not
+// installed and from a server that predates it, so an older snapshot still parses.
 export const QuotaSnapshot = z.object({
   claude: ProviderQuota,
   codex: ProviderQuota,
+  gemini: ProviderQuota.optional(),
 })
 export type QuotaSnapshot = z.infer<typeof QuotaSnapshot>
 
@@ -6112,6 +6124,13 @@ export const Settings = z.object({
    * model. Machine-level, because quota is the account's, not a project's.
    */
   fableFallback: z.boolean().optional(),
+  /**
+   * The quota chips the human turned off in the status row (QuotaBar.tsx), by provider. A list of what
+   * is HIDDEN rather than of what shows, so a provider that starts reporting later — a fresh sign-in, a
+   * newly installed CLI — appears on its own instead of waiting to be ticked. Absent = every provider
+   * with a reading. Machine-level, because quota is the account's, not a project's.
+   */
+  hiddenQuotaChips: z.array(QuotaProvider).max(8).optional(),
   // There is no `backgroundSummaries` key any more: ntwine's own model calls were a Settings switch until
   // 2026-10-07, and are on now (NTWINE_*=0 still turns one off). A stored key is stripped on parse.
   // There is no `font` key any more. The interface rendered in one of two type families as a machine
@@ -6164,7 +6183,7 @@ export type Settings = z.infer<typeof Settings>
  * because the query cache keeps one `settingsGet` entry per project and a machine setting changed in
  * one is changed in all.
  */
-export const MACHINE_SETTING_KEYS = ["notifications", "localFileOpener", "removeIdleWorktreesDays", "deleteDoneThreadsUntouchedDays", "fableFallback"] as const satisfies readonly (keyof Settings)[]
+export const MACHINE_SETTING_KEYS = ["notifications", "localFileOpener", "removeIdleWorktreesDays", "deleteDoneThreadsUntouchedDays", "fableFallback", "hiddenQuotaChips"] as const satisfies readonly (keyof Settings)[]
 
 // The new-thread composer's durable choices — MACHINE-wide, one record for every project the server
 // serves (server/dispatch-preferences.ts), because the profile belongs to the operator, not to a
