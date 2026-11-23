@@ -50,9 +50,10 @@ function harness(quietMs = 0) {
   const start = (slug: string, handle: string, startedBy: string) => {
     storage.insertThreadTerminal({ slug, parentSlug: startedBy === "human" ? null : startedBy, startedBy, handle, command: "nub run dev", cwd: "/w", shell: false, createdAtMs: clock.ms })
   }
-  const rest = (slug: string, hints: AwaitingHint[] = [], turn = "idle") => teles.set(slug, {
+  const rest = (slug: string, hints: AwaitingHint[] = [], turn = "idle", extra: Partial<SessionTelemetry> = {}) => teles.set(slug, {
     turn, permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: iso(clock.ms),
     ...(hints.length ? { lastFence: { kind: "awaiting", body: "", hints } } : {}),
+    ...extra,
   } as SessionTelemetry)
   return { storage, procs, resumes, clock, s, start, rest }
 }
@@ -210,4 +211,37 @@ test("a note sent mid-turn that the quiet window holds past the turn is owed aga
   await h.s.tick()
   assert.equal(h.resumes.length, 1, "the turn it was for is over: no wake for it")
   assert.deepEqual(JSON.parse(h.storage.listThreadTerminals().find((t) => t.slug === "term-1")!.control_notes!).map((n: { to: string }) => n.to), ["w"], "owed again")
+})
+
+test("a failed terminal wakes its active driver automatically (mid-turn or parked on shells), and never wakes a handed-off or bare-rest driver", async () => {
+  const h = harness()
+  h.storage.upsertSession(row("busy"))
+  h.storage.upsertSession(row("parked"))
+  h.storage.upsertSession(row("done-t"))
+  h.storage.upsertSession(row("bare"))
+  h.start("t-busy", "dev-busy", "busy")
+  h.start("t-parked", "dev-parked", "parked")
+  h.start("t-done", "dev-done", "done-t")
+  h.start("t-bare", "dev-bare", "bare")
+  h.rest("busy", [], "in-flight")
+  h.rest("parked", [{ kind: "shell", value: "sh1" }, { kind: "status", value: "working" }], "idle", {
+    bgShells: [{ id: "sh1", label: "build", state: "running", startedAt: iso(h.clock.ms) }],
+  })
+  h.rest("bare")
+  h.storage.markThreadDone("done-t", "finished", h.clock.ms)
+  h.rest("done-t")
+  h.clock.ms += 60_000
+  for (const id of ["t-busy", "t-parked", "t-done", "t-bare"]) {
+    h.procs.set(id, { state: "exited", exitCode: 1, exitedAt: iso(h.clock.ms) })
+  }
+  await h.s.tick()
+  assert.deepEqual(h.resumes.map((r) => r.slug).sort(), ["busy", "parked"])
+  for (const r of h.resumes) {
+    assert.equal(parseTerminalWake(r.message)?.event, "FAILED (exit 1)")
+    assert.match(r.message, /ntwinectl terminal run @/)
+    assert.match(r.message, /ntwinectl terminal stop @/)
+  }
+  // One crash, one wake — ticking again sends nothing more.
+  await h.s.tick()
+  assert.equal(h.resumes.length, 2)
 })

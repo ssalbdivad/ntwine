@@ -74,9 +74,10 @@ export interface TerminalRunner {
   start(input: StartTerminalInput): Promise<{ id: string; handle: string }>
   /** A fresh run of a terminal's command (or shell): stops the current run first if it is alive. */
   restart(id: string): Promise<void>
-  /** The terminal's NEXT command, typed into its drawer once a run finished — a shell's next line.
-   *  Stops a live run first, like restart; unlike restart the screen carries on (see `followUpScreen`). */
-  run(id: string, command: string): Promise<void>
+  /** The terminal's NEXT command, typed into its drawer once a run finished — a shell's next line — or
+   *  handed by its driving agent (`ntwinectl terminal run`). Stops a live run first, like restart; unlike
+   *  restart the screen carries on (see `followUpScreen`). Optional `cwd` moves its folder too. */
+  run(id: string, command: string, cwd?: string): Promise<void>
   /** SIGTERM the run's whole process group, SIGKILL it if it outlives the grace. */
   stop(id: string): Promise<void>
   /** Stop, then forget the terminal entirely. */
@@ -652,15 +653,16 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
         deps.onChange()
       }
     },
-    async run(id, command) {
+    async run(id, command, cwd) {
       const row = requireRow(id)
+      const nextCwd = cwd ?? row.cwd!
       const previous = runs.get(id)
       runs.delete(id) // before the stop, for the same reason as restart
       await stopRun(previous)
       const screen = followUpScreen(previous && { command: row.command, buffer: previous.proc.replay(), echoed: previous.echoed, interactive: previous.interactive }, command)
-      deps.storage.restartThreadTerminal(id, now(), command, undefined, terminalControllerOf(row) === "human")
+      deps.storage.restartThreadTerminal(id, now(), command, undefined, terminalControllerOf(row) === "human", cwd)
       try {
-        await spawn(id, { command, cwd: row.cwd! }, screen)
+        await spawn(id, { command, cwd: nextCwd }, screen)
       } finally {
         deps.onChange()
       }

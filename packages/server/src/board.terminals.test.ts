@@ -78,6 +78,52 @@ test("a terminal at a prompt is its own Ready row on the real board; its running
   }
 })
 
+test("a failed agent-driven terminal stays out of Ready while its driver is Working, and surfaces once the driver rests in Ready", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-board-driver-fail-"))
+  const project: Project = { dir, id: "project-driver-fail", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
+  let driverTurn: SessionTelemetry["turn"] = "in-flight"
+  const tailer = {
+    get: (slug: string) => (slug === "driver" ? { turn: driverTurn, permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00") } satisfies SessionTelemetry : undefined),
+    foreignIds: () => [],
+    subAgent: () => undefined,
+    forget: () => {},
+    start: () => {},
+    stop: () => {},
+    tick: () => {},
+  } satisfies Tailer
+  const nowMs = Date.parse(at("10:00"))
+  const agentFailed = terminal({ id: "t-agent", parent: "driver", startedBy: "driver", controller: "driver", state: "exited", exitCode: 1, exitedAt: at("09:58") })
+  const humanFailed = terminal({ id: "t-human", startedBy: "human", controller: "human", state: "exited", exitCode: 1, exitedAt: at("09:58") })
+  const termRow = (slug: string) => ({ slug, state: "open" as const, created_at: Date.parse(at("09:00")), pinned_at: null, snoozed_until: null, exit_queues: 0 })
+  const storage = createStorage(join(dir, "ui.db"), "p")
+  storage.upsertSession({
+    slug: "driver", session_id: "driver-session", thread_name: "ntwine-driver", spawned_at: at("08:00"), last_read_at: null,
+    unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
+    state: "open", meta: null, seen_at: null, transcript_id: null,
+  })
+  storage.setClaudeRuntime("driver", "broker")
+  const board = createBoard(project, storage, new Bus(), tailer, "driver-fail-boot", {
+    now: () => nowMs,
+    terminalThreads: (now) => [
+      terminalThreadView(termRow("t-agent"), agentFailed, now),
+      terminalThreadView(termRow("t-human"), humanFailed, now),
+    ],
+  })
+  try {
+    const whileWorking = board.refresh().threads
+    assert.equal(whileWorking.find((t) => t.id === "t-agent")?.needsYou, false, "held out of Ready while driver is Working")
+    assert.equal(whileWorking.find((t) => t.id === "t-human")?.needsYou, true, "human-driven failure always queues")
+
+    driverTurn = "idle"
+    const afterRest = board.refresh().threads
+    assert.equal(afterRest.find((t) => t.id === "t-agent")?.needsYou, true, "surfaces in Ready once driver leaves Working without handling it")
+  } finally {
+    await board.stop()
+    storage.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 // ONE RULE FOR THE FOLDER HINT, both owners: shown iff the row runs off the project root. A terminal is
 // classified through the same lift as an agent's shell, and the agent's own checkout rides the row.
 test("the board stamps each terminal's checkout, and carries the agent's own, only when off the root", async () => {

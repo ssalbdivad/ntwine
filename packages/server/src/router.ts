@@ -6547,8 +6547,8 @@ export function createRouter(ctx: AppContext) {
     // ---- A WORKER'S TERMINALS (`ntwinectl terminal`, plans/terminal-threads.md § Agents, § Control) --------
     // The same terminal threads the human starts, through the same `startTerminalThread`, with the calling
     // thread as parent, starter and first CONTROLLER. Reading, typing and waiting are the thread verbs
-    // (readThread, messageThread, `threads:`); these are the rest. STOP, RESTART and RELEASE reach only a
-    // terminal the caller drives, as typing does — whoever started it. Refusals are answers, so `ntwinectl`
+    // (readThread, messageThread, `threads:`); these are the rest. RUN, STOP, RESTART and RELEASE reach only
+    // a terminal the caller drives, as typing does — whoever started it. Refusals are answers, so `ntwinectl`
     // exits 2 on them.
     ownTerminal: mutation({
       input: OwnTerminalInput,
@@ -6556,25 +6556,27 @@ export function createRouter(ctx: AppContext) {
       handler: async ({ input }) => {
         const row = ctx.storage.getSession(input.slug)
         if (!row) throw new Error(`thread ${input.slug} is not registered`)
+        // A command that dies on its own arguments dies at once: hold the answer through that window so the
+        // caller reads the exit and its error in the reply rather than after its turn ended and the failed
+        // run sat in the user's queue (a `nub run dev -- --port` did exactly that, 2026-10-21). A launch that
+        // already FAILED is filed under Done here, as `stop` would: this reply is how its agent learns of it,
+        // so a Ready card would only tell the user what the agent is already fixing (maintainer 2026-11-12).
+        // `restart` and `run` reopen it.
+        const settleLaunch = async (id: string, fallbackHandle: string): Promise<OwnTerminalResult> => {
+          const settleBy = Date.now() + TERMINAL_START_SETTLE_MS
+          while (Date.now() < settleBy && terminalByHandle(id)?.terminal?.state === "running") await new Promise((r) => setTimeout(r, 100))
+          const launched = terminalByHandle(id)
+          if (launched?.terminal && terminalOutcome(launched.terminal) === "failed") {
+            await ctx.terminalRunner.setState(launched.id, "archived")
+            return { ...ownTerminalReading(terminalByHandle(launched.id) ?? launched, input.slug, 40), handle: launched.terminal.handle ?? fallbackHandle, id: launched.id, filed: true }
+          }
+          return { ...ownTerminalReading(launched, input.slug, 40), handle: launched?.terminal?.handle ?? fallbackHandle, id }
+        }
         if (input.action === "start") {
           if (row.state === "archived" || row.archived === 1) return { refused: "This thread is done; reopen it before starting a terminal from it." }
           const cwd = input.cwd ? terminalFolder(input.cwd) : threadWorkingDir(input.slug).dir
           const started = await startTerminalThread({ parent: input.slug, startedBy: input.slug, command: input.command, cwd })
-          // A command that dies on its own arguments dies at once: hold the answer through that window so
-          // the caller reads the exit and its error in start's own reply rather than after its turn ended
-          // and the failed run sat in the user's queue (a `nub run dev -- --port` did exactly that, 2026-10-21).
-          const settleBy = Date.now() + TERMINAL_START_SETTLE_MS
-          while (Date.now() < settleBy && terminalByHandle(started.id)?.terminal?.state === "running") await new Promise((r) => setTimeout(r, 100))
-          const t = terminalByHandle(started.id)
-          // A start that already FAILED is filed under Done here, as `stop` would: this reply is how its agent
-          // learns of it, so a Ready card would only tell the user what the agent is already fixing. Agents
-          // told to `stop` it did, but the card sat in the queue until they got to it, and the retry next to
-          // it read as a graveyard of fails (maintainer 2026-11-12). `restart` reopens it.
-          if (t?.terminal && terminalOutcome(t.terminal) === "failed") {
-            await ctx.terminalRunner.setState(t.id, "archived")
-            return { ...ownTerminalReading(terminalByHandle(t.id) ?? t, input.slug, 40), handle: started.handle, id: started.id, filed: true }
-          }
-          return { ...ownTerminalReading(t, input.slug, 40), handle: started.handle, id: started.id }
+          return settleLaunch(started.id, started.handle)
         }
         const t = terminalByHandle(input.handle)
         if (!t?.terminal) {
@@ -6594,9 +6596,14 @@ export function createRouter(ctx: AppContext) {
             return { ...ownTerminalReading(terminalByHandle(t.id) ?? t, input.slug, 0), screen: undefined, filed: true }
           }
           await ctx.terminalRunner.stop(t.id)
+        } else if (input.action === "run") {
+          const cwd = input.cwd ? terminalFolder(input.cwd) : undefined
+          await ctx.terminalRunner.run(t.id, input.command, cwd)
+          return settleLaunch(t.id, handle)
         } else {
           // A restart reopens a terminal marked done (storage restartThreadTerminal); a watch on it stays armed.
           await ctx.terminalRunner.restart(t.id)
+          return settleLaunch(t.id, handle)
         }
         return ownTerminalReading(terminalByHandle(t.id) ?? t, input.slug, 40)
       },

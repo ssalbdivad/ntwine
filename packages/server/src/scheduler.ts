@@ -1863,8 +1863,9 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     // Another thread's message joins a running turn the way a human's typed steer does — see
     // THREAD_MESSAGE_FENCE_PREFIX.
     if (isThreadMessageFenceId(item.fenceId)) return true
-    // A terminal changing hands is news to the thread working on it NOW: it may be about to type into it.
-    if (isTerminalWaitFenceId(item.fenceId) && (item.fenceId.includes(":control:") || item.fenceId.includes(TERMINAL_NOTE_MARK))) return true
+    // A terminal changing hands — or ending (e.g. a crash of a terminal this thread drives) — is news to the
+    // thread working on it NOW: it may be about to type into it or assume its dev server is still up.
+    if (isTerminalWaitFenceId(item.fenceId) && (item.fenceId.includes(":control:") || item.fenceId.includes(TERMINAL_NOTE_MARK) || item.fenceId.endsWith(":end"))) return true
     // The budget warning is "in the moment" by definition: its grace clock is already running, and a
     // worker mid-turn is the one most likely to still be using the shell — it has ten minutes to say so.
     if (isShellBudgetFenceId(item.fenceId)) return true
@@ -3788,6 +3789,27 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         if (!fenceNamesTerminal(tele, terminal)) continue
         const restedAt = Date.parse(tele?.lastAssistantAt ?? "")
         for (const e of events) if (e.atMs > restedAt) enqueueTerminalWake(row.slug, e.key, e.message(row.slug), e.reason, nowMs)
+      }
+      // 6. A FAILED terminal driven by an active thread wakes its driver automatically — even when it did not
+      //    arm a watch or list the terminal in `threads:` — so a mid-effort crash (e.g. an install wiping a
+      //    dev server's node_modules) goes back to the agent that owns it rather than silently landing in the
+      //    human's queue. Uses the same `:end` event key so it deduplicates with a watch or fence above. A
+      //    driver already at rest on a handoff (`done`, question, `steps:`, `needs_input`), on a bare rest,
+      //    or archived is NOT woken — that failure belongs to the human.
+      if (outcome === "failed" && held.state !== "archived" && controller !== "human") {
+        const failEvent = events.find((e) => e.key.endsWith(":end"))
+        const driverSession = failEvent ? deps.storage.getSession(controller) : undefined
+        const driverTele = driverSession && driverSession.state !== "archived" && driverSession.archived !== 1 ? deps.tailer.get(controller) : undefined
+        const driverActive = driverTele !== undefined && driverTele.primed !== false && !restsOnHandoff(controller, driverTele) && (
+          driverTele.turn !== "idle" ||
+          driverTele.lastFence?.kind === "awaiting" ||
+          driverTele.subAgents.some((a) => a.state === "running") ||
+          driverTele.bgShells.some((s) => s.state === "running")
+        )
+        const afterUser = !driverTele?.lastUserAt || !Number.isFinite(Date.parse(driverTele.lastUserAt)) || failEvent!.atMs >= Date.parse(driverTele.lastUserAt)
+        if (failEvent && driverActive && afterUser) {
+          enqueueTerminalWake(controller, failEvent.key, failEvent.message(controller), failEvent.reason, nowMs)
+        }
       }
     }
   }

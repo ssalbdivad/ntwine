@@ -1233,7 +1233,7 @@ const WATCH_COMMAND = {
 const TERMINAL = {
   name: "terminal",
   description:
-    "START, STOP, RESTART OR RELEASE A TERMINAL. A terminal is a thread of its own on the board, running one " +
+    "START, RUN, STOP, RESTART OR RELEASE A TERMINAL. A terminal is a thread of its own on the board, running one " +
     "command in its own process; the user sees it, types into it and cycles to it like one they started. It " +
     "keeps running after your turn ends and after ntwine restarts.\n\n" +
     "Start a process you work ALONGSIDE here — a dev server, a log tail, a watcher. A slow gate you wait " +
@@ -1242,29 +1242,30 @@ const TERMINAL = {
     "`ntwinectl message-thread @handle --message-file -` types a line into it and presses Enter, and " +
     "`threads: [@handle]` in your ```awaiting fence (or `ntwinectl watch terminal @handle --for <d>`) wakes " +
     "you when it reaches a prompt, ends or changes hands.\n\n" +
-    "ONE DRIVER AT A TIME. Typing, `stop`, `restart` and `release` work only while you drive it, and are " +
+    "ONE DRIVER AT A TIME. Typing, `run`, `stop`, `restart` and `release` work only while you drive it, and are " +
     "refused (exit 2) otherwise. You drive a terminal you start until the user takes control or you " +
     "`release` it; the user can hand one to you. A terminal still running when you sign off keeps running; " +
     "the user's Done dialog offers to stop it.\n\n" +
-    "A FAILED START IS YOURS TO FIX. `start` waits a moment before it answers, so a command that dies at " +
-    "once comes back with its exit code and screen, already marked done so it does not sit in the user's " +
-    "queue. Fix the cause and `restart` it, which reuses its handle, rather than starting a second terminal. " +
-    "A terminal that fails later is the user's to see; `stop` marks it done once you have handled it.",
+    "REUSE ONE TERMINAL AND FIX ITS FAILURES. `start`, `run` and `restart` wait a moment before answering, so a " +
+    "command that dies at once comes back with its exit code and screen, already marked done so it does not sit " +
+    "in the user's queue. Fix the cause and `restart` it — or `run` a new command in the same terminal to switch " +
+    "flags, config or folder — rather than starting a second terminal. If a terminal you drive fails later while " +
+    "you are working, ntwine wakes you so you can fix, `restart`, `run`, or `stop` (mark done) it.",
   inputSchema: {
     type: "object",
     properties: {
       action: {
         type: "string",
-        enum: ["start", "stop", "restart", "release"],
-        description: "`start` a command; `stop` it; `restart` its command; `release` control of it to the user.",
+        enum: ["start", "run", "stop", "restart", "release"],
+        description: "`start` a new terminal; `run` a new command in an existing terminal; `stop` it; `restart` its command; `release` control of it to the user.",
       },
       command: {
         type: "string",
-        description: "Required for `start`. One shell command line, run under your login shell.",
+        description: "Required for `start` and `run`. One shell command line, run under your login shell.",
       },
       cwd: {
         type: "string",
-        description: "For `start`. The folder to run in; a relative path is taken from your current folder. Default: the folder you are working in.",
+        description: "For `start` and `run`. The folder to run in; a relative path is taken from your current folder. Default: the folder you are working in (for `start`) or the terminal's current folder (for `run`).",
       },
       handle: {
         type: "string",
@@ -2739,21 +2740,27 @@ function terminalStands(r) {
   }
 }
 
-/** The `terminal` handler: start, read, type into, stop or restart a terminal thread.
+/** The `terminal` handler: start, run, stop, restart or release a terminal thread.
  * @param {Record<string, unknown>} args @returns {Promise<string | Refused>} */
 async function terminal(args) {
   const slug = threadSlug()
   const action = typeof args.action === "string" ? args.action.trim() : ""
-  if (!["start", "stop", "restart", "release"].includes(action)) {
-    throw new Error("`action` must be one of start, stop, restart, release. Read a terminal with `ntwinectl read-thread @handle`; type into it with `ntwinectl message-thread @handle`.")
+  if (!["start", "run", "stop", "restart", "release"].includes(action)) {
+    throw new Error("`action` must be one of start, run, stop, restart, release. Read a terminal with `ntwinectl read-thread @handle`; type into it with `ntwinectl message-thread @handle`.")
   }
+  const cwd = typeof args.cwd === "string" && args.cwd.trim() ? resolvePath(process.cwd(), args.cwd.trim().replace(/^~(?=$|\/)/, process.env.HOME ?? "~")) : undefined
   /** @type {Record<string, unknown>} */
   let body
   if (action === "start") {
     const command = typeof args.command === "string" ? args.command.trim() : ""
     if (!command) throw new Error('`start` needs the command: ntwinectl terminal start "pnpm run dev"')
-    const cwd = typeof args.cwd === "string" && args.cwd.trim() ? resolvePath(process.cwd(), args.cwd.trim().replace(/^~(?=$|\/)/, process.env.HOME ?? "~")) : undefined
     body = { slug, action, command, ...(cwd ? { cwd } : {}) }
+  } else if (action === "run") {
+    const handle = typeof args.handle === "string" ? args.handle.trim() : ""
+    if (!handle) throw new Error('`run` needs the terminal\'s @handle: ntwinectl terminal run @pnpm-run-dev "pnpm run dev --port 3001"')
+    const command = typeof args.command === "string" ? args.command.trim() : ""
+    if (!command) throw new Error(`\`run\` needs the new command: ntwinectl terminal run ${handle} "pnpm run dev --port 3001"`)
+    body = { slug, action, handle, command, ...(cwd ? { cwd } : {}) }
   } else {
     const handle = typeof args.handle === "string" ? args.handle.trim() : ""
     if (!handle) throw new Error(`\`${action}\` needs the terminal's @handle: ntwinectl terminal ${action} @pnpm-run-dev`)
@@ -2763,17 +2770,20 @@ async function terminal(args) {
   if (r?.refused) return new Refused(`${r.refused}${r.known?.length ? `\n\nTerminals: ${r.known.join(", ")}` : ""}`)
   const at = `@${r?.handle}`
   const screen = typeof r?.screen === "string" && r.screen.trim() ? `\n\n${codeFence(r.screen, "")}` : ""
+  const filedNote = r?.filed ? " Marked done so it stays off the user's queue; fix it and `restart` or `run` again." : ""
   if (action === "start") {
     return (
-      `Started ${at} — \`${r?.command}\` in ${r?.cwd}, ${terminalStands(r)}. It is a thread of its own on the board, ` +
+      `Started ${at} — \`${r?.command}\` in ${r?.cwd}, ${terminalStands(r)}.${filedNote} It is a thread of its own on the board, ` +
       `keeps running after your turn, and you drive it until the user takes control. \`ntwinectl read-thread ${at}\` reads ` +
-      `it; \`ntwinectl message-thread ${at}\` types a line into it; \`ntwinectl terminal stop ${at}\` stops it.${screen}`
+      `it; \`ntwinectl message-thread ${at}\` types a line into it; \`ntwinectl terminal run ${at} "<cmd>"\` switches its command; ` +
+      `\`ntwinectl terminal stop ${at}\` stops it.${screen}`
     )
   }
+  if (action === "run") return `Ran \`${r?.command}\` in ${at} (${r?.cwd}), ${terminalStands(r)}.${filedNote}${screen}`
   if (action === "stop" && r?.filed) return `${at} had already ${terminalStands(r)}, so there was nothing to stop; it is marked done and off the user's queue.`
   if (action === "stop") return `Stopped ${at} (${terminalStands(r)}).${screen}`
   if (action === "release") return `Released ${at}: the user drives it now, and you can no longer type into it. It keeps running.`
-  return `Restarted ${at} — \`${r?.command}\`, ${terminalStands(r)}.${screen}`
+  return `Restarted ${at} — \`${r?.command}\`, ${terminalStands(r)}.${filedNote}${screen}`
 }
 
 /** The `unwatch` handler: withdraw one registered watch by id.
@@ -3317,11 +3327,12 @@ const CLI = {
   },
   terminal: {
     group: "This thread",
-    summary: "Start, stop, restart or release a terminal (a dev server, a log tail)",
+    summary: "Start, run, stop, restart or release a terminal (a dev server, a log tail)",
     positional: ["action"],
-    then: { start: ["command"], stop: ["handle"], restart: ["handle"], release: ["handle"] },
+    then: { start: ["command"], run: ["handle", "command"], stop: ["handle"], restart: ["handle"], release: ["handle"] },
     examples: [
       'ntwinectl terminal start "pnpm run dev"',
+      'ntwinectl terminal run @pnpm-run-dev "pnpm run dev --port 3001"',
       "ntwinectl read-thread @pnpm-run-dev",
       "ntwinectl message-thread @pnpm-run-dev --message y",
       "ntwinectl terminal stop @pnpm-run-dev",

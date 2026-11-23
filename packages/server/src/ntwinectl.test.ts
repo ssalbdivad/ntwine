@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
 import { createServer, type Server } from "node:http"
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -350,6 +350,7 @@ test("exit 0 is done, 1 is a failure, and 2 is a gate that held", async () => {
 test("`terminal` resolves --cwd where the worker stands; a terminal is read, typed into and waited on with the thread verbs, a refusal exits 2", async () => {
   const fake = await fakeNtwine((procedure, body) => {
     if (procedure === "ownTerminal" && body.action === "release") return { result: { handle: "nub-run-dev", id: "term-1", command: "nub run dev", cwd: "/w/app", outcome: "running", controller: "human", driving: false } }
+    if (procedure === "ownTerminal" && body.action === "run") return { result: { handle: "nub-run-dev", id: "term-1", command: body.command, cwd: body.cwd ?? "/w/app", outcome: "running", controller: "the-caller", driving: true, screen: "ready on :3001" } }
     if (procedure === "ownTerminal") return { result: { handle: "nub-run-dev", id: "term-1", command: "nub run dev", cwd: "/w/app", outcome: "running", controller: "the-caller", driving: true, startedBy: "the-caller", screen: "ready on :5173" } }
     if (procedure === "messageThread" && body.handle === "@shell") {
       return { result: { sent: false, handle: "shell", refusal: "@shell is driven by the user, so you cannot type into it." } }
@@ -363,7 +364,7 @@ test("`terminal` resolves --cwd where the worker stands; a terminal is read, typ
     return undefined
   })
   try {
-    const cwd = mkdtempSync(join(tmpdir(), "ntwinectl-term-"))
+    const cwd = realpathSync(mkdtempSync(join(tmpdir(), "ntwinectl-term-")))
     mkdirSync(join(cwd, "app"))
     const started = await run(["terminal", "start", "nub run dev", "--cwd", "app"], { env: worker(fake), cwd })
     assert.equal(started.code, 0, started.stderr)
@@ -389,6 +390,11 @@ test("`terminal` resolves --cwd where the worker stands; a terminal is read, typ
     const released = await run(["terminal", "release", "@nub-run-dev"], { env: worker(fake) })
     assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "release", handle: "@nub-run-dev" })
     assert.match(released.stdout, /^Released @nub-run-dev: the user drives it now/)
+
+    const ran = await run(["terminal", "run", "@nub-run-dev", "pnpm run dev --port 3001", "--cwd", "app"], { env: worker(fake), cwd })
+    assert.equal(ran.code, 0, ran.stderr)
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "run", handle: "@nub-run-dev", command: "pnpm run dev --port 3001", cwd: join(cwd, "app") })
+    assert.match(ran.stdout, /^Ran `pnpm run dev --port 3001` in @nub-run-dev \(.*app\), running\./)
 
     const watched = await run(["watch", "terminal", "@nub-run-dev", "--for", "2h"], { env: worker(fake) })
     assert.equal(watched.code, 0, watched.stderr)

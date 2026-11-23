@@ -35,8 +35,11 @@ const barButtonClass = "whitespace-nowrap rounded-md border border-border-strong
 
 export function TerminalControlBar({ terminal, threads, move }: { terminal: ThreadTerminal; threads: readonly ThreadView[]; move: ControlMove }) {
   const [busy, setBusy] = useState(false)
-  // An ended run has no driver to show: control only matters while there is a process to type into.
-  const driver = terminal.state === "running" ? terminalDriver(terminal) : undefined
+  // Show `@thread is driving` + Take control even after the process exits: TerminalQueueCard, TerminalSheet
+  // and server requireHumanDrives still gate Restart and the `$` follow-up box on `controller`, so hiding
+  // the bar on exit deadlocked a failed agent-driven card with no way to take control or restart (2026-11-23).
+  // Hand back still shows only while running so archived/stopped terminals don't carry a stale hand-back bar.
+  const driver = terminalDriver(terminal)
   const back = !driver && terminal.state === "running" ? terminal.controlAgent : undefined
   if (!driver && !back) return null
   const act = (to: string, isBack?: boolean) => {

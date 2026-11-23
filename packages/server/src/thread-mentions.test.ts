@@ -3,7 +3,7 @@
 // scheduler.test.ts, "thread message: …".
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { AWAITING_FOR_MAX_MS, type BoardSnapshot, type Settings } from "@ntwine/shared"
@@ -161,6 +161,7 @@ test("terminal control: only the driver types, stops or restarts; take control a
     for (const action of ["stop", "restart", "release"] as const) {
       assert.match((await router.ownTerminal.handler({ input: { slug: "me", action, handle: "@sleep-30" } })).refused ?? "", new RegExp(`^@sleep-30 is driven by the user, so you cannot ${action} it\\.`), action)
     }
+    assert.match((await router.ownTerminal.handler({ input: { slug: "me", action: "run", handle: "@sleep-30", command: "echo hi" } })).refused ?? "", /^@sleep-30 is driven by the user, so you cannot run it\./)
 
     // Its own: a line and Enter, echoed back by `cat`. A viewer's keystrokes meanwhile go nowhere.
     assert.deepEqual(await type("@cat", "hello there"), { sent: true, handle: "cat", from: "mentions", delivery: "terminal" })
@@ -198,13 +199,22 @@ test("terminal control: only the driver types, stops or restarts; take control a
     assert.match((await router.addOwnTerminalWatch.handler({ input: { slug: "me", handle: "@sleep-30", for: "1h" } })).refused ?? "", /is no longer running, so there is nothing to wait for/)
 
     // A start that dies at once answers with its failure and is already filed under Done — its agent has
-    // the failure in hand, so it never queues — and a restart reopens the same row.
+    // the failure in hand, so it never queues. A restart that still fails immediately stays filed too; `run`
+    // replaces the command (and optional cwd) in place on the same handle and reopens it once healthy.
     const bad = await router.ownTerminal.handler({ input: { slug: "me", action: "start", command: "echo bad flag; exit 3", cwd: h.dir } })
     assert.deepEqual([bad.outcome, bad.exitCode, bad.filed], ["failed", 3, true])
     assert.match(bad.screen ?? "", /bad flag/)
     assert.equal(h.storage.listThreadTerminals().find((t) => t.slug === bad.id)?.state, "archived")
-    await router.ownTerminal.handler({ input: { slug: "me", action: "restart", handle: `@${bad.handle}` } })
+    const stillBad = await router.ownTerminal.handler({ input: { slug: "me", action: "restart", handle: `@${bad.handle}` } })
+    assert.deepEqual([stillBad.outcome, stillBad.exitCode, stillBad.filed], ["failed", 3, true])
+    assert.equal(h.storage.listThreadTerminals().find((t) => t.slug === bad.id)?.state, "archived")
+    const subDir = join(h.dir, "sub")
+    mkdirSync(subDir)
+    const replaced = await router.ownTerminal.handler({ input: { slug: "me", action: "run", handle: `@${bad.handle}`, command: "pwd; sleep 30", cwd: subDir } })
+    assert.deepEqual([replaced.id, replaced.handle, replaced.outcome, replaced.filed, replaced.cwd], [bad.id, bad.handle, "running", undefined, subDir])
+    assert.match(await screenOf(bad.id!, /sub/), /sub/)
     assert.equal(h.storage.listThreadTerminals().find((t) => t.slug === bad.id)?.state, "open")
+    await router.ownTerminal.handler({ input: { slug: "me", action: "stop", handle: `@${bad.handle}` } })
   } finally { terminals.shutdown(); h.close() }
 })
 

@@ -68,13 +68,13 @@ test("the terminal control bar keeps its words whole and its button inside, at e
           handleCut: cut(handle),
         }
       }))
-      assert.equal(bars.length, 4, `${width}px: the fixture drew every bar`)
+      assert.equal(bars.length, 5, `${width}px: the fixture drew every bar (including exited agent-driven)`)
       for (const bar of bars) {
         const at = `${width}px ${bar.name}: ${bar.text}`
         assert.ok(bar.inside && !bar.scrolls, `${at} — a part leaves the bar`)
         assert.ok(bar.wordsWhole, `${at} — a word that must stay whole is cut`)
         assert.ok(bar.gap >= 4, `${at} — the label and the button sit ${bar.gap}px apart`)
-        if (bar.name.startsWith("short")) assert.ok(!bar.handleCut, `${at} — a short handle is cut`)
+        if (bar.name.startsWith("short") || bar.name.startsWith("exited")) assert.ok(!bar.handleCut, `${at} — a short handle is cut`)
         if (width === 390 && bar.name.startsWith("long")) assert.ok(bar.handleCut, `${at} — the long handle fits at 390px, so nothing was tested`)
       }
     }

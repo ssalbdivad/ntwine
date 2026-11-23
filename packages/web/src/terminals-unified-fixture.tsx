@@ -93,8 +93,8 @@ const endedShells: EndedShellView[] = [
 // (five long words), edge to edge as in a phone drawer.
 const LONG = "Internationalization reconciliation infrastructure authentication synchronization"
 const controlThreads = [{ id: "short-t", title: "Dev server" }, { id: "long-t", title: LONG }].map((t) => ({ ...t, kind: "session", titleAuto: false, titleLocked: true })) as unknown as ThreadView[]
-const controlTerminal = (controller: string, controlAgent?: string) =>
-  ({ id: `t-${controller}-${controlAgent ?? ""}`, command: "nub run dev", cwd: ROOT, state: "running", runId: 1, startedAt: ago(3), handle: "nub-run-dev", controller, ...(controlAgent ? { controlAgent } : {}) }) as ThreadTerminal
+const controlTerminal = (controller: string, controlAgent?: string, state: "running" | "exited" = "running") =>
+  ({ id: `t-${controller}-${controlAgent ?? ""}-${state}`, command: "nub run dev", cwd: ROOT, state, ...(state === "exited" ? { exitCode: 1, exitedAt: ago(1) } : {}), runId: 1, startedAt: ago(3), handle: "nub-run-dev", controller, ...(controlAgent ? { controlAgent } : {}) }) as ThreadTerminal
 const thread = { id: "fixture", terminals, bgShells, endedShells, watches: [], ...(here ? { checkout: here } : {}) } as Pick<ThreadView, "id" | "terminals" | "bgShells" | "endedShells" | "watches" | "checkout">
 
 createRoot(document.getElementById("root")!).render(
@@ -128,6 +128,7 @@ createRoot(document.getElementById("root")!).render(
               <div key={`${who}-agent`} data-fixture-control={`${who}-agent`}><TerminalControlBar terminal={controlTerminal(who)} threads={controlThreads} move={async () => {}} /></div>,
               <div key={`${who}-human`} data-fixture-control={`${who}-human`}><TerminalControlBar terminal={controlTerminal("human", who)} threads={controlThreads} move={async () => {}} /></div>,
             ])}
+            <div data-fixture-control="exited-agent"><TerminalControlBar terminal={controlTerminal("short-t", undefined, "exited")} threads={controlThreads} move={async () => {}} /></div>
           </div>
         )}
         {mode === "header" && (

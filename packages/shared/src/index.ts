@@ -4805,17 +4805,61 @@ export type TerminalOutcome = "running" | "prompt" | "failed" | "interrupted" | 
  */
 // The other leading steps that only prepare a shell — load a version manager, pick a Node, set a variable —
 // and so name nothing either: `source ~/.nvm/nvm.sh && nvm use 22 && yarn dev` named itself `@source-nvm-nvm`
-// (maintainer 2026-11-12). Each is matched as one whole `&&`/`;` segment with no quote in it.
-const TERMINAL_SETUP_STEP = /^(?:(?:source|\.)\s+\S+|(?:nvm|fnm)\s+use(?:\s+\S+)?|(?:export|unset)\s+[^&;|'"]+|set\s+[-+]\S+)$/
+// (maintainer 2026-11-12), and `cd '/a/web-app2' && export PATH="$HOME/..." NODE_OPTIONS='...' && next dev`
+// named itself `@cd-a` (2026-11-23). Single- and double-quoted tokens are kept whole so spaces or `&&` inside
+// quotes never split a setup segment.
+const SHELL_TOKEN = `(?:'[^']+'|"[^"]+"|[^\\s&;|'"]+)`
+const TERMINAL_CD_STEP = new RegExp(`^cd\\s+(${SHELL_TOKEN})$`)
+const TERMINAL_SETUP_STEP = new RegExp(
+  `^(?:(?:source|\\.)\\s+${SHELL_TOKEN}|(?:nvm|fnm)\\s+use(?:\\s+${SHELL_TOKEN})?|export(?:\\s+[A-Za-z_][A-Za-z0-9_]*(?:=(?:'[^']*'|"[^"]*"|[^\\s&;|'"]+))?)+|unset(?:\\s+[A-Za-z_][A-Za-z0-9_]*)+|set\\s+[-+]\\S+)$`,
+)
+
+/** Split one leading `&&` or `;` shell segment respecting `'...'` and `"..."` quotes. Null when no separator
+ *  follows, when an unquoted pipe/background/subshell operator precedes it, or when a quote is unclosed. */
+function splitLeadingShellSegment(input: string): { step: string; after: string } | null {
+  let quote: "'" | '"' | null = null
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!
+    if (quote) {
+      if (ch === "\\" && quote === '"' && i + 1 < input.length) { i++; continue }
+      if (ch === quote) quote = null
+      continue
+    }
+    if (ch === "'" || ch === '"') { quote = ch; continue }
+    if (ch === "|" || ch === "(" || ch === "`") return null
+    if (ch === ";") {
+      const step = input.slice(0, i).trim()
+      const after = input.slice(i + 1).trimStart()
+      return step && after ? { step, after } : null
+    }
+    if (ch === "&") {
+      if (input[i + 1] !== "&") return null
+      const step = input.slice(0, i).trim()
+      const after = input.slice(i + 2).trimStart()
+      return step && after ? { step, after } : null
+    }
+  }
+  return null
+}
+
+function unquoteShellToken(token: string): string {
+  return (token.startsWith("'") && token.endsWith("'")) || (token.startsWith('"') && token.endsWith('"'))
+    ? token.slice(1, -1)
+    : token
+}
+
 export function terminalCommandCore(command: string): { command: string; dir?: string } {
   let rest = command.trim()
   let dir: string | undefined
-  for (let m; (m = /^([^&;|'"]+?)\s*(?:&&|;)\s*/.exec(rest)) && rest.length > m[0].length; ) {
-    const step = m[1]!.trim()
-    const cd = /^cd\s+(\S+)$/.exec(step)
-    if (cd) dir = cd[1]!.replace(/\/+$/, "").split("/").pop() || cd[1]
-    else if (!TERMINAL_SETUP_STEP.test(step)) break
-    rest = rest.slice(m[0].length)
+  for (let seg; (seg = splitLeadingShellSegment(rest)); ) {
+    const cd = TERMINAL_CD_STEP.exec(seg.step)
+    if (cd) {
+      const target = unquoteShellToken(cd[1]!).replace(/\/+$/, "")
+      dir = target.split("/").pop() || target
+    } else if (!TERMINAL_SETUP_STEP.test(seg.step)) {
+      break
+    }
+    rest = seg.after
   }
   return dir === undefined ? { command: rest } : { command: rest, dir }
 }
@@ -4867,6 +4911,7 @@ export type StartTerminalResult = z.infer<typeof StartTerminalResult>
 // (its `controller`), as typing does. A refusal is an answer (`refused`), not a fault.
 export const OwnTerminalInput = z.discriminatedUnion("action", [
   z.object({ slug: ThreadSlug, action: z.literal("start"), command: TerminalCommand, cwd: z.string().trim().min(1).max(4_096).optional() }).strict(),
+  z.object({ slug: ThreadSlug, action: z.literal("run"), handle: z.string().trim().min(1).max(200), command: TerminalCommand, cwd: z.string().trim().min(1).max(4_096).optional() }).strict(),
   z.object({ slug: ThreadSlug, action: z.enum(["stop", "restart", "release"]), handle: z.string().trim().min(1).max(200) }).strict(),
 ])
 export type OwnTerminalInput = z.infer<typeof OwnTerminalInput>
@@ -4940,7 +4985,9 @@ export function terminalWakeMessage(t: { handle: string; command: string; outcom
     ? `${t.controller === undefined || t.controller === "human" ? "The user drives" : `@${t.controller} drives`} it, so only they can answer or rerun it.`
     : t.outcome === "prompt"
       ? `Answer it with \`ntwinectl message-thread @${t.handle} --message-file -\`.`
-      : `\`ntwinectl terminal restart @${t.handle}\` runs it again.`
+      : t.outcome === "failed"
+        ? `Fix the cause and run \`ntwinectl terminal restart @${t.handle}\` (or \`ntwinectl terminal run @${t.handle} "<cmd>"\` to replace its command), or \`ntwinectl terminal stop @${t.handle}\` to mark it done.`
+        : `\`ntwinectl terminal restart @${t.handle}\` runs it again.`
   return [
     `⏰ The terminal @${t.handle} ${terminalWakeClause(t)}:`,
     "",
