@@ -143,6 +143,41 @@ class UnconfirmedError extends Error {}
  */
 class PeerRefusal extends Error {}
 
+/**
+ * No answer at all to a request that acts on nothing (a preview, a ping): the connection failed or timed
+ * out before anything was said. Unlike a refusal it is about the network or the other machine being down
+ * right now, so asking again can succeed — the move dialog offers exactly that (2026-11-24: a preview the
+ * Mac did not answer read as a refusal, with Move disabled and no way to ask again, and the maintainer
+ * took the whole button for dead).
+ */
+class PeerUnreachable extends Error {}
+
+/**
+ * Why a request got no answer, in words the human can act on. Node's `fetch` says "fetch failed" for every
+ * connection error and keeps the reason in `cause` (undici's code), so without this the dialog and
+ * Settings → Other machines both showed "(fetch failed)" for a refused port, a dead route and a timeout alike.
+ */
+export function noAnswerReason(error: unknown, timeoutMs: number): string {
+  if (!(error instanceof Error)) return String(error)
+  if (error.name === "TimeoutError") return `no answer in ${timeoutMs >= 60_000 ? `${Math.round(timeoutMs / 60_000)}m` : `${Math.round(timeoutMs / 1000)}s`}`
+  const cause = error.cause instanceof Error ? error.cause as Error & { code?: unknown } : undefined
+  switch (cause?.code) {
+    // undici gives up on a connect after 10s; a peer that drops packets (a firewall in stealth mode,
+    // a sleeping machine) ends here.
+    case "UND_ERR_CONNECT_TIMEOUT": return "the connection timed out"
+    case "ECONNREFUSED": return "nothing is listening on that port"
+    case "EHOSTUNREACH":
+    case "ENETUNREACH":
+    case "EHOSTDOWN": return "that address is unreachable"
+    case "ENOTFOUND":
+    case "EAI_AGAIN": return "that name does not resolve"
+    case "ECONNRESET":
+    case "UND_ERR_SOCKET": return "the connection was cut"
+  }
+  // Anything else (fetch's own "bad port" refusal among them) is still truer in the cause's words.
+  return cause?.message || error.message
+}
+
 // ---- git remotes: how two machines agree they hold the same project ----
 
 /**
@@ -342,17 +377,22 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     const plaintext = frameMessage({ op, id: randomUUID(), ts: Date.now(), from: { name }, args }, options.blob)
     const sent = sealRequest(key, Buffer.from(peer.publicKey, "base64url"), plaintext)
     let response: Response
+    const timeoutMs = options.timeoutMs ?? 30_000
     try {
       response = await fetchImpl(`${peer.url}${PEER_ROUTE_PREFIX}call`, {
         method: "POST",
         headers: { "content-type": "application/octet-stream" },
         body: new Uint8Array(sent.body),
-        signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
+        signal: AbortSignal.timeout(timeoutMs),
       })
     } catch (error) {
       // A timeout may have been acted on, and a refused connection is indistinguishable from one cut
-      // after delivery by anything on the path.
-      throw failed(`${peer.name} did not answer at ${peer.url} (${error instanceof Error ? error.message : String(error)})`)
+      // after delivery by anything on the path. A request that acts on nothing has nothing to confirm, so
+      // it says only that there was no answer, which is worth asking again.
+      const message = `${peer.name} did not answer at ${peer.url} (${noAnswerReason(error, timeoutMs)})`
+      if (options.acts) throw failed(message)
+      failed(message)
+      throw new PeerUnreachable(message)
     }
     let body: Buffer | undefined
     try {
@@ -518,7 +558,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       const prepared = await call(record, "prepare", { identities, slug, sessionId: row!.session_id }) as { project: string; dir: string }
       out.destination = { project: prepared.project, dir: prepared.dir }
     } catch (error) {
-      out.refusal = error instanceof Error ? error.message : String(error)
+      if (error instanceof PeerUnreachable) out.unreachable = error.message
+      else out.refusal = error instanceof Error ? error.message : String(error)
     }
     return out
   }
