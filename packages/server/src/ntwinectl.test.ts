@@ -625,6 +625,32 @@ test("every ntwinectl example the worker contract writes out runs as written, an
   }
 })
 
+// A MOVE IS A `machine:` FENCE, which names no item — so with nothing running, a paired machine's readout
+// must say that fence still parks, and name the machines it takes. On 2026-11-24 it told @mac-kvm, asked to
+// go to the Mac, that there was nothing to wait on and to end with done.
+test("`activity` on a paired machine names the peers and the `machine:` park, even with nothing running", async () => {
+  const fake = await fakeNtwine((procedure) => procedure === "listOwnThreadActivity" ? { result: {
+    activity: [], machines: { self: "ssalb-xps", peers: ["Davids-MacBook-Pro"] },
+  } } : undefined)
+  try {
+    const ran = await run(["activity"], { env: worker(fake) })
+    assert.equal(ran.code, 0, ran.stderr)
+    assert.match(ran.stdout, /parks on the USER with `steps:` \(an act only they can perform\) or `machine:` \(a move to another machine, below\)/)
+    assert.match(ran.stdout, /This machine is ssalb-xps, paired with Davids-MacBook-Pro\. .*`machine: <name>`/)
+  } finally {
+    fake.close()
+  }
+  // Unpaired, the move is not offered at all.
+  const alone = await fakeNtwine((procedure) => procedure === "listOwnThreadActivity" ? { result: { activity: [] } } : undefined)
+  try {
+    const ran = await run(["activity"], { env: worker(alone) })
+    assert.equal(ran.code, 0, ran.stderr)
+    assert.doesNotMatch(ran.stdout, /machine:|paired with/)
+  } finally {
+    alone.close()
+  }
+})
+
 // AN AGY SWARM (server/agy-swarm.ts): every live member is listed, each saying how it stands, but only the
 // working ones are running work — a member parked on its swarm's board is not something to wait on, so the
 // ready-to-paste fence never names it and the running count leaves it out.

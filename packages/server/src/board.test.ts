@@ -2570,6 +2570,21 @@ test("a reply that only TALKS keeps the done standing; the first tool call spend
   assert.equal(registeredDoneFence(done, asked, "2026-08-27T01:05:02.000Z"), undefined)
 })
 
+test("an awaiting fence written after the done spends it, even in a reply that ran no tool", () => {
+  // @mac-kvm 2026-11-24: done filed, the human asked to move the thread to the Mac, and the worker rested
+  // in prose on `machine: Davids-MacBook-Pro`. The standing done was laid over that fence and the card
+  // drew no Move button.
+  const done = { body: "done", doneAt: Date.parse("2026-11-24T13:30:00.000Z") }
+  const asked = "2026-11-24T13:35:00.000Z"
+  const fence = { kind: "awaiting" as const, body: "", hints: [{ kind: "machine" as const, value: "Davids-MacBook-Pro" }] }
+  assert.equal(registeredDoneFence(done, asked, undefined, { apiFault: undefined, lastAssistantAt: "2026-11-24T13:35:20.000Z", lastFence: fence }), undefined)
+  // A fence no newer than the row is not a later sign-off, and the done stands over it.
+  assert.equal(registeredDoneFence(done, undefined, undefined, { apiFault: undefined, lastAssistantAt: "2026-11-24T13:29:00.000Z", lastFence: fence })?.kind, "done")
+  // A ```done fence after a registered one says the same thing, so the row keeps presenting it.
+  const doneFence = { kind: "done" as const, body: "also done", hints: [] }
+  assert.equal(registeredDoneFence(done, asked, undefined, { apiFault: undefined, lastAssistantAt: "2026-11-24T13:35:20.000Z", lastFence: doneFence })?.kind, "done")
+})
+
 test("a turn that FAILS after the human's new message spends the done — there is no tool call to see", () => {
   // The human sends new work after the sign-off and the turn dies on an API error before it runs
   // anything. Without this the thread carded as finished while the request it was just given was lost.

@@ -2109,8 +2109,9 @@ export function parseFormerTitles(raw: string | null | undefined): string[] {
  *  ITS LIFETIME IS "NOTHING NEWER HAS BEEN DONE FOR THE HUMAN". A fence is superseded the moment the
  *  worker writes again; a ROW cannot be, so something has to spend it. The human speaking after it is
  *  necessary but not sufficient: a prose-only reply to that message is conversation about finished work,
- *  and the done stands through it. Two things spend it — the worker running a TOOL after the human spoke
- *  (the message was new work), or the turn that answered it FAILING (the new work died; see below).
+ *  and the done stands through it. Three things spend it — the worker running a TOOL after the human spoke
+ *  (the message was new work), the turn that answered it FAILING (the new work died; see below), or the
+ *  worker resting on an ```awaiting fence written after it (a newer sign-off, see below).
  *  Deciding that by comparing timestamps means there is no sweep to forget one, and no window where a
  *  thread that was reopened still cards as finished.
  *
@@ -2121,9 +2122,18 @@ export function registeredDoneFence(
   done: { body: string; doneAt: number } | undefined,
   lastUserAt: string | undefined,
   lastToolCallAt?: string,
-  fault?: Pick<SessionTelemetry, "apiFault" | "lastAssistantAt">,
+  fault?: Pick<SessionTelemetry, "apiFault" | "lastAssistantAt"> & Partial<Pick<SessionTelemetry, "lastFence">>,
 ): FenceView | undefined {
   if (!done) return undefined
+  // AN AWAITING FENCE WRITTEN AFTER THE DONE IS THE WORKER'S NEWER SIGN-OFF, and it wins even when the
+  // reply around it ran no tool. The tool-call line below was drawn for prose answers about finished
+  // work; a fence is not that — it says the thread waits again. Without this the done row was laid over
+  // it as `lastFence` and the fence vanished: on 2026-11-24 @mac-kvm finished, was asked to go to the
+  // Mac, and rested on `machine: Davids-MacBook-Pro` in a tool-less reply — no Move button, because the
+  // card read the done. The tailer clears `lastFence` on every user record, so a fence still standing is
+  // from the newest assistant text; the instant check keeps a fence older than the row from counting.
+  const fenceAt = fault?.lastFence?.kind === "awaiting" ? Date.parse(fault.lastAssistantAt ?? "") : Number.NaN
+  if (Number.isFinite(fenceAt) && fenceAt > done.doneAt) return undefined
   const userAt = lastUserAt ? Date.parse(lastUserAt) : Number.NaN
   // THE HUMAN'S NEXT WORD REOPENS THE THREAD ONLY IF THE WORKER DID SOMETHING WITH IT. A question about
   // finished work ("what the fuck are tipup and trapline lol") answered in prose is conversation, and

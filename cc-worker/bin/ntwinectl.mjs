@@ -291,6 +291,11 @@ function topHelp() {
     "  EOF",
     "",
     "The answer is on stdout. Exit 0: done. 1: failed or misused, and the message says which. 2: refused.",
+    "",
+    // No command starts a move on purpose: the move is the user's to press, and it carries uncommitted
+    // work they preview first. A worker looked here for one on 2026-11-24 (@mac-kvm) and found nothing.
+    "Moving this thread to another paired machine has no command: rest on an ```awaiting fence with",
+    `\`machine: <name>\` and the user's card offers the move. \`${NAME} activity\` names the paired machines.`,
   ].join("\n")
 }
 

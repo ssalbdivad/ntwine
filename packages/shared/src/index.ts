@@ -6710,6 +6710,10 @@ export const OwnThreadActivityResult = z.object({
    *  that block `done` were readable only by mutating something (maintainer: "Is there a way for the
    *  agent to read out the current set of watchers and questions?"). */
   questions: z.array(RegisteredQuestionView).default([]),
+  /** This machine and the machines it is paired with, while it is paired with any — the names a
+   *  `machine:` fence takes. Absent on an unpaired server. Read here because a worker asked to move had
+   *  only `activity` to ask, and it said nothing was there to wait on (2026-11-24, @mac-kvm). */
+  machines: z.object({ self: z.string(), peers: z.array(z.string()) }).strict().optional(),
 }).strict()
 export type OwnThreadActivityResult = z.infer<typeof OwnThreadActivityResult>
 

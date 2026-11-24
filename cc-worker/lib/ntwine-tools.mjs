@@ -1058,7 +1058,8 @@ const ACTIVITY = {
   description:
     "EVERYTHING YOU CURRENTLY HAVE OUT, with the id each one is named by — your background shells, your " +
     "sub-agents, your armed timers, the pull requests you registered, the `wch_…` of every watch holding " +
-    "one of them, every QUESTION still owed an answer, and saved links/files with their lnk_ ids.\n\n" +
+    "one of them, every QUESTION still owed an answer, saved links/files with their lnk_ ids, and the " +
+    "machines this one is paired with — the names a `machine:` fence takes to offer the user a move.\n\n" +
     "WHY YOU NEED IT: an ```awaiting fence names what you are waiting on BY ID, and ntwine checks every " +
     "one against what is actually live. A name that matches nothing is not a park — you are bumped and " +
     "your thread queues. The same goes for the ids `unwatch` and `unask` take. So if you have lost one (a " +
@@ -1590,19 +1591,33 @@ async function activity() {
     idle.map((i) => `  agent: ${i.id}  (${i.state === "waiting" ? "waiting on the swarm board" : "stopped"}${i.since ? `; since ${i.since}` : ""})\n    ${i.address ? `@${i.address} — ` : ""}${i.label}`).join("\n")
   )
   if (idle.length) items = items.filter((i) => !idle.includes(i))
+  // THE PAIRED MACHINES, while there are any. A move to one is requested by the fence alone — there is no
+  // command — so this is where a worker asked "send this thread to the Mac" finds the name to write. Until
+  // 2026-11-24 the readout below told exactly that worker "nothing to wait on … End with ```done", which
+  // contradicts the contract: a `machine:` fence (like a `steps:` one) waits on the user and names no item.
+  const machines = result?.machines && Array.isArray(result.machines.peers) && result.machines.peers.length > 0 ? result.machines : undefined
+  const machinesBlock = !machines ? "" : (
+    `\n\nThis machine is ${machines.self}, paired with ${machines.peers.join(", ")}. When what is left has to happen on ` +
+    "one of those, rest on an ```awaiting fence with `machine: <name>` (and a `title:`): the user's card " +
+    "offers to move this thread there, and you continue on arrival. That fence is the whole request — " +
+    "there is no command for it — and it needs no other key."
+  )
   if (!items.length) {
     if (questions.length > 0) {
       return selfLine + (
         "Nothing is RUNNING on this thread — no background shells, no sub-agents, no armed timers, no " +
         "registered PRs. Your open questions are your sign-off: rest with no fence." +
-        idleBlock + askedBlock + linksBlock
+        idleBlock + askedBlock + machinesBlock + linksBlock
       )
     }
     return selfLine + (
       "Nothing is running on this thread — no background shells, no sub-agents, no armed timers, no " +
-      "registered PRs, and no question still owed an answer.\n\nSo there is nothing to wait on: an ```awaiting fence " +
-      "would have nothing to name, and a fence naming nothing is not a park. End with ```done, or " +
-      "register a question with `ntwinectl ask` if you need the user." + idleBlock + passedOverBlock + linksBlock
+      "registered PRs, and no question still owed an answer.\n\nSo nothing of your own is left to wait on. " +
+      "An ```awaiting fence still parks on the USER with `steps:` (an act only they can perform)" +
+      (machines ? " or `machine:` (a move to another machine, below)" : "") +
+      ", which name no item; otherwise a fence would have nothing to name, and a fence naming nothing is " +
+      "not a park. End with ```done, or register a question with `ntwinectl ask` if you need the user." +
+      idleBlock + passedOverBlock + machinesBlock + linksBlock
     )
   }
   const lines = items.map((i) => {
@@ -1638,7 +1653,7 @@ async function activity() {
     "```\n\nDrop the lines you are not actually waiting on — a dev server you left running is not a wait." +
     "\n\nA `ntwinectl watch` registration (marked `[watched as …]` above) keeps the WAKE across a compaction and a " +
     "restart, but it does not replace the fence: name the work in the fence all the same." +
-    idleBlock + askedBlock + linksBlock
+    idleBlock + askedBlock + machinesBlock + linksBlock
   )
 }
 

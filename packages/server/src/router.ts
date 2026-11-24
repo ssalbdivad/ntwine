@@ -234,6 +234,7 @@ import { appServerTurnStalled, registeredDoneFence, resolveLiveWatchTarget, reso
 import { runThreadUpdate } from "./ntwine.ts"
 import { repairThreadFile } from "./repair.ts"
 import { reopenArchivedThreadForFollowUp, resumeThread, wakeParkedThreadForFollowUp } from "./resume.ts"
+import { pairedMachines } from "./peer-service.ts"
 import { appendDelivery, beginDelivery, cancelDelivery, deliverOutstandingDeliveries, deliveryItem, dismissFailedDelivery, dropHeldDelivery, heldDeliveries, holdDelivery, parseDeliveryLedger, recordDeliveryFailure, retireOutstandingDeliveries, type DeliveryState } from "./delivery-ledger.ts"
 import { noteSubAgentsEndedByInterrupt, runningSubAgentsOf } from "./interrupt-ended.ts"
 import {
@@ -4807,7 +4808,9 @@ export function createRouter(ctx: AppContext) {
         // The WATCHES are already readable: each armed one rides its live item as `watchId`, and the
         // scheduler settles a watch the tick its target stops being live, so an armed row always has an
         // item to ride. The QUESTIONS had nowhere at all — hence their own list.
-        return { ...(directory.threadHandle ? { handle: directory.threadHandle } : {}), activity, questions: openQuestionViews(input.slug), links: ctx.storage.listThreadLinks(input.slug).map(threadLinkView) }
+        // The paired machines, so a worker reading this before a move sees the names `machine:` takes.
+        const machines = pairedMachines()
+        return { ...(directory.threadHandle ? { handle: directory.threadHandle } : {}), activity, questions: openQuestionViews(input.slug), links: ctx.storage.listThreadLinks(input.slug).map(threadLinkView), ...(machines ? { machines } : {}) }
       },
     }),
 

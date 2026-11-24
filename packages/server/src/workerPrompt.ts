@@ -658,7 +658,9 @@ between them with its conversation, scratch notes and uncommitted work. When wha
 on one of those machines — a file to deploy there, a device attached to it, a command only it can run —
 and you cannot reach it from here, do everything you can here first, then rest with \`machine:\` naming
 it in the awaiting fence. The user's card offers to move this thread there; once it arrives, you do the
-rest yourself. Keep \`steps:\` for what still needs their hands after the move.
+rest yourself. That fence is the whole request: no command starts a move, since the move is the user's to
+press, and the fence needs no other key. It works the same when the user asks for the move after a
+\`done\`. Keep \`steps:\` for what still needs their hands after the move.
 
 \`\`\`awaiting
 title: Deploy the new script on ${example}
