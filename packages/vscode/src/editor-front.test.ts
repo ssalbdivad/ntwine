@@ -114,6 +114,9 @@ test("a diff's old side names the working file; a buffer with no file behind it 
   assert.equal(diskPath(at("file", "/repo/a.ts")), "/repo/a.ts")
   assert.equal(diskPath(at("git", "/repo/a.ts")), "/repo/a.ts")
   assert.equal(diskPath(at("ntwine-base", "/repo/a.ts")), "/repo/a.ts")
+  assert.equal(diskPath(at("pr", "/repo/a.ts")), "/repo/a.ts")
+  assert.equal(diskPath(at("review", "/repo/a.ts")), "/repo/a.ts")
+  assert.equal(diskPath(at("pr", "")), undefined)
   assert.equal(diskPath(at("untitled", "Untitled-1")), undefined)
   assert.equal(diskPath(at("output", "extension-output-1")), undefined)
   // GitLens: the repository in the authority (hex of its JSON), the path absolute or from the repository's root.
@@ -123,6 +126,16 @@ test("a diff's old side names the working file; a buffer with no file behind it 
   assert.equal(diskPath(gitlens("/src/a.ts", hex({ ref: "abc123", repoPath: "/repo" }))), "/repo/src/a.ts")
   assert.equal(diskPath(gitlens("/repository/a.ts", hex({ ref: "abc123", repoPath: "/repo" }))), "/repo/repository/a.ts")
   assert.equal(diskPath(gitlens("/src/a.ts", "not-hex")), undefined)
+  // GitHub Pull Requests commit diffs (`githubcommit:`): repo-relative path resolved against workspace folders.
+  const ghCommit = (path: string, query?: string) => ({ ...at("githubcommit", path), ...(query === undefined ? {} : { query }) })
+  const query = JSON.stringify({ commit: "abc123", owner: "acme", repo: "app" })
+  assert.equal(diskPath(ghCommit("/src/a.ts", query), ["/ws/my-app"]), "/ws/my-app/src/a.ts")
+  assert.equal(diskPath(ghCommit("/src/a.ts", query), ["/ws/other", "/ws/App"]), "/ws/App/src/a.ts")
+  assert.equal(diskPath(ghCommit("/src/a.ts", query), ["/ws/a/app", "/ws/b/app"]), undefined)
+  assert.equal(diskPath(ghCommit("/src/a.ts", query), ["/ws/one", "/ws/two"]), undefined)
+  assert.equal(diskPath(ghCommit("/src/a.ts", query), []), undefined)
+  assert.equal(diskPath(ghCommit("/../etc/passwd", query), ["/ws/app"]), undefined)
+  assert.equal(diskPath(ghCommit("/", query), ["/ws/app"]), undefined)
 })
 
 test("secret files, by name", () => {

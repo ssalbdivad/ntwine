@@ -32,6 +32,8 @@ export interface UriLike {
   path: string
   /** Read only for a `gitlens:` revision, whose authority names its repository. */
   authority?: string
+  /** Read only for a `githubcommit:` revision, whose JSON query names its repository. */
+  query?: string
 }
 
 /** A range as the document's own API made it — VS Code's `getText` refuses a plain `{ start, end }`. */
@@ -70,20 +72,45 @@ export function readableUri(uri: UriLike): boolean {
 }
 
 /**
- * Documents that stand for a file on disk at another version — the old side of a diff: VS Code's git
- * extension (`git:`, a staged diff's both sides) and the review's base (`ntwine-base:`, review.ts). Each
- * keeps the file's own path as its URI path, so a selection there can name the file it came from.
+ * Documents that stand for a file on disk at another version — diff sides that carry the file's own path on
+ * disk as their URI path: VS Code's git extension (`git:`), the review's base (`ntwine-base:`, review.ts),
+ * and GitHub Pull Requests (`pr:` for both sides of a non-checked-out PR diff, `review:` for a checked-out
+ * PR's base or deleted-file sides). Each keeps the file's path as `fsPath`, so a selection there can name
+ * the working file it came from.
  */
-const FILE_VERSION_SCHEMES = new Set(["git", "ntwine-base"])
+const FILE_VERSION_SCHEMES = new Set(["git", "ntwine-base", "pr", "review"])
 
 /**
  * The file on disk a document is about: a file's own path, or the working file behind a diff side. The
- * selection's text and lines are that version's, which is what the human selected.
+ * selection's text and lines are that version's, which is what the human selected. `roots` are the window's
+ * workspace folders, consulted only for schemes whose URI path is repo-relative (`githubcommit:`).
  */
-export function diskPath(uri: UriLike): string | undefined {
-  if (uri.scheme === "file" || FILE_VERSION_SCHEMES.has(uri.scheme)) return uri.fsPath
+export function diskPath(uri: UriLike, roots: readonly string[] = []): string | undefined {
+  if (uri.scheme === "file" || FILE_VERSION_SCHEMES.has(uri.scheme)) return uri.fsPath || undefined
   if (uri.scheme === "gitlens") return gitlensPath(uri)
+  if (uri.scheme === "githubcommit") return githubCommitPath(uri, roots)
   return undefined
+}
+
+/**
+ * A GitHub Pull Requests commit-diff revision (`githubcommit:`, used when a PR's commits are not available
+ * locally): `path` is `/<repo-relative-path>` and `query` is JSON `{"commit", "owner", "repo"}`. Resolved
+ * against the sole workspace folder, or in a multi-root workspace the unique folder matching `repo`.
+ */
+function githubCommitPath(uri: UriLike, roots: readonly string[]): string | undefined {
+  const segments = uri.path.replace(/^\/+/u, "").split("/").filter(Boolean)
+  if (!segments.length || segments.some((segment) => segment === "..") || !roots.length) return undefined
+  if (roots.length === 1) return join(roots[0]!, ...segments)
+  let repo: unknown
+  try {
+    repo = (JSON.parse(uri.query ?? "") as { repo?: unknown }).repo
+  } catch {
+    return undefined
+  }
+  if (typeof repo !== "string" || !repo) return undefined
+  const want = repo.toLowerCase()
+  const matches = roots.filter((root) => basename(root.replace(/\\/gu, "/")).toLowerCase() === want)
+  return matches.length === 1 ? join(matches[0]!, ...segments) : undefined
 }
 
 /**
