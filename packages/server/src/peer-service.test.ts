@@ -8,6 +8,7 @@ import { moveLogOf } from "@ntwine/shared"
 import type { RequestOrigin } from "./audit.ts"
 import type { AppContext } from "./context.ts"
 import { openNtwineDatabase } from "./ntwine-db.ts"
+import Database from "./sqlite.ts"
 import { createPeerService, PEER_ROUTE_PREFIX, remoteIdentity, type PeerService } from "./peer-service.ts"
 import { ENVELOPE_MAGIC, frameMessage, generatePeerKey, openRequest, sealRequest, unframeMessage, type PeerKeyPair } from "./peer-crypto.ts"
 import { loadOrCreatePeerKey, openPeerStore, peerKeyPath } from "./peer-store.ts"
@@ -426,5 +427,107 @@ describe("resuming a thread on the machine it left", () => {
     assert.deepEqual(history(mac), ["mac > desktop", "desktop > mac"])
     assert.deepEqual(history(desktop), ["mac > desktop", "desktop > mac"])
     await assert.rejects(macPeers.recall(mac.ctx, "fix-parser"), { message: "This thread is already on this machine" })
+  })
+})
+
+describe("moving an Antigravity thread and gating non-Claude resting checks through PeerService", () => {
+  const sid = "7b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+  const convId = "8b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+
+  function side(name: string) {
+    const home = join(root, `agy-peer-${name}`)
+    const dir = repoProject(`agy-peer-${name}`)
+    const stateDir = join(home, "state")
+    mkdirSync(stateDir, { recursive: true })
+    const db = openNtwineDatabase({ path: join(home, "ui.db") })
+    after(() => db.db.close())
+    const storage = createStorage(db.db, `proj-${name}`)
+    const state = { turnActive: false, alive: true, released: 0, codexBusy: false }
+    const ctx: AppContext = {
+      project: { id: `proj-${name}`, name: "app", dir, workDir: dir, stateDir },
+      storage,
+      tailer: { get: () => ({ turn: "idle", subAgents: [], bgShells: [] }), nudge: () => {} },
+      board: { rebuild: async () => {}, refresh: () => {} },
+      acpBridge: {
+        turnLiveness: () => ({ sessionLive: state.alive, turnActive: state.turnActive, queued: 0 }),
+        isAgentAlive: () => state.alive,
+        releaseSession: () => { state.released++; state.alive = false },
+      },
+      codexAppServer: {
+        turnLiveness: () => ({ bridgeTurn: state.codexBusy }),
+        backgroundExecs: () => [],
+      },
+    } as never
+    return { name, home, dir, stateDir, storage, ctx, state, key: loadOrCreatePeerKey(home), url: `http://agy-peer-${name}.test` }
+  }
+
+  const mac = side("mac")
+  const desktop = side("desktop")
+  const pair = (on: typeof mac, other: typeof mac) =>
+    openPeerStore(join(on.home, "peers.json")).upsert({ name: other.name, url: other.url, publicKey: other.key.publicKey.toString("base64url"), pairedAt: new Date().toISOString() }).id
+  const desktopId = pair(mac, desktop)
+  pair(desktop, mac)
+  const serve = (s: typeof mac) => {
+    const created = createPeerService({ home: s.home, name: s.name, fetch: loopFetch, startListener: false, storePath: join(s.home, "peers.json"), workspaces: () => [{ id: s.ctx.project.id, path: s.dir }], openProject: async () => s.ctx })
+    services.set(s.url, created)
+    return created
+  }
+  const macPeers = serve(mac)
+  serve(desktop)
+
+  mac.storage.upsertSession({
+    slug: "ultrawide-freeze", session_id: sid, thread_name: "ntwine-ultrawide-freeze", spawned_at: "2026-11-23T10:00:00.000Z",
+    last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: "2026-11-23T10:05:00.000Z", title_auto: 0,
+    title: "Ultrawide freeze", state: "open", meta: null, seen_at: null, transcript_id: null,
+  })
+  mac.storage.setBackend("ultrawide-freeze", "acp")
+  mac.storage.setAcpAgent("ultrawide-freeze", "antigravity")
+  mac.storage.setAgentSession("ultrawide-freeze", convId)
+  mkdirSync(join(mac.stateDir, "acp"), { recursive: true })
+  writeFileSync(join(mac.stateDir, "acp", `${sid}.jsonl`), `${JSON.stringify({ kind: "acp-session", at: "2026-11-23T10:00:00.000Z", agent: { id: "antigravity" }, acpSessionId: convId, cwd: mac.dir })}\n`)
+  const agyConvDir = join(mac.home, ".gemini", "antigravity-cli", "conversations")
+  mkdirSync(agyConvDir, { recursive: true })
+  const convDb = new Database(join(agyConvDir, `${convId}.db`))
+  convDb.exec("CREATE TABLE trajectory_metadata_blob (id TEXT PRIMARY KEY, data BLOB)")
+  convDb.close()
+
+  it("refuses while the ACP turn is active, releases the live ACP daemon on pack, moves and recalls cleanly", async () => {
+    mac.state.turnActive = true
+    assert.equal((await macPeers.preview(mac.ctx, "ultrawide-freeze", desktopId)).refusal, "Wait for the thread to come to rest")
+    mac.state.turnActive = false
+
+    const moved = await macPeers.move(mac.ctx, "ultrawide-freeze", desktopId)
+    assert.equal(moved.slug, "ultrawide-freeze")
+    assert.equal(mac.state.released, 1, "stopped the resting ACP daemon before reading its SQLite db")
+    assert.equal(desktop.storage.getSession("ultrawide-freeze")?.agent_session_id, convId)
+
+    const back = await macPeers.recall(mac.ctx, "ultrawide-freeze")
+    assert.equal(back.slug, "ultrawide-freeze")
+    assert.equal(mac.storage.getSession("ultrawide-freeze")?.moved_to, null)
+  })
+
+  it("refuses unsupported ACP agents and refuses a Codex thread with a live bridge turn", async () => {
+    mac.storage.upsertSession({
+      slug: "opencode-t", session_id: "9b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b", thread_name: "ntwine-opencode-t",
+      spawned_at: "2026-11-23T10:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0,
+      rested_at: "2026-11-23T10:05:00.000Z", title_auto: 0, title: "OpenCode", state: "open",
+      meta: null, seen_at: null, transcript_id: null,
+    })
+    mac.storage.setBackend("opencode-t", "acp")
+    mac.storage.setAcpAgent("opencode-t", "opencode")
+    mac.storage.setAgentSession("opencode-t", "ses_1")
+    assert.equal((await macPeers.preview(mac.ctx, "opencode-t", desktopId)).refusal, "Only Claude, Codex and Antigravity threads can move to another machine for now")
+
+    mac.storage.upsertSession({
+      slug: "codex-busy", session_id: "ab6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b", thread_name: "ntwine-codex-busy",
+      spawned_at: "2026-11-23T10:00:00.000Z", last_read_at: null, unread: 0, exited: 0, archived: 0,
+      rested_at: "2026-11-23T10:05:00.000Z", title_auto: 0, title: "Codex", state: "open",
+      meta: null, seen_at: null, transcript_id: null,
+    })
+    mac.storage.setBackend("codex-busy", "codex")
+    mac.storage.setCodexRuntime("codex-busy", "app-server")
+    mac.storage.setAgentSession("codex-busy", "019f4e0a-42cb-7891-9cbf-325e93ae587c")
+    mac.state.codexBusy = true
+    assert.equal((await macPeers.preview(mac.ctx, "codex-busy", desktopId)).refusal, "Wait for the thread to come to rest")
   })
 })

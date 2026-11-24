@@ -78,8 +78,25 @@ test("acp-transcript: the drawer projection — user bubble, reasoning, one assi
   ])
   assert.equal(a.tools[1]!.command, "cat hello.txt")
   assert.equal(a.tools[0]!.command, undefined)
+  assert.deepEqual(a.tools[0]!.edit, { file: "/tmp/p/hello.txt", old: "", new: "hi" })
   assert.match(a.tools[0]!.input ?? "", /hello\.txt/)
   assert.equal(msgs[3]!.text, "Now delete it.")
+})
+
+test("acp-transcript: Antigravity edit_file and run_command inputs expose edit and command fields", () => {
+  const recs: AcpRecord[] = [
+    { kind: "user-message", at: T(1), text: "edit and run", synthetic: false },
+    { kind: "turn-start", at: T(1) },
+    { kind: "tool-call", at: T(2), id: "c1", name: "Edit app.ts", input: { Path: "/tmp/p/app.ts", Target: "old", Replacement: "new" }, acp: { kind: "edit", title: "Edit app.ts", locations: ["/tmp/p/app.ts"] } },
+    { kind: "tool-result", at: T(3), id: "c1", text: "ok" },
+    { kind: "tool-call", at: T(4), id: "c2", name: "Create worktree", input: { CommandLine: "git worktree add .ntwine/worktrees/feat -b feat" }, acp: { kind: "execute", title: "Create worktree" } },
+    { kind: "tool-result", at: T(5), id: "c2", text: "ok" },
+    { kind: "turn-end", at: T(6), finalText: "done", successful: true },
+  ]
+  const msgs = projectAcpTranscript(recs.map((r) => JSON.stringify(r)).join("\n"))
+  const tools = msgs[1]!.tools
+  assert.deepEqual(tools[0]!.edit, { file: "/tmp/p/app.ts", old: "old", new: "new" })
+  assert.equal(tools[1]!.command, "git worktree add .ntwine/worktrees/feat -b feat")
 })
 
 test("acp-transcript: a provider error closes the assistant message with the error attached; a synthetic user record is a wake", () => {

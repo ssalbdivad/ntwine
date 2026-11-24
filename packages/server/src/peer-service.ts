@@ -49,14 +49,16 @@ import {
   type PeerStore,
 } from "./peer-store.ts"
 import { cwdSlug, workDirOf } from "./project.ts"
-import { isBrokerClaudeRow, isHeldRow, type SessionRow } from "./storage.ts"
-import { hibernationVerdict, type HibernationBlock } from "./thread-hibernation.ts"
-import { newestTranscriptCwd } from "./thread-cwd.ts"
+import { isHeldRow, type SessionRow } from "./storage.ts"
+import { restingBlock, type RestingBlock } from "./thread-hibernation.ts"
+import { leadingCd, newestTranscriptCwd, resolveThreadWorkingDir } from "./thread-cwd.ts"
 import { BundleError, unpackBundle } from "./thread-bundle.ts"
 import {
   exportThread,
   importThread,
+  manifestMovableBackend,
   markMovedAway,
+  movableBackendOf,
   setMovedTo,
   movedAwayBlock,
   movedStamp,
@@ -64,6 +66,7 @@ import {
   parseManifest,
   pendingWakes,
   slugStanding,
+  UNSUPPORTED_MOVE_BACKEND_REFUSAL,
   type MoveGit,
 } from "./thread-move.ts"
 import { readThreadTranscript } from "./transcript.ts"
@@ -99,6 +102,8 @@ export interface PeerServiceDeps {
   name?: string
   fetch?: typeof fetch
   storePath?: string
+  agyHome?: string
+  codexHome?: string
   /** Start the network listener when the saved setting says so. Off in tests unless asked. */
   startListener?: boolean
 }
@@ -179,7 +184,7 @@ export function remoteIdentities(dir: string): string[] {
 
 // ---- the resting check, in the operator's words ----
 
-const RESTING_BLOCKS: Partial<Record<HibernationBlock, string>> = {
+const RESTING_BLOCKS: Record<RestingBlock, string> = {
   "no-telemetry": "This thread's state cannot be read yet; try again in a moment",
   "no-transcript": "This thread has no transcript to move yet",
   "turn-in-flight": "Wait for the thread to come to rest",
@@ -408,21 +413,25 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     const away = ownMove ? movedAwayBlock(row.moved_to) : blocked(ctx.project.id, row)
     if (away) return away
     if (isHeldRow(row)) return "Start this thread before moving it"
-    if (!isBrokerClaudeRow(row)) return "Only a Claude thread can move to another machine for now"
+    const movable = movableBackendOf(row)
+    if (!movable) return UNSUPPORTED_MOVE_BACKEND_REFUSAL
+    if (movable === "antigravity" && !row.agent_session_id) return "This thread has no Antigravity conversation to move yet"
+    if (movable === "codex" && !row.agent_session_id) return "This thread has no Codex rollout to move yet"
     if (workDirOf(ctx.project) !== ctx.project.dir) return "A thread in Home cannot move: Home is not a repository both machines share"
-    // The hibernation gate without its memory clauses: nothing running, nothing owed to the worker.
-    // An archived or stopped row is still a resting thread here, so it is read as an open one.
+    // The resting gate, backend-neutral: nothing running, nothing owed to the worker.
     let pendingInteractions = 1
     try {
       pendingInteractions = ctx.storage.interactions.listPending({ projectId: ctx.project.id, threadSlug: row.slug, sessionId: row.session_id }).length
     } catch { /* keep the refusal */ }
-    const verdict = hibernationVerdict(
-      { slug: row.slug, sessionId: row.session_id, row: { ...row, state: "open", archived: 0, exited: 0 }, telemetry: ctx.tailer.get(row.slug), pendingInteractions, daemonStartedAtMs: 0 },
-      { nowMs: Date.now(), idleMs: 0, minDaemonAgeMs: 0 },
-    )
-    if (!verdict.hibernate) {
-      const refusal = RESTING_BLOCKS[verdict.blockedBy]
-      if (refusal) return refusal
+    const block = restingBlock({ row, telemetry: ctx.tailer.get(row.slug), pendingInteractions })
+    if (block) return RESTING_BLOCKS[block]
+    if (movable === "antigravity") {
+      const live = ctx.acpBridge?.turnLiveness(row.slug, row.session_id)
+      if (live && (live.turnActive || live.queued > 0)) return RESTING_BLOCKS["turn-in-flight"]
+    }
+    if (movable === "codex") {
+      if (ctx.codexAppServer?.turnLiveness(row.slug, row.session_id)?.bridgeTurn) return RESTING_BLOCKS["turn-in-flight"]
+      if ((ctx.codexAppServer?.backgroundExecs(row.slug, row.session_id).length ?? 0) > 0) return RESTING_BLOCKS["background-shells"]
     }
     if (pendingWakes(ctx.storage.db, ctx.project.id, row.slug) > 0) return "A message is on its way to the worker; wait for it to land"
     return undefined
@@ -454,11 +463,30 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
   function planGit(ctx: AppContext, row: SessionRow, bucket: string, peerName: string): GitPlan | { refused: string } | undefined {
     const workDir = workDirOf(ctx.project)
     if (!existsSync(join(workDir, ".git"))) return undefined
-    const transcript = join(deps.home, ".claude", "projects", bucket, `${row.transcript_id ?? row.session_id}.jsonl`)
-    const cwd = (existsSync(transcript) ? newestTranscriptCwd(transcript) : undefined) ?? workDir
+    const messages = readThreadTranscript(ctx.project, ctx.storage, row.slug, ctx.backendFor)
+    let cwd = workDir
+    if (row.backend === "claude" || !row.backend) {
+      const transcript = join(deps.home, ".claude", "projects", bucket, `${row.transcript_id ?? row.session_id}.jsonl`)
+      cwd = (existsSync(transcript) ? newestTranscriptCwd(transcript) : undefined) ?? workDir
+    } else if (row.backend === "codex") {
+      cwd = resolveThreadWorkingDir({
+        projectDir: workDir,
+        backend: "codex",
+        codexMessages: () => messages,
+        sessionCwd: ctx.codexAppServer?.binding(row.slug, row.session_id)?.cwd,
+      }).dir
+    } else if (row.backend === "acp") {
+      for (let m = messages.length - 1; m >= 0 && cwd === workDir; m--) {
+        const tools = messages[m]!.tools ?? []
+        for (let t = tools.length - 1; t >= 0; t--) {
+          const target = leadingCd(tools[t]!.command, workDir)
+          if (target && existsSync(target)) { cwd = target; break }
+        }
+      }
+    }
     // Every file it wrote, oldest first: they say which checkout its work is in when its cwd does not, and
     // in the shared main checkout they are the only files that move.
-    const editedPaths = editedFilesOf(readThreadTranscript(ctx.project, ctx.storage, row.slug, ctx.backendFor), workDir)
+    const editedPaths = editedFilesOf(messages, workDir)
       .map((file) => (isAbsolute(file.path) ? file.path : join(workDir, file.path)))
     const { location, elsewhere } = threadCheckout({ cwd, mainCheckout: workDir, editedPaths })
     if ("refused" in location) return location
@@ -506,9 +534,16 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
    * it, its checkout. Both ways a thread leaves pack this way: a move sends the pack, a recall answers with it.
    */
   async function pack(ctx: AppContext, row: SessionRow, record: PeerRecord, moveId: string, workRoot: string): Promise<Packed> {
-    // Stop the resting worker so nothing writes to the transcript while it is copied. Its next input
-    // would cold-resume it from disk anyway; here there will be no next input.
-    if (ctx.claudeBroker?.retireDaemon({ threadSlug: row.slug, sessionId: row.session_id })) {
+    // Stop the resting worker so nothing writes to its transcript or database while it is copied.
+    // Its next input would cold-resume it from disk anyway; here there will be no next input.
+    if (row.backend === "acp") {
+      if (ctx.acpBridge?.isAgentAlive(row.slug, row.session_id)) {
+        ctx.acpBridge.releaseSession(row.slug, row.session_id, "session-deleted")
+        for (let waited = 0; waited < 5_000 && ctx.acpBridge.isAgentAlive(row.slug, row.session_id); waited += 100) {
+          await new Promise((done) => setTimeout(done, 100))
+        }
+      }
+    } else if (ctx.claudeBroker?.retireDaemon({ threadSlug: row.slug, sessionId: row.session_id })) {
       for (let waited = 0; waited < 5_000 && ctx.claudeBroker.isDaemonAlive(row.session_id); waited += 100) await new Promise((done) => setTimeout(done, 100))
     }
     const bucket = transcriptBucket(ctx, row.session_id)
@@ -528,6 +563,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       home: deps.home,
       moveId,
       git: gitPayload,
+      ...(deps.agyHome ? { agyHome: deps.agyHome } : {}),
+      ...(deps.codexHome ? { codexHome: deps.codexHome } : {}),
     })
     return { git, exported }
   }
@@ -756,10 +793,17 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       if (!manifest || manifest.moveId !== moveId) throw new Error("the thread's bundle is malformed")
       if (asked && (manifest.thread.slug !== asked.slug || manifest.thread.sessionId !== asked.sessionId)) throw new Error(`${peer.name} answered with a different thread`)
       slug = manifest.thread.slug
-      if (manifest.thread.backend !== "claude") throw new Error("Only a Claude thread can move to another machine for now")
+      if (!manifestMovableBackend(manifest.thread)) throw new Error(UNSUPPORTED_MOVE_BACKEND_REFUSAL)
       const workDir = workDirOf(ctx.project)
       const result = importThread(
-        { scope: ctx.storage.scope, project: { dir: ctx.project.dir, workDir, stateDir: ctx.project.stateDir }, home: deps.home, bucket: cwdSlug(workDir) },
+        {
+          scope: ctx.storage.scope,
+          project: { dir: ctx.project.dir, workDir, stateDir: ctx.project.stateDir },
+          home: deps.home,
+          bucket: cwdSlug(workDir),
+          ...(deps.agyHome ? { agyHome: deps.agyHome } : {}),
+          ...(deps.codexHome ? { codexHome: deps.codexHome } : {}),
+        },
         manifest,
         unpacked.files,
         { id: peer.id, name: peer.name },

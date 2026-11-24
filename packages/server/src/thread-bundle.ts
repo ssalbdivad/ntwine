@@ -8,8 +8,8 @@ import { isAbsolute, normalize } from "node:path"
 // dependency, and every path in it is checked against the root it names before anything is written.
 
 /** Which directory on the destination a file is relative to. */
-export type BundleRoot = "claude" | "scratch" | "attachments" | "git"
-export const BUNDLE_ROOTS: readonly BundleRoot[] = ["claude", "scratch", "attachments", "git"]
+export type BundleRoot = "claude" | "acp" | "agy" | "codex" | "scratch" | "attachments" | "git"
+export const BUNDLE_ROOTS: readonly BundleRoot[] = ["claude", "acp", "agy", "codex", "scratch", "attachments", "git"]
 
 export interface BundleFile {
   root: BundleRoot

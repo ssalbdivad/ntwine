@@ -75,12 +75,8 @@ export interface HibernationCandidate {
   daemonStartedAtMs: number
 }
 
-/** Why a thread was left alone. A string rather than an enum because its only consumer is the log line
- *  an operator greps when they ask why nothing is being reclaimed. */
-export type HibernationBlock =
-  | "not-a-broker-thread"
-  | "archived"
-  | "stopped"
+/** Why a thread is not at rest right now (shared by hibernation and thread-move across every backend). */
+export type RestingBlock =
   | "no-telemetry"
   | "no-transcript"
   | "turn-in-flight"
@@ -89,9 +85,50 @@ export type HibernationBlock =
   | "sub-agents"
   | "background-shells"
   | "undelivered-input"
+
+/** Why a thread was left alone. A string rather than an enum because its only consumer is the log line
+ *  an operator greps when they ask why nothing is being reclaimed. */
+export type HibernationBlock =
+  | "not-a-broker-thread"
+  | "archived"
+  | "stopped"
+  | RestingBlock
   | "daemon-too-young"
   | "no-activity-timestamp"
   | "not-idle-long-enough"
+
+export type RestingCandidate = Pick<HibernationCandidate, "row" | "telemetry" | "pendingInteractions">
+
+/** Fail-closed resting predicate, backend-neutral: undefined only when nothing is running or owed. */
+export function restingBlock(candidate: RestingCandidate): RestingBlock | undefined {
+  const { row, telemetry: tele } = candidate
+  // No state is not evidence of no work. On 2026-08-06 a 566 MB transcript could not be primed, the
+  // tailer held NO state for the busiest thread on the machine, a guard read that absence as "nothing
+  // running", and retiring the daemon killed seven sub-agents whose reports were never delivered. That
+  // is this exact class of decision, and it is why absence refuses here.
+  if (!tele) return "no-telemetry"
+  // The transcript never materialized, so there is nothing for resume to read back.
+  if (tele.noTranscript) return "no-transcript"
+  if (tele.turn !== "idle") return "turn-in-flight"
+  // Each of these is the daemon holding a promise open for a person. The turn check above already
+  // covers them in practice (a blocked tool call keeps the turn in flight by construction); they are
+  // asked again because "in practice" is not the standard this decision is held to.
+  if (tele.permPrompt || tele.pendingAsk) return "awaiting-a-human"
+  if (candidate.pendingInteractions > 0) return "pending-approval"
+  // DIRECT children only, matching every other thread-state predicate — a descendant always sits under
+  // a direct child, so reading the top level loses nothing. Any state counts, unlike the queue rules.
+  if (tele.subAgents.some(isDirectSubAgent)) return "sub-agents"
+  if (tele.bgShells.length > 0) return "background-shells"
+  // A send ntwine has accepted but not yet watched land is text sitting in the DAEMON'S queue. Killing
+  // the process throws it away, and the ledger row would go on claiming for an hour that the provider
+  // holds it — the exact failure the dropped-input diagnostic exists to prevent, caused by ntwine itself.
+  // A write-ahead `sending` send is a delivery (often a cold resume) in progress right now. A `failed`
+  // one does NOT hold the daemon: its words are in the ledger, not the process.
+  if (parseDeliveryLedger(row.delivery_ledger).some((d) => d.state === "sending" || d.state === "pending" || d.state === "enqueued" || d.state === "unconfirmed")) {
+    return "undelivered-input"
+  }
+  return undefined
+}
 
 export type HibernationVerdict = { hibernate: true; idleMs: number } | { hibernate: false; blockedBy: HibernationBlock }
 
@@ -147,36 +184,12 @@ export function hibernationVerdict(
   if (row.state === "archived" || row.archived === 1) return { hibernate: false, blockedBy: "archived" }
   if (row.exited === 1) return { hibernate: false, blockedBy: "stopped" }
 
-  // No state is not evidence of no work. On 2026-08-06 a 566 MB transcript could not be primed, the
-  // tailer held NO state for the busiest thread on the machine, a guard read that absence as "nothing
-  // running", and retiring the daemon killed seven sub-agents whose reports were never delivered. That
-  // is this exact class of decision, and it is why absence refuses here.
-  if (!tele) return { hibernate: false, blockedBy: "no-telemetry" }
-  // The transcript never materialized, so there is nothing for `resume: true` to read back. Hibernating
-  // this thread would not park it — it would strand it.
-  if (tele.noTranscript) return { hibernate: false, blockedBy: "no-transcript" }
-  if (tele.turn !== "idle") return { hibernate: false, blockedBy: "turn-in-flight" }
-  // Each of these is the daemon holding a promise open for a person. The turn check above already
-  // covers them in practice (a blocked tool call keeps the turn in flight by construction); they are
-  // asked again because "in practice" is not the standard this decision is held to.
-  if (tele.permPrompt || tele.pendingAsk) return { hibernate: false, blockedBy: "awaiting-a-human" }
-  if (candidate.pendingInteractions > 0) return { hibernate: false, blockedBy: "pending-approval" }
-  // DIRECT children only, matching every other thread-state predicate — a descendant always sits under
-  // a direct child, so reading the top level loses nothing. Any state counts, unlike the queue rules.
-  if (tele.subAgents.some(isDirectSubAgent)) return { hibernate: false, blockedBy: "sub-agents" }
-  if (tele.bgShells.length > 0) return { hibernate: false, blockedBy: "background-shells" }
-  // A send ntwine has accepted but not yet watched land is text sitting in the DAEMON'S queue. Killing
-  // the process throws it away, and the ledger row would go on claiming for an hour that the provider
-  // holds it — the exact failure the dropped-input diagnostic exists to prevent, caused by ntwine itself.
-  // A write-ahead `sending` send is a delivery (often a cold resume) in progress right now. A `failed`
-  // one does NOT hold the daemon: its words are in the ledger, not the process.
-  if (parseDeliveryLedger(row.delivery_ledger).some((d) => d.state === "sending" || d.state === "pending" || d.state === "enqueued" || d.state === "unconfirmed")) {
-    return { hibernate: false, blockedBy: "undelivered-input" }
-  }
+  const blockedBy = restingBlock(candidate)
+  if (blockedBy) return { hibernate: false, blockedBy }
   const minDaemonAge = opts.minDaemonAgeMs ?? HIBERNATE_MIN_DAEMON_AGE_MS
   if (!(opts.nowMs - candidate.daemonStartedAtMs >= minDaemonAge)) return { hibernate: false, blockedBy: "daemon-too-young" }
 
-  const last = lastActivityMs(tele)
+  const last = lastActivityMs(tele!)
   if (Number.isNaN(last)) return { hibernate: false, blockedBy: "no-activity-timestamp" }
   const idle = opts.nowMs - last
   if (idle < opts.idleMs) return { hibernate: false, blockedBy: "not-idle-long-enough" }

@@ -104,3 +104,12 @@ test("a file no longer on disk is not a row, whether a shell write or an Edit na
 test("without a project dir the shell reading is off entirely", () => {
   assert.deepEqual(editedFilesOf([msg("t", bash("cat > a.md"))]), [])
 })
+
+test("shell commands from ACP/Antigravity tools (non-Bash title with tool.command) reach the edited-files list", () => {
+  const out = editedFilesOf(
+    [msg("t1", { name: "Write notes", detail: "echo hi > notes/todo.txt", command: "echo hi > notes/todo.txt" })],
+    "/p/nub",
+    allPresent,
+  )
+  assert.deepEqual(out.map((f) => f.path), ["/p/nub/notes/todo.txt"])
+})

@@ -50,6 +50,13 @@ function rewriteRefs(value: string, refs: readonly PrefixMap[]): string {
 
 const SIGNED_BLOCKS = new Set(["thinking", "redacted_thinking"])
 
+function isProtectedBlock(record: Record<string, unknown>): boolean {
+  if (typeof record.type !== "string") return false
+  if (SIGNED_BLOCKS.has(record.type)) return true
+  // Codex encrypted reasoning payloads are opaque signed ciphertext; never touch them.
+  return record.type === "reasoning" && typeof record.encrypted_content === "string"
+}
+
 function walk(value: unknown, refs: readonly PrefixMap[]): { value: unknown; changed: boolean } {
   if (typeof value === "string") {
     const next = rewriteRefs(value, refs)
@@ -66,7 +73,7 @@ function walk(value: unknown, refs: readonly PrefixMap[]): { value: unknown; cha
   }
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>
-    if (typeof record.type === "string" && SIGNED_BLOCKS.has(record.type)) return { value, changed: false }
+    if (isProtectedBlock(record)) return { value, changed: false }
     let changed = false
     const next: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(record)) {
@@ -98,6 +105,17 @@ export function relocateRecord(text: string, rules: RelocationRules): string {
     if (cwd !== record.cwd) {
       record = { ...record, cwd }
       changed = true
+    }
+  }
+  // Codex stores the session's working folder on `session_meta.payload.cwd` and `turn_context.payload.cwd`.
+  if ((record.type === "session_meta" || record.type === "turn_context") && record.payload && typeof record.payload === "object" && !Array.isArray(record.payload)) {
+    const payload = record.payload as Record<string, unknown>
+    if (typeof payload.cwd === "string") {
+      const cwd = mapPrefix(payload.cwd, rules.cwd)
+      if (cwd !== payload.cwd) {
+        record = { ...record, payload: { ...payload, cwd } }
+        changed = true
+      }
     }
   }
   const walked = walk(record, rules.refs)

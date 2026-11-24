@@ -867,7 +867,7 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
   // one agent that cannot be reached must never hold up (or fail) a boot.
   void acpBridge.warmUp(
     storage.allSessions()
-      .filter((row) => row.backend === "acp" && row.state !== "archived" && row.archived !== 1)
+      .filter((row) => row.backend === "acp" && row.state !== "archived" && row.archived !== 1 && !row.moved_to)
       .map((row) => ({ threadSlug: row.slug, sessionId: row.session_id, cwd: workDirOf(project), agentId: row.acp_agent ?? "", modelId: acpModelIdFromModel(row.model), effort: row.effort, permissionMode: workerDispatchPermission("acp", getSettings(storage, home)), acpSessionId: row.agent_session_id })),
   )
 
@@ -978,15 +978,43 @@ function createContextUnchecked(opts: ContextOptions, resources: PartialContextR
     : undefined
   resources.claudeBroker = claudeBroker
   // A THREAD THAT MOVED TO ANOTHER MACHINE NEVER RUNS HERE AGAIN (plans/thread-handoff.md). Every input a
-  // Claude thread receives — a follow-up, an answer, a timer, a Goal, a message from another thread — goes
-  // through this one call, so the guard sits here rather than at each of them. Terminal, so a wake is
-  // abandoned with its reason instead of retried.
+  // thread receives — a follow-up, an answer, a timer, a Goal, a message from another thread — goes
+  // through its backend's bridge, so the guard sits on all three rather than at each caller. Terminal,
+  // so a wake is abandoned with its reason instead of retried.
   if (claudeBroker) {
     const deliver = claudeBroker.followUp.bind(claudeBroker)
     claudeBroker.followUp = async (input) => {
       const refusal = threadMoveBlock(input.threadSlug)
       if (refusal) throw new TerminalDeliveryError(refusal)
       return deliver(input)
+    }
+  }
+  {
+    const deliver = acpBridge.followUp.bind(acpBridge)
+    acpBridge.followUp = async (input) => {
+      const refusal = threadMoveBlock(input.threadSlug)
+      if (refusal) throw new TerminalDeliveryError(refusal)
+      return deliver(input)
+    }
+  }
+  if (codexAppServer) {
+    const deliver = codexAppServer.followUp.bind(codexAppServer)
+    codexAppServer.followUp = async (input) => {
+      const refusal = threadMoveBlock(input.threadSlug)
+      if (refusal) throw new TerminalDeliveryError(refusal)
+      return deliver(input)
+    }
+    const resumeOwned = codexAppServer.resumeOwnedSession.bind(codexAppServer)
+    codexAppServer.resumeOwnedSession = async (slug, sessionId) => {
+      const refusal = threadMoveBlock(slug)
+      if (refusal) throw new TerminalDeliveryError(refusal)
+      return resumeOwned(slug, sessionId)
+    }
+    const adoptExternal = codexAppServer.adoptExternalRollout.bind(codexAppServer)
+    codexAppServer.adoptExternalRollout = async (input) => {
+      const refusal = threadMoveBlock(input.threadSlug)
+      if (refusal) throw new TerminalDeliveryError(refusal)
+      return adoptExternal(input)
     }
   }
   if (claudeBroker) {

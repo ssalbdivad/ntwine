@@ -126,12 +126,33 @@ type AcpToolMeta = { kind?: string; title?: string; locations?: string[]; input?
 /** The command or path a tool call is ABOUT, from its input first and its ACP locations second. */
 function toolTarget(rawInput: unknown, acp: AcpToolMeta | undefined): { command?: string; path?: string; input?: Record<string, unknown> } {
   const input = rawInput && typeof rawInput === "object" ? rawInput as Record<string, unknown> : undefined
-  const command = typeof input?.command === "string" ? input.command : undefined
+  const command = typeof input?.command === "string" ? input.command
+    : typeof input?.CommandLine === "string" ? input.CommandLine
+    : undefined
   const path = typeof input?.filePath === "string" ? input.filePath
     : typeof input?.file_path === "string" ? input.file_path
     : typeof input?.path === "string" ? input.path
+    : typeof input?.Path === "string" ? input.Path
+    : typeof input?.TargetFile === "string" ? input.TargetFile
     : acp?.locations?.[0]
   return { command, path, input }
+}
+
+function acpEditFor(path: string | undefined, input: Record<string, unknown> | undefined, acp: AcpToolMeta | undefined): TranscriptToolCall["edit"] {
+  if (!path || acp?.kind !== "edit") return undefined
+  if (typeof input?.Target === "string" && typeof input?.Replacement === "string") {
+    return { file: path, old: clip(input.Target, TOOL_TEXT_MAX), new: clip(input.Replacement, TOOL_TEXT_MAX) }
+  }
+  if (typeof input?.old_string === "string" && typeof input?.new_string === "string") {
+    return { file: path, old: clip(input.old_string, TOOL_TEXT_MAX), new: clip(input.new_string, TOOL_TEXT_MAX) }
+  }
+  if (typeof input?.Content === "string") {
+    return { file: path, old: "", new: clip(input.Content, TOOL_TEXT_MAX) }
+  }
+  if (typeof input?.content === "string") {
+    return { file: path, old: "", new: clip(input.content, TOOL_TEXT_MAX) }
+  }
+  return undefined
 }
 
 function toolCallFor(ev: Extract<NormalizedEvent, { kind: "tool-call" }>, acp: AcpToolMeta | undefined): TranscriptToolCall {
@@ -141,14 +162,21 @@ function toolCallFor(ev: Extract<NormalizedEvent, { kind: "tool-call" }>, acp: A
   if (detail) call.detail = clip(detail, 500)
   if (command) call.command = command
   else if (input && Object.keys(input).length) call.input = clip(JSON.stringify(input, null, 2), TOOL_TEXT_MAX)
+  const edit = acpEditFor(path, input, acp)
+  if (edit) call.edit = edit
   return call
 }
 
 /** A result that learned the target the call did not know (opencode reports `locations`/`rawInput`
  *  only on the completing update) upgrades the call's detail from the tool's title to its target. */
 function upgradeToolTarget(call: TranscriptToolCall, acp: AcpToolMeta | undefined): void {
-  if (!acp || call.command || (call.detail && call.detail !== call.name)) return
+  if (!acp) return
   const { command, path, input } = toolTarget(acp.input, acp)
+  if (!call.edit) {
+    const edit = acpEditFor(path, input, acp)
+    if (edit) call.edit = edit
+  }
+  if (call.command || (call.detail && call.detail !== call.name)) return
   const detail = command ?? path
   if (!detail) return
   call.detail = clip(detail, 500)

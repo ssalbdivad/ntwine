@@ -1,10 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { dirname, join, relative, sep } from "node:path"
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { homedir, tmpdir } from "node:os"
+import { basename, dirname, join, relative, sep } from "node:path"
 import { randomUUID } from "node:crypto"
 import { appendMoveLog, movedAwayRefusal, ThreadSlug, threadIdentityName, type ThreadMoveStamp } from "@ntwine/shared"
+import { relocateAgyConversationDb, snapshotSqliteFile } from "./agy-relocate.ts"
+import { defaultAgyHome } from "./agy-swarm.ts"
+import { acpTranscriptPath, ACP_TRANSCRIPT_DIR } from "./backend/acp-transcript.ts"
+import { defaultCodexHome, findRolloutById } from "./backend/codex.ts"
 import type { ProjectScope } from "./project-scope.ts"
 import type Database from "./sqlite.ts"
+import { isBrokerClaudeRow, type SessionRow } from "./storage.ts"
 import { BUNDLE_MAX_BYTES, packBundle, safeRelativePath, type BundleFile, type BundleRoot } from "./thread-bundle.ts"
 import { mapPrefix, relocateJsonl, relocateRecord, type PrefixMap, type RelocationRules } from "./transcript-relocate.ts"
 import { symlinkedComponent } from "./thread-wip.ts"
@@ -47,13 +52,69 @@ export interface MoveGit {
   paths: string[]
 }
 
+export type MovableBackend = "claude" | "codex" | "antigravity"
+
+export const UNSUPPORTED_MOVE_BACKEND_REFUSAL = "Only Claude, Codex and Antigravity threads can move to another machine for now"
+
+/** Which movable backend a session row runs on, or undefined when this backend cannot move yet. */
+export function movableBackendOf(row: Pick<SessionRow, "backend" | "claude_runtime" | "acp_agent">): MovableBackend | undefined {
+  if (isBrokerClaudeRow(row)) return "claude"
+  if (row.backend === "codex") return "codex"
+  if (row.backend === "acp" && row.acp_agent === "antigravity") return "antigravity"
+  return undefined
+}
+
+/** Which movable backend a received manifest describes, or undefined if unsupported. */
+export function manifestMovableBackend(thread: Pick<MoveManifest["thread"], "backend" | "acpAgent">): MovableBackend | undefined {
+  if (thread.backend === "claude") return "claude"
+  if (thread.backend === "codex") return "codex"
+  if (thread.backend === "acp" && thread.acpAgent === "antigravity") return "antigravity"
+  return undefined
+}
+
+function resolveAgyHome(home: string, override?: string): string {
+  if (override) return override
+  return home === homedir() ? defaultAgyHome() : join(home, ".gemini", "antigravity-cli")
+}
+
+function resolveCodexHome(home: string, override?: string): string {
+  if (override) return override
+  return home === homedir() ? defaultCodexHome() : join(home, ".codex")
+}
+
+function realpathOr(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    return path
+  }
+}
+
+function tableExists(db: Database, table: string): boolean {
+  return Boolean(db.prepare<[string], { name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table))
+}
+
 export interface MoveManifest {
   v: 1
   moveId: string
   createdAt: string
-  from: { home: string; platform: string }
+  from: {
+    home: string
+    platform: string
+    realWorkDir?: string
+    agyHome?: string
+    realAgyHome?: string
+    codexHome?: string
+  }
   project: { name: string; workDir: string; stateDir: string; bucket: string }
-  thread: { slug: string; sessionId: string; transcriptIds: string[]; backend: string }
+  thread: {
+    slug: string
+    sessionId: string
+    transcriptIds: string[]
+    backend: string
+    acpAgent?: string
+    agentSessionId?: string
+  }
   rows: Record<string, Record<string, unknown>[]>
   git: MoveGit | null
   files: BundleFile[]
@@ -68,6 +129,9 @@ export interface ExportInput {
   home: string
   moveId: string
   git?: (MoveGit & { bundle: Buffer }) | null
+  /** Overrides for tests / sandboxed homes. */
+  agyHome?: string
+  codexHome?: string
 }
 
 export interface ExportedThread {
@@ -123,30 +187,89 @@ export function exportThread(input: ExportInput): ExportedThread {
   const session = rows.session?.[0]
   if (!session) throw new MoveRefusal("This thread has no record to move")
   const sessionId = String(session.session_id)
+  const backend = String(session.backend ?? "claude")
+  const acpAgent = typeof session.acp_agent === "string" && session.acp_agent ? session.acp_agent : undefined
+  const agentSessionId = typeof session.agent_session_id === "string" && session.agent_session_id ? session.agent_session_id : undefined
+  const movable = manifestMovableBackend({ backend, acpAgent })
+  if (!movable) throw new MoveRefusal(UNSUPPORTED_MOVE_BACKEND_REFUSAL)
   const transcriptIds = transcriptIdsOf({ session_id: sessionId, transcript_id: session.transcript_id as string | null })
   const files: BundleFile[] = []
   const contents: Buffer[] = []
-  const add = (root: BundleRoot, rel: string, path: string) => {
-    const data = readFileSync(path)
-    const mode = statSync(path).mode & 0o777
+  const addBuffer = (root: BundleRoot, rel: string, data: Buffer, mode: number) => {
     files.push({ root, rel, size: data.length, mode })
     contents.push(data)
   }
-
-  // The transcript and its session directory, under the Claude bucket.
-  const bucketDir = join(input.home, ".claude", "projects", input.bucket)
-  let transcriptText = ""
-  for (const id of transcriptIds) {
-    const transcript = join(bucketDir, `${id}.jsonl`)
-    if (existsSync(transcript)) {
-      add("claude", `${id}.jsonl`, transcript)
-      transcriptText += contents[contents.length - 1]!.toString("utf8")
-    }
-    const sessionDir = join(bucketDir, id)
-    for (const rel of walkFiles(sessionDir, SESSION_DIR_SKIP)) add("claude", `${id}/${rel}`, join(sessionDir, rel))
+  const add = (root: BundleRoot, rel: string, path: string) => {
+    const data = readFileSync(path)
+    const mode = statSync(path).mode & 0o777
+    addBuffer(root, rel, data, mode)
   }
-  if (!transcriptIds.some((id) => files.some((file) => file.root === "claude" && file.rel === `${id}.jsonl`))) {
-    throw new MoveRefusal("This thread's transcript was not found on this machine")
+
+  let transcriptText = ""
+  const fromExtra: Partial<MoveManifest["from"]> = {}
+  const realWorkDir = realpathOr(input.project.workDir)
+  if (realWorkDir !== input.project.workDir) fromExtra.realWorkDir = realWorkDir
+
+  if (movable === "claude") {
+    // The transcript and its session directory, under the Claude bucket.
+    const bucketDir = join(input.home, ".claude", "projects", input.bucket)
+    for (const id of transcriptIds) {
+      const transcript = join(bucketDir, `${id}.jsonl`)
+      if (existsSync(transcript)) {
+        add("claude", `${id}.jsonl`, transcript)
+        transcriptText += contents[contents.length - 1]!.toString("utf8")
+      }
+      const sessionDir = join(bucketDir, id)
+      for (const rel of walkFiles(sessionDir, SESSION_DIR_SKIP)) add("claude", `${id}/${rel}`, join(sessionDir, rel))
+    }
+    if (!transcriptIds.some((id) => files.some((file) => file.root === "claude" && file.rel === `${id}.jsonl`))) {
+      throw new MoveRefusal("This thread's transcript was not found on this machine")
+    }
+  } else if (movable === "antigravity") {
+    if (!agentSessionId || !SESSION_ID.test(agentSessionId)) {
+      throw new MoveRefusal("This thread has no Antigravity conversation to move yet")
+    }
+    const acpPath = acpTranscriptPath(input.project.stateDir, sessionId)
+    if (!existsSync(acpPath)) throw new MoveRefusal("This thread's transcript was not found on this machine")
+    add("acp", `${sessionId}.jsonl`, acpPath)
+    transcriptText += contents[contents.length - 1]!.toString("utf8")
+
+    const agyHome = resolveAgyHome(input.home, input.agyHome)
+    fromExtra.agyHome = agyHome
+    const realAgyHome = realpathOr(agyHome)
+    if (realAgyHome !== agyHome) fromExtra.realAgyHome = realAgyHome
+
+    const convDb = join(agyHome, "conversations", `${agentSessionId}.db`)
+    if (!existsSync(convDb)) {
+      throw new MoveRefusal("This thread's Antigravity conversation was not found on this machine")
+    }
+    addBuffer("agy", `conversations/${agentSessionId}.db`, snapshotSqliteFile(convDb), 0o600)
+    const annotation = join(agyHome, "annotations", `${agentSessionId}.pbtxt`)
+    if (existsSync(annotation)) add("agy", `annotations/${agentSessionId}.pbtxt`, annotation)
+    const brainDir = join(agyHome, "brain", agentSessionId)
+    for (const rel of walkFiles(brainDir)) {
+      const full = join(brainDir, rel)
+      add("agy", `brain/${agentSessionId}/${rel}`, full)
+      if (rel === ".system_generated/logs/transcript.jsonl") {
+        transcriptText += contents[contents.length - 1]!.toString("utf8")
+      }
+    }
+  } else if (movable === "codex") {
+    if (!agentSessionId || !SESSION_ID.test(agentSessionId)) {
+      throw new MoveRefusal("This thread has no Codex rollout to move yet")
+    }
+    const codexHome = resolveCodexHome(input.home, input.codexHome)
+    fromExtra.codexHome = codexHome
+    const rolloutPath = findRolloutById(agentSessionId, codexHome)
+    if (!rolloutPath || !existsSync(rolloutPath)) {
+      throw new MoveRefusal("This thread's Codex rollout was not found on this machine")
+    }
+    const rel = relative(join(codexHome, "sessions"), rolloutPath).split(sep).join("/")
+    if (!safeRelativePath(rel) || !basename(rel).endsWith(`-${agentSessionId}.jsonl`)) {
+      throw new MoveRefusal("This thread's Codex rollout could not be packed safely")
+    }
+    add("codex", rel, rolloutPath)
+    transcriptText += contents[contents.length - 1]!.toString("utf8")
   }
 
   // The worker's scratch notes.
@@ -183,9 +306,16 @@ export function exportThread(input: ExportInput): ExportedThread {
     v: 1,
     moveId: input.moveId,
     createdAt: new Date().toISOString(),
-    from: { home: input.home, platform: process.platform },
+    from: { home: input.home, platform: process.platform, ...fromExtra },
     project: { name: input.project.name, workDir: input.project.workDir, stateDir: input.project.stateDir, bucket: input.bucket },
-    thread: { slug: input.slug, sessionId, transcriptIds, backend: String(session.backend ?? "claude") },
+    thread: {
+      slug: input.slug,
+      sessionId,
+      transcriptIds,
+      backend,
+      ...(acpAgent ? { acpAgent } : {}),
+      ...(agentSessionId ? { agentSessionId } : {}),
+    },
     rows,
     git,
     files,
@@ -207,6 +337,9 @@ export interface ImportTarget {
   home: string
   /** `cwdSlug(project.workDir)` on this machine. */
   bucket: string
+  /** Overrides for tests / sandboxed homes. */
+  agyHome?: string
+  codexHome?: string
 }
 
 export interface ImportPeer {
@@ -225,15 +358,20 @@ export type ImportResult =
 export function parseManifest(value: Record<string, unknown>): MoveManifest | undefined {
   const m = value as Partial<MoveManifest>
   const str = (v: unknown): v is string => typeof v === "string"
+  const optStr = (v: unknown): boolean => v === undefined || typeof v === "string"
   if (m.v !== 1 || !str(m.moveId) || !/^[A-Za-z0-9-]{8,64}$/.test(m.moveId) || !str(m.createdAt)) return undefined
-  if (!m.from || !str(m.from.home) || !str(m.from.platform)) return undefined
+  if (!m.from || !str(m.from.home) || !str(m.from.platform) || !optStr(m.from.realWorkDir) || !optStr(m.from.agyHome) || !optStr(m.from.realAgyHome) || !optStr(m.from.codexHome)) return undefined
   if (!m.project || !str(m.project.name) || !str(m.project.workDir) || !str(m.project.stateDir) || !str(m.project.bucket)) return undefined
   if (!m.thread || !ThreadSlug.safeParse(m.thread.slug).success || !str(m.thread.sessionId) || !SESSION_ID.test(m.thread.sessionId)) return undefined
   if (!Array.isArray(m.thread.transcriptIds) || !m.thread.transcriptIds.every((id) => str(id) && SESSION_ID.test(id))) return undefined
   if (!m.thread.transcriptIds.includes(m.thread.sessionId) || !str(m.thread.backend)) return undefined
+  if (!optStr(m.thread.acpAgent)) return undefined
+  if (m.thread.agentSessionId !== undefined && (!str(m.thread.agentSessionId) || !SESSION_ID.test(m.thread.agentSessionId))) return undefined
   if (!m.rows || typeof m.rows !== "object" || !Array.isArray(m.rows.session) || m.rows.session.length !== 1) return undefined
   const session = m.rows.session[0]!
   if (session.slug !== m.thread.slug || session.session_id !== m.thread.sessionId) return undefined
+  if (m.thread.backend === "acp" && (!m.thread.acpAgent || !m.thread.agentSessionId || session.acp_agent !== m.thread.acpAgent || session.agent_session_id !== m.thread.agentSessionId)) return undefined
+  if (m.thread.backend === "codex" && (!m.thread.agentSessionId || session.agent_session_id !== m.thread.agentSessionId)) return undefined
   if (m.git !== null) {
     const g = m.git
     if (!g || !str(g.rel) || !(g.rel === "." || /^\.ntwine\/worktrees\/[^/]+$/.test(g.rel)) || !(g.branch === null || str(g.branch))) return undefined
@@ -329,22 +467,68 @@ function notRearmedOf(manifest: MoveManifest): string[] {
   return out
 }
 
+type ForeignCheckPaths = {
+  bucketDir: string
+  stateDir: string
+  agyHome: string
+  codexHome: string
+}
+
 /**
  * Everything in a manifest must be the moved thread's own and nothing else's here: a paired machine could
  * otherwise arm a timer on another thread, replace another thread's done card, take over another
  * project's row by its global id, or overwrite another thread's conversation by naming its session
  * (security review, findings 3 and 4). Read-only; runs before anything is written.
  */
-function foreignContent(scope: ProjectScope, manifest: MoveManifest, standing: "free" | "home", bucketDir: string): string | undefined {
-  const { slug, transcriptIds } = manifest.thread
+function foreignContent(
+  scope: ProjectScope,
+  manifest: MoveManifest,
+  standing: "free" | "home",
+  movable: MovableBackend,
+  paths: ForeignCheckPaths,
+): string | undefined {
+  const { slug, sessionId, transcriptIds, agentSessionId } = manifest.thread
   const session = manifest.rows.session[0]!
   const own = new Set([session.session_id, session.transcript_id].filter((id): id is string => typeof id === "string" && id !== ""))
   if (!transcriptIds.every((id) => own.has(id))) return "The thread's bundle names a conversation that is not its own"
-  const holders = scope.db.prepare<[string, string], { project_id: string; slug: string }>("SELECT project_id, slug FROM session WHERE session_id = ? OR transcript_id = ?")
-  for (const id of transcriptIds) {
-    if (holders.all(id, id).some((row) => row.project_id !== scope.projectId || row.slug !== slug)) return "The thread's conversation belongs to another thread on this machine"
-    // With no stub of it here, a transcript already on disk under its id is some other session's.
-    if (standing === "free" && (existsSync(join(bucketDir, `${id}.jsonl`)) || existsSync(join(bucketDir, id)))) return "This machine already has a conversation with this thread's id"
+  const holders = scope.db.prepare<[string, string, string], { project_id: string; slug: string }>(
+    "SELECT project_id, slug FROM session WHERE session_id = ? OR transcript_id = ? OR agent_session_id = ?",
+  )
+  const checkIds = new Set([...transcriptIds, ...(agentSessionId ? [agentSessionId] : [])])
+  for (const id of checkIds) {
+    if (holders.all(id, id, id).some((row) => row.project_id !== scope.projectId || row.slug !== slug)) {
+      return "The thread's conversation belongs to another thread on this machine"
+    }
+  }
+  if (movable === "claude" && standing === "free") {
+    for (const id of transcriptIds) {
+      // With no stub of it here, a transcript already on disk under its id is some other session's.
+      if (existsSync(join(paths.bucketDir, `${id}.jsonl`)) || existsSync(join(paths.bucketDir, id))) {
+        return "This machine already has a conversation with this thread's id"
+      }
+    }
+  }
+  if (movable === "antigravity" && standing === "free" && agentSessionId) {
+    if (
+      existsSync(acpTranscriptPath(paths.stateDir, sessionId)) ||
+      existsSync(join(paths.agyHome, "conversations", `${agentSessionId}.db`)) ||
+      existsSync(join(paths.agyHome, "brain", agentSessionId))
+    ) {
+      return "This machine already has a conversation with this thread's id"
+    }
+  }
+  if (movable === "codex" && agentSessionId) {
+    if (tableExists(scope.db, "codex_app_server_session")) {
+      const bound = scope.db.prepare<[string, string], { project_id: string; thread_slug: string }>(
+        "SELECT project_id, thread_slug FROM codex_app_server_session WHERE codex_thread_id = ? OR ntwine_session_id = ?",
+      ).all(agentSessionId, sessionId)
+      if (bound.some((row) => row.project_id !== scope.projectId || row.thread_slug !== slug)) {
+        return "The thread's conversation belongs to another thread on this machine"
+      }
+    }
+    if (standing === "free" && findRolloutById(agentSessionId, paths.codexHome)) {
+      return "This machine already has a conversation with this thread's id"
+    }
   }
   for (const { table, slugColumns } of MOVED_TABLES) {
     const rows = manifest.rows[table] ?? []
@@ -368,27 +552,68 @@ function foreignContent(scope: ProjectScope, manifest: MoveManifest, standing: "
 }
 
 export function importThread(target: ImportTarget, manifest: MoveManifest, files: readonly { file: BundleFile; data: Buffer }[], peer: ImportPeer, self: { name: string }, restoreGit: RestoreGit | undefined): ImportResult {
-  const { slug, sessionId, transcriptIds } = manifest.thread
+  const { slug, sessionId, transcriptIds, agentSessionId } = manifest.thread
+  const movable = manifestMovableBackend(manifest.thread)
+  if (!movable) return { refused: UNSUPPORTED_MOVE_BACKEND_REFUSAL }
   const { scope } = target
   const standing = slugStanding(scope.db, scope.projectId, slug, sessionId, manifest.moveId)
   if (standing === "duplicate") return { ok: true, slug, duplicate: true, notes: [] }
   if (standing === "taken") return { refused: `This machine already has a different thread named @${slug} in this project` }
 
   const bucketDir = join(target.home, ".claude", "projects", target.bucket)
-  const foreign = foreignContent(scope, manifest, standing, bucketDir)
+  const agyHome = resolveAgyHome(target.home, target.agyHome)
+  const codexHome = resolveCodexHome(target.home, target.codexHome)
+  const foreign = foreignContent(scope, manifest, standing, movable, { bucketDir, stateDir: target.project.stateDir, agyHome, codexHome })
   if (foreign) return { refused: foreign }
   // The notes folder must be a real folder down from the checkout: a symlink there (one committed into the
   // project, say) would send the delete and the writes below wherever it points.
   const linkedNotes = symlinkedComponent(target.project.dir, `.ntwine/threads/${sessionId}`)
   if (linkedNotes) return { refused: `${linkedNotes} is a symlink, so the thread's notes cannot be placed` }
 
-  // Every file must land inside the root it names, and the claude files must belong to this session.
+  // Every file must land inside the root it names and belong to this thread's backend and session.
   for (const { file } of files) {
-    if (file.root === "claude" && !transcriptIds.some((id) => file.rel === `${id}.jsonl` || file.rel.startsWith(`${id}/`))) {
-      return { refused: "The thread's bundle carries a transcript file that is not its own" }
+    if (file.root === "claude") {
+      if (movable !== "claude" || !transcriptIds.some((id) => file.rel === `${id}.jsonl` || file.rel.startsWith(`${id}/`))) {
+        return { refused: "The thread's bundle carries a transcript file that is not its own" }
+      }
+    } else if (file.root === "acp") {
+      if (movable !== "antigravity" || file.rel !== `${sessionId}.jsonl`) {
+        return { refused: "The thread's bundle carries a transcript file that is not its own" }
+      }
+    } else if (file.root === "agy") {
+      const allowed = movable === "antigravity" && agentSessionId !== undefined && (
+        file.rel === `conversations/${agentSessionId}.db` ||
+        file.rel === `annotations/${agentSessionId}.pbtxt` ||
+        file.rel.startsWith(`brain/${agentSessionId}/`)
+      )
+      if (!allowed) return { refused: "The thread's bundle carries a conversation file that is not its own" }
+    } else if (file.root === "codex") {
+      const name = basename(file.rel)
+      const allowed = movable === "codex" && agentSessionId !== undefined && name.startsWith("rollout-") && name.endsWith(`-${agentSessionId}.jsonl`)
+      if (!allowed) return { refused: "The thread's bundle carries a rollout file that is not its own" }
+    } else if (file.root === "attachments" && !ATTACHMENT_NAME.test(file.rel)) {
+      return { refused: "The thread's bundle carries an attachment it cannot place" }
+    } else if (file.root === "git" && file.rel !== "wip.bundle") {
+      return { refused: "The thread's bundle carries an unexpected git file" }
     }
-    if (file.root === "attachments" && !ATTACHMENT_NAME.test(file.rel)) return { refused: "The thread's bundle carries an attachment it cannot place" }
-    if (file.root === "git" && file.rel !== "wip.bundle") return { refused: "The thread's bundle carries an unexpected git file" }
+  }
+  if (movable === "antigravity") {
+    if (!files.some(({ file }) => file.root === "acp" && file.rel === `${sessionId}.jsonl`)) {
+      return { refused: "The thread's bundle is missing its transcript" }
+    }
+    if (!files.some(({ file }) => file.root === "agy" && file.rel === `conversations/${agentSessionId}.db`)) {
+      return { refused: "The thread's bundle is missing its Antigravity conversation" }
+    }
+    for (const rel of [`conversations/${agentSessionId}.db`, `annotations/${agentSessionId}.pbtxt`, `brain/${agentSessionId}`]) {
+      const linked = symlinkedComponent(agyHome, rel)
+      if (linked) return { refused: `${linked} is a symlink, so the thread's conversation cannot be placed` }
+    }
+  }
+  if (movable === "codex") {
+    const codexFiles = files.filter(({ file }) => file.root === "codex")
+    if (codexFiles.length !== 1) return { refused: "The thread's bundle must carry one Codex rollout" }
+    const linked = symlinkedComponent(join(codexHome, "sessions"), codexFiles[0]!.file.rel)
+    if (linked) return { refused: `${linked} is a symlink, so the thread's rollout cannot be placed` }
   }
   const gitFile = files.find(({ file }) => file.root === "git")
   if (!!manifest.git !== !!gitFile) return { refused: "The thread's bundle and its git record disagree" }
@@ -397,13 +622,26 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
     { from: manifest.project.workDir, to: target.project.workDir },
     { from: manifest.from.home, to: target.home },
   ]
+  const destRealWorkDir = realpathOr(target.project.workDir)
+  const agyMaps: PrefixMap[] = [
+    { from: manifest.project.workDir, to: destRealWorkDir },
+    ...(manifest.from.realWorkDir ? [{ from: manifest.from.realWorkDir, to: destRealWorkDir }] : []),
+    ...(manifest.from.agyHome ? [{ from: manifest.from.agyHome, to: agyHome }] : []),
+    ...(manifest.from.realAgyHome ? [{ from: manifest.from.realAgyHome, to: agyHome }] : []),
+    { from: manifest.from.home, to: target.home },
+  ]
   const rules: RelocationRules = {
     cwd: cwdMaps,
     refs: [
-      ...transcriptIds.map((id) => ({
-        from: join(manifest.from.home, ".claude", "projects", manifest.project.bucket, id),
-        to: join(target.home, ".claude", "projects", target.bucket, id),
-      })),
+      ...(movable === "claude"
+        ? transcriptIds.map((id) => ({
+            from: join(manifest.from.home, ".claude", "projects", manifest.project.bucket, id),
+            to: join(target.home, ".claude", "projects", target.bucket, id),
+          }))
+        : []),
+      ...(movable === "antigravity" && agentSessionId && manifest.from.agyHome
+        ? [{ from: join(manifest.from.agyHome, "brain", agentSessionId), to: join(agyHome, "brain", agentSessionId) }]
+        : []),
       { from: `${manifest.project.stateDir}/attachments/`, to: `${join(target.project.stateDir, "attachments")}/` },
     ],
   }
@@ -426,19 +664,72 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
   // Files. The thread's own session dir and scratch dir are replaced whole: on a thread coming home they
   // hold the copy it left with, which the bundle supersedes.
   const scratchDir = join(target.project.dir, ".ntwine", "threads", sessionId)
-  for (const id of transcriptIds) rmSync(join(bucketDir, id), { recursive: true, force: true })
+  if (movable === "claude") {
+    for (const id of transcriptIds) rmSync(join(bucketDir, id), { recursive: true, force: true })
+  } else if (movable === "antigravity" && agentSessionId) {
+    rmSync(join(agyHome, "brain", agentSessionId), { recursive: true, force: true })
+    // Remove stale WAL/SHM sidecars before replacing the conversation db so SQLite never replays old frames.
+    rmSync(join(agyHome, "conversations", `${agentSessionId}.db-wal`), { force: true })
+    rmSync(join(agyHome, "conversations", `${agentSessionId}.db-shm`), { force: true })
+  } else if (movable === "codex" && agentSessionId) {
+    const existing = findRolloutById(agentSessionId, codexHome)
+    if (existing) rmSync(existing, { force: true })
+  }
   rmSync(scratchDir, { recursive: true, force: true })
+
+  let writtenCodexRollout: string | undefined
+  let writtenAgyDb: string | undefined
   for (const { file, data } of files) {
     if (file.root === "claude") {
       const text = file.rel.endsWith(".jsonl") ? relocateJsonl(data.toString("utf8"), rules)
         : file.rel.endsWith(".json") ? relocateRecord(data.toString("utf8"), rules)
           : undefined
       writeFile(join(bucketDir, file.rel), text ?? data, file.mode | 0o600)
+    } else if (file.root === "acp") {
+      const text = relocateJsonl(data.toString("utf8"), rules)
+      writeFile(join(target.project.stateDir, ACP_TRANSCRIPT_DIR, file.rel), text, file.mode | 0o600)
+    } else if (file.root === "agy") {
+      const dest = join(agyHome, file.rel)
+      writeFile(dest, data, file.mode | 0o600)
+      if (file.rel === `conversations/${agentSessionId}.db`) writtenAgyDb = dest
+    } else if (file.root === "codex") {
+      const dest = join(codexHome, "sessions", file.rel)
+      writeFile(dest, relocateJsonl(data.toString("utf8"), rules), file.mode | 0o600)
+      writtenCodexRollout = dest
     } else if (file.root === "scratch") {
       writeFile(join(scratchDir, file.rel), data, file.mode | 0o600)
     } else if (file.root === "attachments") {
       const path = join(target.project.stateDir, "attachments", file.rel)
       if (!existsSync(path)) writeFile(path, data, 0o600)
+    }
+  }
+
+  const cleanupFreshFiles = () => {
+    if (standing !== "free") return
+    if (movable === "claude") {
+      for (const id of transcriptIds) {
+        rmSync(join(bucketDir, `${id}.jsonl`), { force: true })
+        rmSync(join(bucketDir, id), { recursive: true, force: true })
+      }
+    } else if (movable === "antigravity" && agentSessionId) {
+      rmSync(acpTranscriptPath(target.project.stateDir, sessionId), { force: true })
+      rmSync(join(agyHome, "conversations", `${agentSessionId}.db`), { force: true })
+      rmSync(join(agyHome, "conversations", `${agentSessionId}.db-wal`), { force: true })
+      rmSync(join(agyHome, "conversations", `${agentSessionId}.db-shm`), { force: true })
+      rmSync(join(agyHome, "annotations", `${agentSessionId}.pbtxt`), { force: true })
+      rmSync(join(agyHome, "brain", agentSessionId), { recursive: true, force: true })
+    } else if (movable === "codex" && writtenCodexRollout) {
+      rmSync(writtenCodexRollout, { force: true })
+    }
+    rmSync(scratchDir, { recursive: true, force: true })
+  }
+
+  if (writtenAgyDb) {
+    try {
+      relocateAgyConversationDb(writtenAgyDb, agyMaps)
+    } catch (error) {
+      cleanupFreshFiles()
+      return { refused: `The thread's Antigravity conversation could not be relocated (${error instanceof Error ? error.message : String(error)})` }
     }
   }
 
@@ -452,10 +743,15 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
     note: movedNote(peer.name, self.name, cwdMaps, notRearmed),
   }
   const now = Date.now()
+  const nowIso = new Date(now).toISOString()
+  const hasCodexBindingTable = movable === "codex" && tableExists(scope.db, "codex_app_server_session")
   const insert = scope.db.transaction(() => {
     for (const { table, slugColumns } of MOVED_TABLES) {
       const where = slugColumns.map((column) => `${column} = @slug`).join(" OR ")
       scope.prepare(`DELETE FROM ${table} WHERE project_id = @project_id AND (${where})`).run({ slug })
+    }
+    if (hasCodexBindingTable) {
+      scope.prepare("DELETE FROM codex_app_server_session WHERE project_id = @project_id AND (thread_slug = ? OR ntwine_session_id = ?)").run(slug, sessionId)
     }
     // A cache keyed by the old path, and wakes queued for the stub: neither is this thread's any more.
     scope.prepare("DELETE FROM tail_state WHERE project_id = @project_id AND slug = ?").run(slug)
@@ -493,6 +789,17 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
         scope.prepare(`INSERT INTO ${table} (project_id, ${names.join(", ")}) VALUES (@project_id, ${names.map((_, i) => `@v${i}`).join(", ")})`).run(values)
       }
     }
+    // A Codex app-server thread arrives as a detached binding at the destination checkout so the next
+    // follow-up cold-resumes the moved rollout through `thread/resume` at this machine's sandbox defaults.
+    if (hasCodexBindingTable && agentSessionId && manifest.rows.session[0]?.codex_runtime === "app-server") {
+      scope.prepare(`
+        INSERT INTO codex_app_server_session (
+          project_id, ntwine_session_id, thread_slug, codex_thread_id, codex_session_id,
+          session_epoch, capability_revision, connection_epoch, current_turn_id,
+          cwd, ephemeral, state, created_at, updated_at, sandbox, intended_sandbox
+        ) VALUES (@project_id, ?, ?, ?, ?, 1, 1, 1, NULL, ?, 0, 'detached', ?, ?, NULL, NULL)
+      `).run(sessionId, slug, agentSessionId, agentSessionId, target.project.workDir, nowIso, nowIso)
+    }
   })
   try {
     insert.immediate()
@@ -500,13 +807,7 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
     // Rolled back, so the thread is not here. A thread arriving fresh takes back the files it just wrote,
     // or a retry would find a conversation on disk with no thread and refuse it. (One coming home has
     // already replaced its stub's files; the stub's rows are intact and it stays read-only.)
-    if (standing === "free") {
-      for (const id of transcriptIds) {
-        rmSync(join(bucketDir, `${id}.jsonl`), { force: true })
-        rmSync(join(bucketDir, id), { recursive: true, force: true })
-      }
-      rmSync(scratchDir, { recursive: true, force: true })
-    }
+    cleanupFreshFiles()
     return { refused: `The thread's records could not be written here (${error instanceof Error ? error.message : String(error)})` }
   }
   if (!manifest.git) notes.push("Its checkout did not move: it had no uncommitted work in this project's repository")
@@ -522,6 +823,7 @@ export function importThread(target: ImportTarget, manifest: MoveManifest, files
  */
 export function markMovedAway(scope: ProjectScope, slug: string, stamp: ThreadMoveStamp, departure: { from: string; at: string }): void {
   const now = Date.now()
+  const hasCodexBindingTable = tableExists(scope.db, "codex_app_server_session")
   scope.db.transaction(() => {
     const current = scope.prepare<[string], { move_log: string | null }>("SELECT move_log FROM session WHERE project_id = @project_id AND slug = ?").get(slug)
     const moveLog = appendMoveLog(current?.move_log, { from: departure.from, to: stamp.peerName, at: departure.at, moveId: stamp.moveId })
@@ -532,6 +834,9 @@ export function markMovedAway(scope: ProjectScope, slug: string, stamp: ThreadMo
       scope.prepare(`UPDATE ${table} SET state = '${settled}', settled_at = @now WHERE project_id = @project_id AND thread_slug = @slug AND state = 'armed'`).run({ now, slug })
     }
     scope.prepare("UPDATE wake_delivery SET state = 'superseded', lease_owner = NULL, lease_until = NULL WHERE project_id = @project_id AND thread_slug = ? AND state IN ('pending', 'leased')").run(slug)
+    if (hasCodexBindingTable) {
+      scope.prepare("DELETE FROM codex_app_server_session WHERE project_id = @project_id AND thread_slug = ?").run(slug)
+    }
   }).immediate()
 }
 

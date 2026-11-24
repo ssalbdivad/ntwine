@@ -4,10 +4,11 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { after, describe, it } from "node:test"
 import { openNtwineDatabase, type NtwineDatabase } from "./ntwine-db.ts"
+import Database from "./sqlite.ts"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
 import { unpackBundle } from "./thread-bundle.ts"
 import { moveLogOf, type TranscriptMessage } from "@ntwine/shared"
-import { exportThread, importThread, markMovedAway, movedNote, movedStamp, parseManifest, untoldMoveNote, type MoveManifest } from "./thread-move.ts"
+import { exportThread, importThread, markMovedAway, movedNote, movedStamp, MoveRefusal, parseManifest, UNSUPPORTED_MOVE_BACKEND_REFUSAL, untoldMoveNote, type MoveManifest } from "./thread-move.ts"
 import { parseTranscript, withMoveDividers } from "./transcript.ts"
 
 // Two "machines" on one disk: each its own home, checkout, state dir and database, as the real move
@@ -276,5 +277,208 @@ describe("an import from a machine that lies", () => {
     assert.deepEqual(await move(mac, desktop, "fix-parser", "move-1004-aaaa"), { refused: ".ntwine/threads is a symlink, so the thread's notes cannot be placed" })
     nothingWritten()
     assert.deepEqual(readdirSync(outside), [])
+  })
+})
+
+function pbString(fieldNumber: number, value: string): Buffer {
+  const bytes = Buffer.from(value, "utf8")
+  const tag = (fieldNumber << 3) | 2
+  const len: number[] = []
+  let v = bytes.length
+  do {
+    let b = v & 0x7f
+    v >>>= 7
+    if (v > 0) b |= 0x80
+    len.push(b)
+  } while (v > 0)
+  return Buffer.concat([Buffer.from([tag]), Buffer.from(len), bytes])
+}
+
+describe("moving an Antigravity (ACP) thread between two machines' data", () => {
+  const AGY_SID = "3b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+  const AGY_CONV = "4b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+  const mac = machine("agy-mac", "proj-mac", "code/app")
+  const desktop = machine("agy-desktop", "proj-desktop", "app")
+  const agyHome = (m: Machine) => join(m.home, ".gemini", "antigravity-cli")
+
+  function seedAgy(m: Machine, slug: string) {
+    m.storage.upsertSession(row(slug, AGY_SID))
+    m.storage.setBackend(slug, "acp")
+    m.storage.setAcpAgent(slug, "antigravity")
+    m.storage.setAgentSession(slug, AGY_CONV)
+    m.storage.setProfile(slug, "acp:antigravity@gemini-4-neon-high", "high")
+    const attachment = join(m.project.stateDir, "attachments", "1700000000000-abcd1234-shot.png")
+    mkdirSync(join(m.project.stateDir, "attachments"), { recursive: true })
+    writeFileSync(attachment, "PNG")
+    mkdirSync(join(m.project.stateDir, "acp"), { recursive: true })
+    const acpLines = [
+      { kind: "acp-session", at: "2026-11-23T10:00:00.000Z", agent: { id: "antigravity" }, acpSessionId: AGY_CONV, cwd: m.project.workDir, model: "gemini-4-neon-high" },
+      { kind: "user-message", at: "2026-11-23T10:00:01.000Z", text: `look at ${attachment}`, synthetic: false },
+      { kind: "turn-start", at: "2026-11-23T10:00:01.000Z" },
+      { kind: "assistant-text", at: "2026-11-23T10:00:02.000Z", text: "OK", final: true },
+      { kind: "turn-end", at: "2026-11-23T10:00:02.000Z", finalText: "OK", successful: true },
+    ]
+    writeFileSync(join(m.project.stateDir, "acp", `${AGY_SID}.jsonl`), `${acpLines.map((l) => JSON.stringify(l)).join("\n")}\n`)
+
+    const ah = agyHome(m)
+    mkdirSync(join(ah, "conversations"), { recursive: true })
+    mkdirSync(join(ah, "annotations"), { recursive: true })
+    mkdirSync(join(ah, "brain", AGY_CONV, ".system_generated", "logs"), { recursive: true })
+    const db = new Database(join(ah, "conversations", `${AGY_CONV}.db`))
+    db.exec(`
+      CREATE TABLE trajectory_metadata_blob (id TEXT PRIMARY KEY, data BLOB);
+      CREATE TABLE executor_metadata (idx INTEGER PRIMARY KEY, data BLOB);
+      CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_payload BLOB);
+    `)
+    const uri = `file://${m.project.workDir}`
+    db.prepare("INSERT INTO trajectory_metadata_blob (id, data) VALUES ('main', ?)").run(pbString(1, uri))
+    db.prepare("INSERT INTO executor_metadata (idx, data) VALUES (0, ?)").run(pbString(12, uri))
+    db.prepare("INSERT INTO steps (idx, step_payload) VALUES (0, ?)").run(pbString(1, `untouched:${uri}`))
+    db.close()
+    writeFileSync(join(ah, "annotations", `${AGY_CONV}.pbtxt`), 'title:"Ultrawide Freeze"')
+    writeFileSync(join(ah, "brain", AGY_CONV, ".system_generated", "logs", "transcript.jsonl"), '{"type":"USER_INPUT","content":"hi"}\n')
+  }
+
+  seedAgy(mac, "ultrawide-freeze")
+
+  it("moves its ACP transcript, agy conversation db (with workspace URI relocated), annotations, brain and attachments, then returns home", async () => {
+    const exported = exportThread({ db: mac.db.db, project: mac.project, bucket: mac.bucket, slug: "ultrawide-freeze", home: mac.home, moveId: "move-agy-0001", git: null })
+    const unpacked = await unpackBundle(exported.blob)
+    const manifest = parseManifest(unpacked.manifest)
+    assert.ok(manifest)
+    assert.equal(manifest.thread.backend, "acp")
+    assert.equal(manifest.thread.acpAgent, "antigravity")
+    assert.equal(manifest.thread.agentSessionId, AGY_CONV)
+
+    const result = importThread(
+      { scope: desktop.storage.scope, project: desktop.project, home: desktop.home, bucket: desktop.bucket },
+      manifest, unpacked.files, { id: "a".repeat(32), name: "mac" }, { name: "desktop" }, undefined,
+    )
+    assert.equal("ok" in result && result.ok, true)
+
+    const arrived = desktop.storage.getSession("ultrawide-freeze")!
+    assert.equal(arrived.backend, "acp")
+    assert.equal(arrived.acp_agent, "antigravity")
+    assert.equal(arrived.agent_session_id, AGY_CONV)
+
+    const acpText = readFileSync(join(desktop.project.stateDir, "acp", `${AGY_SID}.jsonl`), "utf8")
+    const acpFirst = JSON.parse(acpText.split("\n")[0]!) as { cwd: string }
+    assert.equal(acpFirst.cwd, desktop.project.workDir)
+    assert.ok(acpText.includes(join(desktop.project.stateDir, "attachments", "1700000000000-abcd1234-shot.png")))
+    assert.equal(readFileSync(join(desktop.project.stateDir, "attachments", "1700000000000-abcd1234-shot.png"), "utf8"), "PNG")
+
+    const destDb = new Database(join(agyHome(desktop), "conversations", `${AGY_CONV}.db`), { readonly: true })
+    try {
+      const meta = Buffer.from((destDb.prepare("SELECT data FROM trajectory_metadata_blob WHERE id = 'main'").get() as { data: Uint8Array }).data)
+      const exec = Buffer.from((destDb.prepare("SELECT data FROM executor_metadata WHERE idx = 0").get() as { data: Uint8Array }).data)
+      const step = Buffer.from((destDb.prepare("SELECT step_payload FROM steps WHERE idx = 0").get() as { step_payload: Uint8Array }).step_payload)
+      assert.deepEqual(meta, pbString(1, `file://${desktop.project.workDir}`))
+      assert.deepEqual(exec, pbString(12, `file://${desktop.project.workDir}`))
+      assert.deepEqual(step, pbString(1, `untouched:file://${mac.project.workDir}`))
+    } finally {
+      destDb.close()
+    }
+    assert.equal(readFileSync(join(agyHome(desktop), "annotations", `${AGY_CONV}.pbtxt`), "utf8"), 'title:"Ultrawide Freeze"')
+    assert.equal(existsSync(join(agyHome(desktop), "brain", AGY_CONV, ".system_generated", "logs", "transcript.jsonl")), true)
+
+    // Mark moved away on mac, then move it back home cleanly.
+    markMovedAway(mac.storage.scope, "ultrawide-freeze", { peerId: "b".repeat(32), peerName: "desktop", at: "2026-11-23T11:00:00.000Z", moveId: "move-agy-0001" }, { from: "mac", at: "2026-11-23T10:59:00.000Z" })
+    const backExport = exportThread({ db: desktop.db.db, project: desktop.project, bucket: desktop.bucket, slug: "ultrawide-freeze", home: desktop.home, moveId: "move-agy-0002", git: null })
+    const backUnpacked = await unpackBundle(backExport.blob)
+    const backManifest = parseManifest(backUnpacked.manifest)!
+    const back = importThread(
+      { scope: mac.storage.scope, project: mac.project, home: mac.home, bucket: mac.bucket },
+      backManifest, backUnpacked.files, { id: "b".repeat(32), name: "desktop" }, { name: "mac" }, undefined,
+    )
+    assert.equal("ok" in back && back.ok, true)
+    assert.equal(mac.storage.getSession("ultrawide-freeze")?.moved_to, null)
+  })
+
+  it("refuses an unsupported ACP agent and refuses a bundle carrying another conversation's agy file", async () => {
+    const other = machine("acp-other", "proj-other", "app")
+    other.storage.upsertSession(row("opencode-t", "5b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"))
+    other.storage.setBackend("opencode-t", "acp")
+    other.storage.setAcpAgent("opencode-t", "opencode")
+    other.storage.setAgentSession("opencode-t", "ses_1")
+    assert.throws(
+      () => exportThread({ db: other.db.db, project: other.project, bucket: other.bucket, slug: "opencode-t", home: other.home, moveId: "move-acp-other", git: null }),
+      (err: unknown) => err instanceof MoveRefusal && err.message === UNSUPPORTED_MOVE_BACKEND_REFUSAL,
+    )
+
+    const freshDest = machine("agy-fresh-dest", "proj-dest-2", "app")
+    const exported = exportThread({ db: mac.db.db, project: mac.project, bucket: mac.bucket, slug: "ultrawide-freeze", home: mac.home, moveId: "move-agy-tamper", git: null })
+    const unpacked = await unpackBundle(exported.blob)
+    const manifest = parseManifest(unpacked.manifest)!
+    const tampered = [...unpacked.files, { file: { root: "agy" as const, rel: "conversations/other-conv.db", size: 2, mode: 0o600 }, data: Buffer.from("xx") }]
+    assert.deepEqual(
+      importThread({ scope: freshDest.storage.scope, project: freshDest.project, home: freshDest.home, bucket: freshDest.bucket }, manifest, tampered, { id: "a".repeat(32), name: "mac" }, { name: "desktop" }, undefined),
+      { refused: "The thread's bundle carries a conversation file that is not its own" },
+    )
+  })
+})
+
+describe("moving a Codex thread between two machines' data", () => {
+  const CX_SID = "6b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+  const CX_ROLLOUT_ID = "019f4e0a-42cb-7891-9cbf-325e93ae587c"
+  const mac = machine("cx-mac", "proj-cx-mac", "code/app")
+  const desktop = machine("cx-desktop", "proj-cx-desktop", "app")
+
+  const codexTableSql = `
+    CREATE TABLE IF NOT EXISTS codex_app_server_session (
+      ntwine_session_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, thread_slug TEXT NOT NULL,
+      codex_thread_id TEXT NOT NULL, codex_session_id TEXT NOT NULL,
+      session_epoch INTEGER NOT NULL, capability_revision INTEGER NOT NULL, connection_epoch INTEGER NOT NULL,
+      current_turn_id TEXT, cwd TEXT NOT NULL, ephemeral INTEGER NOT NULL, state TEXT NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      auto_resumed_turn_id TEXT, auto_resume_count INTEGER NOT NULL DEFAULT 0,
+      sandbox TEXT, intended_sandbox TEXT
+    );
+  `
+  mac.db.db.exec(codexTableSql)
+  desktop.db.db.exec(codexTableSql)
+  mac.storage.upsertSession(row("codex-task", CX_SID))
+  mac.storage.setBackend("codex-task", "codex")
+  mac.storage.setCodexRuntime("codex-task", "app-server")
+  mac.storage.setAgentSession("codex-task", CX_ROLLOUT_ID)
+  mac.db.db.prepare(`
+    INSERT INTO codex_app_server_session (
+      project_id, ntwine_session_id, thread_slug, codex_thread_id, codex_session_id,
+      session_epoch, capability_revision, connection_epoch, current_turn_id, cwd, ephemeral, state, created_at, updated_at, sandbox, intended_sandbox
+    ) VALUES (?, ?, 'codex-task', ?, ?, 1, 1, 1, NULL, ?, 0, 'active', '2026-11-23T10:00:00.000Z', '2026-11-23T10:00:00.000Z', 'danger-full-access', 'danger-full-access')
+  `).run(mac.project.id, CX_SID, CX_ROLLOUT_ID, CX_ROLLOUT_ID, mac.project.workDir)
+
+  const rolloutDir = join(mac.home, ".codex", "sessions", "2026", "11", "23")
+  mkdirSync(rolloutDir, { recursive: true })
+  const rolloutFile = `rollout-2026-11-23T10-00-00-${CX_ROLLOUT_ID}.jsonl`
+  const rolloutRecords = [
+    { timestamp: "2026-11-23T10:00:00.000Z", type: "session_meta", payload: { id: CX_ROLLOUT_ID, cwd: mac.project.workDir } },
+    { timestamp: "2026-11-23T10:00:01.000Z", type: "turn_context", payload: { cwd: join(mac.project.workDir, "src") } },
+    { timestamp: "2026-11-23T10:00:02.000Z", type: "event_msg", payload: { type: "task_complete", last_agent_message: "DONE" } },
+  ]
+  writeFileSync(join(rolloutDir, rolloutFile), `${rolloutRecords.map((r) => JSON.stringify(r)).join("\n")}\n`)
+
+  it("moves its date-sharded rollout with cwd mapped, seeds a detached app-server binding, and clears the origin binding", async () => {
+    const exported = exportThread({ db: mac.db.db, project: mac.project, bucket: mac.bucket, slug: "codex-task", home: mac.home, moveId: "move-cx-0001", git: null })
+    const unpacked = await unpackBundle(exported.blob)
+    const manifest = parseManifest(unpacked.manifest)!
+    assert.equal(manifest.thread.backend, "codex")
+    assert.equal(manifest.thread.agentSessionId, CX_ROLLOUT_ID)
+
+    const imported = importThread(
+      { scope: desktop.storage.scope, project: desktop.project, home: desktop.home, bucket: desktop.bucket },
+      manifest, unpacked.files, { id: "a".repeat(32), name: "mac" }, { name: "desktop" }, undefined,
+    )
+    assert.equal("ok" in imported && imported.ok, true)
+
+    const destRollout = join(desktop.home, ".codex", "sessions", "2026", "11", "23", rolloutFile)
+    const lines = readFileSync(destRollout, "utf8").trim().split("\n").map((l) => JSON.parse(l) as { payload: { cwd?: string } })
+    assert.equal(lines[0]!.payload.cwd, desktop.project.workDir)
+    assert.equal(lines[1]!.payload.cwd, join(desktop.project.workDir, "src"))
+
+    const binding = desktop.db.db.prepare("SELECT state, cwd, sandbox, intended_sandbox, codex_thread_id FROM codex_app_server_session WHERE project_id = ? AND thread_slug = 'codex-task'").get(desktop.project.id) as Record<string, unknown>
+    assert.deepEqual(binding, { state: "detached", cwd: desktop.project.workDir, sandbox: null, intended_sandbox: null, codex_thread_id: CX_ROLLOUT_ID })
+
+    markMovedAway(mac.storage.scope, "codex-task", { peerId: "b".repeat(32), peerName: "desktop", at: "2026-11-23T11:00:00.000Z", moveId: "move-cx-0001" }, { from: "mac", at: "2026-11-23T10:59:00.000Z" })
+    assert.equal(mac.db.db.prepare("SELECT 1 FROM codex_app_server_session WHERE project_id = ? AND thread_slug = 'codex-task'").get(mac.project.id), undefined)
   })
 })

@@ -82,7 +82,7 @@ export function editedFilePath(tool: ToolLike): string | null {
 // is work the maintainer has a reason to look at, INCLUDING the thread's own `.ntwine/` scratch — which
 // is exactly where the file that prompted this was written.
 function shellWrittenPaths(tool: ToolLike, projectDir: string): string[] {
-  if (normalizedToolName(tool.name) !== "bash" || !tool.command) return []
+  if (!tool.command) return []
   const truncated = tool.command.endsWith(TRUNCATION_TAIL)
   const targets = shellWriteTargets(truncated ? tool.command.slice(0, -TRUNCATION_TAIL.length) : tool.command)
   const home = os.homedir()

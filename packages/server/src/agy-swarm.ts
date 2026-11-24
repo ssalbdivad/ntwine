@@ -38,7 +38,7 @@ export type AgySwarmState = "working" | "waiting" | "stopped" | "killed" | "comp
 export type AgySwarmLiveState = Exclude<AgySwarmState, "killed" | "completed">
 
 export function defaultAgyHome(): string {
-  return join(homedir(), ".gemini", "antigravity-cli")
+  return process.env.NTWINE_AGY_HOME?.trim() || join(homedir(), ".gemini", "antigravity-cli")
 }
 
 export function agySwarmRosterPath(home: string, coordinatorConv: string): string {

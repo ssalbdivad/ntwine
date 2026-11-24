@@ -51,4 +51,21 @@ describe("relocating a moved transcript", () => {
     const text = `${untouched}\nnot json\n\n`
     assert.equal(relocateJsonl(text, rules), text)
   })
+
+  it("maps Codex session_meta and turn_context payload.cwd while leaving encrypted reasoning untouched", () => {
+    const codexRules: RelocationRules = {
+      cwd: rules.cwd,
+      refs: [{ from: "/Users/ssalb/state/attachments/", to: "/home/ssalb/state/attachments/" }],
+    }
+    const meta = JSON.stringify({ timestamp: "t", type: "session_meta", payload: { id: "c1", cwd: "/Users/ssalb/code/ntwine" } })
+    const ctx = JSON.stringify({ timestamp: "t", type: "turn_context", payload: { cwd: "/Users/ssalb/code/ntwine/packages/server" } })
+    const reasoning = JSON.stringify({
+      timestamp: "t",
+      type: "response_item",
+      payload: { type: "reasoning", encrypted_content: "/Users/ssalb/state/attachments/a.png", summary: [{ text: "/Users/ssalb/state/attachments/a.png" }] },
+    })
+    assert.equal(JSON.parse(relocateRecord(meta, codexRules)).payload.cwd, "/home/ssalb/ntwine")
+    assert.equal(JSON.parse(relocateRecord(ctx, codexRules)).payload.cwd, "/home/ssalb/ntwine/packages/server")
+    assert.equal(relocateRecord(reasoning, codexRules), reasoning)
+  })
 })
