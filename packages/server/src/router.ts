@@ -296,7 +296,7 @@ import {
   ThreadMoveResult,
   ThreadMoveSlugInput,
 } from "@ntwine/shared"
-import { markMoveNoteTold, movedAwayBlock, untoldMoveNote } from "./thread-move.ts"
+import { markMoveNoteTold, movedAwayBlock, takePendingMoveArrivalNote, untoldMoveNote } from "./thread-move.ts"
 import { codexSandbox } from "./backend/codex.ts"
 import type { CodexSandboxMode } from "./backend/codex-app-server.ts"
 import { readQuota } from "./quota.ts"
@@ -1996,7 +1996,9 @@ export function createRouter(ctx: AppContext) {
       // A THREAD THAT JUST ARRIVED FROM ANOTHER MACHINE (thread-move.ts): its first message here says where it
       // came from and how that machine's paths map onto this one's, once. Marked told before the transport
       // for the reason the reactions are.
-      const moveNote = untoldMoveNote(row?.moved_from)
+      // …or, once the arrival turn is queued (peer-service takeIn), the note rides that wake: a human who
+      // writes before it goes out withdraws it and takes the note back, since their words are the direction.
+      const moveNote = untoldMoveNote(row?.moved_from) ?? takePendingMoveArrivalNote(ctx.storage.scope, input.slug)
       if (moveNote) markMoveNoteTold(ctx.storage.scope, input.slug)
       const messageForWorker = [moveNote, input.message, reactNote, gapNote].filter((part) => part !== undefined).join("\n\n")
       if (row) reopenArchivedThreadForFollowUp(ctx, row)

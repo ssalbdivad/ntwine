@@ -58,6 +58,9 @@ import {
   importThread,
   manifestMovableBackend,
   markMovedAway,
+  markMoveNoteTold,
+  moveArrivalMessage,
+  untoldMoveNote,
   movableBackendOf,
   setMovedTo,
   movedAwayBlock,
@@ -70,6 +73,7 @@ import {
   type MoveGit,
 } from "./thread-move.ts"
 import { readThreadTranscript } from "./transcript.ts"
+import { enqueueMoveArrivalWake } from "./scheduler.ts"
 import { restoreWip, revertMovedPaths, snapshotWip, threadCheckout, writeWipBundle } from "./thread-wip.ts"
 
 // MOVING A THREAD BETWEEN TWO PAIRED MACHINES — the machine-level service (plans/thread-handoff.md).
@@ -463,7 +467,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     try {
       pendingInteractions = ctx.storage.interactions.listPending({ projectId: ctx.project.id, threadSlug: row.slug, sessionId: row.session_id }).length
     } catch { /* keep the refusal */ }
-    const block = restingBlock({ row, telemetry: ctx.tailer.get(row.slug), pendingInteractions })
+    const telemetry = ctx.tailer.get(row.slug)
+    const block = restingBlock({ row, telemetry, pendingInteractions })
     if (block) return RESTING_BLOCKS[block]
     if (movable === "antigravity") {
       const live = ctx.acpBridge?.turnLiveness(row.slug, row.session_id)
@@ -473,7 +478,8 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       if (ctx.codexAppServer?.turnLiveness(row.slug, row.session_id)?.bridgeTurn) return RESTING_BLOCKS["turn-in-flight"]
       if ((ctx.codexAppServer?.backgroundExecs(row.slug, row.session_id).length ?? 0) > 0) return RESTING_BLOCKS["background-shells"]
     }
-    if (pendingWakes(ctx.storage.db, ctx.project.id, row.slug) > 0) return "A message is on its way to the worker; wait for it to land"
+    const answeredAt = Date.parse(telemetry?.lastAssistantAt ?? "")
+    if (pendingWakes(ctx.storage.db, ctx.project.id, row.slug, Number.isFinite(answeredAt) ? answeredAt : undefined) > 0) return "A message is on its way to the worker; wait for it to land"
     return undefined
   }
 
@@ -733,6 +739,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     arriving = recallKey
     moving.set(moveKey, `This thread is coming back from ${record.name}`)
     const say = (error: unknown) => (error instanceof Error ? error.message : String(error))
+    let arrivedId: string | undefined
     try {
       const identities = remoteIdentities(workDirOf(ctx.project))
       if (!identities.length) throw new Error("This project has no git remote, so the other machine cannot find its copy of it")
@@ -751,6 +758,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       let arrived: { slug: string; notes: string[] }
       try {
         arrived = await takeIn(ctx, record, moveId, handed.blob, { slug, sessionId: row.session_id })
+        arrivedId = moveId
       } catch (error) {
         // Nothing was written here, so the thread is still that machine's to run.
         try {
@@ -773,6 +781,7 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     } finally {
       moving.delete(moveKey)
       if (arriving === recallKey) arriving = undefined
+      if (arrivedId) queueArrivalTurn(ctx, slug, arrivedId, record)
       void ctx.board.rebuild().catch(() => {})
     }
   }
@@ -814,6 +823,25 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
     const ctx = await deps.openProject(project.id)
     if (!ctx) throw new Error(`${name} could not open its copy of this project`)
     return takeIn(ctx, peer, args.moveId as string, blob)
+  }
+
+  /**
+   * ITS FIRST TURN HERE (thread-move.ts moveArrivalMessage): the worker checks whether the conversation
+   * already says what it came to do, and starts on it if so. A thread filed away (archived) stays put.
+   * The note rides the wake, so it is marked told now; a human who writes before the wake goes out takes
+   * it back (router deliverFollowUp → takePendingMoveArrivalNote). Never throws: the thread is here.
+   */
+  function queueArrivalTurn(ctx: AppContext, slug: string, moveId: string, peer: PeerRecord): void {
+    try {
+      const row = ctx.storage.getSession(slug)
+      const note = untoldMoveNote(row?.moved_from)
+      if (!row || !note || row.state === "archived" || row.archived === 1) return
+      enqueueMoveArrivalWake(ctx.storage, { slug, sessionId: row.session_id, moveId, fromName: peer.name, message: moveArrivalMessage(note, name) })
+      markMoveNoteTold(ctx.storage.scope, slug)
+      ctx.scheduler?.kick?.()
+    } catch (error) {
+      log.warn("peer", `@${slug} arrived but its first turn was not queued: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   /**
@@ -861,6 +889,9 @@ export function createPeerService(deps: PeerServiceDeps): PeerService {
       } catch (error) {
         log.warn("peer", `the board did not refresh after @${slug} arrived: ${error instanceof Error ? error.message : String(error)}`)
       }
+      // A recall queues its arrival turn only once its own guard is down (recall): until then every run
+      // path refuses the thread, and the scheduler would file the turn as refused for good.
+      if (!asked && !result.duplicate) queueArrivalTurn(ctx, result.slug, manifest.moveId, peer)
       audit("threadMoveIn", "ok", {
         project: auditProject, thread: slug,
         detail: { peer: peerRef(peer), moveId: manifest.moveId, duplicate: result.duplicate, compressed: blob.length, files: unpacked.files.length, wipPaths: manifest.git?.paths.length ?? 0, checkout: manifest.git?.rel ?? null, ...(asked ? { recalled: true } : {}) },

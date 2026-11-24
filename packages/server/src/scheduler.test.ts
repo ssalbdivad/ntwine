@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ISSUE_WATCH_HUMAN_TRAILER, PR_WATCH_HUMAN_TRAILER, QUESTION_DEFAULT_AFTER_MS, QUESTION_DEFAULT_ENGAGED_GRACE_MS, wakeDeliveryToken, type QuotaSnapshot } from "@ntwine/shared"
 import { createStorage, type Storage, type SessionRow } from "./storage.ts"
-import { ANSWER_REOFFER_BACKOFF_MS, createScheduler, enqueueInterruptEndedWake, enqueueThreadMessageWake, parsePrRef, ghPrViewArgs, evalRollup, parseGithubReviewActivities, isBotGithubActor, MID_TURN_HOLD_MAX_MS, type GithubReviewActivity, type PrRef, type PrStatus } from "./scheduler.ts"
+import { ANSWER_REOFFER_BACKOFF_MS, createScheduler, enqueueInterruptEndedWake, enqueueMoveArrivalWake, enqueueThreadMessageWake, parsePrRef, ghPrViewArgs, evalRollup, parseGithubReviewActivities, isBotGithubActor, MID_TURN_HOLD_MAX_MS, type GithubReviewActivity, type PrRef, type PrStatus } from "./scheduler.ts"
 import { createGithubReviewFetcher, type GithubReviewFetchResult } from "./github-review.ts"
 import { createWakeDeliveryStore, WAKE_QUIET_WINDOW_MS } from "./wake-store.ts"
 import type { Tailer, SessionTelemetry, FenceView, TurnState, BgShellView } from "./tailer.ts"
@@ -3394,6 +3394,30 @@ test("interrupt note: delivered into the busy turn on the next tick, never held"
   await s.tick()
   assert.equal(h.resumes.length, 1, "and exactly once")
   assert.equal(createWakeDeliveryStore(h.storage.scope).list()[0]?.state, "delivered")
+  h.storage.close()
+})
+
+// A moved thread's arrival turn is a new wake source too, so the same silent-supersede trap applies: this
+// asserts `resume` RAN for a resting thread, and that a human who already wrote here wins over it.
+test("move arrival: delivered to a resting thread once, superseded once the human has written", async () => {
+  const h = harness()
+  h.storage.upsertSession(row("a"))
+  h.storage.upsertSession(row("b"))
+  h.tele.set("a", tele())
+  h.tele.set("b", { ...tele(), lastHumanAt: iso(h.clock.ms + 1_000) })
+  for (const slug of ["a", "b"]) {
+    enqueueMoveArrivalWake(h.storage, { slug, sessionId: `sid-${slug}`, moveId: "m1", fromName: "mac", message: `arrived ${slug}`, nowMs: h.clock.ms })
+    enqueueMoveArrivalWake(h.storage, { slug, sessionId: `sid-${slug}`, moveId: "m1", fromName: "mac", message: `arrived ${slug}`, nowMs: h.clock.ms })
+  }
+  const s = h.make()
+  await s.tick()
+  assert.deepEqual(h.resumes.map((r) => r.slug), ["a"], "the retried import queued one, and the thread the human wrote to got none")
+  assert.match(h.resumes[0].message, /^arrived a/)
+  h.tele.set("a", { ...tele(), lastUserText: h.resumes[0].message })
+  await s.tick()
+  assert.equal(h.resumes.length, 1, "and exactly once")
+  const states = Object.fromEntries(createWakeDeliveryStore(h.storage.scope).list().map((d) => [d.slug, d.state]))
+  assert.deepEqual(states, { a: "delivered", b: "superseded" })
   h.storage.close()
 })
 

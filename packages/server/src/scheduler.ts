@@ -29,6 +29,7 @@ import {
   type GithubIssueSnapshot,
 } from "./github-review.ts"
 import { isNoisePrActivity } from "./pr-watch-noise.ts"
+import { MOVE_ARRIVAL_FENCE_PREFIX } from "./thread-move.ts"
 
 const execFileAsync = promisify(execFile)
 
@@ -1049,6 +1050,31 @@ export function enqueueThreadMessageWake(
   return id
 }
 
+/** A THREAD THAT JUST ARRIVED FROM ANOTHER MACHINE gets one turn to pick up what it moved here to do
+ *  (thread-move.ts moveArrivalMessage). Keyed on the move id, so a retried import cannot queue two. Bound
+ *  to the arrival, a fact; superseded only when the human speaks first — their message is the direction
+ *  then, and the router takes the note back to ride it (takePendingMoveArrivalNote). Never mid-turn: a
+ *  thread that is already running here has been told something newer than the move. */
+function isMoveArrivalFenceId(fenceId: string): boolean {
+  return fenceId.startsWith(`${MOVE_ARRIVAL_FENCE_PREFIX}:`)
+}
+
+export function enqueueMoveArrivalWake(
+  storage: Storage,
+  input: { slug: string; sessionId: string; moveId: string; fromName: string; message: string; nowMs?: number },
+): void {
+  const fenceId = `${MOVE_ARRIVAL_FENCE_PREFIX}:${input.moveId}`
+  createWakeDeliveryStore(storage.scope).enqueue({
+    id: wakeDeliveryId(input.slug, input.sessionId, fenceId),
+    slug: input.slug,
+    sessionId: input.sessionId,
+    fenceId,
+    hintKey: fenceId,
+    message: input.message,
+    reason: `the thread arrived from ${input.fromName}`,
+  }, input.nowMs ?? Date.now())
+}
+
 /** THE HUMAN MOVED THE CLOCK (router setThreadDeadline → deadline.ts deadlineNoticeMessage). Bound to the
  *  change still standing: a set is keyed on the generation it minted (`set:<deadline_set_at>`) and
  *  superseded the moment the deadline moves again, a clear (`clear:<instant>`) the moment one is set
@@ -1637,6 +1663,12 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     }
     // So is a message from another thread: it was said, whatever this thread says next.
     if (isThreadMessageFenceId(item.fenceId)) {
+      return tele.turn === "idle" ? "current-idle" : "current-busy"
+    }
+    // The arrival turn stands until the human speaks here; after that their words are the direction.
+    if (isMoveArrivalFenceId(item.fenceId)) {
+      const humanAt = Date.parse(tele.lastHumanAt ?? "")
+      if (Number.isFinite(humanAt) && humanAt >= item.createdAt) return "superseded"
       return tele.turn === "idle" ? "current-idle" : "current-busy"
     }
     // An over-budget warning is bound to its shell STILL RUNNING under the SAME deadline. The worker

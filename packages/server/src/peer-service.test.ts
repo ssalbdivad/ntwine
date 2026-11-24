@@ -15,7 +15,7 @@ import { ENVELOPE_MAGIC, frameMessage, generatePeerKey, openRequest, sealRequest
 import { loadOrCreatePeerKey, openPeerStore, peerKeyPath } from "./peer-store.ts"
 import { cwdSlug } from "./project.ts"
 import { unpackBundle } from "./thread-bundle.ts"
-import { movedStamp } from "./thread-move.ts"
+import { movedStamp, takePendingMoveArrivalNote, untoldMoveNote } from "./thread-move.ts"
 import { createStorage } from "./storage.ts"
 
 // Two peer services in one process, each with its own home, whose `fetch` is the other's `handle`:
@@ -425,11 +425,20 @@ describe("resuming a thread on the machine it left", () => {
   writeFileSync(join(macBucket, `${sid}.jsonl`), `${JSON.stringify({ type: "user", cwd: mac.dir, message: { role: "user", content: "fix it" } })}\n`)
 
   const awayOf = (s: typeof mac) => movedStamp(s.storage.getSession("fix-parser")?.moved_to)
+  const arrivals = (s: typeof mac) => s.storage.scope.prepare<[], { state: string; message: string }>(
+    "SELECT state, message FROM wake_delivery WHERE project_id = @project_id AND fence_id LIKE 'move-arrival:%' ORDER BY created_at",
+  ).all()
   const history = (s: typeof mac) => moveLogOf(s.storage.getSession("fix-parser")?.move_log).map((entry) => `${entry.from} > ${entry.to}`)
 
   it("refuses a machine the thread did not come from, and a thread still busy there, changing nothing", async () => {
     await macPeers.move(mac.ctx, "fix-parser", desktopId)
     assert.equal(awayOf(mac)?.peerName, "desktop")
+    // It arrives with a turn of its own queued, carrying the arrival note, which is then told.
+    const [arrived] = arrivals(desktop)
+    assert.equal(arrived?.state, "pending")
+    assert.match(arrived!.message, /^⟦ntwine⟧ This thread moved from mac to desktop\./)
+    assert.match(arrived!.message, /`machine: desktop` fence/)
+    assert.equal(untoldMoveNote(desktop.storage.getSession("fix-parser")?.moved_from), undefined)
     // A pairing lets a machine hand threads over; it does not let it take this machine's threads.
     const asked = await request(stranger, desktop.key.publicKey, { op: "recall", args: { identities, slug: "fix-parser", sessionId: sid, moveId: "m" } }).send(desktopPeers)
     assert.deepEqual(asked, { ok: false, error: "desktop's copy of this thread did not come from stranger" })
@@ -469,6 +478,13 @@ describe("resuming a thread on the machine it left", () => {
     assert.deepEqual(history(mac), ["mac > desktop", "desktop > mac"])
     assert.deepEqual(history(desktop), ["mac > desktop", "desktop > mac"])
     await assert.rejects(macPeers.recall(mac.ctx, "fix-parser"), { message: "This thread is already on this machine" })
+    // The queued arrival turn did not hold the move back, and leaving superseded it.
+    assert.deepEqual(arrivals(desktop).map((w) => w.state), ["superseded"])
+    // Back home it gets its own; a human who writes first withdraws it and takes its note.
+    assert.deepEqual(arrivals(mac).map((w) => w.state), ["pending"])
+    assert.match(takePendingMoveArrivalNote(mac.storage.scope, "fix-parser") ?? "", /^⟦ntwine⟧ This thread moved from desktop to mac\. .*notes are here\.$/)
+    assert.deepEqual(arrivals(mac).map((w) => w.state), ["superseded"])
+    assert.equal(takePendingMoveArrivalNote(mac.storage.scope, "fix-parser"), undefined)
   })
 })
 

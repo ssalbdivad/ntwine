@@ -440,6 +440,57 @@ export function stripMovedNote(text: string): string {
   return text.slice(end).replace(/^\n+/, "")
 }
 
+// ---- THE ARRIVAL TURN ----------------------------------------------------------------------------------
+// A thread that lands here gets one turn of its own before anyone writes to it (peer-service takeIn →
+// scheduler enqueueMoveArrivalWake). The move is usually the answer to the worker's own `machine:` fence,
+// whose contract promises "you continue on arrival" — yet until 2026-11-24 the thread sat silent until
+// the human typed "go" on the new machine, which was the one thing the fence had already said. The
+// worker reads its own conversation and decides: a clear reason to be here means it starts, anything
+// else means it re-rests as it stood. It never runs here on its own beyond that one turn.
+//
+// The message is the arrival note (movedNote, so the worker still learns the path map exactly once)
+// followed by the instruction. The chat already draws the move as its own divider, so the whole wake is
+// dropped from the transcript (isMoveArrivalWake → user-projection pushUserRecord).
+export const MOVE_ARRIVAL_FENCE_PREFIX = "move-arrival"
+const MOVE_ARRIVAL_LEAD = "⟦ntwine⟧ This turn is the thread's first on "
+
+export function moveArrivalMessage(note: string, selfName: string): string {
+  return [
+    note,
+    `${MOVE_ARRIVAL_LEAD}${selfName}, before anyone has written to it here. Read back over the conversation. ` +
+      `If it already makes clear what this thread came to ${selfName} to do — you rested on a \`machine: ${selfName}\` fence ` +
+      "with work left, or the user said what should happen once it got here — start on that now, exactly as if they had just " +
+      "said go, and carry it through to a normal rest.",
+    "If it does not, start nothing: end this turn signed off the way the thread stood before the move (the same done, " +
+      "the same open question, the same wait), without a write-up about the move.",
+  ].join("\n\n")
+}
+
+/** Is this delivered user turn the arrival wake above? Anchored to the note's head and the lead's
+ *  position right after it, so a message that merely quotes the lead keeps rendering. */
+export function isMoveArrivalWake(text: string): boolean {
+  if (!text.startsWith(MOVED_NOTE_HEAD)) return false
+  const end = text.indexOf("\n\n")
+  return end >= 0 && text.startsWith(MOVE_ARRIVAL_LEAD, end + 2)
+}
+
+/**
+ * The human wrote before the arrival turn went out: their message is the direction, so the queued wake is
+ * withdrawn and its note handed back to ride their message instead (router deliverFollowUp). Only a
+ * PENDING row — one already leased may be on the wire, and then the human's message joins its turn.
+ */
+export function takePendingMoveArrivalNote(scope: ProjectScope, slug: string): string | undefined {
+  if (!tableExists(scope.db, "wake_delivery")) return undefined
+  const row = scope.prepare<[string, string], { id: string; message: string }>(
+    "SELECT id, message FROM wake_delivery WHERE project_id = @project_id AND thread_slug = ? AND state = 'pending' AND fence_id LIKE ? ORDER BY created_at LIMIT 1",
+  ).get(slug, `${MOVE_ARRIVAL_FENCE_PREFIX}:%`)
+  if (!row) return undefined
+  const now = Date.now()
+  scope.prepare("UPDATE wake_delivery SET state = 'superseded', last_error = 'the human wrote first', terminal_at = ?, updated_at = ? WHERE project_id = @project_id AND id = ? AND state = 'pending'").run(now, now, row.id)
+  const end = row.message.indexOf("\n\n")
+  return end < 0 ? undefined : row.message.slice(0, end)
+}
+
 /**
  * Session fields that would run the thread, or decide what it may do, without the human on THIS machine:
  * a recurring prompt, a snooze's follow-up, a held prompt, a time limit's check-ins, and its own
@@ -845,9 +896,16 @@ export function setMovedTo(scope: ProjectScope, slug: string, stamp: ThreadMoveS
   scope.prepare("UPDATE session SET moved_to = @stamp WHERE project_id = @project_id AND slug = @slug").run({ stamp: stamp ? JSON.stringify(stamp) : null, slug })
 }
 
-/** Wakes still on their way to this thread's worker. A move would drop them, so it waits instead. */
-export function pendingWakes(db: Database, projectId: string, slug: string): number {
-  return db.prepare<[string, string], { n: number }>("SELECT COUNT(*) AS n FROM wake_delivery WHERE project_id = ? AND thread_slug = ? AND state IN ('pending', 'leased')").get(projectId, slug)?.n ?? 0
+/** Wakes still on their way to this thread's worker. A move would drop them, so it waits instead — except
+ *  a still-queued arrival turn, which a move onward makes moot (and markMovedAway supersedes), and a wake
+ *  already SENT that the worker has since answered (`answeredAtMs`, its newest assistant record): a
+ *  Claude-run wake confirms only after a grace (scheduler confirmGraceMs), and that window refused a move
+ *  back made right after an arrival turn came to rest. */
+export function pendingWakes(db: Database, projectId: string, slug: string, answeredAtMs?: number): number {
+  return db.prepare<[string, string, number, string], { n: number }>(
+    `SELECT COUNT(*) AS n FROM wake_delivery WHERE project_id = ? AND thread_slug = ? AND (
+      (state = 'leased' AND (sent_at IS NULL OR sent_at >= ?)) OR (state = 'pending' AND fence_id NOT LIKE ?))`,
+  ).get(projectId, slug, answeredAtMs ?? Number.MAX_SAFE_INTEGER, `${MOVE_ARRIVAL_FENCE_PREFIX}:%`)?.n ?? 0
 }
 
 export function movedStamp(raw: unknown): ThreadMoveStamp | undefined {

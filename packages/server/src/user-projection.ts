@@ -22,7 +22,7 @@ import {
 } from "@ntwine/shared"
 import { stripDeliveryMarkers } from "./delivery-marker.ts"
 import { parseSignalFence } from "./tailer.ts"
-import { stripMovedNote } from "./thread-move.ts"
+import { isMoveArrivalWake, stripMovedNote } from "./thread-move.ts"
 
 export function normalizeNewlines(s: string): string {
   // Also drop ntwine's invisible delivery marker (delivery-marker.ts). Every path that turns a raw record
@@ -247,6 +247,10 @@ export function createCorrectionSink(out: TranscriptMessage[]): CorrectionSink {
     markFenceRefused(out)
   }
   return (text: string) => {
+    // A MOVED THREAD'S ARRIVAL TURN (thread-move.ts) is dropped by the same sink, because every carrier of
+    // a delivery — the enqueue, the queued_command attachment, the user record — already asks it. The move
+    // draws as its own divider; the wake is the worker's alone. It marks no fence.
+    if (isMoveArrivalWake(text)) return true
     if (isParkCorrection(text)) {
       refuse(text)
       return true

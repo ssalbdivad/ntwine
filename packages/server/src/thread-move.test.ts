@@ -7,9 +7,10 @@ import { openNtwineDatabase, type NtwineDatabase } from "./ntwine-db.ts"
 import Database from "./sqlite.ts"
 import { createStorage, type SessionRow, type Storage } from "./storage.ts"
 import { unpackBundle } from "./thread-bundle.ts"
-import { moveLogOf, type TranscriptMessage } from "@ntwine/shared"
-import { exportThread, importThread, markMovedAway, movedNote, movedStamp, MoveRefusal, parseManifest, UNSUPPORTED_MOVE_BACKEND_REFUSAL, untoldMoveNote, type MoveManifest } from "./thread-move.ts"
+import { moveLogOf, wakeDeliveryToken, type TranscriptMessage } from "@ntwine/shared"
+import { exportThread, importThread, markMovedAway, moveArrivalMessage, movedNote, movedStamp, MoveRefusal, parseManifest, pendingWakes, UNSUPPORTED_MOVE_BACKEND_REFUSAL, untoldMoveNote, type MoveManifest } from "./thread-move.ts"
 import { parseTranscript, withMoveDividers } from "./transcript.ts"
+import { createWakeDeliveryStore } from "./wake-store.ts"
 
 // Two "machines" on one disk: each its own home, checkout, state dir and database, as the real move
 // sees them. The git half is thread-wip.test.ts's; here a thread with no repository moves without one.
@@ -221,6 +222,38 @@ describe("the arrival note in the human's message", () => {
   it("stays when the human quotes it rather than ntwine prepending it", () => {
     const quoted = `${note.split(" Nothing")[0]}\n\nwhy does this show?`
     assert.equal(shown(quoted), quoted)
+  })
+
+  it("draws nothing for the arrival turn, whose move already has its divider", () => {
+    const wake = `${moveArrivalMessage(note, "desktop")}\n\n⏱ 2026-11-24 10:00.\n\n${wakeDeliveryToken("abc")}`
+    assert.equal(shown(wake), "first")
+    // …and when it arrives queued, as a broker delivers it: the enqueue carrier draws nothing either.
+    const queued = parseTranscript([
+      JSON.stringify({ type: "user", uuid: "u1", timestamp: "2026-11-12T12:00:00.000Z", message: { role: "user", content: "first" } }),
+      JSON.stringify({ type: "queue-operation", operation: "enqueue", timestamp: "2026-11-12T12:01:00.000Z", content: wake }),
+      JSON.stringify({ type: "user", uuid: "u2", timestamp: "2026-11-12T12:01:01.000Z", message: { role: "user", content: wake } }),
+    ].join("\n"))
+    assert.deepEqual(queued.filter((m) => m.role === "user").map((m) => m.text), ["first"])
+    // A human pasting the instruction under the note keeps their bubble: the lead must follow the note.
+    const pasted = `${note}\n\nsee: ${moveArrivalMessage(note, "desktop").split("\n\n")[1]}`
+    assert.match(shown(pasted), /^see: /)
+  })
+})
+
+describe("the wakes that hold a move back", () => {
+  it("are those still to reach the worker: not a queued arrival turn, nor a sent wake it has answered", () => {
+    const m = machine(`wakes-${randomTag()}`, "proj-wakes", "app")
+    const outbox = createWakeDeliveryStore(m.storage.scope, { quietWindowMs: 0 })
+    const held = () => pendingWakes(m.db.db, "proj-wakes", "t", 2_000)
+    outbox.enqueue({ id: "arrival", slug: "t", sessionId: SID, fenceId: "move-arrival:m1", hintKey: "a", message: "x", reason: "r" }, 1_000)
+    assert.equal(held(), 0, "an arrival turn still queued")
+    outbox.enqueue({ id: "timer", slug: "t", sessionId: SID, fenceId: "timer:1", hintKey: "t", message: "x", reason: "r" }, 1_000)
+    assert.equal(held(), 1, "any other queued wake")
+    m.db.db.prepare("UPDATE wake_delivery SET state = 'leased', sent_at = 1500 WHERE id = 'timer'").run()
+    assert.equal(held(), 0, "sent before the worker's last word")
+    assert.equal(pendingWakes(m.db.db, "proj-wakes", "t", 1_200), 1, "sent after it: still on its way")
+    m.db.db.prepare("UPDATE wake_delivery SET state = 'leased', sent_at = NULL WHERE id = 'arrival'").run()
+    assert.equal(held(), 1, "an arrival turn being sent")
   })
 })
 

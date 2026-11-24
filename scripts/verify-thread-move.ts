@@ -5,10 +5,12 @@
 //
 // Two disposable stacks (scripts/adhoc-stack.mjs), each with its own sandbox HOME, data root, port and
 // clone of one bare remote at a DIFFERENT path, so every path rule is exercised: the home, the
-// checkout, the Claude bucket. They pair over loopback through the real routes. A real Claude worker
+// checkout, the Claude bucket. Their schedulers run (`--wakers`): a thread's arrival turn is a wake. They pair over loopback through the real routes. A real Claude worker
 // (`--creds`, real tokens — a few cents on haiku) is told a code word and leaves uncommitted work in
-// a worktree; it is moved while resting, asked on the other server for the code word and to keep
-// working, then resumed from the mac's stub (Resume here) and asked again. Every check is on the real
+// a worktree, leaving the rest of its task for the other machine on a `machine:` fence; it is moved
+// while resting, and must pick that rest up ON ITS OWN on arrival (its arrival turn — nobody writes to it
+// there), then is resumed from the mac's stub (Resume here), where it has no reason to be and must start
+// nothing, and is asked again. Every check is on the real
 // outcome: the files in each checkout, the transcript on each side, the board, the worker's own words.
 // `--shots` also photographs the mac's drawer, headless, before and after it resumes the thread there.
 //
@@ -62,7 +64,7 @@ const freePort = () => new Promise<number>((done, fail) => {
 async function boot(name: string, port: number, project: string): Promise<Stack> {
   const home = join(root, name)
   const out = join(root, `${name}.stdout`)
-  const child = spawn(process.execPath, ["scripts/adhoc-stack.mjs", `--port=${port}`, `--home=${home}`, `--project=${project}`, "--creds", `--log=${join(root, `${name}.server.log`)}`], {
+  const child = spawn(process.execPath, ["scripts/adhoc-stack.mjs", `--port=${port}`, `--home=${home}`, `--project=${project}`, "--creds", "--wakers", `--log=${join(root, `${name}.server.log`)}`], {
     cwd: repo, stdio: ["ignore", openSync(out, "w"), openSync(join(root, `${name}.stderr`), "w")], env: { ...process.env, HOME: realHome },
   })
   stacks.push(child)
@@ -166,6 +168,7 @@ async function main() {
   await rpc(a, "peerSetAddress", { id: desktopId, url: `http://127.0.0.1:${b.port}` })
   check((await rpc<{ name: string }>(a, "peerPing", { id: desktopId })).name.length > 0, "the mac reaches the desktop over the encrypted channel")
   const macId = macSeenFromDesktop.id
+  const desktopName = (await rpc<{ self: { name: string } }>(b, "peersState", undefined, "query")).self.name
 
   step(`dispatching a real Claude worker (${model}) on the mac`)
   const t0 = Date.now()
@@ -177,7 +180,9 @@ async function main() {
       "Remember this code word for later: PELICAN-42.",
       "Then, in this repository, run exactly: git worktree add .ntwine/worktrees/feature -b feature",
       "In that new worktree only: append the line `edited on the first machine` to README.md, and create notes/todo.txt containing `step 1 done`.",
-      "Do NOT commit anything. When both files are written, reply with the single word READY and stop.",
+      "Do NOT commit anything.",
+      `The rest of this task has to happen on the paired machine named ${desktopName}, not here: once this thread is there, append the line \`continued on the second machine\` to README.md in the same worktree, then reply with the code word and the absolute path of the file you edited.`,
+      `Do not do that part here. Once both files above are written, reply with the word READY and end your message with an \`\`\`awaiting fence whose only line is \`machine: ${desktopName}\`.`,
     ].join("\n"),
   })
   const slug = dispatched.slug
@@ -189,7 +194,7 @@ async function main() {
     }
   }
   const first = await rested(a, slug, t0, "first turn")
-  check(/READY/.test(first.lastAssistant ?? ""), `the worker came to rest saying READY (${JSON.stringify(first.lastAssistant)})`)
+  check(/READY/.test(first.lastAssistant ?? "") && (await transcriptText(a, slug)).includes(`machine: ${desktopName}`), `the worker came to rest saying READY on a machine: fence (${JSON.stringify(first.lastAssistant)})`)
   const wtA = join(projectA, ".ntwine", "worktrees", "feature")
   check(readFileSync(join(wtA, "README.md"), "utf8").includes("edited on the first machine"), "its uncommitted edit is in the mac's worktree")
 
@@ -201,6 +206,7 @@ async function main() {
   check(preview.destination?.dir === projectB, "the desktop answered with its own checkout of the project")
 
   step("moving it to the desktop")
+  const tMove = Date.now()
   const moved = await rpc<{ slug: string; notes: string[] }>(a, "threadMove", { slug, peerId: desktopId })
   check(moved.slug === slug, `moved as @${moved.slug}${moved.notes.length ? ` (notes: ${moved.notes.join("; ")})` : ""}`)
   const stubDone = (t?: ThreadRow) => t?.movedTo && !t.movedTo.pending && t.state === "archived"
@@ -220,14 +226,15 @@ async function main() {
   check(arrived?.movedFrom?.peerName && arrived.state !== "archived", `the desktop's board shows it open, from ${arrived?.movedFrom?.peerName}`)
   check(!(await foreignCopy(b, dispatched.sessionId)), "and not a second time as a session ntwine did not start")
 
-  step("continuing it on the desktop")
-  const t1 = Date.now()
-  await rpc(b, "followUp", { slug, sessionId: dispatched.sessionId, message: "What was the code word? Then append the line `continued on the second machine` to README.md in the worktree you were working in, and reply with the code word and the absolute path of the file you edited." })
-  const second = await rested(b, slug, t1, "turn on the desktop")
-  check((second.lastAssistant ?? "").includes("PELICAN-42"), `it remembers the code word: ${JSON.stringify(second.lastAssistant?.slice(0, 200))}`)
+  step("continuing it on the desktop, on its own")
+  // Nothing is sent to it here: its arrival turn reads the machine: fence it left and does the rest.
+  const second = await rested(b, slug, tMove, "arrival turn on the desktop")
+  check((second.lastAssistant ?? "").includes("PELICAN-42"), `it picked the task up unprompted and remembers the code word: ${JSON.stringify(second.lastAssistant?.slice(0, 200))}`)
   check(readFileSync(join(wtB, "README.md"), "utf8").includes("continued on the second machine"), "it edited the desktop's worktree")
   check(readFileSync(join(wtB, "README.md"), "utf8").includes("edited on the first machine"), "on top of the work that moved")
-  check((await transcriptText(b, slug)).includes("This thread moved from"), "its first message on the desktop carried the move note")
+  check(readFileSync(join(bucketB, `${dispatched.sessionId}.jsonl`), "utf8").includes("This thread moved from"), "its first message on the desktop carried the move note")
+  const userTurns = (await rpc<{ messages: { role: string; text: string }[] }>(b, "threadTranscript", { slug }, "query")).messages.filter((m) => m.role === "user")
+  check(!userTurns.some((m) => m.text.includes("This turn is the thread's first on")), "the arrival turn draws nothing in the chat beyond the move's own divider")
   check((await moveDividers(b, slug)).length === 1, `the desktop's conversation marks where it arrived: ${(await moveDividers(b, slug)).join(" | ")}`)
   check((await moveDividers(a, slug)).length === 1, `and so does the mac's stub, where it left: ${(await moveDividers(a, slug)).join(" | ")}`)
   const stubShot = await shoot(a, slug, "stub")
@@ -237,6 +244,7 @@ async function main() {
   // The desktop can no longer reach the mac: a recall needs only the asker to reach the holder, which is
   // the real case where one machine cannot resolve the other's name.
   await rpc(b, "peerSetAddress", { id: macId, url: "http://127.0.0.1:9" })
+  const tRecall = Date.now()
   const back = await rpc<{ slug: string; notes: string[] }>(a, "threadMoveRecall", { slug })
   check(back.slug === slug, `resumed here${back.notes.length ? ` (notes: ${back.notes.join("; ")})` : ""}`)
   await rpc(a, "threadMoveRecall", { slug }).then(
@@ -248,6 +256,10 @@ async function main() {
   check(!(await foreignCopy(a, dispatched.sessionId)), "and not a second time as a session ntwine did not start")
   check(readFileSync(join(wtA, "README.md"), "utf8").includes("continued on the second machine"), "the mac's worktree has the desktop's work")
   check(stubDone(await threadWhen(b, slug, stubDone)), "the desktop now keeps the stub")
+  // Its arrival turn here has no reason to be here in the conversation, so it re-rests and starts nothing.
+  const readmeBack = readFileSync(join(wtA, "README.md"), "utf8")
+  const homeArrival = await rested(a, slug, tRecall, "arrival turn back on the mac")
+  check(readFileSync(join(wtA, "README.md"), "utf8") === readmeBack && git(wtA, "log", "-1", "--format=%s") === git(projectA, "log", "-1", "--format=%s"), `with nothing new asked of it, the arrival turn changed nothing: ${JSON.stringify(homeArrival.lastAssistant?.slice(0, 160))}`)
   const t2 = Date.now()
   await rpc(a, "followUp", { slug, sessionId: dispatched.sessionId, message: "Back home. Reply with the code word only." })
   const third = await rested(a, slug, t2, "turn back on the mac")
