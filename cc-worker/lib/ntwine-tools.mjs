@@ -912,12 +912,12 @@ const MESSAGE_THREAD = {
     "its message says so; answer it promptly, even if only to say you cannot help.\n\n" +
     "A thread you spawned with `ntwinectl spawn-thread`, or the one that spawned you, is reachable the same way.\n\n" +
     "`ntwinectl read-thread` FIRST — often it already answers the question. Write each message to stand alone: " +
-    "the other thread has none of your context. Never reply just to acknowledge. A finished thread cannot " +
-    "be messaged (read it instead). A RUNNING sub-agent can, by its address (`@thread.child`, your own " +
+    "the other thread has none of your context. Never reply just to acknowledge. Pass `--reopen` to reopen " +
+    "and message a finished (Done) thread (without it, messaging a Done thread is refused). A RUNNING sub-agent can be messaged by its address (`@thread.child`, your own " +
     "children included): it reads the message after its next tool call, and answers only in its report to " +
     "its own thread, so `--await-reply` does not apply. Messages between two threads are capped per hour.\n\n" +
     "A TERMINAL takes the message as a typed line and Enter, and only from the thread that drives it: anyone " +
-    "else is refused (exit 2) with who does. `--await-reply` then wakes you at its next prompt, its exit, or a " +
+    "else is refused (exit 2) with who does (`ntwinectl terminal take @handle` takes control). `--await-reply` then wakes you at its next prompt, its exit, or a " +
     "change of hands.",
   inputSchema: {
     type: "object",
@@ -927,6 +927,10 @@ const MESSAGE_THREAD = {
       await_reply: {
         type: "boolean",
         description: "Register a wait on that thread's answer. Use when you need the answer before you can go on, then rest on an ```awaiting fence naming it under `threads:`.",
+      },
+      reopen: {
+        type: "boolean",
+        description: "Reopen the target thread first if it is currently Done (archived), then deliver the message.",
       },
     },
     required: ["handle", "message"],
@@ -1257,8 +1261,8 @@ const TERMINAL = {
     properties: {
       action: {
         type: "string",
-        enum: ["start", "run", "stop", "restart", "release"],
-        description: "`start` a new terminal; `run` a new command in an existing terminal; `stop` it; `restart` its command; `release` control of it to the user.",
+        enum: ["start", "run", "stop", "restart", "release", "take", "give"],
+        description: "`start` a new terminal; `run` a new command in an existing terminal; `stop` it; `restart` its command; `release` control of it to the user; `take` control of any terminal for this thread; `give` control of a terminal to another thread (`@handle`) or `human`.",
       },
       command: {
         type: "string",
@@ -1272,6 +1276,78 @@ const TERMINAL = {
         type: "string",
         description: "Required for every action but `start`. The terminal's `@handle`, as `start` printed it.",
       },
+      to: {
+        type: "string",
+        description: "Required for `give`. The target thread `@handle` or `human`.",
+      },
+    },
+    required: ["action"],
+  },
+}
+
+// FULL THREAD CONTROL (`ntwinectl thread ...`): every board and lifecycle action a user can take on any
+// thread, across this project and every other open project.
+const THREAD = {
+  name: "thread",
+  description:
+    "LIST, INSPECT OR CONTROL ANY THREAD — in this project or any other open project (including terminals " +
+    "and held to-do threads). Gives threads the full set of board controls.\n\n" +
+    "Actions:\n" +
+    "  list                          List threads by band (open by default; add `--done`, `--all-projects`, `--project`, `--query`).\n" +
+    "  info <@handle>                Full state: band, model, permission, goal, deadline, open questions, live ops, checkout, usage.\n" +
+    "  done <@handle>                Mark as done — stops idle runtime and moves to the Done band (aliases: `complete`, `archive`).\n" +
+    "                                Refuses (exit 2) if a turn, sub-agent or bg shell is running unless `--force` is passed.\n" +
+    "                                Add `--stop-terminals` to stop its running terminals too; `--body` records a done summary.\n" +
+    "  reopen <@handle>              Reopen a Done thread back to open.\n" +
+    "  stop <@handle>                Stop a running worker/terminal (aliases: `interrupt`, `kill`). With `--op <id>`, stops one sub-agent or bg shell.\n" +
+    "  delete <@handle>              Permanently delete a thread (stops live worker, removes rows and scratchpad, frees `@handle`).\n" +
+    "  pin / unpin <@handle>         Pin or unpin a thread.\n" +
+    "  snooze <@handle>              Snooze until `--for <duration>` or `--until <ISO>` (optional `--prompt` for a scheduled follow-up).\n" +
+    "  unsnooze <@handle>            Clear snooze / wake now (alias: `wake`).\n" +
+    "  rename <@handle> <title>      Rename a thread (enforces uniqueness).\n" +
+    "  compact <@handle>             Compact a resting thread's context.\n" +
+    "  model <@handle> [<model>]     Change model / `--effort` (alias: `profile`), or `--upgrade` a Claude thread to its newest edition.\n" +
+    "  permission <@handle> <mode>   Change permission / sandbox mode (`default`, `acceptEdits`, `plan`, `bypassPermissions`, `read-only`, `workspace-write`, `danger-full-access`).\n" +
+    "  spinoff <@handle>             Fork / spin off a new thread (alias: `fork`; optional `--instructions`, `--project`).\n" +
+    "  todo                          Create a held to-do thread (`--prompt`, optional `--project`, `--title`, `--model`, `--effort`, `--backend`).\n" +
+    "  start <@handle>               Start a held to-do or pending scheduled run (optional `--prompt`, `--model`, `--effort`, `--backend`).\n" +
+    "  answer <@handle>              Answer open questions (`--id <qst_id> --answer <text>`, or `--answers '<json>'`).\n" +
+    "  dismiss-questions <@handle>   Dismiss non-danger open questions (all by default, or `--id` / `--ids`).\n" +
+    "  deliver <@handle>             Push queued/held follow-ups through now (`--release-only` releases held without interrupting).\n" +
+    "  check-in <@handle>            Wake a parked thread for a status check-in now.\n" +
+    "  deadline <@handle>            Read, set (`--for` / `--at`) or `--clear` any deadline on the thread.\n\n" +
+    "To run any OTHER thread-scoped `ntwinectl` command (`activity`, `goal`, `timer`, `watch-pr`, `unask`, `link`, `done`, …) " +
+    "against another thread, pass `--thread <@handle>` to that command.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      action: { type: "string", description: "The action to run (list, info, done, reopen, stop, delete, pin, unpin, snooze, unsnooze, rename, compact, model, permission, spinoff, todo, start, answer, dismiss-questions, deliver, check-in, deadline)." },
+      handle: { type: "string", description: "Target thread `@handle` or slug (with or without `@`). Required for every action except `list` and `todo`." },
+      project: { type: "string", description: "Scope to a specific open project (slug, name or id) for `list`, `todo`, `spinoff`, or to disambiguate a handle." },
+      all_projects: { type: "boolean", description: "For `list`: list threads across every open project on this machine." },
+      done: { type: "boolean", description: "For `list`: include threads in the Done band." },
+      query: { type: "string", description: "For `list`: filter by substring match on handle, title, slug or status." },
+      force: { type: "boolean", description: "For `done`: stop any live turn, sub-agents or background shells and mark done anyway." },
+      stop_terminals: { type: "boolean", description: "For `done`: also stop all running terminals owned by the thread." },
+      body: { type: "string", description: "For `done`: optional markdown summary recorded on the thread's done card." },
+      op: { type: "string", description: "For `stop`: stop one specific running sub-agent or background shell by its id instead of the whole thread." },
+      for: { type: "string", description: "For `snooze` or `deadline`: duration from now (`30m`, `2h`, `1d`)." },
+      until: { type: "string", description: "For `snooze`: ISO-8601 timestamp." },
+      at: { type: "string", description: "For `deadline`: ISO-8601 timestamp." },
+      clear: { type: "boolean", description: "For `deadline`: remove the thread's deadline." },
+      prompt: { type: "string", description: "For `snooze` (scheduled follow-up bump), `todo` (required opening task) or `start` (override held prompt)." },
+      title: { type: "string", description: "For `rename` (required new name) or `todo` (optional short title)." },
+      model: { type: "string", description: "For `model`, `todo` or `start`: model name or id." },
+      effort: { type: "string", description: "For `model`, `todo` or `start`: reasoning effort (`low`, `medium`, `high`, `xhigh`, `max`, `ultra`, `auto`)." },
+      backend: { type: "string", enum: ["claude", "codex", "acp"], description: "For `todo` or `start`: agent backend." },
+      upgrade: { type: "boolean", description: "For `model`: upgrade a Claude thread to the newest edition of its model family." },
+      mode: { type: "string", description: "For `permission`: permission / sandbox mode." },
+      instructions: { type: "string", description: "For `spinoff`: instructions for the new spun-off thread." },
+      id: { type: "string", description: "For `answer` or `dismiss-questions`: one `qst_…` question id." },
+      answer: { type: "string", description: "For `answer` with `--id`: the answer text (or a JSON array of strings for a `multi` question)." },
+      answers: { type: "array", description: "For `answer`: full array of `{questionId, value}` / `{questionId, values}` answer objects." },
+      ids: { type: "array", description: "For `dismiss-questions`: JSON array of `qst_…` ids to dismiss." },
+      release_only: { type: "boolean", description: "For `deliver`: release held follow-ups without interrupting a running turn." },
     },
     required: ["action"],
   },
@@ -1283,7 +1359,7 @@ const TERMINAL = {
 // (2026-10-02), SCHEDULE after EDITOR (2026-10-05), DEADLINE after SCHEDULE (2026-10-06), upstream's
 // SECRET after DEADLINE (2026-10-08), and upstream's WATCH_COMMAND after SECRET (2026-10-12). Upstream's STEER is not
 // here: MESSAGE_THREAD is the fork's thread-to-thread command (plans/upstream-superset.md).
-const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, REACT, REACTIONS, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST, TERMINAL, EDITOR_COMPARE]
+const TOOLS = [SPAWN_THREAD, GOAL, TIMER, WATCH_PR, WATCH, UNWATCH, ASK, UNASK, DONE, TITLE, ACTIVITY, LINK, UNLINK, REACT, REACTIONS, EXTEND_SHELL, READ_THREAD, MESSAGE_THREAD, EDITOR, SCHEDULE, DEADLINE, SECRET, WATCH_COMMAND, MCP_REQUEST, TERMINAL, EDITOR_COMPARE, THREAD]
 
 // A COMMAND WHOSE FEATURE CAN BE ABSENT, and the capability the server reports for it (router
 // `workerCapabilities`, the same predicate that gates the contract's sections, dispatch.ts). Of the
@@ -1297,9 +1373,9 @@ const GATED_TOOLS = /** @type {Record<string, string>} */ ({ [EDITOR.name]: "edi
 // front-end is what Codex and ACP workers run, which load their own MCP servers themselves. `terminal`
 // (2026-10-15) came after the CLI cutover: only a worker taught the MCP tools mounts the front-end
 // (context.ts workerTaughtMcp), its contract never names terminals, and a listed tool costs every turn.
-const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name, TERMINAL.name, REACT.name, REACTIONS.name, EDITOR_COMPARE.name])
+const CLI_ONLY_TOOLS = new Set([MCP_REQUEST.name, TERMINAL.name, REACT.name, REACTIONS.name, EDITOR_COMPARE.name, THREAD.name])
 
-/** @type {Record<string, (args: Record<string, unknown>) => Promise<string>>} */
+/** @type {Record<string, (args: Record<string, unknown>) => Promise<string | Refused>>} */
 const HANDLERS = {
   [SPAWN_THREAD.name]: spawnThread,
   [GOAL.name]: goal,
@@ -1327,6 +1403,7 @@ const HANDLERS = {
   [DEADLINE.name]: deadline,
   [WATCH_COMMAND.name]: watchCommand,
   [TERMINAL.name]: terminal,
+  [THREAD.name]: threadControl,
 }
 
 /** The `deadline` handler: read, set, extend or clear this thread's time limit.
@@ -1410,7 +1487,8 @@ async function messageThread(args) {
   if (!handle) throw new Error("`handle` is required — the other thread's kebab-case name, e.g. `shell-budgets`")
   if (!message) throw new Error("`message` is required")
   const awaitReply = args.await_reply === true || args.await_reply === "true"
-  const body = { slug: threadSlug(), handle, message, ...(awaitReply ? { awaitReply: true } : {}) }
+  const reopen = args.reopen === true || args.reopen === "true"
+  const body = { slug: threadSlug(), handle, message, ...(awaitReply ? { awaitReply: true } : {}), ...(reopen ? { reopen: true } : {}) }
   const r = (await callRpc("messageThread", body))?.result
   if (!r?.sent) return new Refused(`Not sent — ${r?.refusal ?? "ntwine did not accept it."}${knownLine(r?.known)}`)
   if (r.delivery === "terminal") {
@@ -2081,8 +2159,35 @@ function serverLockPort() {
   )
 }
 
+/** @type {{ slug: string, handle?: string, projectId?: string, projectName?: string } | undefined} */
+let targetThreadOverride
+
+/** Point all thread-scoped commands in this invocation at another thread by `@handle` (in this project or
+ *  any other open project). Returns a `Refused` when the handle matches nothing.
+ *  @param {string} handle @param {string} [project] @returns {Promise<Refused | undefined>} */
+async function selectTargetThread(handle, project) {
+  const trimmed = handle.trim()
+  if (!trimmed) throw new Error("`--thread` needs a thread handle (e.g. `@shell-budgets`)")
+  const caller = process.env.NTWINE_THREAD_SLUG || process.env.NTWINE_THREAD
+  const r = (await callRpc("resolveThread", {
+    ...(caller ? { slug: caller } : {}),
+    handle: trimmed,
+    ...(project?.trim() ? { project: project.trim() } : {}),
+  }))?.result
+  if (!r?.found || !r.slug) {
+    return new Refused(`No thread is called ${trimmed}.${knownLine(r?.known)}`)
+  }
+  targetThreadOverride = {
+    slug: r.slug,
+    handle: r.handle,
+    projectId: r.projectId,
+    projectName: r.projectName,
+  }
+  return undefined
+}
+
 /**
- * The RPC base for OUR project.
+ * The RPC base for OUR project (or the targeted thread's project when `--thread` resolved elsewhere).
  *
  * One ntwine serves every project on the machine, and an unprefixed `/_ntwine/rpc/…` is the project it
  * was LAUNCHED from — so without the prefix a worker in any other project acted on the launcher's
@@ -2094,7 +2199,7 @@ function serverLockPort() {
  * @param {string} procedure
  */
 function rpcPath(procedure) {
-  const project = projectSegment()
+  const project = targetThreadOverride?.projectId || projectSegment()
   return `${project ? `/_ntwine/${encodeURIComponent(project)}` : "/_ntwine"}/rpc/${procedure}`
 }
 
@@ -2355,6 +2460,7 @@ async function callRpc(procedure, body) {
  * This is also the reason a model can never point `goal` at someone else's thread: the slug is
  * read from HERE, never from the arguments. */
 function threadSlug() {
+  if (targetThreadOverride?.slug) return targetThreadOverride.slug
   const slug = process.env.NTWINE_THREAD_SLUG || process.env.NTWINE_THREAD
   if (!slug) {
     // Ten commands resolve their caller through here, so the message must not name one of them. It said
@@ -2363,11 +2469,130 @@ function threadSlug() {
     // thing after `title` failed on a codex thread.
     throw new Error(
       "ntwine could not tell which thread is calling (neither NTWINE_THREAD_SLUG nor NTWINE_THREAD is in this environment), so it cannot " +
-      "act on the caller's own thread. Inside an ntwine worker this is an ntwine bug — report it rather than " +
-      "working around it. Outside one there is no thread to act on.",
+      "act on the caller's own thread. Pass `--thread <@handle>` to target a specific thread, or report an ntwine bug if running inside a worker.",
     )
   }
   return slug
+}
+
+/** The `thread` handler: list, inspect, mark done (archive), reopen, stop, delete, pin, snooze, rename,
+ *  compact, model, permission, spinoff, todo, start, answer, dismiss-questions, deliver, check-in, deadline.
+ * @param {Record<string, unknown>} args @returns {Promise<string | Refused>} */
+async function threadControl(args) {
+  const rawAction = typeof args.action === "string" ? args.action.trim().toLowerCase().replace(/-/g, "_") : ""
+  const aliases = /** @type {Record<string, string>} */ ({
+    list: "list",
+    ls: "list",
+    info: "info",
+    inspect: "info",
+    done: "done",
+    complete: "done",
+    archive: "done",
+    mark_done: "done",
+    reopen: "reopen",
+    open: "reopen",
+    stop: "stop",
+    interrupt: "stop",
+    kill: "stop",
+    delete: "delete",
+    rm: "delete",
+    remove: "delete",
+    pin: "pin",
+    unpin: "unpin",
+    snooze: "snooze",
+    unsnooze: "unsnooze",
+    wake: "unsnooze",
+    rename: "rename",
+    compact: "compact",
+    model: "model",
+    profile: "model",
+    permission: "permission",
+    spinoff: "spinoff",
+    fork: "spinoff",
+    todo: "todo",
+    start: "start",
+    answer: "answer",
+    dismiss_questions: "dismiss_questions",
+    dismiss: "dismiss_questions",
+    deliver: "deliver",
+    check_in: "check_in",
+    checkin: "check_in",
+    deadline: "deadline",
+  })
+  const action = aliases[rawAction]
+  if (!action) {
+    throw new Error(
+      `unknown \`thread\` action ${JSON.stringify(args.action)}. Valid actions: ` +
+      "list, info, done, reopen, stop, delete, pin, unpin, snooze, unsnooze, rename, compact, model, permission, spinoff, todo, start, answer, dismiss-questions, deliver, check-in, deadline.",
+    )
+  }
+  const str = (/** @type {unknown} */ v) => (typeof v === "string" && v.trim() ? v.trim() : undefined)
+  const caller = process.env.NTWINE_THREAD_SLUG || process.env.NTWINE_THREAD
+  /** @type {Record<string, unknown>} */
+  const body = { action, ...(caller ? { slug: caller } : {}) }
+  const handle = str(args.handle)
+  if (action !== "list" && action !== "todo") {
+    if (!handle) throw new Error(`\`handle\` is required for \`ntwinectl thread ${rawAction}\` — pass the target thread's @handle`)
+    body.handle = handle
+  } else if (handle) {
+    body.handle = handle
+  }
+  const project = str(args.project)
+  if (project) body.project = project
+  if (args.all_projects === true) body.allProjects = true
+  if (args.done === true) body.includeDone = true
+  const query = str(args.query)
+  if (query) body.query = query
+  if (args.force === true) body.force = true
+  if (args.stop_terminals === true) body.stopTerminals = true
+  const doneBody = str(args.body)
+  if (doneBody) body.body = doneBody
+  const op = str(args.op)
+  if (op) body.op = op
+  const forVal = str(args.for)
+  if (forVal) body.for = forVal
+  const until = str(args.until)
+  if (until) body.until = until
+  const at = str(args.at)
+  if (at) body.at = at
+  if (args.clear === true) body.clear = true
+  if (typeof args.prompt === "string" && args.prompt.trim()) body.prompt = args.prompt.trim()
+  const titleVal = str(args.title)
+  if (titleVal) body.title = titleVal
+  const model = str(args.model)
+  if (model) body.model = model
+  const effort = str(args.effort)
+  if (effort) body.effort = effort
+  const backend = str(args.backend)
+  if (backend) body.backend = backend
+  if (args.upgrade === true) body.upgrade = true
+  const mode = str(args.mode)
+  if (mode) body.permissionMode = mode
+  if (typeof args.instructions === "string" && args.instructions.trim()) body.instructions = args.instructions.trim()
+  if (args.release_only === true) body.releaseOnly = true
+
+  if (action === "answer") {
+    if (Array.isArray(args.answers) && args.answers.length > 0) {
+      body.answers = args.answers
+    } else {
+      const qid = str(args.id)
+      const ans = typeof args.answer === "string" ? args.answer : undefined
+      if (!qid || ans === undefined) {
+        throw new Error("`answer` needs `--id <qst_id> --answer <text>` or `--answers '<json array>'`")
+      }
+      body.questionId = qid
+      body.answer = ans
+    }
+  }
+  if (action === "dismiss_questions") {
+    if (Array.isArray(args.ids) && args.ids.length > 0) body.ids = args.ids
+    else if (str(args.id)) body.ids = [str(args.id)]
+  }
+
+  const r = (await callRpc("controlThread", body))?.result
+  if (!r) throw new Error("controlThread returned no reply")
+  if (!r.ok || r.refused) return new Refused(r.text || "Refused.")
+  return r.text
 }
 
 /** A handler's answer when it did its job by REFUSING: a gate that held, not a fault. A front-end
@@ -2760,8 +2985,8 @@ function terminalStands(r) {
 async function terminal(args) {
   const slug = threadSlug()
   const action = typeof args.action === "string" ? args.action.trim() : ""
-  if (!["start", "run", "stop", "restart", "release"].includes(action)) {
-    throw new Error("`action` must be one of start, run, stop, restart, release. Read a terminal with `ntwinectl read-thread @handle`; type into it with `ntwinectl message-thread @handle`.")
+  if (!["start", "run", "stop", "restart", "release", "take", "give"].includes(action)) {
+    throw new Error("`action` must be one of start, run, stop, restart, release, take, give. Read a terminal with `ntwinectl read-thread @handle`; type into it with `ntwinectl message-thread @handle`.")
   }
   const cwd = typeof args.cwd === "string" && args.cwd.trim() ? resolvePath(process.cwd(), args.cwd.trim().replace(/^~(?=$|\/)/, process.env.HOME ?? "~")) : undefined
   /** @type {Record<string, unknown>} */
@@ -2776,6 +3001,12 @@ async function terminal(args) {
     const command = typeof args.command === "string" ? args.command.trim() : ""
     if (!command) throw new Error(`\`run\` needs the new command: ntwinectl terminal run ${handle} "pnpm run dev --port 3001"`)
     body = { slug, action, handle, command, ...(cwd ? { cwd } : {}) }
+  } else if (action === "give") {
+    const handle = typeof args.handle === "string" ? args.handle.trim() : ""
+    if (!handle) throw new Error("`give` needs the terminal's @handle: ntwinectl terminal give @pnpm-run-dev @other-thread")
+    const to = typeof args.to === "string" ? args.to.trim() : ""
+    if (!to) throw new Error(`\`give\` needs the recipient (\`@handle\` or \`human\`): ntwinectl terminal give ${handle} @other-thread`)
+    body = { slug, action, handle, to }
   } else {
     const handle = typeof args.handle === "string" ? args.handle.trim() : ""
     if (!handle) throw new Error(`\`${action}\` needs the terminal's @handle: ntwinectl terminal ${action} @pnpm-run-dev`)
@@ -2798,6 +3029,11 @@ async function terminal(args) {
   if (action === "stop" && r?.filed) return `${at} had already ${terminalStands(r)}, so there was nothing to stop; it is marked done and off the user's queue.`
   if (action === "stop") return `Stopped ${at} (${terminalStands(r)}).${screen}`
   if (action === "release") return `Released ${at}: the user drives it now, and you can no longer type into it. It keeps running.`
+  if (action === "take") return `Took control of ${at} (${terminalStands(r)}). You drive it now.${screen}`
+  if (action === "give") {
+    const who = r?.controller === "human" || !r?.controller ? "the user" : `@${r.controller}`
+    return `Handed control of ${at} to ${who} (${terminalStands(r)}).`
+  }
   return `Restarted ${at} — \`${r?.command}\`, ${terminalStands(r)}.${filedNote}${screen}`
 }
 
@@ -3003,9 +3239,21 @@ async function schedule(args) {
 async function done(args) {
   const slug = threadSlug()
   const body = typeof args.body === "string" ? args.body.trim() : ""
-  if (!body) throw new Error("`body` is required — the write-up the user reads on the card")
+  if (!body) {
+    if (targetThreadOverride) {
+      const target = `@${targetThreadOverride.handle ?? targetThreadOverride.slug}`
+      throw new Error(`\`body\` is required to record a done card in Ready. To archive ${target} to the Done band and stop its runtime, run \`ntwinectl thread done ${target}\`.`)
+    }
+    throw new Error("`body` is required — the write-up the user reads on the card")
+  }
   const quiet = args.quiet === true
   const result = (await callRpc("markOwnDone", { slug, body, ...(quiet ? { quiet: true } : {}) }))?.result
+  if (result?.done && targetThreadOverride) {
+    const target = `@${targetThreadOverride.handle ?? targetThreadOverride.slug}`
+    return quiet
+      ? `Marked ${target} done QUIETLY (filed under Done).`
+      : `Marked ${target} signed off (checked card in Ready — still open until archived). To move it to the Done band and stop its runtime, run \`ntwinectl thread done ${target}\`.`
+  }
   if (result?.done && quiet) {
     return (
       "Marked done QUIETLY. This run is filed under Done, out of the user's queue, and your body's first " +
@@ -3342,9 +3590,9 @@ const CLI = {
   },
   terminal: {
     group: "This thread",
-    summary: "Start, run, stop, restart or release a terminal (a dev server, a log tail)",
+    summary: "Start, run, stop, restart, release, take or give a terminal",
     positional: ["action"],
-    then: { start: ["command"], run: ["handle", "command"], stop: ["handle"], restart: ["handle"], release: ["handle"] },
+    then: { start: ["command"], run: ["handle", "command"], stop: ["handle"], restart: ["handle"], release: ["handle"], take: ["handle"], give: ["handle", "to"] },
     examples: [
       'ntwinectl terminal start "pnpm run dev"',
       'ntwinectl terminal run @pnpm-run-dev "pnpm run dev --port 3001"',
@@ -3352,6 +3600,7 @@ const CLI = {
       "ntwinectl message-thread @pnpm-run-dev --message y",
       "ntwinectl terminal stop @pnpm-run-dev",
       "ntwinectl terminal release @pnpm-run-dev",
+      "ntwinectl terminal take @pnpm-run-dev",
     ],
   },
   title: {
@@ -3400,6 +3649,52 @@ const CLI = {
     positional: ["pr"],
     examples: ["ntwinectl editor-compare --base main --head HEAD", "ntwinectl editor-compare --base main --head HEAD --view diff"],
   },
+  thread: {
+    group: "Other threads",
+    summary: "List, inspect or control any thread: done (archive), reopen, stop, pin, snooze, rename, model, delete, …",
+    positional: ["action"],
+    then: {
+      info: ["handle"],
+      inspect: ["handle"],
+      done: ["handle"],
+      complete: ["handle"],
+      archive: ["handle"],
+      reopen: ["handle"],
+      stop: ["handle"],
+      interrupt: ["handle"],
+      kill: ["handle"],
+      delete: ["handle"],
+      pin: ["handle"],
+      unpin: ["handle"],
+      snooze: ["handle"],
+      unsnooze: ["handle"],
+      wake: ["handle"],
+      rename: ["handle", "title"],
+      compact: ["handle"],
+      model: ["handle", "model"],
+      profile: ["handle", "model"],
+      permission: ["handle", "mode"],
+      spinoff: ["handle"],
+      fork: ["handle"],
+      start: ["handle"],
+      answer: ["handle"],
+      "dismiss-questions": ["handle"],
+      dismiss_questions: ["handle"],
+      deliver: ["handle"],
+      "check-in": ["handle"],
+      check_in: ["handle"],
+      deadline: ["handle"],
+    },
+    examples: [
+      "ntwinectl thread list --all-projects",
+      "ntwinectl thread info @catalog-price",
+      "ntwinectl thread done @catalog-price",
+      "ntwinectl thread done @catalog-price --force --stop-terminals",
+      "ntwinectl thread reopen @catalog-price",
+      "ntwinectl thread snooze @catalog-price --for 2h",
+      'ntwinectl thread rename @catalog-price "Catalog prices"',
+    ],
+  },
   read_thread: {
     group: "Other threads",
     summary: "Read another thread, or a sub-agent, by its @handle (wakes nobody)",
@@ -3435,4 +3730,4 @@ const CLI = {
   },
 }
 
-export { TOOLS, HANDLERS, CLI, Refused, GATED_TOOLS, CLI_ONLY_TOOLS, serverLockPort, rpcPath }
+export { TOOLS, HANDLERS, CLI, Refused, GATED_TOOLS, CLI_ONLY_TOOLS, serverLockPort, rpcPath, selectTargetThread }

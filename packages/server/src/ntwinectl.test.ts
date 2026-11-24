@@ -29,6 +29,9 @@ function plausible(procedure: string, body: any): unknown {
     case "dispatch": return { slug: "spawned-child" }
     case "messageThread": return { sent: true, handle: String(body.handle).replace(/^@/, ""), from: body.slug }
     case "readThread": return { found: true, handle: String(body.handle).replace(/^@/, ""), state: "resting" }
+    case "resolveThread": return { found: true, slug: String(body.handle).replace(/^@/, ""), handle: String(body.handle).replace(/^@/, ""), projectId: "proj-1", projectName: "proj-1", state: "open", terminal: false }
+    case "controlThread": return { ok: true, text: `Performed ${body.action} on ${body.handle ?? "board"}.` }
+    case "ownTerminal": return { handle: String(body.handle ?? "pnpm-run-dev").replace(/^@/, ""), id: "term-1", command: body.command ?? "pnpm run dev", cwd: body.cwd ?? "/w/app", outcome: "running", controller: body.action === "give" ? String(body.to ?? "human").replace(/^@/, "") : body.slug, driving: true }
     case "extendOwnShell": return { shell: body.shell, label: "a build", budgetEndsAt: "2026-10-11T20:00:00.000Z" }
     case "editorState": return { windows: [], connected: 0 }
     case "ownSchedule": return { text: `Schedule ${body.action}: Triage issues · every Monday at 9am` }
@@ -668,6 +671,108 @@ test("`activity` lists an agy swarm's parked members apart from its working ones
     assert.match(ran.stdout, /1 thing running on this thread:\n\n {2}agent: armstrong-ga-pr {2}\(since 2026-11-20T20:39:35Z\)\n {4}@overnight\.armstrong-ga-pr — armstrong-ga-pr \(swarm worker, gemini-4-neon-xhigh\)/)
     assert.match(ran.stdout, /```awaiting\n {2}agents: \[armstrong-ga-pr\]\n```/)
     assert.match(ran.stdout, /1 swarm worker not working right now \(not running work; no fence names it\):\n\n {2}agent: monitor {2}\(waiting on the swarm board; since 2026-11-20T07:05:06Z\)\n {4}@overnight\.monitor — monitor/)
+  } finally {
+    fake.close()
+  }
+})
+
+test("`--thread <@handle>` routes any thread command to another thread, including cross-project", async () => {
+  const fake = await fakeNtwine((procedure, body) => {
+    if (procedure === "resolveThread") {
+      if (body.handle === "@missing") return { result: { found: false, known: ["@catalog-price"] } }
+      return {
+        result: {
+          found: true,
+          slug: "aot-bytes-slug",
+          handle: "aot-bytes",
+          projectId: "proj-arktype",
+          projectName: "arktype",
+          state: "open",
+          terminal: false,
+        },
+      }
+    }
+    return undefined
+  })
+  try {
+    // Leading --thread before the subcommand.
+    const leading = await run(["--thread", "@aot-bytes", "goal", "stop"], { env: worker(fake) })
+    assert.equal(leading.code, 0, leading.stderr)
+    assert.equal(fake.seen.length, 2)
+    assert.deepEqual(fake.seen[0], { url: "/_ntwine/proj-1/rpc/resolveThread", body: { slug: "the-caller", handle: "@aot-bytes" } })
+    assert.equal(fake.seen[1].url, "/_ntwine/proj-arktype/rpc/setOwnThreadRecurringPrompt")
+    assert.equal(fake.seen[1].body.slug, "aot-bytes-slug")
+
+    // Trailing --thread after the subcommand, targeting `done`.
+    fake.seen.length = 0
+    const trailing = await run(["done", "--body", "Summary of work", "--thread", "@aot-bytes"], { env: worker(fake) })
+    assert.equal(trailing.code, 0, trailing.stderr)
+    assert.equal(fake.seen[1].url, "/_ntwine/proj-arktype/rpc/markOwnDone")
+    assert.equal(fake.seen[1].body.slug, "aot-bytes-slug")
+    assert.match(trailing.stdout, /Marked @aot-bytes signed off/)
+    assert.match(trailing.stdout, /ntwinectl thread done @aot-bytes/)
+
+    // Missing body on `done --thread` points directly at `thread done`.
+    const noBody = await run(["done", "--thread", "@aot-bytes"], { env: worker(fake) })
+    assert.equal(noBody.code, 1)
+    assert.match(noBody.stderr, /ntwinectl thread done @aot-bytes/)
+
+    // Unknown target thread exits 2 (Refused) with known handles and never fires the command RPC.
+    fake.seen.length = 0
+    const missing = await run(["activity", "--thread", "@missing"], { env: worker(fake) })
+    assert.equal(missing.code, 2)
+    assert.equal(fake.seen.length, 1)
+    assert.match(missing.stdout, /No thread is called @missing/)
+    assert.match(missing.stdout, /@catalog-price/)
+  } finally {
+    fake.close()
+  }
+})
+
+test("`thread` command controls other threads, exits 2 on live-work hold, and supports aliases and answer shortcuts", async () => {
+  const fake = await fakeNtwine((procedure, body) => {
+    if (procedure !== "controlThread") return undefined
+    if (body.action === "done" && !body.force) {
+      return { result: { ok: false, refused: true, handle: "catalog-price", slug: "catalog-price", text: "NOT marked done — @catalog-price has a turn currently running. Pass `--force` to stop it and mark it done anyway." } }
+    }
+    return { result: { ok: true, handle: "catalog-price", slug: "catalog-price", text: `OK ${body.action}` } }
+  })
+  try {
+    const held = await run(["thread", "complete", "@catalog-price"], { env: worker(fake) })
+    assert.equal(held.code, 2)
+    assert.equal(fake.seen.at(-1)?.body.action, "done")
+    assert.equal(fake.seen.at(-1)?.body.handle, "@catalog-price")
+    assert.match(held.stdout, /Pass `--force`/)
+
+    const forced = await run(["thread", "done", "@catalog-price", "--force", "--stop-terminals", "--body", "Folded into #25329"], { env: worker(fake) })
+    assert.equal(forced.code, 0, forced.stderr)
+    assert.deepEqual(fake.seen.at(-1)?.body, {
+      action: "done",
+      slug: "the-caller",
+      handle: "@catalog-price",
+      force: true,
+      stopTerminals: true,
+      body: "Folded into #25329",
+    })
+
+    const answered = await run(["thread", "answer", "@catalog-price", "--id", "qst_1", "--answer", "Ship it"], { env: worker(fake) })
+    assert.equal(answered.code, 0, answered.stderr)
+    assert.equal(fake.seen.at(-1)?.body.questionId, "qst_1")
+    assert.equal(fake.seen.at(-1)?.body.answer, "Ship it")
+
+    const reopenedMsg = await run(["message-thread", "@catalog-price", "Pick this back up", "--reopen"], { env: worker(fake) })
+    assert.equal(reopenedMsg.code, 0, reopenedMsg.stderr)
+    assert.equal(fake.seen.at(-1)?.body.reopen, true)
+
+    const took = await run(["terminal", "take", "@dev-server"], { env: worker(fake) })
+    assert.equal(took.code, 0, took.stderr)
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "take", handle: "@dev-server" })
+    assert.match(took.stdout, /^Took control of @dev-server/)
+
+    const gave = await run(["terminal", "give", "@dev-server", "@other"], { env: worker(fake) })
+    assert.equal(gave.code, 0, gave.stderr)
+    assert.deepEqual(fake.seen.at(-1)?.body, { slug: "the-caller", action: "give", handle: "@dev-server", to: "@other" })
+    assert.match(gave.stdout, /^Handed control of @dev-server to @other/)
   } finally {
     fake.close()
   }

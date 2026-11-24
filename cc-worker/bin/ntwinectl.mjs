@@ -31,7 +31,7 @@
  * that held (`done` with a question still open), so `ntwinectl done … || …` can tell the two apart.
  */
 import { readFileSync } from "node:fs"
-import { CLI, HANDLERS, Refused, TOOLS } from "../lib/ntwine-tools.mjs"
+import { CLI, HANDLERS, Refused, TOOLS, selectTargetThread } from "../lib/ntwine-tools.mjs"
 
 const NAME = "ntwinectl"
 const WIDTH = 100
@@ -165,9 +165,9 @@ function jsonInput(tool, text, what) {
 /**
  * argv → the argument object one handler takes. Nothing is validated beyond SPELLING and TYPE: which
  * arguments are required, and for which action, is the handler's to say, in the words it already has.
- * @param {any} tool @param {string[]} argv
+ * @param {any} tool @param {string[]} argv @param {{ thread?: string }} [target]
  */
-function parseArgs(tool, argv) {
+function parseArgs(tool, argv, target) {
   const props = propsOf(tool)
   const spec = CLI[tool.name] ?? {}
   /** @type {Record<string, unknown>} */
@@ -197,6 +197,9 @@ function parseArgs(tool, argv) {
     }
     if (flag === "input") {
       fromJson = { ...fromJson, ...jsonInput(tool, readSource(take(), "--input"), "--input") }
+    } else if (flag === "thread" && !(flag in props)) {
+      if (target) target.thread = take()
+      else take()
     } else if (flag in props) {
       if (props[flag].type !== "boolean") fromFlags[flag] = coerce(tool, flag, take())
       else if (inline !== undefined) fromFlags[flag] = coerce(tool, flag, inline)
@@ -270,11 +273,11 @@ function topHelp() {
     return rows.length ? `${group}\n${rows.join("\n")}` : ""
   }).filter(Boolean)
   return [
-    `${NAME} — the ntwine command line for the worker of one thread.`,
-    "Every command acts on the thread whose worker runs it; there is no way to name another.",
+    `${NAME} — the ntwine command line for your thread or any other thread.`,
+    "Commands act on your thread by default; pass `--thread <@handle>` to target any other thread.",
     "",
     "Usage:",
-    `  ${NAME} <command> [arguments]`,
+    `  ${NAME} [--thread <@handle>] <command> [arguments]`,
     `  ${NAME} <command> --help      the full reference for one command — read it before its first use`,
     "",
     sections.join("\n\n"),
@@ -347,6 +350,7 @@ function commandHelp(tool) {
     args.length ? `Arguments:\n${args.join("\n\n")}` : "Arguments: none.",
     ...(textArgs.length ? ["", wrap(`Text from a file or stdin instead of the command line: ${textArgs.join(", ")} <path|->.`)] : []),
     ...(spec.examples?.length ? ["", `Examples:\n${spec.examples.map((e) => e.split("\n").map((l) => `  ${l}`).join("\n")).join("\n\n")}`] : []),
+    ...(!["thread", "read_thread", "spawn_thread"].includes(tool.name) ? ["", "Pass `--thread <@handle>` to run this command against another thread (in this or any open project)."] : []),
     "",
     `${command} --schema prints the arguments as a JSON Schema.`,
   ].join("\n")
@@ -371,14 +375,29 @@ function helpAsked(tool, argv) {
 /** Whether `--<flag>` consumes the next argument as its value. @param {any} tool @param {string} flag */
 function takesValue(tool, flag) {
   const props = propsOf(tool)
-  if (flag === "input") return true
+  if (flag === "input" || flag === "thread") return true
   if (flag in props) return props[flag].type !== "boolean"
   return flag.endsWith("_file") && props[flag.slice(0, -5)]?.type === "string"
 }
 
 /** @param {string[]} argv @returns {Promise<{ code: number, out?: string }>} */
 async function main(argv) {
-  const [first, ...rest] = argv
+  /** @type {{ thread?: string }} */
+  const target = {}
+  const argsIn = [...argv]
+  while (argsIn.length && (argsIn[0] === "--thread" || argsIn[0].startsWith("--thread="))) {
+    const tok = /** @type {string} */ (argsIn.shift())
+    const eq = tok.indexOf("=")
+    if (eq >= 0) {
+      target.thread = tok.slice(eq + 1)
+    } else {
+      if (!argsIn.length || /^--[A-Za-z][\w-]*(=.*)?$/.test(argsIn[0])) {
+        throw new UsageError("--thread needs a thread handle after it (e.g. `--thread @shell-budgets`)")
+      }
+      target.thread = argsIn.shift()
+    }
+  }
+  const [first, ...rest] = argsIn
   if (!first || first === "--help" || first === "-h" || first === "help") {
     const about = first === "help" && rest[0] ? toolNamed(rest[0]) : undefined
     if (first === "help" && rest[0] && !about) throw new UsageError(unknownCommand(rest[0]))
@@ -391,13 +410,17 @@ async function main(argv) {
   if (asked === "schema") return { code: 0, out: JSON.stringify(tool.inputSchema, null, 2) }
   let args
   try {
-    args = parseArgs(tool, rest)
+    args = parseArgs(tool, rest, target)
   } catch (err) {
     if (err instanceof UsageError) err.message += `\nRun \`${NAME} ${hyphen(tool.name)} --help\` for what it takes.`
     throw err
   }
   let answer
   try {
+    if (target.thread !== undefined) {
+      const refused = await selectTargetThread(target.thread)
+      if (refused instanceof Refused) return { code: 2, out: refused.text }
+    }
     answer = await HANDLERS[tool.name](args)
   } catch (err) {
     throw new Error(`${NAME} ${hyphen(tool.name)} failed: ${err instanceof Error ? err.message : String(err)}`)

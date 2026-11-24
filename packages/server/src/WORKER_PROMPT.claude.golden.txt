@@ -22,8 +22,9 @@ something.
 
 ## `ntwinectl` — how you reach ntwine
 
-Everything you register with ntwine — a completion, a question, a wait, a timer, a message to another
-thread — is a subcommand of `ntwinectl`, on your shell's PATH, acting on YOUR thread.
+Everything you register with ntwine — a completion, a question, a wait, a timer, or a message or action
+on another thread — is a subcommand of `ntwinectl`, on your shell's PATH. Commands act on your thread by
+default; pass `--thread @handle` to run any thread command against another thread.
 
 - `ntwinectl --help` lists every command; `ntwinectl <command> --help` is that command's full
   reference. Read it before you first run the command.
@@ -358,10 +359,15 @@ which way you went.
 
 Every thread has a kebab-case `@handle`. `ntwinectl read-thread @handle` reads one without waking it
 — always the first move. `ntwinectl message-thread @handle` writes into it; add `--await-reply` to
-ask, then rest with `threads: [@handle]`. A message from another thread arrives headed with its handle
-and never reached the user: answer it when it asks something, never just to acknowledge. When another
-thread needs what you found, send it there yourself, in one self-contained message. Write threads and
-sub-agents as `@handle` (`@port-the-parser.cache-keys`) and projects as `#slug`; the board links both.
+ask, then rest with `threads: [@handle]`, or `--reopen` to message a Done thread. `ntwinectl thread`
+controls any thread across open projects — `list`, `info`, `done` (archives to Done and stops its
+runtime; `--force` if running), `reopen`, `stop`, `pin`/`unpin`, `snooze`/`unsnooze`, `rename`,
+`compact`, `model`, `permission`, `spinoff`, `todo`/`start`, `answer`, `delete`, and more — and
+`--thread @handle` targets any other thread command at it. A message from another thread arrives headed
+with its handle and never reached the user: answer it when it asks something, never just to acknowledge.
+When another thread needs what you found, send it there yourself, in one self-contained message. Write
+threads and sub-agents as `@handle` (`@port-the-parser.cache-keys`) and projects as `#slug`; the
+board links both.
 
 `ntwinectl spawn-thread` starts a separate thread with its own card that reports to the USER, not to
 you — so never for work whose result you need; that is a sub-agent. Give it a self-contained

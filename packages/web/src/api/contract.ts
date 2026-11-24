@@ -111,6 +111,10 @@ import type {
   SetOwnThreadTitleResult,
   ReadThreadInput,
   ReadThreadResult,
+  ResolveThreadInput,
+  ResolveThreadResult,
+  ControlThreadInput,
+  ControlThreadResult,
   SubAgentDirectory,
   MessageThreadInput,
   MessageThreadResult,
@@ -328,6 +332,8 @@ export interface Api {
   // alone — the browser's rename verb is `renameThread`, which locks the name.
   setOwnThreadTitle(input: SetOwnThreadTitleInput): Promise<SetOwnThreadTitleResult>
   readThread(input: ReadThreadInput): Promise<ReadThreadResult>
+  resolveThread(input: ResolveThreadInput): Promise<ResolveThreadResult>
+  controlThread(input: ControlThreadInput): Promise<ControlThreadResult>
   messageThread(input: MessageThreadInput): Promise<MessageThreadResult>
   // THE PR WATCHER REGISTRY, called by `ntwinectl watch-pr` rather than by this client. Declared here
   // for the same reason as its neighbours: rpc-contract.ts proves the two procedure NAME SETS are equal,
@@ -643,6 +649,8 @@ export const PROCEDURES = {
   setOwnThreadRecurringPrompt: "mutation",
   setOwnThreadTitle: "mutation",
   readThread: "mutation",
+  resolveThread: "mutation",
+  controlThread: "mutation",
   messageThread: "mutation",
   addOwnPrWatch: "mutation",
   dropOwnPrWatch: "mutation",

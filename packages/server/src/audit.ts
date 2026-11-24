@@ -141,6 +141,7 @@ export type AuditAction =
   | "followUp"
   | "subAgentSteer"
   | "messageThread"
+  | "controlThread"
   | "answerQuestions"
   | "interactionResolve"
   // Moving a thread to another machine (peer-service.ts): pairing, unpairing, and each side of a move.

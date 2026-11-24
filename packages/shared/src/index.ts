@@ -4912,7 +4912,8 @@ export type StartTerminalResult = z.infer<typeof StartTerminalResult>
 export const OwnTerminalInput = z.discriminatedUnion("action", [
   z.object({ slug: ThreadSlug, action: z.literal("start"), command: TerminalCommand, cwd: z.string().trim().min(1).max(4_096).optional() }).strict(),
   z.object({ slug: ThreadSlug, action: z.literal("run"), handle: z.string().trim().min(1).max(200), command: TerminalCommand, cwd: z.string().trim().min(1).max(4_096).optional() }).strict(),
-  z.object({ slug: ThreadSlug, action: z.enum(["stop", "restart", "release"]), handle: z.string().trim().min(1).max(200) }).strict(),
+  z.object({ slug: ThreadSlug, action: z.enum(["stop", "restart", "release", "take"]), handle: z.string().trim().min(1).max(200) }).strict(),
+  z.object({ slug: ThreadSlug, action: z.literal("give"), handle: z.string().trim().min(1).max(200), to: z.string().trim().min(1).max(200) }).strict(),
 ])
 export type OwnTerminalInput = z.infer<typeof OwnTerminalInput>
 export const OwnTerminalResult = z.object({
@@ -6886,11 +6887,108 @@ export const MessageThreadInput = z.object({
    *  does not park the sender: the rest that follows ends with an ```awaiting fence naming the thread
    *  under `threads:`, whose `for:` is the timeout, as on every park. */
   awaitReply: z.boolean().optional(),
+  /** Reopen the target thread first if it is currently Done (archived), then deliver the message. */
+  reopen: z.boolean().optional(),
   /** RETIRED, and ignored: the wait's own timeout, which only duplicated the fence's `for:`. Still
    *  accepted because a worker's MCP server outlives a server upgrade and may still send it. */
   for: z.string().trim().min(1).max(16).optional(),
 }).strict()
 export type MessageThreadInput = z.infer<typeof MessageThreadInput>
+
+// RESOLVE ANOTHER THREAD BY HANDLE — powers `ntwinectl --thread @handle` so any per-thread worker command
+// can act on another thread in this project or any other open project.
+export const ResolveThreadInput = z.object({
+  slug: ThreadSlug.optional(),
+  handle: z.string().trim().min(1).max(200),
+  project: z.string().trim().min(1).max(200).optional(),
+}).strict()
+export type ResolveThreadInput = z.infer<typeof ResolveThreadInput>
+
+export const ResolveThreadResult = z.object({
+  found: z.boolean(),
+  slug: z.string().optional(),
+  handle: z.string().optional(),
+  projectId: z.string().optional(),
+  projectName: z.string().optional(),
+  projectSlug: z.string().optional(),
+  sessionId: z.string().optional(),
+  state: z.enum(["open", "archived"]).optional(),
+  terminal: z.boolean().optional(),
+  known: z.array(z.string()).optional(),
+}).strict()
+export type ResolveThreadResult = z.infer<typeof ResolveThreadResult>
+
+// FULL THREAD CONTROL (`ntwinectl thread ...`): every board and lifecycle action a user can take on any
+// thread, exposed to threads across open projects.
+export const ControlThreadAction = z.enum([
+  "list",
+  "info",
+  "done",
+  "reopen",
+  "stop",
+  "delete",
+  "pin",
+  "unpin",
+  "snooze",
+  "unsnooze",
+  "rename",
+  "compact",
+  "model",
+  "permission",
+  "spinoff",
+  "todo",
+  "start",
+  "answer",
+  "dismiss_questions",
+  "deliver",
+  "check_in",
+  "deadline",
+])
+export type ControlThreadAction = z.infer<typeof ControlThreadAction>
+
+export const ControlThreadInput = z.object({
+  slug: ThreadSlug.optional(),
+  action: ControlThreadAction,
+  handle: z.string().trim().min(1).max(200).optional(),
+  project: z.string().trim().min(1).max(200).optional(),
+  allProjects: z.boolean().optional(),
+  includeDone: z.boolean().optional(),
+  query: z.string().trim().min(1).max(200).optional(),
+  force: z.boolean().optional(),
+  stopTerminals: z.boolean().optional(),
+  body: z.string().trim().min(1).max(16_000).optional(),
+  op: z.string().trim().min(1).max(200).optional(),
+  for: z.string().trim().min(1).max(64).optional(),
+  until: z.string().trim().min(1).max(64).optional(),
+  at: z.string().trim().min(1).max(64).optional(),
+  clear: z.boolean().optional(),
+  prompt: z.string().max(100_000).optional(),
+  title: z.string().trim().min(1).max(120).optional(),
+  model: z.string().trim().min(1).max(120).optional(),
+  effort: Settings.shape.effort,
+  backend: Backend.optional(),
+  upgrade: z.boolean().optional(),
+  permissionMode: PermissionMode.optional(),
+  instructions: z.string().max(100_000).optional(),
+  answers: z.array(QuestionAnswerSchema).min(1).optional(),
+  questionId: z.string().min(1).max(64).optional(),
+  answer: z.string().max(8_000).optional(),
+  ids: z.array(z.string().min(1).max(64)).min(1).optional(),
+  releaseOnly: z.boolean().optional(),
+}).strict()
+export type ControlThreadInput = z.infer<typeof ControlThreadInput>
+
+export const ControlThreadResult = z.object({
+  ok: z.boolean(),
+  text: z.string(),
+  refused: z.boolean().optional(),
+  handle: z.string().optional(),
+  slug: z.string().optional(),
+  project: z.string().optional(),
+  hold: CompletionHold.optional(),
+  known: z.array(z.string()).optional(),
+}).strict()
+export type ControlThreadResult = z.infer<typeof ControlThreadResult>
 
 export const MessageThreadResult = z.object({
   sent: z.boolean(),

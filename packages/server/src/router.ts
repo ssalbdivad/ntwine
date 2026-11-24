@@ -191,6 +191,10 @@ import {
   SetOwnThreadTitleResult,
   ReadThreadInput,
   ReadThreadResult,
+  ResolveThreadInput,
+  ResolveThreadResult,
+  ControlThreadInput,
+  ControlThreadResult,
   SubAgentDirectory,
   addressSegments,
   subAgentAddress,
@@ -225,6 +229,7 @@ import { requestableMcpServers, userScopeStdioServers } from "./backend/project-
 import { resolveClaudeExecutableAbsolute } from "./backend/claude-broker-host.ts"
 import { sessionTitleLocked } from "./storage.ts"
 import { createThreadNamer, openThreadsElsewhere, projectTerminalNames, rowThreadName, threadNameProblem, type NamedThread, type ThreadNamer } from "./thread-names.ts"
+import { formatCompletionHold, formatThreadInfo, formatThreadList, parseControlDurationMs, threadBandOf, type ThreadListEntry } from "./thread-control.ts"
 import { handleOf, isReplyWaitFor, knownHandles, replyWaitOf, replyWaitPrompt, resolveSubAgent, resolveThreadHandle, subAgentAddresses, THREAD_MESSAGE_HOURLY_CAP, threadMessageBody } from "./thread-mentions.ts"
 import { enqueueDeadlineNoticeWake, enqueueThreadMessageWake } from "./scheduler.ts"
 import { deadlineNoticeMessage, deadlineSection, deadlineViewOf, rowDeadline } from "./deadline.ts"
@@ -1411,10 +1416,16 @@ function threadMatches(thread: ThreadView, needle: string): boolean {
 }
 
 // Each project's router, by its context — so a handle another project answers (resolveElsewhere) is read
-// by THAT project's own `readThread`, over its own transcripts, tailer and sub-agent directory.
-// Typed by the one procedure read through it: the whole router's type is inferred from this function's
-// own return, so naming it here would be circular.
-const routersByContext = new WeakMap<AppContext, { readThread: { handler: (args: { input: ReadThreadInput }) => Promise<ReadThreadResult> } }>()
+// or controlled by THAT project's own router, over its own transcripts, tailer, storage and sub-agent directory.
+// Typed by the cross-project procedures read through it: the whole router's type is inferred from this
+// function's own return, so naming it here would be circular.
+type RoutedPeer = {
+  readThread: { handler: (args: { input: ReadThreadInput }) => Promise<ReadThreadResult> }
+  resolveThread: { handler: (args: { input: ResolveThreadInput }) => Promise<ResolveThreadResult> }
+  controlThread: { handler: (args: { input: ControlThreadInput }) => Promise<ControlThreadResult> }
+  ownTerminal: { handler: (args: { input: OwnTerminalInput }) => Promise<OwnTerminalResult> }
+}
+const routersByContext = new WeakMap<AppContext, RoutedPeer>()
 
 export function createRouter(ctx: AppContext) {
   // The name registry every title writer checks (thread-names.ts). A hand-built test context may carry
@@ -6209,6 +6220,623 @@ export function createRouter(ctx: AppContext) {
       },
     }),
 
+    // RESOLVE ANOTHER THREAD BY HANDLE (`ntwinectl --thread @handle`): finds a thread or terminal across
+    // this project first, then every other open project, returning its slug and projectId so any per-thread
+    // worker command can target it directly.
+    resolveThread: mutation({
+      input: ResolveThreadInput,
+      output: ResolveThreadResult,
+      handler: async ({ input }) => {
+        const matchTenant = (spec: string) => {
+          const want = spec.trim().replace(/^#/, "").toLowerCase()
+          const open = ctx.activeTenants?.() ?? [{ project: ctx.project, board: ctx.board, ctx }]
+          for (const entry of open) {
+            const tenant = entry.ctx ?? (entry.project.id === ctx.project.id ? ctx : undefined)
+            if (!tenant) continue
+            const slug = listWorkspaces().find((w) => w.id === entry.project.id)?.slug
+            if (
+              entry.project.id.toLowerCase() === want ||
+              entry.project.name.toLowerCase() === want ||
+              (slug && slug.toLowerCase() === want)
+            ) {
+              return tenant
+            }
+          }
+          return undefined
+        }
+        if (input.project) {
+          const specified = matchTenant(input.project)
+          if (!specified) {
+            return { found: false, known: [] }
+          }
+          if (specified.project.id !== ctx.project.id) {
+            const other = routersByContext.get(specified)
+            if (other) return other.resolveThread.handler({ input: { ...input, project: undefined } })
+          }
+        }
+        const threads = threadNamer().threads()
+        const [threadPart = input.handle] = addressSegments(input.handle)
+        const hit = resolveThreadHandle(threadPart, threads)
+        const row = hit ? ctx.storage.getSession(hit.slug) : undefined
+        const terminal = !(hit && row && hit.open) ? terminalByHandle(threadPart) : undefined
+        const projectSlug = listWorkspaces().find((w) => w.id === ctx.project.id)?.slug ?? ctx.project.name
+        if (terminal?.terminal) {
+          return {
+            found: true,
+            slug: terminal.id,
+            handle: terminal.terminal.handle ?? terminal.id,
+            projectId: ctx.project.id,
+            projectName: ctx.project.name,
+            projectSlug,
+            state: terminal.state === "archived" ? "archived" as const : "open" as const,
+            terminal: true,
+          }
+        }
+        if (hit && row) {
+          const archived = row.state === "archived" || row.archived === 1
+          return {
+            found: true,
+            slug: hit.slug,
+            handle: handleOf(hit),
+            projectId: ctx.project.id,
+            projectName: ctx.project.name,
+            projectSlug,
+            sessionId: row.session_id,
+            state: archived ? "archived" as const : "open" as const,
+            terminal: false,
+          }
+        }
+        if (!input.project) {
+          const elsewhere = resolveElsewhere(threadPart)
+          const other = elsewhere && routersByContext.get(elsewhere.tenant)
+          if (other) {
+            const found = await other.resolveThread.handler({ input: { ...input, project: undefined } })
+            if (found.found) return found
+          }
+        }
+        const terminals = (ctx.terminalRunner?.terminals?.() ?? [])
+          .filter(({ row: r }) => r.state === "open" && r.handle && r.slug !== input.slug)
+          .map(({ row: r }) => `@${r.handle} (terminal)`)
+        return { found: false, known: [...knownHandles(threads, input.slug), ...terminals.slice(0, 20)] }
+      },
+    }),
+
+    // FULL CONTROL OF ANY THREAD (`ntwinectl thread ...`): list, inspect, mark as done (archive + stop
+    // runtime), reopen, stop, delete, pin/unpin, snooze/unsnooze, rename, compact, change model/permission,
+    // spinoff, create/start to-dos, answer/dismiss questions, deliver queued messages, check-in, deadline.
+    // Works across all open projects by forwarding to the owning project's router.
+    controlThread: mutation({
+      input: ControlThreadInput,
+      output: ControlThreadResult,
+      handler: ({ input }) => audit(
+        "controlThread",
+        {
+          project: thisProject,
+          thread: input.slug,
+          detail: {
+            action: input.action,
+            ...(input.handle ? { target: input.handle } : {}),
+            ...(input.project ? { project: input.project } : {}),
+            ...(input.force ? { force: true } : {}),
+          },
+        },
+        async (): Promise<ControlThreadResult> => {
+          const matchTenant = (spec: string) => {
+            const want = spec.trim().replace(/^#/, "").toLowerCase()
+            const open = ctx.activeTenants?.() ?? [{ project: ctx.project, board: ctx.board, ctx }]
+            for (const entry of open) {
+              const tenant = entry.ctx ?? (entry.project.id === ctx.project.id ? ctx : undefined)
+              if (!tenant) continue
+              const wsSlug = listWorkspaces().find((w) => w.id === entry.project.id)?.slug
+              if (
+                entry.project.id.toLowerCase() === want ||
+                entry.project.name.toLowerCase() === want ||
+                (wsSlug && wsSlug.toLowerCase() === want)
+              ) {
+                return entry
+              }
+            }
+            return undefined
+          }
+
+          // LIST — across this project, one named project, or every open project.
+          if (input.action === "list") {
+            const allOpen = ctx.activeTenants?.() ?? [{ project: ctx.project, board: ctx.board, ctx }]
+            let targets = allOpen
+            if (input.project) {
+              const found = matchTenant(input.project)
+              if (!found) {
+                const names = allOpen.map((t) => `#${listWorkspaces().find((w) => w.id === t.project.id)?.slug ?? t.project.name}`).join(", ")
+                return { ok: false, refused: true, text: `No open project matches "${input.project}". Open projects: ${names || "(none)"}.` }
+              }
+              targets = [found]
+            } else if (!input.allProjects) {
+              targets = allOpen.filter((t) => t.project.id === ctx.project.id)
+              if (targets.length === 0) targets = [{ project: ctx.project, board: ctx.board, ctx }]
+            }
+            const includeDone = input.includeDone === true
+            const needle = input.query?.trim().toLowerCase()
+            const nowMs = Date.now()
+            const entries: ThreadListEntry[] = []
+            for (const { project, board, ctx: tenant } of targets) {
+              const ownCtx = tenant ?? (project.id === ctx.project.id ? ctx : undefined)
+              let snapshot: BoardSnapshot
+              try {
+                snapshot = await board.snapshot()
+              } catch {
+                continue
+              }
+              const projectSlug = snapshot.projectSlug ?? listWorkspaces().find((w) => w.id === project.id)?.slug ?? project.name
+              const projectName = snapshot.projectName || project.name
+              const namer = ownCtx ? (ownCtx.threadNamer ?? createThreadNamer({ storage: ownCtx.storage })) : undefined
+              const namedBySlug = new Map((namer?.threads() ?? []).map((t) => [t.slug, handleOf(t)]))
+              for (const t of snapshot.threads) {
+                if ((t.kind !== "session" && t.kind !== "terminal") || t.foreign) continue
+                const band = threadBandOf(t, nowMs)
+                if (band === "done" && !includeDone) continue
+                const handle = t.kind === "terminal"
+                  ? (t.terminal?.handle ?? t.id)
+                  : (namedBySlug.get(t.id) ?? threadHandle(t.title) ?? t.id)
+                if (needle) {
+                  const hay = `${handle} ${t.id} ${t.title ?? ""} ${t.status ?? ""} ${projectSlug} ${projectName}`.toLowerCase()
+                  if (!hay.includes(needle)) continue
+                }
+                const liveSubAgents = (t.subAgents ?? []).filter((a) => a.state === "running").length
+                const liveBgShells = (t.bgShells ?? []).filter((s) => s.state === "running").length
+                const openQuestions = (t.questions ?? []).filter((q) => !q.passedOver).length
+                entries.push({
+                  handle,
+                  slug: t.id,
+                  title: t.title,
+                  projectSlug,
+                  projectName,
+                  band,
+                  kind: t.kind === "terminal" ? "terminal" : "session",
+                  ...(t.held ? { held: true } : {}),
+                  ...(t.status?.trim() ? { status: t.status.trim() } : {}),
+                  ...(t.model ? { model: t.model } : {}),
+                  ...(t.effort ? { effort: t.effort } : {}),
+                  ...(t.lastFence?.kind === "done" ? { doneCard: true } : {}),
+                  openQuestions,
+                  liveSubAgents,
+                  liveBgShells,
+                  ...(t.snoozedUntil ? { snoozedUntil: t.snoozedUntil } : {}),
+                })
+              }
+            }
+            return {
+              ok: true,
+              text: formatThreadList({ entries, multiProject: targets.length > 1, includeDone, query: input.query }),
+            }
+          }
+
+          // TODO — create a new held to-do thread in this project or another.
+          if (input.action === "todo") {
+            const prompt = input.prompt?.trim()
+            if (!prompt) return { ok: false, refused: true, text: "`--prompt` is required to create a to-do thread." }
+            const target = input.project ? await spawnTarget(input.project, undefined) : undefined
+            const on = target?.ctx ?? ctx
+            const made = on.dispatcher.createHeldThread({
+              prompt,
+              ...(input.title ? { title: input.title } : {}),
+              ...(input.model ? { model: input.model } : {}),
+              ...(input.effort ? { effort: input.effort } : {}),
+              ...(input.backend ? { backend: input.backend } : {}),
+            }, { holder: TODO_HOLDER })
+            void on.todoSteps?.write({ slug: made.slug, sessionId: made.sessionId, task: prompt })
+            on.board.refresh()
+            const handle = await spawnedHandle(made.slug, on)
+            const label = handle ? `@${handle}` : made.slug
+            const where = target ? ` in #${target.slug}` : ""
+            return {
+              ok: true,
+              handle: handle ?? made.slug,
+              slug: made.slug,
+              ...(target ? { project: on.project.name } : {}),
+              text: `Created to-do ${label}${where} (held in Ready). Start it with \`ntwinectl thread start ${label}\`.`,
+            }
+          }
+
+          // Every remaining action targets a specific thread by handle.
+          if (!input.handle) {
+            return { ok: false, refused: true, text: `\`handle\` is required for \`ntwinectl thread ${input.action}\`.` }
+          }
+          if (input.project) {
+            const specified = matchTenant(input.project)
+            if (!specified) {
+              return { ok: false, refused: true, text: `No open project matches "${input.project}".` }
+            }
+            const targetCtx = specified.ctx ?? (specified.project.id === ctx.project.id ? ctx : undefined)
+            if (targetCtx && targetCtx.project.id !== ctx.project.id) {
+              const other = routersByContext.get(targetCtx)
+              if (other) {
+                const res = await other.controlThread.handler({ input: { ...input, project: undefined } })
+                return { ...res, project: targetCtx.project.name }
+              }
+            }
+          }
+
+          const threads = threadNamer().threads()
+          const [threadPart = input.handle] = addressSegments(input.handle)
+          const hit = resolveThreadHandle(threadPart, threads)
+          const row = hit ? ctx.storage.getSession(hit.slug) : undefined
+          const terminal = !(hit && row && hit.open) ? terminalByHandle(threadPart) : undefined
+
+          if (!terminal && (!hit || !row)) {
+            if (!input.project) {
+              const elsewhere = resolveElsewhere(threadPart)
+              const other = elsewhere && routersByContext.get(elsewhere.tenant)
+              if (other) {
+                const res = await other.controlThread.handler({ input: { ...input, project: undefined } })
+                return { ...res, project: elsewhere.tenant.project.name }
+              }
+            }
+            const terminals = (ctx.terminalRunner?.terminals?.() ?? [])
+              .filter(({ row: r }) => r.state === "open" && r.handle && r.slug !== input.slug)
+              .map(({ row: r }) => `@${r.handle} (terminal)`)
+            const known = [...knownHandles(threads, input.slug), ...terminals.slice(0, 20)]
+            return {
+              ok: false,
+              refused: true,
+              known,
+              text: `No thread is called ${input.handle}.${known.length ? `\n\nKnown threads: ${known.join(", ")}` : ""}`,
+            }
+          }
+
+          const isTerminal = Boolean(terminal?.terminal)
+          const slug = isTerminal ? terminal!.id : hit!.slug
+          const handle = isTerminal ? (terminal!.terminal!.handle ?? terminal!.id) : handleOf(hit!)
+          const sessionId = row?.session_id ?? ""
+          const projectSlug = listWorkspaces().find((w) => w.id === ctx.project.id)?.slug ?? ctx.project.name
+          const refuse = (text: string): ControlThreadResult => ({ ok: false, refused: true, handle, slug, text })
+          const succeed = (text: string): ControlThreadResult => ({ ok: true, handle, slug, text })
+
+          try {
+            switch (input.action) {
+              case "info": {
+                const snapshot = await ctx.board.snapshot()
+                const threadView = snapshot.threads.find((t) => t.id === slug) ?? terminal
+                if (!threadView) return refuse(`@${handle} could not be read from the board.`)
+                const band = threadBandOf(threadView)
+                const rp = !isTerminal && row ? resolveRecurringPrompt(row) : null
+                let stats: ThreadStats | undefined
+                if (!isTerminal && row) {
+                  try { stats = await router.threadStats.handler({ input: { slug } }) } catch {}
+                }
+                let workingDir: ThreadWorkingDir | undefined
+                if (!isTerminal) {
+                  try { workingDir = threadWorkingDir(slug) } catch {}
+                }
+                const liveTerminals = (ctx.terminalRunner?.live?.(slug) ?? []).map((t) => ({
+                  id: t.id,
+                  handle: terminalByHandle(t.id)?.terminal?.handle,
+                  command: t.command,
+                }))
+                const timers = isTerminal ? [] : ctx.storage.listThreadTimers(slug, { armedOnly: true }).map((t) => ({
+                  id: t.id,
+                  fireAt: new Date(t.fire_at).toISOString(),
+                  prompt: t.prompt,
+                }))
+                const commandWatches = isTerminal ? [] : ctx.storage.listCommandWatches(slug, { armedOnly: true }).map((w) => ({
+                  id: w.id,
+                  command: w.command,
+                  every: formatCommandWatchDuration(w.every_ms),
+                  expiresAt: new Date(w.expires_at).toISOString(),
+                }))
+                return succeed(formatThreadInfo({
+                  handle,
+                  slug,
+                  projectName: ctx.project.name,
+                  projectSlug,
+                  thread: threadView,
+                  band,
+                  backend: row?.backend ?? undefined,
+                  model: row?.model ?? threadView.model,
+                  effort: row?.effort ?? threadView.effort,
+                  permissionMode: row?.permission_mode ?? undefined,
+                  snoozedUntil: row?.snoozed_until ?? threadView.snoozedUntil ?? null,
+                  snoozePrompt: row?.snooze_prompt ?? null,
+                  deadline: isTerminal ? null : deadlineView(slug),
+                  goal: rp ? {
+                    prompt: rp.prompt,
+                    stopHook: rp.stopHook,
+                    heartbeat: rp.heartbeat,
+                    postCompaction: rp.postCompaction,
+                    intervalSeconds: rp.intervalSeconds,
+                  } : null,
+                  openQuestions: isTerminal ? [] : openQuestionViews(slug),
+                  watches: isTerminal ? [] : armedOwnWatchViews(slug),
+                  prWatches: isTerminal ? [] : armedPrWatchViews(slug),
+                  timers,
+                  commandWatches,
+                  liveTerminals,
+                  workingDir,
+                  stats,
+                }))
+              }
+
+              case "done": {
+                if (isTerminal) {
+                  if (terminal!.state === "archived") return succeed(`Terminal @${handle} is already done.`)
+                  await humanFiles(slug, "archived")
+                  return succeed(`Marked terminal @${handle} done (stopped and archived).`)
+                }
+                const alreadyArchived = row!.state === "archived" || row!.archived === 1
+                if (alreadyArchived) {
+                  if (input.body) {
+                    ctx.storage.markThreadDone(slug, input.body, Date.now())
+                    ctx.board.refresh()
+                    return succeed(`@${handle} was already done; updated its done summary.`)
+                  }
+                  return succeed(`@${handle} is already done.`)
+                }
+                const liveTerms = ctx.terminalRunner?.live?.(slug) ?? []
+                const stopTerminals = input.stopTerminals ? liveTerms.map((t) => t.id) : undefined
+                const result = await router.completeThread.handler({
+                  input: {
+                    slug,
+                    sessionId,
+                    terminateLive: input.force === true,
+                    ...(stopTerminals?.length ? { stopTerminals } : {}),
+                  },
+                })
+                if (result.needsConfirmation && result.hold) {
+                  return {
+                    ok: false,
+                    refused: true,
+                    handle,
+                    slug,
+                    hold: result.hold,
+                    text: formatCompletionHold(handle, result.hold),
+                  }
+                }
+                if (input.body) {
+                  ctx.storage.markThreadDone(slug, input.body, Date.now())
+                  ctx.board.refresh()
+                }
+                const extras: string[] = []
+                if (input.force) extras.push("stopped live work")
+                if (stopTerminals?.length) extras.push(`stopped ${stopTerminals.length} terminal${stopTerminals.length === 1 ? "" : "s"}`)
+                return succeed(`Marked @${handle} done (moved to Done${extras.length ? `; ${extras.join(", ")}` : ""}).`)
+              }
+
+              case "reopen": {
+                await router.setThreadState.handler({ input: { slug, state: "open" } })
+                return succeed(`Reopened @${handle}.`)
+              }
+
+              case "stop": {
+                if (input.op) {
+                  if (isTerminal) return refuse(`@${handle} is a terminal, not a session thread with sub-agents or background shells.`)
+                  const stopped = await router.stopBackgroundOp.handler({ input: { slug, id: input.op } })
+                  const desc = stopped.descendantsStopped > 0 ? ` (plus ${stopped.descendantsStopped} descendant${stopped.descendantsStopped === 1 ? "" : "s"})` : ""
+                  if (!stopped.stopped && !stopped.dismissed) {
+                    return refuse(stopped.note ?? `No live sub-agent or background shell \`${input.op}\` on @${handle}.`)
+                  }
+                  return succeed(
+                    `Stopped ${input.op} on @${handle}${desc}.${stopped.note ? ` ${stopped.note}` : ""}`,
+                  )
+                }
+                if (isTerminal) {
+                  await ctx.terminalRunner.stop(slug)
+                  return succeed(`Stopped terminal @${handle}.`)
+                }
+                await router.killAgent.handler({ input: { slug } })
+                return succeed(`Stopped @${handle}'s running worker.`)
+              }
+
+              case "delete": {
+                if (isTerminal) {
+                  await ctx.terminalRunner.remove(slug)
+                  return succeed(`Deleted terminal @${handle}.`)
+                }
+                await router.deleteThread.handler({ input: { slug } })
+                return succeed(`Deleted @${handle} (rows and scratchpad removed; handle freed).`)
+              }
+
+              case "pin":
+              case "unpin": {
+                const pinned = input.action === "pin"
+                await router.setThreadPinned.handler({ input: { slug, sessionId, pinned } })
+                return succeed(`${pinned ? "Pinned" : "Unpinned"} @${handle}.`)
+              }
+
+              case "snooze": {
+                const nowMs = Date.now()
+                let until: string | undefined
+                if (input.until) {
+                  const parsed = Date.parse(input.until)
+                  if (!Number.isFinite(parsed)) return refuse(`\`--until ${input.until}\` is not a valid ISO-8601 timestamp.`)
+                  until = new Date(parsed).toISOString()
+                } else if (input.for) {
+                  const durMs = parseControlDurationMs(input.for, nowMs)
+                  if (durMs === undefined || durMs <= 0) return refuse(`\`--for ${input.for}\` is not a valid duration (e.g. \`30m\`, \`2h\`, \`1d\`).`)
+                  until = new Date(nowMs + durMs).toISOString()
+                } else {
+                  return refuse("`snooze` requires `--for <duration>` (e.g. `2h`, `1d`) or `--until <ISO timestamp>`.")
+                }
+                await router.setThreadSnooze.handler({
+                  input: { slug, sessionId, until, prompt: input.prompt?.trim() || null },
+                })
+                return succeed(`Snoozed @${handle} until ${until}${input.prompt?.trim() ? " (with scheduled follow-up prompt)" : ""}.`)
+              }
+
+              case "unsnooze": {
+                await router.setThreadSnooze.handler({ input: { slug, sessionId, until: null, prompt: null } })
+                return succeed(`Cleared snooze on @${handle}.`)
+              }
+
+              case "rename": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and cannot be renamed.`)
+                if (!input.title?.trim()) return refuse("`--title` is required to rename a thread.")
+                await router.renameThread.handler({ input: { slug, title: input.title.trim() } })
+                const nextHandle = threadHandle(input.title.trim()) ?? slug
+                return succeed(`Renamed @${handle} to "${input.title.trim()}" (@${nextHandle}).`)
+              }
+
+              case "compact": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and cannot be compacted.`)
+                await router.compactThread.handler({ input: { slug, sessionId } })
+                return succeed(`Compaction started on @${handle}.`)
+              }
+
+              case "model": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and has no model.`)
+                if (input.upgrade) {
+                  const upgraded = await router.upgradeThreadModel.handler({ input: { slug, sessionId } })
+                  return succeed(`Scheduled model upgrade on @${handle} to ${upgraded.label} (${upgraded.effect}).`)
+                }
+                const model = input.model?.trim() || row!.model?.trim()
+                if (!model) return refuse("`--model` is required (this thread has no stored model to preserve).")
+                const effort = input.effort?.trim() || row!.effort?.trim() || undefined
+                const res = await router.setThreadProfile.handler({ input: { slug, model, ...(effort ? { effort } : {}) } })
+                return succeed(`Set @${handle} profile to ${model}${effort ? ` (${effort})` : ""} (${res.effect}).`)
+              }
+
+              case "permission": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and has no permission mode.`)
+                if (!input.permissionMode) return refuse("`--mode` is required (e.g. `default`, `acceptEdits`, `plan`, `bypassPermissions`, `read-only`, `workspace-write`, `danger-full-access`).")
+                const res = await router.setThreadPermission.handler({ input: { slug, permissionMode: input.permissionMode } })
+                return succeed(`Set @${handle} permission mode to ${input.permissionMode} (${res.effect}).`)
+              }
+
+              case "spinoff": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and cannot be spun off.`)
+                const targetProject = input.project ? matchTenant(input.project)?.project.id : undefined
+                if (input.project && !targetProject) return refuse(`No open project matches "${input.project}".`)
+                const spun = await router.spinoff.handler({
+                  input: {
+                    slug,
+                    sessionId,
+                    instructions: input.instructions?.trim() ?? "",
+                    ...(targetProject ? { project: targetProject } : {}),
+                  },
+                })
+                const targetCtx = targetProject
+                  ? (ctx.activeTenants?.() ?? []).find((t) => t.project.id === targetProject)?.ctx ?? ctx
+                  : ctx
+                const newHandle = await spawnedHandle(spun.id, targetCtx)
+                const label = newHandle ? `@${newHandle}` : spun.id
+                return succeed(`Spun off ${label} (${spun.id}) from @${handle}.`)
+              }
+
+              case "start": {
+                if (isTerminal) {
+                  await ctx.terminalRunner.restart(slug)
+                  return succeed(`Started terminal @${handle}.`)
+                }
+                const prompt = input.prompt?.trim() ?? row!.lazy_prompt ?? ""
+                if (!prompt.trim()) return refuse(`@${handle} has no held prompt; pass \`--prompt\` to start it.`)
+                await router.startHeldThread.handler({
+                  input: {
+                    slug,
+                    sessionId,
+                    prompt,
+                    ...(input.model ? { model: input.model } : {}),
+                    ...(input.effort ? { effort: input.effort } : {}),
+                    ...(input.backend ? { backend: input.backend } : {}),
+                  },
+                })
+                return succeed(`Started held thread @${handle}.`)
+              }
+
+              case "answer": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and has no questions.`)
+                let answers = input.answers
+                if (!answers?.length) {
+                  if (!input.questionId || input.answer === undefined) {
+                    return refuse("`--answers` (or `--id <qst_id> --answer <text>`) is required.")
+                  }
+                  const stored = ctx.storage.getThreadQuestion(input.questionId)
+                  if (!stored || stored.thread_slug !== slug) {
+                    return refuse(`No question \`${input.questionId}\` found on @${handle}.`)
+                  }
+                  const spec = parseQuestionSpec(stored.spec)
+                  const qText = spec?.question ?? input.questionId
+                  let parsedArr: unknown
+                  if (/^\s*\[/.test(input.answer)) {
+                    try { parsedArr = JSON.parse(input.answer) } catch {}
+                  }
+                  const optionLabels = (spec?.options ?? []).map((o) => o.label)
+                  let chosen: string[] = []
+                  let text: string | undefined
+                  if (Array.isArray(parsedArr) && parsedArr.every((x) => typeof x === "string")) {
+                    chosen = parsedArr
+                  } else if (optionLabels.length > 0) {
+                    const matched = optionLabels.find((l) => l.toLowerCase() === input.answer!.trim().toLowerCase())
+                    if (matched) chosen = [matched]
+                    else text = input.answer
+                  } else {
+                    text = input.answer
+                  }
+                  answers = [{ questionId: input.questionId, question: qText, chosen, ...(text !== undefined ? { text } : {}) }]
+                }
+                const res = await router.answerQuestions.handler({ input: { slug, answers } })
+                if (res.answered.length === 0) {
+                  return refuse(`No matching open question on @${handle} was answered. Open: ${res.open.map((q) => q.id).join(", ") || "none"}.`)
+                }
+                return succeed(`Answered ${res.answered.length} question${res.answered.length === 1 ? "" : "s"} on @${handle} (${res.answered.join(", ")}). ${res.open.length} still open.`)
+              }
+
+              case "dismiss_questions": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and has no questions.`)
+                const ids = input.ids ?? openQuestionViews(slug).filter((q) => !q.spec.danger).map((q) => q.id)
+                if (ids.length === 0) return succeed(`No dismissible open questions on @${handle}.`)
+                const res = await router.dismissQuestions.handler({ input: { slug, ids } })
+                return succeed(`Dismissed ${res.dismissed.length} question${res.dismissed.length === 1 ? "" : "s"} on @${handle}${res.dismissed.length ? ` (${res.dismissed.join(", ")})` : ""}. ${res.open.length} still open.`)
+              }
+
+              case "deliver": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and has no queued messages.`)
+                const res = await router.deliverQueuedNow.handler({
+                  input: { slug, sessionId, ...(input.releaseOnly ? { releaseOnly: true } : {}) },
+                })
+                if (!res.interrupted && !res.released) return refuse(res.reason ?? `Nothing queued to deliver on @${handle}.`)
+                const parts = [
+                  res.released ? `released ${res.released} held message${res.released === 1 ? "" : "s"}` : null,
+                  res.interrupted ? "interrupted current turn so queued input runs now" : null,
+                ].filter(Boolean)
+                return succeed(`Delivered on @${handle}: ${parts.join("; ")}.`)
+              }
+
+              case "check_in": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and cannot check in.`)
+                await router.requestParkCheckIn.handler({ input: { slug, sessionId } })
+                return succeed(`Requested immediate check-in from @${handle}.`)
+              }
+
+              case "deadline": {
+                if (isTerminal) return refuse(`@${handle} is a terminal thread and has no deadline.`)
+                if (input.clear) {
+                  await router.setThreadDeadline.handler({ input: { slug, deadline: null } })
+                  return succeed(`Cleared deadline on @${handle}.`)
+                }
+                const nowMs = Date.now()
+                let deadlineIso: string | undefined
+                if (input.at) {
+                  const parsed = Date.parse(input.at)
+                  if (!Number.isFinite(parsed)) return refuse(`\`--at ${input.at}\` is not a valid ISO-8601 timestamp.`)
+                  deadlineIso = new Date(parsed).toISOString()
+                } else if (input.for) {
+                  const durMs = parseControlDurationMs(input.for, nowMs)
+                  if (durMs === undefined || durMs <= 0) return refuse(`\`--for ${input.for}\` is not a valid duration (e.g. \`30m\`, \`2h\`, \`1d\`).`)
+                  deadlineIso = new Date(nowMs + durMs).toISOString()
+                } else {
+                  const current = deadlineView(slug)
+                  return succeed(current ? `@${handle} deadline: ${current.at} (set by ${current.setBy}).` : `@${handle} has no deadline.`)
+                }
+                const res = await router.setThreadDeadline.handler({ input: { slug, deadline: deadlineIso } })
+                return succeed(`Set deadline on @${handle} to ${res.deadline?.at ?? deadlineIso}.`)
+              }
+            }
+          } catch (err) {
+            return refuse(err instanceof Error ? err.message : String(err))
+          }
+        },
+        (result) => ({ detail: { ok: result.ok, ...(result.handle ? { handle: result.handle } : {}), ...(result.refused ? { refused: true } : {}) } }),
+      ),
+    }),
+
     // ONE THREAD MESSAGING ANOTHER (`ntwinectl message-thread`). Delivered through the wake outbox, so
     // it survives a restart and a busy recipient exactly as a timer does, and joins a running turn the
     // way a typed steer does (scheduler THREAD_MESSAGE_FENCE_PREFIX). Refusals are answers, not throws:
@@ -6298,7 +6926,10 @@ export function createRouter(ctx: AppContext) {
           const handle = handleOf(hit)
           if (!elsewhere && hit.slug === input.slug) return { sent: false, handle, refusal: "that is this thread." }
           if (target.state === "archived" || target.archived === 1) {
-            return { sent: false, handle, refusal: `@${handle} is done, and a message would reopen it. Read it with \`ntwinectl read-thread\` instead; only the user reopens a finished thread.` }
+            if (!input.reopen) {
+              return { sent: false, handle, refusal: `@${handle} is done, and a message would reopen it. Pass \`--reopen\` (or run \`ntwinectl thread reopen @${handle}\` first) to reopen and message it, or read it with \`ntwinectl read-thread\`.` }
+            }
+            reopenArchivedThreadForFollowUp(home, target)
           }
           const nowMs = Date.now()
           const pair = `${input.slug}\u0000${home.project.id}\u0000${hit.slug}`
@@ -6589,6 +7220,25 @@ export function createRouter(ctx: AppContext) {
           return { refused: `No terminal is called ${input.handle}.`, known: known.slice(0, 20) }
         }
         const handle = t.terminal.handle ?? t.id
+        if (input.action === "take") {
+          moveTerminalControl(t.id, input.slug, "give")
+          return ownTerminalReading(terminalByHandle(t.id) ?? t, input.slug, 40)
+        }
+        if (input.action === "give") {
+          const rawTo = input.to.trim()
+          let dest: string
+          if (rawTo.toLowerCase() === "human" || rawTo.toLowerCase() === "user") {
+            dest = "human"
+          } else {
+            const targetThread = resolveThreadHandle(rawTo, threadNamer().threads())
+            if (!targetThread || !ctx.storage.getSession(targetThread.slug)) {
+              return { refused: `No thread is called ${input.to}.`, handle, id: t.id }
+            }
+            dest = targetThread.slug
+          }
+          moveTerminalControl(t.id, dest, dest === "human" ? "take" : "give")
+          return ownTerminalReading(terminalByHandle(t.id) ?? t, input.slug, 40)
+        }
         const controller = t.terminal.controller ?? "human"
         if (controller !== input.slug) return { refused: notDrivingRefusal(handle, controller, input.action), handle, id: t.id }
         if (input.action === "release") {
