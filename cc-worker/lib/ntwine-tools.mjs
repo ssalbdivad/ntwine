@@ -600,6 +600,22 @@ function questionSchema(depth) {
           "make yourself without them — never on the architecture of a library or a major version, a " +
           "public API, a data model, or the design a plan commits to.",
       },
+      ...(depth === 1
+        ? {
+            revises: {
+              type: "string",
+              description:
+                "The id of an earlier question this one REPLACES because the user's newest message changed " +
+                "what it is about — they asked for the drafted reply to be rewritten, the diff redone, the " +
+                "plan corrected — while the call itself is still theirs (above all an `external` act you " +
+                "may not take without their word). Without it, a question whose words match one you " +
+                "withdrew after their newest message, or one they typed past, is refused as a repeat. The " +
+                "earlier one must be yours to replace — open or withdrawn by you, never answered or " +
+                "dismissed by the user — and the content must actually differ; an open one is withdrawn " +
+                "for you. Never use it to bring back a question their message made moot.",
+            },
+          }
+        : {}),
       // No `maxItems`: the count is the worker's to choose (maintainer 2026-09-03 — "allow arbitrary
       // numbers of options"). A `multi` over a long list is a real shape; the card numbers every row (1–9 are its keys).
       options: {
@@ -656,7 +672,11 @@ const ASK = {
     "A QUESTION STAYS OPEN UNTIL IT IS ANSWERED, THE USER DISMISSES IT, OR YOU `ntwinectl unask` IT. ONE THE " +
     "USER TYPES PAST stays answerable where you asked it, and its answer still reaches you, but it holds " +
     "nothing: it does not block `done` and needs no `unask`. Carry on with what their message asks. Never ask it again, nor a question the " +
-    "user dismissed or one you withdrew after their newest message — `ntwinectl ask` refuses all three.\n\n" +
+    "user dismissed or one you withdrew after their newest message — `ntwinectl ask` refuses all three. THE ONE " +
+    "EXCEPTION IS A REVISION: when their message changed what a still-open decision is ABOUT — rewrite the " +
+    "draft, redo the diff — and the call is still theirs, ask it again with the revised content and " +
+    "`\"revises\": \"<the earlier id>\"` on the question. It replaces the earlier card (an open one is withdrawn " +
+    "for you), so there is no need to `unask` first. Never for a question they dismissed.\n\n" +
     "SEVERAL AT ONCE IS ONE COMMAND — register them together, so they render as one stack. Each must stand " +
     "alone (a question that only makes sense after another's answer is that option's `followUps`), " +
     "because ANSWERS ARRIVE ONE AT A TIME: each card is sent the moment the user completes it, so you " +
@@ -699,7 +719,9 @@ const UNASK = {
     "already holds nothing, and its card stays answerable where you asked it. A stale " +
     "question on someone's board is worse than no question — they answer it, and the answer is about a " +
     "decision that no longer exists. Withdrawn after the user's newest message, it is a pivot you " +
-    "declared, and `ask` will not take it back.\n\n" +
+    "declared, and `ask` will not take it back — unless the new question names it under `revises` and " +
+    "carries what that message changed. To REPLACE a question with a revised draft, skip this and ask " +
+    "with `revises`: it withdraws the old card itself.\n\n" +
     "You do NOT need this for a question that gets answered; that settles itself and wakes you. " +
     "Withdrawing is YOUR move and is never reported back to you as news.",
   inputSchema: {

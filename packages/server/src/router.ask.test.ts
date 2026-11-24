@@ -704,6 +704,70 @@ test("a question the worker withdrew after the human's message, or the human dis
   } finally { h.close() }
 })
 
+// A REVISION IS NOT A REPEAT (2026-11-24). A worker asked to push fixes and post a drafted reply, the
+// human asked for the reply rewritten more simply, and the twin refusal left it no card for an act it may
+// not take without their word. `revises` re-asks with the changed content; the refusal's intent survives.
+const postDraft = (draft: string): AskedQuestion => ({
+  question: "Push the two fixes and post the reply on the review comment?",
+  kind: "question",
+  options: [
+    { label: "Push and post", recommended: true, external: true, description: `The reply:\n\n> ${draft}` },
+    { label: "Keep it local" },
+  ],
+})
+
+test("a question withdrawn after the human's message is re-asked when it REVISES that one with changed content, and only then", async () => {
+  const h = harness()
+  try {
+    h.storage.upsertSession(row("t"))
+    const [first] = (await h.router.ask.handler({ input: { slug: "t", questions: [postDraft("Good catch — the guard now covers the empty case as well, see the new test.")] } })).registered
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    h.humanSpokeAt(new Date().toISOString())
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await h.router.unask.handler({ input: { slug: "t", id: first.id } })
+    // Negative control: the same words without `revises` are still the dodge, and the refusal names the way back.
+    await assert.rejects(
+      h.router.ask.handler({ input: { slug: "t", questions: [postDraft("Fixed, with a test.")] } }),
+      /which you withdrew after the user's newest message\.[\s\S]*`"revises": "<the earlier id>"`/,
+    )
+    // Revising it with the draft UNCHANGED is the dodge too.
+    await assert.rejects(
+      h.router.ask.handler({ input: { slug: "t", questions: [{ ...postDraft("Good catch — the guard now covers the empty case as well, see the new test."), revises: first.id }] } }),
+      new RegExp(`\`revises: ${first.id}\` repeats it unchanged`),
+    )
+    const [revised] = (await h.router.ask.handler({ input: { slug: "t", questions: [{ ...postDraft("Fixed, with a test."), revises: first.id }] } })).registered
+    assert.equal(revised.spec.revises, first.id)
+    assert.deepEqual(h.storage.listThreadQuestions("t", { openOnly: true }).map((q) => q.id), [revised.id])
+  } finally { h.close() }
+})
+
+test("revising an OPEN question the human typed past replaces its card; a dismissed, answered or foreign one cannot be revised", async () => {
+  const h = harness()
+  try {
+    h.storage.upsertSession(row("t"))
+    h.storage.upsertSession(row("other"))
+    const [open] = (await h.router.ask.handler({ input: { slug: "t", questions: [postDraft("v1")] } })).registered
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    h.humanSpokeAt(new Date().toISOString())
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const [revised] = (await h.router.ask.handler({ input: { slug: "t", questions: [{ ...postDraft("v2"), revises: open.id }] } })).registered
+    assert.equal(h.storage.getThreadQuestion(open.id)?.state, "withdrawn", "the old card is withdrawn in the same call")
+    assert.deepEqual(h.storage.listThreadQuestions("t", { openOnly: true }).map((q) => q.id), [revised.id])
+
+    // The human's × is final, revised or not.
+    await h.router.dismissQuestions.handler({ input: { slug: "t", ids: [revised.id] } })
+    await assert.rejects(h.router.ask.handler({ input: { slug: "t", questions: [{ ...postDraft("v3"), revises: revised.id }] } }), /names a question the user dismissed/)
+    // An answered one is settled.
+    const [answered] = (await h.router.ask.handler({ input: { slug: "t", questions: [simple("Rename the package first?")] } })).registered
+    await h.router.answerQuestions.handler({ input: { slug: "t", answers: [{ questionId: answered.id, chosen: ["SQLite — transactional, matches how sessions are already stored"] }] } })
+    await assert.rejects(h.router.ask.handler({ input: { slug: "t", questions: [{ ...simple("Rename the package first, then?"), revises: answered.id }] } }), /already answered/)
+    // Another thread's id names nothing here.
+    const [foreign] = (await h.router.ask.handler({ input: { slug: "other", questions: [postDraft("v1")] } })).registered
+    await assert.rejects(h.router.ask.handler({ input: { slug: "t", questions: [{ ...postDraft("v2"), revises: foreign.id }] } }), /names no question on this thread/)
+    assert.equal(h.storage.getThreadQuestion(foreign.id)?.state, "open", "a refused revision touches nothing")
+  } finally { h.close() }
+})
+
 // ---- SECRET requests (`mcp__ntwine__secret`) --------------------------------------------------------
 // A credential the human pastes — a one-time code, a token — goes to a private file, and every surface
 // that reads the answer row (the settled card, the in-flight card, the worker's wake) sees only where

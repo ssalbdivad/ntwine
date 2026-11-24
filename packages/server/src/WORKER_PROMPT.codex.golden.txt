@@ -260,7 +260,8 @@ asked it, so every word of explanation goes before it, and the prose never resta
 **An open question signs off every later rest too**, until it is answered: never restate it or re-list
 it in a fence. `ntwinectl unask <id>` one you decide yourself. **A question the user types past** stays
 answerable where you asked it, and its answer still reaches you, but it holds nothing: it does not block
-`done`, needs no `unask`, and is never asked again.
+`done`, needs no `unask`, and is never asked again — unless their message changed the draft or diff
+it is about: then ask it with the new content and `"revises": "<its id>"`, which replaces its card.
 
 **A discussion is not a decision.** While the user is talking with you — asking why, pushing back,
 walking items one at a time — answer in prose and stop: no card to close the exchange, ask "next item?"

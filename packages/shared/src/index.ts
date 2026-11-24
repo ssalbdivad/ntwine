@@ -3921,6 +3921,14 @@ export interface AskedQuestion {
    *  writes the question and its options itself (mcpRequestQuestion), and answering it with a grant
    *  mounts the server in the thread (router.ts applyMcpGrants). Root questions only. */
   mcp?: string
+  /** The id of an earlier question on this thread that THIS one replaces with revised content — a
+   *  redrafted comment, a changed diff, a corrected plan (2026-11-24). It lets the worker re-ask a
+   *  question whose words match one it withdrew after the human's newest message, or one the human
+   *  typed past, which `ask` otherwise refuses as a repeat: a human who asks for the draft to be
+   *  rewritten has changed what the decision is ABOUT, not made the decision moot, and an external act
+   *  (a push, a post) still needs their word on a card. The prior must not be answered or dismissed,
+   *  the content must actually differ, and an open prior is withdrawn in the same call. Root only. */
+  revises?: string
   /** Absent or empty ⇒ a free-text question. */
   options?: AskedOption[]
 }
@@ -3964,6 +3972,7 @@ export const AskedQuestionSchema: z.ZodType<AskedQuestion> = z.lazy(() => z.obje
   mayDefault: z.boolean().optional(),
   secret: z.boolean().optional(),
   mcp: z.string().trim().min(1).max(200).optional(),
+  revises: z.string().trim().min(1).max(64).optional(),
   // UNBOUNDED, deliberately. This carried `.max(8)` from launch until 2026-09-03, when the maintainer
   // asked for the cap to go ("allow arbitrary numbers of options"): a `multi` over a long list — which
   // gates to run, which of twenty findings to act on — is a real shape, and the card numbers past 9
@@ -3993,6 +4002,8 @@ export function askedQuestionFaults(q: AskedQuestion): string[] {
     // redacts at the root, so a secret branch would deliver the value in the clear.
     if (node.secret && path !== "question") faults.push(`${path}: a secret request cannot be a follow-up — register it on its own`)
     if (node.mcp && path !== "question") faults.push(`${path}: an MCP server request cannot be a follow-up — register it on its own`)
+    if (node.revises && path !== "question") faults.push(`${path}: \`revises\` goes on the root question — the whole card replaces the earlier one`)
+    if (node.revises && node.mcp) faults.push(`${path}: an MCP server request cannot revise a question — ntwine writes its card`)
     // A MULTI-SELECT WITH NO OPTIONS IS A FREE-TEXT BOX WEARING THE WRONG LABEL, and it renders as one —
     // silently, so the worker never learns its `multi` did nothing.
     if (node.kind === "multi" && options.length === 0) faults.push(`${path}: \`kind: "multi"\` needs options — a question with none is free text`)

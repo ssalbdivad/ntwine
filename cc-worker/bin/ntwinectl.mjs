@@ -312,11 +312,15 @@ function describeArg(label, spec, required, indent, outer) {
   const nested = inner?.type === "object" ? inner.properties : undefined
   if (nested) {
     // A schema that nests itself (`ask`: a question's option carries follow-up questions) is described
-    // ONCE. Printing it at every depth is three screens of the same paragraphs.
-    const shape = Object.keys(nested).sort().join(",")
-    const again = outer.find(([, seen]) => seen === shape)
+    // ONCE. Printing it at every depth is three screens of the same paragraphs. A nested level may lack
+    // a field only the root takes (a follow-up has no `revises`), so it matches any outer shape holding
+    // all its keys, and the line names what it lacks.
+    const keys = Object.keys(nested)
+    const shape = keys.sort().join(",")
+    const again = keys.length === 0 ? undefined : outer.find(([, seen]) => keys.every((key) => seen.split(",").includes(key)))
     if (again) {
-      lines.push(`${indent}    Each one has the same shape as ${again[0]}, above.`)
+      const missing = again[1].split(",").filter((key) => !keys.includes(key))
+      lines.push(`${indent}    Each one has the same shape as ${again[0]}, above${missing.length ? `, without ${missing.map((key) => `\`${key}\``).join(", ")}` : ""}.`)
     } else {
       const req = new Set(inner.required ?? [])
       for (const [key, sub] of Object.entries(nested)) {

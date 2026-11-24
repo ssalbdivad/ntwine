@@ -2740,6 +2740,11 @@ export function createRouter(ctx: AppContext) {
     return openQuestionViews(slug).flatMap((q) => (q.passedOver ? [] : [{ id: q.id, question: q.spec.question }]))
   }
 
+  /** Question text with case, punctuation and spacing folded away — the "same words" a repeat is matched on. */
+  function foldQuestionText(s: string): string {
+    return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
+  }
+
   /** The question on this thread that `q` would RE-ASK, if any, matched on its question text with case,
    *  punctuation and spacing folded away. Three count, and none is a guess about what the human meant:
    *
@@ -2758,16 +2763,60 @@ export function createRouter(ctx: AppContext) {
   function pivotTwin(slug: string, q: AskedQuestion): ThreadQuestionRow | undefined {
     const lastHumanAt = ctx.tailer.get(slug)?.lastHumanAt
     const humanMs = lastHumanAt ? Date.parse(lastHumanAt) : Number.NaN
-    const fold = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
-    const text = fold(q.question)
+    const text = foldQuestionText(q.question)
     return ctx.storage.listThreadQuestions(slug).find((row) => {
+      // The question `q` declares it REVISES is not a repeat of it: askRevision has already checked
+      // that one is still the worker's to replace and that the content changed.
+      if (row.id === q.revises) return false
       const spec = parseQuestionSpec(row.spec)
       const pivoted = row.state === "dismissed" ||
         (row.state === "withdrawn" && Number.isFinite(humanMs) && (row.settled_at ?? 0) > humanMs) ||
         (row.state === "open" && questionPassedOver(row, spec, lastHumanAt))
       if (!pivoted) return false
-      return spec !== undefined && fold(spec.question) === text
+      return spec !== undefined && foldQuestionText(spec.question) === text
     })
+  }
+
+  /** The question `q.revises` names, checked for a revision `ask` may take (2026-11-24, after a worker
+   *  asked to push two fixes and post four drafted replies, the human asked for one reply rewritten more
+   *  simply, and the twin refusal left the worker no card to carry the new draft — "decide it yourself"
+   *  is no answer for a push it may not make without the human's word). The refusal's intent holds:
+   *
+   *    · the human's × is final — a DISMISSED question is "decide it yourself", revised or not;
+   *    · an ANSWERED one is settled — the answer already reached the worker;
+   *    · an UNCHANGED re-ask is the dodge d76c845d refused, so the content must differ: the question
+   *      text (folded as pivotTwin folds it), its options, their drafts and follow-ups.
+   *
+   *  What is left is a question the worker itself withdrew or still holds open — typed past or not —
+   *  re-registered with what the human's message changed. Returns the prior row, or a refusal. */
+  function askRevision(slug: string, q: AskedQuestion): { prior: ThreadQuestionRow } | { refusal: string } {
+    const id = q.revises!
+    const prior = ctx.storage.getThreadQuestion(id)
+    if (!prior || prior.thread_slug !== slug) return { refusal: `\`revises: ${id}\` names no question on this thread — \`ntwinectl activity\` lists your open ones.` }
+    if (prior.state === "answered") return { refusal: `\`revises: ${id}\` names a question the user already answered; the answer reached you, so act on it.` }
+    if (prior.state === "dismissed") {
+      return { refusal: `\`revises: ${id}\` names a question the user dismissed. Their × means decide it yourself — a revision does not bring it back.` }
+    }
+    const priorSpec = parseQuestionSpec(prior.spec)
+    if (priorSpec && revisionContent(priorSpec) === revisionContent(q)) {
+      return {
+        refusal: `\`revises: ${id}\` repeats it unchanged. A revision carries what the user's newest message changed — ` +
+          "a redrafted reply, a new diff, a corrected plan — and this has the same question and options.",
+      }
+    }
+    return { prior }
+  }
+
+  /** What a revision must change, as one comparable string: the whole spec but `revises`, keys sorted,
+   *  the question text folded so a recased or repunctuated copy still reads as unchanged. */
+  function revisionContent(q: AskedQuestion): string {
+    const { revises: _revises, ...rest } = q
+    const sorted = (value: unknown): unknown =>
+      Array.isArray(value) ? value.map(sorted)
+        : value && typeof value === "object"
+          ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted((value as Record<string, unknown>)[key])]))
+          : value
+    return JSON.stringify(sorted({ ...rest, question: foldQuestionText(rest.question) }))
   }
 
   function questionView(slug: string, id: string, spec: AskedQuestion, askedAtMs: number): RegisteredQuestionView {
@@ -5515,7 +5564,17 @@ export function createRouter(ctx: AppContext) {
         // `unask`ed both of its stale cards and re-registered them word for word under the human's
         // unrelated next request). Dropping is an act — the human's ×, or the worker's own `unask` after
         // the human's newest typed message. And a question the human typed past is not asked again
-        // either while its card is still open (2026-10-14; see pivotTwin).
+        // either while its card is still open (2026-10-14; see pivotTwin) — unless it is the question
+        // this one REVISES with changed content (2026-11-24; see askRevision).
+        const revisions = input.questions.flatMap((q) => {
+          if (!q.revises) return []
+          const checked = askRevision(input.slug, q)
+          if ("refusal" in checked) throw new Error(checked.refusal)
+          return [checked.prior]
+        })
+        // Both refusals below name the one way back, for the case the rule was never meant to catch.
+        const revisionHint = "Only if that message CHANGED what the question is about — a draft to rewrite, a diff to " +
+          "redo — and the call is still the user's, ask it with the revised content and `\"revises\": \"<the earlier id>\"` on the question."
         const twins = input.questions.flatMap((q) => {
           const prior = pivotTwin(input.slug, q)
           return prior ? [{ q, prior }] : []
@@ -5526,7 +5585,8 @@ export function createRouter(ctx: AppContext) {
           throw new Error(
             `${passedOver.map(({ q, prior }) => `"${q.question.slice(0, 120)}" repeats ${prior.id}`).join("\n")}\n\n` +
             `The user typed past ${passedOver.length === 1 ? "it" : "them"}. ${passedOver.length === 1 ? "It is" : "They are"} still answerable where you asked, ` +
-            "and an answer reaches you when it is given. Do not ask again: carry on with what the user's newest message asks.",
+            "and an answer reaches you when it is given. Do not ask again: carry on with what the user's newest message asks. " +
+            revisionHint,
           )
         }
         const reasked = twins.map(({ q, prior }) => {
@@ -5537,12 +5597,15 @@ export function createRouter(ctx: AppContext) {
           throw new Error(
             `${reasked.join("\n")}\n\nA question dropped that way is not asked again, in these words or any others: ` +
             "decide it yourself — do what the user's newest message asks — and say which way you went in " +
-            "your write-up.",
+            "your write-up." + (twins.some(({ prior }) => prior.state === "withdrawn") ? ` ${revisionHint}` : ""),
           )
         }
         // NO CAP ON THE OPEN SET. Twelve was refused here until 2026-09-03 ("a worker holding more than
         // this is refusing to decide"); the maintainer had it removed with the tool's other count caps.
         const now = Date.now()
+        // A revised question REPLACES its prior: one still open is withdrawn here, so the human never
+        // sees the old draft beside the new one.
+        for (const prior of revisions) if (prior.state === "open") ctx.storage.withdrawThreadQuestion(input.slug, prior.id, now)
         const registered = input.questions.map((spec) => {
           const id = `qst_${randomUUID().replace(/-/g, "").slice(0, 12)}`
           // A question trumps a done — see setOwnThreadTimer.

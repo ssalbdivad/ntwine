@@ -261,7 +261,9 @@ maintainer: *"the questions should move along with the conversation and not be r
 on"*), it stays open and answerable where it was asked, but no longer holds the thread: it blocks no
 `done`, queues nothing and signs off nothing. A `secret` or MCP request
 is exempt: it is an input the worker cannot proceed without. `ask` refuses to re-ask a question the human
-dismissed or typed past, or one the worker withdrew after the human's newest message. On
+dismissed or typed past, or one the worker withdrew after the human's newest message — unless the new
+question names it under `revises` with changed content (a redrafted reply after the human asked for one),
+which withdraws an open prior in the same call; a dismissed or answered one is never revised. On
 the page a card stays at the bottom of the rest that asked it until a later fence claims it, then moves
 to the end of that rest (`questionClaims`, `web/src/lib/questionAnchor.ts`); a wake never moves it. A
 question whose card sits above the newest rest — held, or typed past — is linked from the transcript's
