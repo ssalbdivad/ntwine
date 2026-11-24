@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { inActiveBand, sectionOf, type ThreadTerminal, type ThreadView } from "@ntwine/shared"
+import { inActiveBand, NEEDS_INPUT_REQUIRED_AT, sectionOf, type ThreadTerminal, type ThreadView } from "@ntwine/shared"
 import { createBoard, endedShellViews, withThreadTerminals } from "./board.ts"
 import { Bus } from "./bus.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
@@ -78,12 +78,12 @@ test("a terminal at a prompt is its own Ready row on the real board; its running
   }
 })
 
-test("a failed agent-driven terminal stays out of Ready while its driver is Working, and surfaces once the driver rests in Ready", async () => {
+test("a failed agent-driven terminal stays out of Ready while its driver is Working or has live sub-agents under a write-up, and surfaces once the driver rests idle", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ntwine-board-driver-fail-"))
   const project: Project = { dir, id: "project-driver-fail", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
-  let driverTurn: SessionTelemetry["turn"] = "in-flight"
+  let driverTele: SessionTelemetry = { turn: "in-flight", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00") }
   const tailer = {
-    get: (slug: string) => (slug === "driver" ? { turn: driverTurn, permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: at("09:00") } satisfies SessionTelemetry : undefined),
+    get: (slug: string) => (slug === "driver" ? driverTele : undefined),
     foreignIds: () => [],
     subAgent: () => undefined,
     forget: () => {},
@@ -91,13 +91,14 @@ test("a failed agent-driven terminal stays out of Ready while its driver is Work
     stop: () => {},
     tick: () => {},
   } satisfies Tailer
-  const nowMs = Date.parse(at("10:00"))
-  const agentFailed = terminal({ id: "t-agent", parent: "driver", startedBy: "driver", controller: "driver", state: "exited", exitCode: 1, exitedAt: at("09:58") })
-  const humanFailed = terminal({ id: "t-human", startedBy: "human", controller: "human", state: "exited", exitCode: 1, exitedAt: at("09:58") })
-  const termRow = (slug: string) => ({ slug, state: "open" as const, created_at: Date.parse(at("09:00")), pinned_at: null, snoozed_until: null, exit_queues: 0 })
+  const nowMs = Date.parse(NEEDS_INPUT_REQUIRED_AT) + 3_600_000
+  const iso = (offsetMs: number) => new Date(nowMs + offsetMs).toISOString()
+  const agentFailed = terminal({ id: "t-agent", parent: "driver", startedBy: "driver", controller: "driver", state: "exited", exitCode: 1, exitedAt: iso(-120_000) })
+  const humanFailed = terminal({ id: "t-human", startedBy: "human", controller: "human", state: "exited", exitCode: 1, exitedAt: iso(-120_000) })
+  const termRow = (slug: string) => ({ slug, state: "open" as const, created_at: nowMs - 600_000, pinned_at: null, snoozed_until: null, exit_queues: 0 })
   const storage = createStorage(join(dir, "ui.db"), "p")
   storage.upsertSession({
-    slug: "driver", session_id: "driver-session", thread_name: "ntwine-driver", spawned_at: at("08:00"), last_read_at: null,
+    slug: "driver", session_id: "driver-session", thread_name: "ntwine-driver", spawned_at: iso(-1_800_000), last_read_at: null,
     unread: 0, exited: 0, archived: 0, rested_at: null, title_auto: 0, title: null,
     state: "open", meta: null, seen_at: null, transcript_id: null,
   })
@@ -114,9 +115,19 @@ test("a failed agent-driven terminal stays out of Ready while its driver is Work
     assert.equal(whileWorking.find((t) => t.id === "t-agent")?.needsYou, false, "held out of Ready while driver is Working")
     assert.equal(whileWorking.find((t) => t.id === "t-human")?.needsYou, true, "human-driven failure always queues")
 
-    driverTurn = "idle"
+    // Driver rests with prose above `awaiting` (so driver itself has needsYou: true) while sub-agents are live.
+    driverTele = {
+      turn: "idle", permPrompt: false, bgShells: [], pendingQuestion: false, lastAssistantAt: iso(-300_000),
+      subAgents: [{ id: "ag1", label: "Forms A", state: "running", startedAt: iso(-600_000) }],
+      lastFence: { kind: "awaiting", body: "Checks are running.", hints: [{ kind: "agent", value: "ag1" }], writeUp: true },
+    }
+    const whileWriteUpLive = board.refresh().threads
+    assert.equal(whileWriteUpLive.find((t) => t.id === "driver")?.needsYou, true, "driver itself is queued for its write-up")
+    assert.equal(whileWriteUpLive.find((t) => t.id === "t-agent")?.needsYou, false, "still held out of Ready while driver has live sub-agents")
+
+    driverTele = { turn: "idle", permPrompt: false, subAgents: [], bgShells: [], pendingQuestion: false, lastAssistantAt: iso(-60_000) }
     const afterRest = board.refresh().threads
-    assert.equal(afterRest.find((t) => t.id === "t-agent")?.needsYou, true, "surfaces in Ready once driver leaves Working without handling it")
+    assert.equal(afterRest.find((t) => t.id === "t-agent")?.needsYou, true, "surfaces in Ready once driver has no live ops and rests")
   } finally {
     await board.stop()
     storage.close()

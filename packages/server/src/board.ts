@@ -10,7 +10,7 @@ import { dirname, join } from "node:path"
 import watcher from "@parcel/watcher"
 import { parseTodoStarters, type TodoStarter } from "./todo-steps.ts"
 import type { BoardSnapshot, ClaudeModel, ThreadScheduleRef, ThreadTerminal, ThreadView, RuntimeState, ThreadRecurringPrompt, ProviderError } from "@ntwine/shared"
-import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, activeBandThread, awaitingStatus, awaitingStatusWritten, awaitingMachine, awaitingSteps, inWaitingBand, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, terminalOutcome, threadQuestionDefaults, questionPassedOver, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
+import { AskedQuestionSchema, BoardDiffer, PermissionMode, SnoozeUntil, ThreadSlug, activeBandThread, awaitingStatus, awaitingStatusWritten, awaitingMachine, awaitingSteps, inWaitingBand, isActivelyRunning, isDirectSubAgent, needsInputRequired, queueUrgency, questionAnswerMessage, terminalOutcome, threadQuestionDefaults, questionPassedOver, questionsCancelledWakeMessage, type AskedQuestion, type PermissionMode as PermissionModeValue, type QuestionAnswer, type QuestionDismissal } from "@ntwine/shared"
 import type { Bus } from "./bus.ts"
 import { workDirOf, type Project } from "./project.ts"
 import { liftWorkingDir } from "./thread-cwd.ts"
@@ -3046,10 +3046,16 @@ export function createBoard(
     // TERMINAL THREADS (thread-terminals.ts): rows of their own, banded by their process. They ride the queue
     // clock with the sessions (a place in line, the needs-decision notification) but persist no stamp: a
     // restart interrupts their runs anyway, which is a new entry.
-    // A failed terminal whose controlling agent is actively WORKING stays out of the human's Ready queue while
-    // that agent handles the wake the scheduler sends it (evalTerminalWaits step 6); the moment the driver
-    // leaves Working (Ready, Waiting, Snoozed, Done) without restarting or stopping it, it surfaces in Ready.
-    const workingDrivers = new Set(sessionThreads.filter((t) => activeBandThread(t) && !inWaitingBand(t, assembledAtMs)).map((t) => t.id))
+    // A failed terminal whose controlling agent is actively WORKING — including one that posted an interim
+    // prose update above its `awaiting` fence while sub-agents or background shells are still running
+    // (`isActivelyRunning`) — stays out of the human's Ready queue while that agent handles the wake the
+    // scheduler sends it (evalTerminalWaits step 6); the moment the driver finishes working without
+    // restarting or stopping it, it surfaces in Ready.
+    const workingDrivers = new Set(
+      sessionThreads
+        .filter((t) => !t.archived && t.state !== "archived" && (isActivelyRunning(t) || (activeBandThread(t) && !inWaitingBand(t, assembledAtMs))))
+        .map((t) => t.id),
+    )
     const terminalThreads = (deps.terminalThreads?.(assembledAtMs) ?? []).map((t) => {
       if (!t.terminal) return t
       const placed = placeTerminal(t.terminal, workDirOf(project))

@@ -3800,11 +3800,17 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         const failEvent = events.find((e) => e.key.endsWith(":end"))
         const driverSession = failEvent ? deps.storage.getSession(controller) : undefined
         const driverTele = driverSession && driverSession.state !== "archived" && driverSession.archived !== 1 ? deps.tailer.get(controller) : undefined
-        const driverActive = driverTele !== undefined && driverTele.primed !== false && !restsOnHandoff(controller, driverTele) && (
-          driverTele.turn !== "idle" ||
-          driverTele.lastFence?.kind === "awaiting" ||
+        // A thread with live sub-agents or background shells is still actively driving its effort even when
+        // it posted an interim prose write-up above its `awaiting` fence (which makes `awaitingStatus` read
+        // `needs_input` and `restsOnHandoff` return true). Check live ops BEFORE `restsOnHandoff`.
+        const driverHasLiveOps = driverTele !== undefined && (
           driverTele.subAgents.some((a) => a.state === "running") ||
           driverTele.bgShells.some((s) => s.state === "running")
+        )
+        const driverActive = driverTele !== undefined && driverTele.primed !== false && (
+          driverTele.turn !== "idle" ||
+          driverHasLiveOps ||
+          (!restsOnHandoff(controller, driverTele) && driverTele.lastFence?.kind === "awaiting")
         )
         const afterUser = !driverTele?.lastUserAt || !Number.isFinite(Date.parse(driverTele.lastUserAt)) || failEvent!.atMs >= Date.parse(driverTele.lastUserAt)
         if (failEvent && driverActive && afterUser) {

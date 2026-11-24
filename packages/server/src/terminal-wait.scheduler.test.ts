@@ -213,29 +213,37 @@ test("a note sent mid-turn that the quiet window holds past the turn is owed aga
   assert.deepEqual(JSON.parse(h.storage.listThreadTerminals().find((t) => t.slug === "term-1")!.control_notes!).map((n: { to: string }) => n.to), ["w"], "owed again")
 })
 
-test("a failed terminal wakes its active driver automatically (mid-turn or parked on shells), and never wakes a handed-off or bare-rest driver", async () => {
+test("a failed terminal wakes its active driver automatically (mid-turn, parked on shells, or write-up awaiting with live sub-agents), and never wakes a handed-off or bare-rest driver", async () => {
   const h = harness()
   h.storage.upsertSession(row("busy"))
   h.storage.upsertSession(row("parked"))
+  h.storage.upsertSession(row("writeup-live"))
   h.storage.upsertSession(row("done-t"))
   h.storage.upsertSession(row("bare"))
   h.start("t-busy", "dev-busy", "busy")
   h.start("t-parked", "dev-parked", "parked")
+  h.start("t-writeup", "dev-writeup", "writeup-live")
   h.start("t-done", "dev-done", "done-t")
   h.start("t-bare", "dev-bare", "bare")
   h.rest("busy", [], "in-flight")
   h.rest("parked", [{ kind: "shell", value: "sh1" }, { kind: "status", value: "working" }], "idle", {
     bgShells: [{ id: "sh1", label: "build", state: "running", startedAt: iso(h.clock.ms) }],
   })
+  // Prose above an `awaiting` fence (`writeUp: true`) makes `awaitingStatus` read `needs_input`, but live
+  // sub-agents mean the driver is still actively running its effort and owns its terminal's crash.
+  h.rest("writeup-live", [{ kind: "agent", value: "ag1" }], "idle", {
+    lastFence: { kind: "awaiting", body: "Checks are running.", hints: [{ kind: "agent", value: "ag1" }], writeUp: true },
+    subAgents: [{ id: "ag1", label: "Forms A", state: "running", startedAt: iso(h.clock.ms) }],
+  })
   h.rest("bare")
   h.storage.markThreadDone("done-t", "finished", h.clock.ms)
   h.rest("done-t")
   h.clock.ms += 60_000
-  for (const id of ["t-busy", "t-parked", "t-done", "t-bare"]) {
+  for (const id of ["t-busy", "t-parked", "t-writeup", "t-done", "t-bare"]) {
     h.procs.set(id, { state: "exited", exitCode: 1, exitedAt: iso(h.clock.ms) })
   }
   await h.s.tick()
-  assert.deepEqual(h.resumes.map((r) => r.slug).sort(), ["busy", "parked"])
+  assert.deepEqual(h.resumes.map((r) => r.slug).sort(), ["busy", "parked", "writeup-live"])
   for (const r of h.resumes) {
     assert.equal(parseTerminalWake(r.message)?.event, "FAILED (exit 1)")
     assert.match(r.message, /ntwinectl terminal run @/)
@@ -243,5 +251,5 @@ test("a failed terminal wakes its active driver automatically (mid-turn or parke
   }
   // One crash, one wake — ticking again sends nothing more.
   await h.s.tick()
-  assert.equal(h.resumes.length, 2)
+  assert.equal(h.resumes.length, 3)
 })
