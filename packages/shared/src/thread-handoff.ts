@@ -93,6 +93,9 @@ export type ThreadMoveSlugInput = z.infer<typeof ThreadMoveSlugInput>
 export const ThreadMovePreview = z.object({
   peer: z.object({ id: PeerId, name: z.string() }),
   refusal: z.string().optional(),
+  /** The other machine gave no answer at all (down, asleep, a stale address): not a refusal, since asking
+   *  again can succeed, so the dialog offers that. The move is refused while it is set, as for `refusal`. */
+  unreachable: z.string().optional(),
   /** The destination's checkout of the project, when it has one. */
   destination: z.object({ project: z.string(), dir: z.string() }).optional(),
   /** Which checkout the thread works in, relative to the project ("." is the main checkout). */

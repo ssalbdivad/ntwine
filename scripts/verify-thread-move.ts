@@ -194,8 +194,8 @@ async function main() {
   check(readFileSync(join(wtA, "README.md"), "utf8").includes("edited on the first machine"), "its uncommitted edit is in the mac's worktree")
 
   step("previewing the move")
-  const preview = await rpc<{ refusal?: string; checkout?: { rel: string; branch: string | null }; wipPaths: string[]; destination?: { dir: string } }>(a, "threadMovePreview", { slug, peerId: desktopId })
-  check(!preview.refusal, `no refusal (${preview.refusal ?? "none"})`)
+  const preview = await rpc<{ refusal?: string; unreachable?: string; checkout?: { rel: string; branch: string | null }; wipPaths: string[]; destination?: { dir: string } }>(a, "threadMovePreview", { slug, peerId: desktopId })
+  check(!preview.refusal && !preview.unreachable, `no refusal (${preview.refusal ?? preview.unreachable ?? "none"})`)
   check(preview.checkout?.rel === ".ntwine/worktrees/feature" && preview.checkout.branch === "feature", "it found the worktree and its branch")
   check(JSON.stringify(preview.wipPaths) === JSON.stringify(["README.md", "notes/todo.txt"]), `the uncommitted files that move: ${preview.wipPaths.join(", ")}`)
   check(preview.destination?.dir === projectB, "the desktop answered with its own checkout of the project")

@@ -87,7 +87,11 @@ export function MoveThreadDialog({ thread, peers, onClose, onMoved }: {
       onMoved?.()
     },
   })
-  const ready = preview.data !== undefined && preview.data.refusal === undefined
+  const ready = preview.data !== undefined && preview.data.refusal === undefined && preview.data.unreachable === undefined
+  // NO ANSWER IS NOT A NO (2026-11-24). The other machine being down, asleep or at a new address left the
+  // dialog on a disabled Move with nothing to press, which read as a dead button; asking again is the one
+  // thing that can change the answer, so it takes Move's place until the machine answers.
+  const unreachable = preview.data?.unreachable !== undefined
   const failure = move.error ? errorText(move.error) : preview.error ? errorText(preview.error) : null
   return (
     <Dialog
@@ -100,10 +104,16 @@ export function MoveThreadDialog({ thread, peers, onClose, onMoved }: {
           <button type="button" onClick={onClose} disabled={move.isPending} className={SECONDARY_BUTTON}>
             Cancel
           </button>
-          <button type="button" onClick={() => move.mutate()} disabled={!ready || move.isPending} className={PRIMARY_BUTTON} data-move-confirm>
-            {move.isPending && <Loader2 size={12} className="animate-spin" aria-hidden />}
-            {move.isPending ? "Moving…" : "Move"}
-          </button>
+          {unreachable ? (
+            <button type="button" onClick={() => void preview.refetch()} disabled={preview.isFetching} className={PRIMARY_BUTTON} data-move-retry>
+              Try again
+            </button>
+          ) : (
+            <button type="button" onClick={() => move.mutate()} disabled={!ready || move.isPending} className={PRIMARY_BUTTON} data-move-confirm>
+              {move.isPending && <Loader2 size={12} className="animate-spin" aria-hidden />}
+              {move.isPending ? "Moving…" : "Move"}
+            </button>
+          )}
         </>
       }
     >
@@ -120,11 +130,16 @@ export function MoveThreadDialog({ thread, peers, onClose, onMoved }: {
             disabled={move.isPending}
           />
         ) : null}
-        {preview.isPending ? (
+        {preview.isFetching ? (
           <p className="m-0 flex items-center gap-1.5" data-move-checking>
             <Loader2 size={12} className="animate-spin" aria-hidden />
             Checking with {peer.name}…
           </p>
+        ) : preview.data?.unreachable ? (
+          <div className="flex flex-col gap-1" data-move-unreachable>
+            <p className="m-0 text-fg">{preview.data.unreachable}</p>
+            <p className="m-0 text-[11.5px] text-muted-70">Check that ntwine is running on {peer.name}, or change its address in Settings → Other machines.</p>
+          </div>
         ) : preview.data?.refusal ? (
           <p className="m-0 text-fg" data-move-refusal>{preview.data.refusal}</p>
         ) : preview.data ? (

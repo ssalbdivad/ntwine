@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
+import { createServer, type AddressInfo } from "node:net"
 import { join } from "node:path"
 import { after, describe, it } from "node:test"
 import { moveLogOf } from "@ntwine/shared"
@@ -273,38 +274,44 @@ describe("moving a thread when the answer to its import cannot be authenticated"
   })
 })
 
+/** A Claude thread at rest in the main checkout of a committed repo with a remote, and nothing uncommitted. */
+function cleanThread(name: string): { home: string; ctx: AppContext } {
+  const home = join(root, `${name}-home`)
+  const dir = join(root, name, "repo")
+  mkdirSync(dir, { recursive: true })
+  git(dir, "init", "-q")
+  git(dir, "remote", "add", "origin", "https://github.com/example/clean.git")
+  writeFileSync(join(dir, "a.txt"), "a\n")
+  git(dir, "add", "-A")
+  git(dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
+  const stateDir = join(root, name, "state")
+  mkdirSync(stateDir, { recursive: true })
+  const sid = "1b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
+  const bucket = join(home, ".claude", "projects", cwdSlug(dir))
+  mkdirSync(bucket, { recursive: true })
+  writeFileSync(join(bucket, `${sid}.jsonl`), `${JSON.stringify({ type: "user", cwd: dir, message: { role: "user", content: "look around" } })}\n`)
+  const db = openNtwineDatabase({ path: join(root, name, "ui.db") })
+  after(() => db.db.close())
+  const storage = createStorage(db.db, `proj-${name}`)
+  storage.upsertSession({
+    slug: "look-around", session_id: sid, thread_name: "ntwine-look-around", spawned_at: "2026-11-12T10:00:00.000Z",
+    last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: "2026-11-12T10:05:00.000Z", title_auto: 0,
+    title: "Look around", state: "open", meta: null, seen_at: null, transcript_id: null,
+  })
+  storage.setBackend("look-around", "claude")
+  storage.setClaudeRuntime("look-around", "broker")
+  const ctx = {
+    project: { id: `proj-${name}`, name, dir, workDir: dir, stateDir, cwdSlug: cwdSlug(dir) },
+    storage,
+    tailer: { get: () => ({ turn: "idle", subAgents: [], bgShells: [] }) },
+    board: { rebuild: async () => {} },
+  } as unknown as AppContext
+  return { home, ctx }
+}
+
 describe("moving a main-checkout thread with nothing uncommitted", () => {
   it("sends no checkout, so the other clone's own main never refuses it", async () => {
-    const home = join(root, "clean-home")
-    const dir = join(root, "clean", "repo")
-    mkdirSync(dir, { recursive: true })
-    git(dir, "init", "-q")
-    git(dir, "remote", "add", "origin", "https://github.com/example/clean.git")
-    writeFileSync(join(dir, "a.txt"), "a\n")
-    git(dir, "add", "-A")
-    git(dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
-    const stateDir = join(root, "clean", "state")
-    mkdirSync(stateDir, { recursive: true })
-    const sid = "1b6c9d64-5f3e-4c2a-9a51-6d0b1f2e3a4b"
-    const bucket = join(home, ".claude", "projects", cwdSlug(dir))
-    mkdirSync(bucket, { recursive: true })
-    writeFileSync(join(bucket, `${sid}.jsonl`), `${JSON.stringify({ type: "user", cwd: dir, message: { role: "user", content: "look around" } })}\n`)
-    const db = openNtwineDatabase({ path: join(root, "clean", "ui.db") })
-    after(() => db.db.close())
-    const storage = createStorage(db.db, "proj-clean")
-    storage.upsertSession({
-      slug: "look-around", session_id: sid, thread_name: "ntwine-look-around", spawned_at: "2026-11-12T10:00:00.000Z",
-      last_read_at: null, unread: 0, exited: 0, archived: 0, rested_at: "2026-11-12T10:05:00.000Z", title_auto: 0,
-      title: "Look around", state: "open", meta: null, seen_at: null, transcript_id: null,
-    })
-    storage.setBackend("look-around", "claude")
-    storage.setClaudeRuntime("look-around", "broker")
-    const ctx = {
-      project: { id: "proj-clean", name: "clean", dir, workDir: dir, stateDir, cwdSlug: cwdSlug(dir) },
-      storage,
-      tailer: { get: () => ({ turn: "idle", subAgents: [], bgShells: [] }) },
-      board: { rebuild: async () => {} },
-    } as unknown as AppContext
+    const { home, ctx } = cleanThread("clean")
     const destKey = generatePeerKey()
     let sentGit: unknown = "never sent"
     const fakeFetch: typeof fetch = async (_input, init) => {
@@ -320,6 +327,41 @@ describe("moving a main-checkout thread with nothing uncommitted", () => {
     assert.equal((await service.preview(ctx, "look-around", peerId)).checkout, undefined)
     await service.move(ctx, "look-around", peerId)
     assert.equal(sentGit, null)
+  })
+})
+
+describe("previewing a move the other machine does not answer", () => {
+  function previewer(name: string, fetchImpl: typeof fetch, url: string, publicKey = generatePeerKey().publicKey) {
+    const { home, ctx } = cleanThread(name)
+    const service = createPeerService({ home, name: "origin", fetch: fetchImpl, startListener: false, storePath: join(home, "peers.json"), workspaces: () => [], openProject: async () => undefined })
+    const peerId = openPeerStore(join(home, "peers.json")).upsert({ name: "mac", url, publicKey: publicKey.toString("base64url"), pairedAt: new Date().toISOString() }).id
+    return { preview: () => service.preview(ctx, "look-around", peerId), lastError: () => service.state().peers[0]!.lastError }
+  }
+
+  it("says there was no answer, and why, rather than refusing", async () => {
+    // A real connection to a port nothing listens on: the reason lives in undici's `cause`, not its message.
+    const port = await new Promise<number>((done) => {
+      const probe = createServer().listen(0, "127.0.0.1", () => {
+        const { port } = probe.address() as AddressInfo
+        probe.close(() => done(port))
+      })
+    })
+    const { preview, lastError } = previewer("unanswered", fetch, `http://127.0.0.1:${port}`)
+    const result = await preview()
+    assert.equal(result.refusal, undefined)
+    assert.equal(result.unreachable, `mac did not answer at http://127.0.0.1:${port} (nothing is listening on that port)`)
+    assert.equal(lastError(), result.unreachable)
+  })
+
+  it("keeps the other machine's own sealed no as a refusal", async () => {
+    const destKey = generatePeerKey()
+    const refusing: typeof fetch = async (_input, init) => {
+      const received = openRequest(destKey, Buffer.from(init?.body as Uint8Array), () => true)
+      return new Response(new Uint8Array(received.sealResponse(frameMessage({ ok: false, error: "mac has no copy of this project" }))), { status: 200 })
+    }
+    const result = await previewer("refused", refusing, "http://mac.test", destKey.publicKey).preview()
+    assert.equal(result.unreachable, undefined)
+    assert.equal(result.refusal, "mac has no copy of this project")
   })
 })
 
