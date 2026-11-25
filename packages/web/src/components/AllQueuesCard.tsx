@@ -47,6 +47,7 @@ import { drawnHeight, observeCardSlot, whenCardRendered } from "../lib/cardVisib
 import { IN_PLACE_OPEN_STATE, openThread, pushTerminalDrawer, showToast, store } from "../store.ts"
 import { crossProjectHref, innerPath, projectSlug } from "../lib/base-path.ts"
 import { BlockFile, BlockImage, GithubWatchRows, LimitPauseNotice, QueueDismissContext, TerminalNetCard } from "./ChatView.tsx"
+import { AgentMessageReactions, ReactionsProvider, UserMessageReactions } from "./MessageReactions.tsx"
 import { isLimitPaused } from "../lib/limitPause.ts"
 import { registeredDoneBody, showsRegisteredDoneCard } from "../lib/registeredDone.ts"
 import { ThreadStatusLine } from "./ThreadStatusLine.tsx"
@@ -425,6 +426,9 @@ function CardArticle({
   const placeHref = crossProjectThreadHref(project, thread.id)
   const dismiss = useMemo(() => ({ dismiss: onLeave, cancel: onReturn, hold: onHold }), [onLeave, onReturn, onHold])
   const queryClient = useQueryClient()
+  const onReactionMutated = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
+  }, [queryClient])
   // The snooze toast's Undo: the card comes back, and the page re-reads the queues now rather than at
   // the next poll, which left the card missing for up to 3s after the click.
   const onUnsnoozed = () => {
@@ -660,6 +664,7 @@ function CardArticle({
           carries the pick (ReplyBox) instead of replying past it. */}
       <QueueDismissContext.Provider value={dismiss}>
       <RegisteredAnsweringProvider thread={thread} scope={answeringScope}>
+      <ReactionsProvider slug={thread.id} reactions={thread.reactions} api={api} onMutated={onReactionMutated}>
       <ProjectLinkScope project={project}>
         {/* Everything between the header and the dock, in ONE block whose negative bottom margin hands back
             the dock's header-height top margin (see `--queue-card-header-h` above). Empty for a held
@@ -672,7 +677,9 @@ function CardArticle({
           <div className="flex min-w-0 flex-col px-5 pt-5 pb-4"><TodoStarters thread={thread} /></div>
         )}
         {thread.held === undefined && (
-        <div className="flex min-w-0 flex-col gap-4 px-5 pt-5 pb-4">
+        // pb-7 (28px): leaves 4px of air below the 24px zero-height floating reaction button under the last
+        // rest (AgentMessageReactions) so the sticky z-10 dock never occludes it.
+        <div className="flex min-w-0 flex-col gap-4 px-5 pt-5 pb-7">
           {/* EARLIER MESSAGES OPEN THE DRAWER, never the card. History drawn into the card grew it
               inside the queue, and the queue is ONE page: whether a page loaded on a press or on a
               scroll up, the card swelled between the reader and the card above it (tried and
@@ -703,7 +710,7 @@ function CardArticle({
             ? <UpdateRequestedMarker />
             : askedCardAction
             ? <CardActionMarker kind={askedCardAction} />
-            : <AskedBubble text={parseScheduledRunPrompt(handoff.data.asked)?.prompt || handoff.data.asked} />)}
+            : <AskedBubble text={parseScheduledRunPrompt(handoff.data.asked)?.prompt || handoff.data.asked} sourceId={handoff.data.askedSourceId} />)}
           {/* THE PROSE OF EVERY REST SINCE THE HUMAN'S MESSAGE, oldest first, in ONE keyed list: a block is
               keyed by when its rest was written, so when a newer rest lands the newest block moves up into
               the earlier ones as the SAME block, still open if the human opened it. Nothing a later rest
@@ -713,16 +720,16 @@ function CardArticle({
               shipped, or what it is waiting on — and the rested notice is its state; both are the glance. */}
           {[
             ...earlierRests.map((rest) => (
-              <ClampedBody key={rest.key}>
+              <RestBlock key={rest.key} sourceId={rest.sourceId} excerpt={rest.prose.slice(0, 8000)}>
                 <Prose md={rest.prose} />
-              </ClampedBody>
+              </RestBlock>
             )),
             slots && <CardSettledStack key="settled-between" questions={slots.settledBetween} />,
             slots && <RegisteredQuestionStack key={`between-${restKey}`} thread={thread} questions={slots.between} keepAnswered />,
             parts?.prose && (
-              <ClampedBody key={restKey || "newest"}>
+              <RestBlock key={restKey || "newest"} sourceId={handoff.data?.sourceId} excerpt={(text ?? parts.prose).slice(0, 8000)}>
                 <Prose md={parts.prose} />
-              </ClampedBody>
+              </RestBlock>
             ),
           ]}
           {parts ? null : !handoff.data && (thread.lastAssistant || handoff.isError) ? (
@@ -747,12 +754,25 @@ function CardArticle({
                   Message's `restingCardShown`) — two cards for one wait is the doubling that rule ends;
                 • any other awaiting fence — a wait that is no longer live, a bg-snoozed thread — is the
                   same card stating the fence, with no verbs of its own (ChatView FenceCard's branch). */}
-          {parts?.fences.map((fence, index) => fence.kind === "done"
-            ? <FenceBody key={index} body={fence.body} project={project} thread={thread} />
-            : drawsSubAgentWait
-              ? <AwaitingSubAgentsCard key={index} project={project} thread={thread} body={fence.body} openThread={() => openInPlace(project, thread.id, displayTitle(thread))} onReplied={onSent} onReplyFailed={onReturn} reply={cardReply} />
-              : restingShown ? null
-              : <CardAwaiting key={index} project={project} thread={thread} fence={{ body: fence.body, hints: fence.hints }} onLeave={onLeave} onSent={onSent} onLanded={onLanded} onReturn={onReturn} />)}
+          {(() => {
+            if (!parts?.fences.length) return null
+            const nodes = parts.fences.map((fence, index) => fence.kind === "done"
+              ? <FenceBody key={index} body={fence.body} project={project} thread={thread} />
+              : drawsSubAgentWait
+                ? <AwaitingSubAgentsCard key={index} project={project} thread={thread} body={fence.body} openThread={() => openInPlace(project, thread.id, displayTitle(thread))} onReplied={onSent} onReplyFailed={onReturn} reply={cardReply} />
+                : restingShown ? null
+                : <CardAwaiting key={index} project={project} thread={thread} fence={{ body: fence.body, hints: fence.hints }} onLeave={onLeave} onSent={onSent} onLanded={onLanded} onReturn={onReturn} />)
+            const visible = parts.fences.some((f) => f.kind === "done" || drawsSubAgentWait || !restingShown)
+            if (!parts.prose && visible && handoff.data?.sourceId && text) {
+              return (
+                <div data-ntwine-msg={handoff.data.sourceId} className="group/msg relative flex min-w-0 flex-col gap-4 hover:z-[1] focus-within:z-[1] has-[[data-state=open]]:z-[1]">
+                  {nodes}
+                  <AgentMessageReactions sourceId={handoff.data.sourceId} excerpt={text.slice(0, 8000)} />
+                </div>
+              )
+            }
+            return nodes
+          })()}
           {/* THE RESTING CARD (upstream TodosView AwaitingBackgroundBanner), whenever the thread is at rest on
               its own declared wait — a fence or not, since a rest on agent terminals alone queues with no
               fence at all. It carries the wait table and the steps and their Done (and, until 2026-10-14, the
@@ -809,6 +829,7 @@ function CardArticle({
         </div>
         )}
       </ProjectLinkScope>
+      </ReactionsProvider>
 
       {!collapsed && (
       <ThreadProjectScope projectId={project.id} projectDir={project.projectDir}>
@@ -1071,7 +1092,12 @@ function CardTerminalNet({ thread }: { thread: ThreadView }) {
 /** The human's last message, as the transcript draws it — their own bubble — clipped to a few lines, and
  *  its attachments under it as the drawer's chips (ChatView UserBubble): the composer sends each one as a
  *  trailing path line, which the bubble printed as a clipped run of path text. */
-function AskedBubble({ text: sent }: { text: string }) {
+type AskedBubbleProps = {
+  text: string
+  sourceId?: string
+}
+
+function AskedBubble({ text: sent, sourceId }: AskedBubbleProps) {
   const { prose: text, attachments } = useMemo(() => splitComposerValue(sent), [sent])
   const [open, setOpen] = useState(false)
   const [clamps, setClamps] = useState(false)
@@ -1131,6 +1157,22 @@ function AskedBubble({ text: sent }: { text: string }) {
           )}
         </div>
       )}
+      <UserMessageReactions sourceId={sourceId} />
+    </div>
+  )
+}
+
+type RestBlockProps = {
+  sourceId?: string
+  excerpt: string
+  children: ReactNode
+}
+
+function RestBlock({ sourceId, excerpt, children }: RestBlockProps) {
+  return (
+    <div data-ntwine-msg={sourceId} className="group/msg relative flex min-w-0 flex-col hover:z-[1] focus-within:z-[1] has-[[data-state=open]]:z-[1]">
+      <ClampedBody>{children}</ClampedBody>
+      <AgentMessageReactions sourceId={sourceId} excerpt={excerpt} />
     </div>
   )
 }

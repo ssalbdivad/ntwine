@@ -1191,14 +1191,14 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   // the human's or any other non-nudge user message, and at a rest, wake or compaction line — a wake line
   // only where no rest is marked, as below.
   const marksRests = messages.some((m) => m.boundary === "rest")
-  const restEndingAt = (end: number): { texts: string[]; start: number } => {
-    const texts = [messages[end]!.text]
+  const restEndingAt = (end: number): { texts: string[]; sourceId?: string; start: number } => {
+    const restMsgs: TranscriptMessage[] = [messages[end]!]
     let start = end
     for (let i = end - 1, bridged = false; i > anchor; i--) {
       const m = messages[i]!
       if (says(m)) {
         if (bridged || isParagraphs(m.text)) {
-          texts.unshift(m.text)
+          restMsgs.unshift(m)
           start = i
         }
         bridged = false
@@ -1207,7 +1207,13 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
         bridged = true
       } else if (m.boundary && !bridged && !(m.boundary === "wake" && marksRests)) break
     }
-    return { texts, start }
+    // Key the rest to the last message that carries prose (falling back to the last message with an id)
+    // so a prose message bridged with a bare trailing signal fence (```done / ```awaiting) shares the
+    // exact sourceId the human sees and reacts to in ChatView, where a suppressed awaiting fence renders null.
+    const sourceId =
+      restMsgs.findLast((m) => typeof m.sourceId === "string" && !isSignalFenceOnly(m.text))?.sourceId
+      ?? restMsgs.findLast((m) => typeof m.sourceId === "string")?.sourceId
+    return { texts: restMsgs.map((m) => m.text), ...(sourceId ? { sourceId } : {}), start }
   }
   let replyAt = -1
   for (let i = messages.length - 1; i > anchor; i--) {
@@ -1239,7 +1245,7 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   const nextSpoken = (from: number) => messages.slice(from).find((m) => !m.kind)
   // A rest the nudge bridges into its reply queued if EITHER half did: a bare rest is on the queue
   // before the nudge's reply parks quietly.
-  const earlier: { text: string; at?: string }[] = []
+  const earlier: { text: string; at?: string; sourceId?: string }[] = []
   for (let i = anchor + 1, end = -1, queued = false; i < (latest?.start ?? 0); i++) {
     const m = messages[i]!
     if (says(m)) { end = i; continue }
@@ -1251,7 +1257,8 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
     if (!turnEnds) continue
     if (earlier.length === 0 || queued) {
       const at = messages[end]!.at
-      earlier.push({ text: restEndingAt(end).texts.join("\n\n"), ...(at ? { at } : {}) })
+      const rest = restEndingAt(end)
+      earlier.push({ text: rest.texts.join("\n\n"), ...(at ? { at } : {}), ...(rest.sourceId ? { sourceId: rest.sourceId } : {}) })
     }
     end = -1
     queued = false
@@ -1262,11 +1269,19 @@ export function handoffOf(messages: readonly TranscriptMessage[]): ThreadHandoff
   // draws the click as a marker (web UpdateRequestedMarker) off that line, never as words they typed.
   const askedText = askedRaw && isUpdateRequest(askedRaw) ? askedRaw.split("\n")[0]! : askedRaw
   return {
-    ...(reply ? { text: latest!.texts.join("\n\n"), at: reply.at } : {}),
+    ...(reply ? { text: latest!.texts.join("\n\n"), at: reply.at, ...(latest!.sourceId ? { sourceId: latest!.sourceId } : {}) } : {}),
     ...(earlier.length ? { earlier } : {}),
-    ...(askedText ? { asked: askedText.length > HANDOFF_ASKED_MAX ? `${askedText.slice(0, HANDOFF_ASKED_MAX - 1)}…` : askedText, askedAt: asked!.at } : {}),
+    ...(askedText ? {
+      asked: askedText.length > HANDOFF_ASKED_MAX ? `${askedText.slice(0, HANDOFF_ASKED_MAX - 1)}…` : askedText,
+      askedAt: asked!.at,
+      ...(typeof asked!.sourceId === "string" ? { askedSourceId: asked!.sourceId } : {}),
+    } : {}),
   }
 }
+
+/** True when a message holds only signal fences (```done / ```awaiting) and no prose. */
+const isSignalFenceOnly = (text: string): boolean =>
+  text.replace(/\r\n/g, "\n").replace(/^```(?:done|awaiting)[ \t]*\n[\s\S]*?^```[ \t]*$/gm, "").trim() === ""
 
 /** A rest that kept its thread off the queue: an awaiting fence answering `working` or `watching` — the
  *  board's own reading of the same fence, so "the card could have shown it" means what the queue meant. */

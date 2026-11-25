@@ -310,9 +310,24 @@ export function handoffParts(text: string, registered: readonly Pick<RegisteredQ
  * already showed (@precompile-design, 2026-10-16: the examples the human was reading vanished when the
  * worker signed off done). Only their fences go, since the newest rest's state supersedes theirs.
  */
-export function earlierProse(earlier: readonly { text: string; at?: string }[] | undefined, registered: readonly Pick<RegisteredQuestionView, "id" | "spec">[] = []): { key: string; prose: string }[] {
+export type EarlierRestEntry = {
+  text: string
+  at?: string
+  sourceId?: string
+}
+
+export type EarlierProseRest = {
+  key: string
+  prose: string
+  sourceId?: string
+}
+
+export function earlierProse(
+  earlier: readonly EarlierRestEntry[] | undefined,
+  registered: readonly Pick<RegisteredQuestionView, "id" | "spec">[] = [],
+): EarlierProseRest[] {
   return (earlier ?? []).flatMap((rest, index) => {
     const prose = handoffParts(rest.text, registered).prose
-    return prose ? [{ key: rest.at ?? `earlier-${index}`, prose }] : []
+    return prose ? [{ key: rest.at ?? `earlier-${index}`, prose, ...(rest.sourceId ? { sourceId: rest.sourceId } : {}) }] : []
   })
 }

@@ -1,25 +1,34 @@
 import { SmilePlus } from "lucide-react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { REACTION_EMOJI, type ThreadReactionView } from "@ntwine/shared"
-import { rpc } from "../api/rpc.ts"
+import { rpc, type Api } from "../api/rpc.ts"
 import { showToast } from "../store.ts"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/Popover.tsx"
 
 // REACTIONS (2026-11-09; ThreadReactionView in @ntwine/shared). The human puts an emoji on an agent's
 // message from a hover button under it; the agent's emoji on the human's message sit under their bubble.
-// Mounted by the thread's own chat only (ChatView's provider): a message drawn anywhere else — a sub-agent's
-// sheet, a queue card — reads no context and draws no reactions, since those are not this thread's words.
+// Mounted by surfaces that draw THIS thread's own words — ChatView and AllQueuesCard (the latter passes
+// its project-scoped `api` so cross-project cards never write to the focused project). A message drawn
+// anywhere else — a sub-agent's sheet — reads no context and draws no reactions.
 
 interface ReactionsState {
   bySource: ReadonlyMap<string, readonly ThreadReactionView[]>
   toggle(sourceId: string, emoji: string, excerpt: string): void
 }
 
+type ReactionsProviderProps = {
+  slug: string
+  reactions: readonly ThreadReactionView[] | undefined
+  api?: Api
+  onMutated?: () => void
+  children: ReactNode
+}
+
 const ReactionsContext = createContext<ReactionsState | null>(null)
 
 const key = (sourceId: string, emoji: string) => `${sourceId}\u0000${emoji}`
 
-export function ReactionsProvider({ slug, reactions, children }: { slug: string; reactions: readonly ThreadReactionView[] | undefined; children: ReactNode }) {
+export function ReactionsProvider({ slug, reactions, api = rpc, onMutated, children }: ReactionsProviderProps) {
   // The human's click shows at once; the board's next frame is the truth, and replaces every override.
   const [overrides, setOverrides] = useState<ReadonlyMap<string, { on: boolean; at: number }>>(new Map())
   // An override stands until the board agrees with it (or 15s pass — a save that never echoed). Every
@@ -54,15 +63,18 @@ export function ReactionsProvider({ slug, reactions, children }: { slug: string;
     const k = key(sourceId, emoji)
     const on = !(bySource.get(sourceId) ?? []).some((r) => r.by === "human" && r.emoji === emoji)
     setOverrides((prev) => new Map(prev).set(k, { on, at: Date.now() }))
-    rpc.setReaction({ slug, sourceId, emoji, excerpt, on }).catch((error: unknown) => {
-      setOverrides((prev) => {
-        const next = new Map(prev)
-        next.delete(k)
-        return next
-      })
-      showToast(error instanceof Error ? error.message : "Could not save the reaction")
-    })
-  }, [bySource, slug])
+    api.setReaction({ slug, sourceId, emoji, excerpt, on }).then(
+      () => onMutated?.(),
+      (error: unknown) => {
+        setOverrides((prev) => {
+          const next = new Map(prev)
+          next.delete(k)
+          return next
+        })
+        showToast(error instanceof Error ? error.message : "Could not save the reaction")
+      },
+    )
+  }, [api, bySource, onMutated, slug])
   const value = useMemo(() => ({ bySource, toggle }), [bySource, toggle])
   return <ReactionsContext.Provider value={value}>{children}</ReactionsContext.Provider>
 }

@@ -246,6 +246,9 @@ test("every earlier rest keeps its prose, whatever the newest says, and only its
     { key: "2026-10-16T12:46:00.000Z", prose: "Four example Types.\n\n| | 1 |\n| --- | --- |\n| arktype | ok |" },
     { key: "earlier-2", prose: "Asked about the merge." },
   ], "a fence-only rest has nothing to show, and a rest with no time is keyed by its place")
+  assert.deepEqual(earlierProse([{ text: "First answer.", at: "2026-10-16T12:48:00.000Z", sourceId: "msg-1" }]), [
+    { key: "2026-10-16T12:48:00.000Z", prose: "First answer.", sourceId: "msg-1" },
+  ], "sourceId rides along for message reactions on queue cards")
   assert.deepEqual(earlierProse(undefined), [])
 })
 

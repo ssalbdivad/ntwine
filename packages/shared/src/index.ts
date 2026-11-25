@@ -9103,10 +9103,12 @@ export type ThreadSearchEntry = z.infer<typeof ThreadSearchEntry>
  */
 export const ThreadHandoff = z.object({
   text: z.string().optional(),
-  earlier: z.array(z.object({ text: z.string(), at: z.string().optional() })).optional(),
+  sourceId: z.string().optional(),
+  earlier: z.array(z.object({ text: z.string(), at: z.string().optional(), sourceId: z.string().optional() })).optional(),
   at: z.string().optional(),
   asked: z.string().optional(),
   askedAt: z.string().optional(),
+  askedSourceId: z.string().optional(),
 })
 export type ThreadHandoff = z.infer<typeof ThreadHandoff>
 

@@ -486,9 +486,13 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
     }
   }, [q, queryClient, slug])
 
+  const onReactionMutated = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
+  }, [queryClient])
+
   return (
     <ThreadSlugContext.Provider value={slug}>
-    <ReactionsProvider slug={slug} reactions={serverThread?.reactions}>
+    <ReactionsProvider slug={slug} reactions={serverThread?.reactions} onMutated={onReactionMutated}>
     <SendScopeContext.Provider value={sendScope}>
     <RegisteredAnsweringProvider thread={thread}>
     <PhoneQuestionsContext.Provider value={phoneQuestions}>
@@ -4208,7 +4212,7 @@ export const Message = memo(function Message({ m, answering, dense, paired, show
   return (
     // `data-question-set`: this message's fence cards are one batch, which a card's Enter walks before
     // it sends (QuestionBlockCard advanceOrSubmit).
-    <div data-ntwine-msg={m.sourceId} data-question-set={answering ? "" : undefined} className="group/msg flex flex-col text-[13px] min-w-0">
+    <div data-ntwine-msg={m.sourceId} data-question-set={answering ? "" : undefined} className="group/msg relative flex flex-col text-[13px] min-w-0 hover:z-[1] focus-within:z-[1] has-[[data-state=open]]:z-[1]">
       {withSpacers(blocks, pictureAwareGap(pictureEdges, STEP))}
       {/* The human's reactions, on a message with words to react to (a tool-only band has none). */}
       {m.text.trim() !== "" && !m.queued && <AgentMessageReactions sourceId={m.sourceId} excerpt={m.text.slice(0, 8000)} />}

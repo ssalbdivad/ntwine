@@ -427,3 +427,25 @@ test("a sign-off nudge answered with done and an acknowledgement adds nothing to
   // With no answer before the nudge, its reply IS the answer, however short.
   assert.equal(silentSignoffIndexes([answered[0]!, nudge, done, msg("assistant", "Yes, intended.")]).size, 0)
 })
+
+test("handoffOf carries sourceIds for asked, earlier rests, and latest rest — preferring prose over a bridged bare signal fence", () => {
+  const rest = msg("assistant", "", { kind: "event", boundary: "rest" })
+  const handoff = handoffOf([
+    msg("user", "Check the PR.", { sourceId: "u-1", at: "2026-11-25T10:00:00.000Z" }),
+    msg("assistant", "First look: tests pass.\n\nChecking the diff next.", { sourceId: "a-1", at: "2026-11-25T10:01:00.000Z" }),
+    rest,
+    msg("assistant", "Two small factual tweaks.\n\nDrop-in wording below.", { sourceId: "a-2", at: "2026-11-25T10:02:00.000Z" }),
+    msg("assistant", "```awaiting\nagents: [sub-1]\n```", { sourceId: "a-3", at: "2026-11-25T10:02:05.000Z" }),
+  ])
+  assert.equal(handoff.askedSourceId, "u-1")
+  assert.equal(handoff.earlier?.[0]?.sourceId, "a-1")
+  assert.equal(handoff.sourceId, "a-2", "bridged bare signal fence yields to the prose message it closes")
+
+  // A fence-only rest still gets its own sourceId when no prose message precedes it.
+  const fenceOnly = handoffOf([
+    msg("user", "Ship it.", { sourceId: "u-2" }),
+    msg("assistant", "```done\n- Shipped\n```", { sourceId: "a-4" }),
+  ])
+  assert.equal(fenceOnly.askedSourceId, "u-2")
+  assert.equal(fenceOnly.sourceId, "a-4")
+})
