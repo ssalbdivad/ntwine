@@ -298,7 +298,7 @@ window.fetch = async (input, init) => {
   // route is matched on the rpc name alone.
   const rpc = /^\/_ntwine\/[^/]+\/rpc\/([^/]+)$/.exec(url.pathname)?.[1] ?? null
   // Every write, in order, for a probe asserting WHICH sends happened and in what sequence (a reply sent
-  // with answers staged must send the answers first — registeredQuestionAutoSend.e2e).
+  // with answers staged carries them in one followUp — registeredQuestionAutoSend.e2e).
   if (rpc !== null && rpc !== "threadHandoff") ((window as unknown as { __rpcs?: string[] }).__rpcs ??= []).push(rpc)
   if (rpc === "threadHandoff") {
     return new Response(JSON.stringify({ result: handoff }), { headers: { "content-type": "application/json" } })

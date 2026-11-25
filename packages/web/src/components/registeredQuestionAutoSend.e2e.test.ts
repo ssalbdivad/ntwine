@@ -10,8 +10,9 @@ import test from "node:test"
 //   · a half-filled question carries its OWN Send answer, inside its card, and sends alone;
 //   · the group's footer button says exactly what it does — "Skip the rest", "Send 1, skip 2" — and
 //     appears once the human has started on the group;
-//   · a typed reply is NOT a verdict on the open questions: it sends anything staged FIRST, then itself,
-//     and every question it did not answer stays open (the worker decides what the reply made moot);
+//   · a typed reply is NOT a verdict on the open questions: it carries anything staged in the SAME
+//     followUp RPC (`FollowUpInput.answers`) so the server settles them and composes one turn, and every
+//     question it did not answer stays open (the worker decides what the reply made moot);
 //   · a pick made while the reply box holds a draft waits for that reply's Enter.
 // Skipped unless a Vite URL serving the fixtures is provided (same pattern as the other *.e2e.test.ts
 // here): start `vite` in packages/web and set NTWINE_REGISTERED_QUESTION_AUTOSEND_E2E_URL to its origin.
@@ -19,6 +20,8 @@ const baseUrl = process.env.NTWINE_REGISTERED_QUESTION_AUTOSEND_E2E_URL
 
 type Page = import("puppeteer").Page
 type Answer = { questionId: string; question: string; chosen: string[]; text?: string; followUps?: unknown[] }
+
+type FollowUpBody = { message: string; answers?: Answer[] }
 
 async function launch(query: string) {
   const { launchHeadless } = await import("../../../../scripts/lib/headless-browser.mjs")
@@ -32,13 +35,15 @@ async function launch(query: string) {
   // Generous on the first paint only: the run's first page waits on vite's cold dependency pass, which
   // took over 30s on a loaded machine (2026-09-29) and failed whichever test happened to go first.
   await page.waitForSelector("[data-question-option]", { timeout: 90_000 })
-  // Every answerQuestions payload, in order — the fixture echoes each write as a `fixture-rpc` event.
+  // Every write payload, in order — the fixture echoes each write as a `fixture-rpc` event.
   await page.evaluate(() => {
-    const w = window as unknown as { __answers: unknown[][] }
+    const w = window as unknown as { __answers: unknown[][]; __followUps: unknown[] }
     w.__answers = []
+    w.__followUps = []
     window.addEventListener("fixture-rpc", (e) => {
       const { rpc, body } = (e as CustomEvent).detail
       if (rpc === "answerQuestions") w.__answers.push(body.answers)
+      if (rpc === "followUp") w.__followUps.push(body)
     })
   })
   // The SENDS, in the order they went out — the fixture's fetch stub logs every RPC, since a stubbed
@@ -46,7 +51,8 @@ async function launch(query: string) {
   const rpcs = async () =>
     (await page.evaluate(() => (window as unknown as { __rpcs?: string[] }).__rpcs ?? [])).filter((r) => r === "answerQuestions" || r === "followUp" || r === "dismissQuestions")
   const answers = () => page.evaluate(() => (window as unknown as { __answers: Answer[][] }).__answers)
-  return { browser, page, errors, rpcs, answers }
+  const followUps = () => page.evaluate(() => (window as unknown as { __followUps: FollowUpBody[] }).__followUps)
+  return { browser, page, errors, rpcs, answers, followUps }
 }
 
 // A real pointer click: a chip's mousedown is prevented, so `el.click()` would skip the path the card uses.
@@ -185,8 +191,8 @@ test("staged toggles survive a reload, and still send", { skip: !baseUrl, timeou
   }
 })
 
-test("a typed reply sends what is staged first, then itself — and every question it did not answer stays open", { skip: !baseUrl, timeout: 120_000 }, async () => {
-  const { browser, page, errors, rpcs, answers } = await launch("?many=1")
+test("a typed reply carries what is staged in one followUp — and every question it did not answer stays open", { skip: !baseUrl, timeout: 120_000 }, async () => {
+  const { browser, page, errors, rpcs, followUps } = await launch("?many=1")
   try {
     // Nothing staged: the reply goes alone, and it settles nothing — no answer, no dismissal.
     await page.focus(reply)
@@ -194,9 +200,10 @@ test("a typed reply sends what is staged first, then itself — and every questi
     await page.keyboard.press("Enter")
     await settle(page)
     assert.deepEqual(await rpcs(), ["followUp"], "a reply is not an answer and not a dismissal")
+    assert.equal((await followUps())[0]?.answers, undefined, "no answers field when nothing is staged")
     assert.deepEqual(await live(page), ["qst_0001aaaa", "qst_0002bbbb", "qst_0004dddd"], "a side question leaves every card open")
 
-    // Staged, half-filled: a multi's toggle and a typed-but-not-Entered answer ride ahead of the reply.
+    // Staged, half-filled: a multi's toggle and a typed-but-not-Entered answer ride inside the same followUp.
     await mouseClick(page, `${GATES} [data-question-option]`, 1)
     await mouseClick(page, `${SETTINGS} textarea[data-surface='questionAnswer']`)
     await page.keyboard.type("Postgres, actually")
@@ -206,9 +213,10 @@ test("a typed reply sends what is staged first, then itself — and every questi
     await page.keyboard.type("and skip the e2e pass for now")
     await page.keyboard.press("Enter")
     await settle(page)
-    assert.deepEqual(await rpcs(), ["followUp", "answerQuestions", "followUp"], "the staged answers first, then the reply")
-    const staged = (await answers())[0]
-    assert.deepEqual(staged.map((a) => a.questionId).sort(), ["qst_0001aaaa", "qst_0004dddd"])
+    assert.deepEqual(await rpcs(), ["followUp", "followUp"], "one combined followUp RPC, no separate answerQuestions")
+    const combined = (await followUps())[1]
+    assert.equal(combined?.message, "and skip the e2e pass for now")
+    assert.deepEqual((combined?.answers ?? []).map((a) => a.questionId).sort(), ["qst_0001aaaa", "qst_0004dddd"])
     assert.deepEqual(await live(page), ["qst_0002bbbb"], "the one question the reply did not answer is still open")
     assert.deepEqual(errors, [])
   } finally {
@@ -217,7 +225,7 @@ test("a typed reply sends what is staged first, then itself — and every questi
 })
 
 test("a pick made while the reply box holds a draft waits for the reply's Enter", { skip: !baseUrl, timeout: 120_000 }, async () => {
-  const { browser, page, rpcs } = await launch("")
+  const { browser, page, rpcs, followUps } = await launch("")
   try {
     await page.focus(reply)
     await page.keyboard.type("one more thing")
@@ -227,7 +235,10 @@ test("a pick made while the reply box holds a draft waits for the reply's Enter"
     await page.focus(reply)
     await page.keyboard.press("Enter")
     await settle(page)
-    assert.deepEqual(await rpcs(), ["answerQuestions", "followUp"], "the answer first, then the reply")
+    assert.deepEqual(await rpcs(), ["followUp"], "the staged answer and the reply leave in one followUp")
+    const [combined] = await followUps()
+    assert.equal(combined?.message, "one more thing")
+    assert.deepEqual((combined?.answers ?? []).map((a) => a.questionId), ["qst_0001aaaa"])
   } finally {
     await browser.close()
   }

@@ -22,8 +22,8 @@ import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, use
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Anchor, Check, CheckCheck, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw } from "lucide-react"
 import { useNavigate } from "react-router"
-import { expandUserCommandDraft, heldQuestionViews, parseCardAction, parseParkWake, parseScheduledRunPrompt, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
-import { projectApiBase, projectRpc } from "../api/rpc.ts"
+import { expandUserCommandDraft, heldQuestionViews, parseCardAction, parseParkWake, parseScheduledRunPrompt, questionAnswerMessage, withAnswersNote, type AccountBackend, type AwaitingHint, type ThreadView } from "@ntwine/shared"
+import { isKeptDeliveryError, projectApiBase, projectRpc } from "../api/rpc.ts"
 import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { prefetchProjectTranscript } from "../hooks.ts"
 import { ThreadMenu, ThreadTerminalButton } from "./ThreadMenu.tsx"
@@ -36,7 +36,7 @@ import { buildMessageWithContext, type ComposerContextItem } from "../lib/compos
 import { restoreContextItems, takeContextItems, useStagedContextSources, useStagedContextTokens } from "../lib/stagedContext.ts"
 import { openLocalPath } from "../lib/local-file-links.ts"
 import { pageUnloading } from "../lib/pendingSends.ts"
-import { deliverProjectFollowUp } from "../lib/projectFollowUp.ts"
+import { deliverProjectFollowUp, type ProjectFollowUpOptions } from "../lib/projectFollowUp.ts"
 import { STALLED_RETRY_MESSAGE } from "../lib/retrySession.ts"
 import { parseAccountAlias } from "../lib/signIn.ts"
 import { TRANSCRIPT_META_LABEL_CLASS, transcriptMetaChevronClass } from "../lib/transcriptMetaLabels.ts"
@@ -67,7 +67,7 @@ import { HeldThreadComposer, TodoStarters } from "./HeldThreadBox.tsx"
 import { ProjectSquare } from "./ProjectSquare.tsx"
 import { LinkedHtml } from "./LinkedHtml.tsx"
 import { QuestionBlockCard } from "./QuestionBlockCard.tsx"
-import { openQuestionsOf, RegisteredAnsweringContext, RegisteredAnsweringProvider, RegisteredQuestionStack, SettledQuestionStack, useSettledQuestions, type SettledQuestion } from "./RegisteredQuestionCards.tsx"
+import { openQuestionsOf, RegisteredAnsweringContext, RegisteredAnsweringProvider, RegisteredQuestionStack, SettledQuestionStack, useSettledQuestions, type RegisteredTake, type SettledQuestion } from "./RegisteredQuestionCards.tsx"
 import { cardTranscriptQuery, useCardTranscript } from "../hooks/useCardTranscript.ts"
 import { handoffQuestionSlots } from "../lib/queueCardQuestions.ts"
 import { RestedCard, showsRestedCard } from "./RestedCard.tsx"
@@ -229,8 +229,8 @@ function queueThread(project: QueuesProject, slug: string): ThreadView | undefin
 }
 
 /** A follow-up into another project's thread (lib/projectFollowUp.ts, which the project list's Retry shares). */
-function deliverFollowUp(project: QueuesProject, thread: ThreadView, message: string): Promise<void> {
-  return deliverProjectFollowUp({ projectId: project.id, projectDir: project.projectDir, slug: thread.id, sessionId: thread.sessionId }, message)
+function deliverFollowUp(project: QueuesProject, thread: ThreadView, message: string, options?: ProjectFollowUpOptions): Promise<void> {
+  return deliverProjectFollowUp({ projectId: project.id, projectDir: project.projectDir, slug: thread.id, sessionId: thread.sessionId }, message, options)
 }
 
 const noop = () => {}
@@ -1406,6 +1406,13 @@ function answersReply(handoff: { asked?: string; askedAt?: string }, reply: Held
 /** How far the server's stamp on a reply may run behind the sending browser's clock (answersReply). */
 const SENT_CLOCK_SLACK_MS = 2_000
 
+type ReplyMutationInput = {
+  outgoing: string
+  typed: string
+  staged: ComposerContextItem[]
+  taken: RegisteredTake | null
+}
+
 function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fileDrop }: { project: QueuesProject; thread: ThreadView; onSent: () => void; onLanded: () => void; onFailed: () => void; onTerminal: (terminalId: string) => void; fileDrop?: SurfaceFileDrop }) {
   const queryClient = useQueryClient()
   const key = draftKey.followUp(project.projectDir, thread.id, thread.sessionId)
@@ -1437,12 +1444,14 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fil
     [thread.id, api, queryClient, project.projectDir],
   )
   const send = useMutation({
-    mutationFn: ({ outgoing }: { outgoing: string; typed: string; staged: ComposerContextItem[] }) => deliverFollowUp(project, thread, outgoing),
-    onSuccess: () => {
+    mutationFn: ({ outgoing, taken }: ReplyMutationInput) =>
+      deliverFollowUp(project, thread, outgoing, taken ? { answers: taken.answers } : undefined),
+    onSuccess: (_data, { taken }) => {
+      taken?.onSuccess()
       onLanded()
       void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
     },
-    onError: (cause, { typed, staged }) => {
+    onError: (cause, { typed, staged, taken }) => {
       // A reload aborting the send: the next page replays it (lib/pendingSends.ts), so no rollback.
       if (pageUnloading()) return
       // The reply never reached the worker, so there is no turn for its automatic hold to judge.
@@ -1453,6 +1462,7 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fil
       // unless something new was typed meanwhile, which is not ours to overwrite — and its chips with it.
       if (!draftStore.get(key)) draftStore.set(key, typed)
       restoreContextItems(key, staged)
+      taken?.onRollback(isKeptDeliveryError(cause))
       onFailed()
       const reason = cause instanceof Error ? cause.message : "The reply could not be sent."
       // A TOAST as well as the inline line: by the time a failure lands the card has usually finished its
@@ -1490,27 +1500,27 @@ function ReplyBox({ project, thread, onSent, onLanded, onFailed, onTerminal, fil
     }
     if (!thread.sessionId || send.isPending) return
     setError(undefined)
-    const deliver = () => {
-      // Local truth first, then the network — the order every send on the board's card obeyed.
-      const staged = takeContextItems(key)
-      draftStore.set(key, "")
-      // A reply keeps its card where it is while the answer is short (lib/foregroundTurn.ts); `onSent` then
-      // finds the card held and leaves it in place.
-      const holdKey = threadKey(project.id, thread.id)
-      const sentAt = Date.now()
-      autoHoldInQueue(holdKey, queueKeyAt(thread), sentAt)
-      noteHeldReply(holdKey, message, sentAt)
-      onSent()
-      const expanded = expandUserCommandDraft(message, userCommands ?? []) ?? message
-      send.mutate({ outgoing: buildMessageWithContext(expanded, staged, project.projectDir), typed: message, staged })
-    }
-    // Picked answers ride the reply rather than being replied past — ThreadComposerBox's send has the why.
-    if (answering?.slug === thread.id && answering.staged > 0) {
-      if (answering.sending) return
-      answering.submit(deliver)
-      return
-    }
-    deliver()
+    // ONE TURN (matching ThreadComposerBox.tsx / upstream 59089c92). Staged answers travel inside this
+    // same followUp RPC (FollowUpInput.answers) so the server settles them and composes them above the
+    // typed note into one user message. Sending `answerQuestions` first and `followUp` after it kicked
+    // the worker onto the answers alone and landed the reply mid-turn as a `<system-reminder>` steer
+    // (2026-11-25, `@form-patterns`).
+    const taken = answering?.slug === thread.id ? answering.take() : null
+    // Local truth first, then the network — the order every send on the board's card obeyed.
+    const staged = takeContextItems(key)
+    draftStore.set(key, "")
+    taken?.onOptimistic()
+    // A reply keeps its card where it is while the answer is short (lib/foregroundTurn.ts); `onSent` then
+    // finds the card held and leaves it in place.
+    const holdKey = threadKey(project.id, thread.id)
+    const sentAt = Date.now()
+    autoHoldInQueue(holdKey, queueKeyAt(thread), sentAt)
+    const expanded = expandUserCommandDraft(message, userCommands ?? []) ?? message
+    const outgoing = buildMessageWithContext(expanded, staged, project.projectDir)
+    const shown = taken ? withAnswersNote(questionAnswerMessage(taken.display), outgoing) : outgoing
+    noteHeldReply(holdKey, shown, sentAt)
+    onSent()
+    send.mutate({ outgoing, typed: message, staged, taken })
   }
   return (
     <div className="min-w-0">

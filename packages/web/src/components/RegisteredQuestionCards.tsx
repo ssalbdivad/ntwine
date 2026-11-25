@@ -23,12 +23,10 @@
 // not Entered, a multi not confirmed) carries its own Send answer; the group's footer button finishes the
 // group, its label naming what it sends and skips (groupFinish).
 //
-// THE PROMPT BOX'S SEND CARRIES WHATEVER IS STAGED (upstream 59089c92, 2026-10-11). Where a
-// surface mounts its thread's prompt box (lib/sendScope), that box's Send takes every staged answer
-// (`take`) and the typed words as ONE turn — the server settles the answers and sends them above the
-// note — so a reply typed with answers staged carries them rather than replying past them. A surface
-// with no such box (the cross-project queue card) still sends them first and its reply after
-// (`submit(then)`).
+// THE PROMPT BOX'S SEND CARRIES WHATEVER IS STAGED (upstream 59089c92, 2026-10-11). Both the thread
+// drawer's prompt box (ThreadComposerBox) and the cross-project queue card's reply box (AllQueuesCard)
+// take every staged answer (`take`) and send it inside the same `followUp` RPC (`FollowUpInput.answers`)
+// so the server settles the answers and composes them above the note as ONE turn.
 //
 // ONE ANSWERING STATE PER THREAD, however many mounts. The staged picks, what has been sent, and the
 // prompt box that carries staged answers all have to agree, so the state cannot live in the stack that
@@ -86,12 +84,9 @@ export interface RegisteredAnswering {
   defaultCountdown: { ownerId: string; count: number } | undefined
   /** Send ONE question's staged answer — what completing a question does. Nothing staged: nothing sent. */
   commit: (q: RegisteredQuestionView) => void
-  /** Send EVERY staged answer on the thread. With no `then`, through the surface's prompt box when it has
-   *  one (lib/sendScope), so whatever is typed there goes with them in one turn; on their own otherwise.
-   *  With `then` — a reply box that cannot carry answers itself (AllQueuesCard) — they go on their own and
-   *  `then` runs once they have LANDED, never on a failure, so the reply goes out after them rather than
-   *  instead of them. */
-  submit: (then?: () => void) => void
+  /** Send EVERY staged answer on the thread — through the surface's prompt box when it has one
+   *  (lib/sendScope), so whatever is typed there goes with them in one turn; on their own otherwise. */
+  submit: () => void
   /** Hand every staged answer to the prompt box's send, which carries them in its own follow-up. Null
    *  when nothing is staged. */
   take: () => RegisteredTake | null
@@ -369,7 +364,7 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
     setSent((prev) => new Map([...prev, ...settled.map((s) => [s.id, s] as const)]))
   }
 
-  const sendPairs = (pairs: typeof stagedPairs, then?: () => void) => {
+  const sendPairs = (pairs: typeof stagedPairs) => {
     if (!slug || pairs.length === 0) return
     setError(undefined)
     const ids = new Set(pairs.map((pair) => pair.q.id))
@@ -392,9 +387,7 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
     else markSteered(slug)
     settleOptimistically(slug, pairs)
     setInFlight((n) => n + 1)
-    // `mutateAsync`, not per-call callbacks: the queue card dissolves on this very click and unmounts,
-    // and a mutate()-scoped onSuccess is dropped with the observer — the reply riding `then` with it.
-    send.mutateAsync({ answers: pairs.map((pair) => pair.answer), drafts: draftKeysOf(slug, pairs) }).then(() => then?.(), () => {})
+    send.mutate({ answers: pairs.map((pair) => pair.answer), drafts: draftKeysOf(slug, pairs) })
   }
   const commit = (q: RegisteredQuestionView) => sendPairs(stagedPairs.filter((pair) => pair.q.id === q.id))
   // THE PROMPT BOX'S SEND TAKES THEM (lib/sendScope, upstream 59089c92). The same local truth as
@@ -437,9 +430,9 @@ export function useRegisteredAnswering(thread: ThreadView | undefined, scope?: R
       },
     }
   }
-  const submit = (then?: () => void) => {
-    if (!then && sendScope?.composer.run()) return
-    sendPairs(stagedPairs, then)
+  const submit = () => {
+    if (sendScope?.composer.run()) return
+    sendPairs(stagedPairs)
   }
   // THE GROUP FOOTER IS "DONE WITH THIS GROUP" (David 2026-10-08: blank questions kept the card waiting
   // after it). What is staged goes as answered, and every question still blank goes beside it as
