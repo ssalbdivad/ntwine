@@ -107,6 +107,11 @@ export interface SessionRow {
   // moment rested_at advances — the watch's wake came and the worker rested again. NULL = not watched.
   // (Also the resting card's "Snooze until new activity" until 2026-10-14, when that snooze was removed.)
   bg_snooze_rested_at?: string | null
+  // Explicit recategorize to Ready: the `rested_at` value captured when the human moved a Waiting,
+  // Snoozed, or Done thread to Ready. While this equals the current rest, board.deriveNeedsYou skips
+  // the awaiting-park excusals so the thread stays in Ready until the agent takes a new turn and rests
+  // again. Cleared on archive, snooze, or Watch. NULL = not overridden.
+  unparked_rested_at?: string | null
   // The instant the human PINNED this thread out of the rail's band system (null/absent = not pinned).
   // Like Archive and the snooze it is lifecycle metadata the human owns — never inferred from a fence —
   // and the instant doubles as the pinned band's order. It survives every state change (a pinned thread
@@ -586,6 +591,9 @@ export interface ThreadTerminalRow {
   /** 1 ⇒ this run was started by the human as a command, so a clean exit of its own queues it in Ready until
    *  they mark it done (thread-terminals.ts queuesCleanExit). 0 on every row from before 2026-11-12. */
   exit_queues?: number
+  /** 1 ⇒ the human explicitly reopened this finished/interrupted terminal to Ready or Snoozed. Reset on
+   *  archive or a new run. */
+  reopened?: number
 }
 
 /** A SPINOFF: a new thread the human asked for from `parent_slug` — see the table. */
@@ -858,6 +866,10 @@ export interface Storage extends ScheduleStore {
   // Arm/clear the done card's Watch. Session-guarded like the park above. `restedAt` is the rest instant
   // it watches FROM; the board re-surfaces the thread once rested_at moves past this.
   setBgSnoozeRestedAtIfCurrent(slug: string, sessionId: string, generation: number, restedAt: string | null): boolean
+  // Clear or set an explicit move-to-Ready override for the current rest (SessionRow.unparked_rested_at).
+  // Setting a non-null rest also clears bg_snooze_rested_at so a watched done returns to Ready.
+  setUnparkedRestedAt(slug: string, restedAt: string | null): void
+  setBgSnoozeRestedAt(slug: string, restedAt: string | null): void
   // Arm / edit / clear the thread's RECURRING PROMPT in ONE write, because the popover's textarea, its
   // two trigger toggles and its minutes field are all views of one row — split into separate writes, a
   // tab holding a stale copy of one of them would clobber the rest.
@@ -1309,6 +1321,7 @@ export const STORAGE_SCHEMA = `
       snoozed_until TEXT,
       snooze_prompt TEXT,
       bg_snooze_rested_at TEXT,
+      unparked_rested_at TEXT,
       subagents_snoozed_at TEXT,
       pinned_at   TEXT,
       meta        TEXT,
@@ -1740,6 +1753,7 @@ export const STORAGE_SCHEMA = `
       control_agent      TEXT,
       control_from       TEXT,
       control_changed_at INTEGER,
+      reopened           INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (project_id, slug)
     );
     -- SCHEDULED THREADS (ARCHITECTURE.md § Scheduled threads): a saved prompt plus a recurrence that starts a
@@ -1851,6 +1865,8 @@ export function ensureStorageSchema(db: Database): void {
     // 2026-11-12: a thread moved to another machine (plans/thread-handoff.md) — the stamp on the machine it
     // LEFT, which keeps a read-only stub, and on the one it ARRIVED at (thread-move.ts).
     "moved_to TEXT", "moved_from TEXT", "move_log TEXT",
+    // 2026-11-25: human explicit move-to-Ready override for the current rest (SessionRow.unparked_rested_at).
+    "unparked_rested_at TEXT",
   ]) {
     try {
       db.exec(`ALTER TABLE session ADD COLUMN ${column}`)
@@ -1921,6 +1937,9 @@ export function ensureStorageSchema(db: Database): void {
     // Set per run, at its start (thread-terminals.ts). Every row from before it reads 0, so the clean exits
     // already filed in Done stay there rather than flooding the queue at the upgrade.
     ["thread_terminal", "exit_queues INTEGER NOT NULL DEFAULT 0"],
+    // `thread_terminal.reopened` (2026-11-25): 1 ⇒ the human explicitly reopened a finished/interrupted
+    // terminal to Ready or Snoozed. Cleared on archive or a new run.
+    ["thread_terminal", "reopened INTEGER NOT NULL DEFAULT 0"],
     // `thread_spinoff.child_project_id` (2026-09-30): a spinoff can start its thread in another project.
     // The row stays filed under the parent's project; this names the child's when it is not that one.
     ["thread_spinoff", "child_project_id TEXT"],
@@ -2242,16 +2261,21 @@ export function createStorage(source: string | Database, projectId: string): Sto
     WHERE project_id = @project_id AND slug = ? AND session_id = ? AND runtime_generation = ?
   `)
   const stateStmt = scope.prepare(
-    "UPDATE session SET state = ?, archived = ?, unread = CASE WHEN ? = 1 THEN 0 ELSE unread END, snoozed_until = CASE WHEN ? = 1 THEN NULL ELSE snoozed_until END, snooze_prompt = CASE WHEN ? = 1 THEN NULL ELSE snooze_prompt END WHERE project_id = @project_id AND slug = ?",
+    "UPDATE session SET state = ?, archived = ?, unread = CASE WHEN ? = 1 THEN 0 ELSE unread END, snoozed_until = CASE WHEN ? = 1 THEN NULL ELSE snoozed_until END, snooze_prompt = CASE WHEN ? = 1 THEN NULL ELSE snooze_prompt END, snooze_set_at = CASE WHEN ? = 1 THEN NULL ELSE snooze_set_at END, bg_snooze_rested_at = CASE WHEN ? = 1 THEN NULL ELSE bg_snooze_rested_at END, unparked_rested_at = CASE WHEN ? = 1 THEN NULL ELSE unparked_rested_at END WHERE project_id = @project_id AND slug = ?",
   )
   const stateIfCurrentStmt = scope.prepare(`
     UPDATE session SET state = ?, archived = ?,
       unread = CASE WHEN ? = 1 THEN 0 ELSE unread END,
       snoozed_until = CASE WHEN ? = 1 THEN NULL ELSE snoozed_until END,
-      snooze_prompt = CASE WHEN ? = 1 THEN NULL ELSE snooze_prompt END
+      snooze_prompt = CASE WHEN ? = 1 THEN NULL ELSE snooze_prompt END,
+      snooze_set_at = CASE WHEN ? = 1 THEN NULL ELSE snooze_set_at END,
+      bg_snooze_rested_at = CASE WHEN ? = 1 THEN NULL ELSE bg_snooze_rested_at END,
+      unparked_rested_at = CASE WHEN ? = 1 THEN NULL ELSE unparked_rested_at END
     WHERE project_id = @project_id AND slug = ? AND session_id = ? AND runtime_generation = ?
   `)
-  const snoozedUntilStmt = scope.prepare("UPDATE session SET snoozed_until = ?, snooze_prompt = ?, snooze_set_at = ? WHERE project_id = @project_id AND slug = ?")
+  const snoozedUntilStmt = scope.prepare(
+    "UPDATE session SET snoozed_until = ?, snooze_prompt = ?, snooze_set_at = ?, unparked_rested_at = CASE WHEN ? IS NOT NULL THEN NULL ELSE unparked_rested_at END WHERE project_id = @project_id AND slug = ?",
+  )
   const pinnedAtStmt = scope.prepare("UPDATE session SET pinned_at = ? WHERE project_id = @project_id AND slug = ?")
   const queuedAtStmt = scope.prepare("UPDATE session SET queued_at = ? WHERE project_id = @project_id AND slug = ?")
   // The session-guarded park. Deliberately leaves snooze_prompt alone: it parks an instant without
@@ -2261,8 +2285,19 @@ export function createStorage(source: string | Database, projectId: string): Sto
     WHERE project_id = @project_id AND slug = ? AND session_id = ? AND runtime_generation = ?
   `)
   const bgSnoozeRestedAtIfCurrentStmt = scope.prepare(`
-    UPDATE session SET bg_snooze_rested_at = ?
+    UPDATE session SET bg_snooze_rested_at = ?,
+      unparked_rested_at = CASE WHEN ? IS NOT NULL THEN NULL ELSE unparked_rested_at END
     WHERE project_id = @project_id AND slug = ? AND session_id = ? AND runtime_generation = ?
+  `)
+  const bgSnoozeRestedAtStmt = scope.prepare(`
+    UPDATE session SET bg_snooze_rested_at = ?,
+      unparked_rested_at = CASE WHEN ? IS NOT NULL THEN NULL ELSE unparked_rested_at END
+    WHERE project_id = @project_id AND slug = ?
+  `)
+  const unparkedRestedAtStmt = scope.prepare(`
+    UPDATE session SET unparked_rested_at = ?,
+      bg_snooze_rested_at = CASE WHEN ? IS NOT NULL THEN NULL ELSE bg_snooze_rested_at END
+    WHERE project_id = @project_id AND slug = ?
   `)
   // Every SET expression here reads the ORIGINAL row (SQLite evaluates the whole SET list against the
   // pre-update values), which is what lets one statement decide whether this write is a new arming or
@@ -2610,17 +2645,17 @@ export function createStorage(source: string | Database, projectId: string): Sto
     VALUES (@project_id, @slug, @parentSlug, @startedBy, @handle, @command, @cwd, @shell, @createdAtMs, @createdAtMs, @exitQueues)
   `)
   const listThreadTerminalsStmt = scope.prepare<[], ThreadTerminalRow>(
-    "SELECT slug, parent_slug, started_by, handle, pinned_at, snoozed_until, exit_signal, watch_id, watch_slug, watch_armed_at, watch_expires_at, controller, control_notes, control_agent, control_from, control_changed_at, command, cwd, shell, created_at, started_at, runs, exited_at, exit_code, stopped, state, exit_queues FROM thread_terminal WHERE project_id = @project_id ORDER BY created_at, slug",
+    "SELECT slug, parent_slug, started_by, handle, pinned_at, snoozed_until, exit_signal, watch_id, watch_slug, watch_armed_at, watch_expires_at, controller, control_notes, control_agent, control_from, control_changed_at, command, cwd, shell, created_at, started_at, runs, exited_at, exit_code, stopped, state, exit_queues, reopened FROM thread_terminal WHERE project_id = @project_id ORDER BY created_at, slug",
   )
   // A follow-up line makes a shell terminal a command one: the shell ended, and the line is what runs now.
   const restartThreadTerminalStmt = scope.prepare<{ command: string | null; cwd: string | null; startedAtMs: number; slug: string; runId: number | null; exitQueues: number }>(`
     UPDATE thread_terminal SET command = COALESCE(@command, command), cwd = COALESCE(@cwd, cwd), shell = CASE WHEN @command IS NULL THEN shell ELSE 0 END, exit_queues = @exitQueues,
-      started_at = @startedAtMs, runs = COALESCE(@runId, runs + 1), exited_at = NULL, exit_code = NULL, exit_signal = NULL, stopped = 0, state = 'open',
+      started_at = @startedAtMs, runs = COALESCE(@runId, runs + 1), exited_at = NULL, exit_code = NULL, exit_signal = NULL, stopped = 0, state = 'open', reopened = 0,
       snoozed_until = NULL
     WHERE project_id = @project_id AND slug = @slug
   `)
   const recordTerminalExitStmt = scope.prepare(`
-    UPDATE thread_terminal SET exited_at = ?, exit_code = ?, exit_signal = ?, stopped = ?, snoozed_until = NULL
+    UPDATE thread_terminal SET exited_at = ?, exit_code = ?, exit_signal = ?, stopped = ?, reopened = 0, snoozed_until = NULL
     WHERE project_id = @project_id AND slug = ?
   `)
   const interruptTerminalsStmt = scope.prepare(
@@ -2628,8 +2663,9 @@ export function createStorage(source: string | Database, projectId: string): Sto
   )
   const dropThreadTerminalStmt = scope.prepare("DELETE FROM thread_terminal WHERE project_id = @project_id AND slug = ?")
   // Done clears a snooze, as a session's archive does: a snooze is a park on an open thread.
+  // Opening sets reopened=1 and clears any snooze so finished/interrupted/snoozed terminals land cleanly in Ready.
   const setThreadTerminalStateStmt = scope.prepare(
-    "UPDATE thread_terminal SET state = ?, snoozed_until = CASE WHEN ? = 'archived' THEN NULL ELSE snoozed_until END WHERE project_id = @project_id AND slug = ? AND state <> ?",
+    "UPDATE thread_terminal SET state = ?, reopened = CASE WHEN ? = 'open' THEN 1 ELSE 0 END, snoozed_until = NULL WHERE project_id = @project_id AND slug = ? AND (state <> ? OR reopened <> CASE WHEN ? = 'open' THEN 1 ELSE 0 END OR snoozed_until IS NOT NULL)",
   )
   const setThreadTerminalPinStmt = scope.prepare("UPDATE thread_terminal SET pinned_at = ? WHERE project_id = @project_id AND slug = ?")
   const setThreadTerminalSnoozeStmt = scope.prepare("UPDATE thread_terminal SET snoozed_until = ? WHERE project_id = @project_id AND slug = ?")
@@ -3197,37 +3233,39 @@ export function createStorage(source: string | Database, projectId: string): Sto
     setTranscriptId: (slug, transcriptId) => void transcriptIdStmt.run(transcriptId, slug),
     setTranscriptIdIfCurrent: (slug, sessionId, generation, transcriptId) =>
       transcriptIdIfCurrentStmt.run(transcriptId, slug, sessionId, generation).changes === 1,
-    setState: (slug, state) =>
-      void stateStmt.run(
+    setState: (slug, state) => {
+      const archived = state === "archived" ? 1 : 0
+      stateStmt.run(state, archived, archived, archived, archived, archived, archived, archived, slug)
+    },
+    setStateIfCurrent: (slug, sessionId, generation, state) => {
+      const archived = state === "archived" ? 1 : 0
+      return stateIfCurrentStmt.run(
         state,
-        state === "archived" ? 1 : 0,
-        state === "archived" ? 1 : 0,
-        state === "archived" ? 1 : 0,
-        state === "archived" ? 1 : 0,
-        slug,
-      ),
-    setStateIfCurrent: (slug, sessionId, generation, state) =>
-      stateIfCurrentStmt.run(
-        state,
-        state === "archived" ? 1 : 0,
-        state === "archived" ? 1 : 0,
-        state === "archived" ? 1 : 0,
-        state === "archived" ? 1 : 0,
+        archived,
+        archived,
+        archived,
+        archived,
+        archived,
+        archived,
+        archived,
         slug,
         sessionId,
         generation,
-      ).changes === 1,
+      ).changes === 1
+    },
     // The instant and its follow-up are ONE fact: clearing the snooze (wake-now, archive, and a human
     // follow-up — see resume.wakeParkedThreadForFollowUp) always disarms the prompt, and a prompt can
     // never be written without a deadline to fire it.
     setSnoozedUntil: (slug, until, prompt = null, setAt = null) =>
-      void snoozedUntilStmt.run(until, until === null ? null : prompt, until === null ? null : setAt, slug),
+      void snoozedUntilStmt.run(until, until === null ? null : prompt, until === null ? null : setAt, until, slug),
     setSnoozedUntilIfCurrent: (slug, sessionId, generation, until) =>
       snoozedUntilIfCurrentStmt.run(until, slug, sessionId, generation).changes === 1,
     setPinnedAt: (slug, at) => void pinnedAtStmt.run(at, slug),
     setQueuedAt: (slug, at) => void queuedAtStmt.run(at, slug),
     setBgSnoozeRestedAtIfCurrent: (slug, sessionId, generation, restedAt) =>
-      bgSnoozeRestedAtIfCurrentStmt.run(restedAt, slug, sessionId, generation).changes === 1,
+      bgSnoozeRestedAtIfCurrentStmt.run(restedAt, restedAt, slug, sessionId, generation).changes === 1,
+    setBgSnoozeRestedAt: (slug, restedAt) => void bgSnoozeRestedAtStmt.run(restedAt, restedAt, slug),
+    setUnparkedRestedAt: (slug, restedAt) => void unparkedRestedAtStmt.run(restedAt, restedAt, slug),
     setRecurringPromptIfCurrent: (slug, sessionId, generation, write) =>
       guardedRecurringWrite(slug, write, () => recurringStmt.run(...recurringArgs(write), slug, sessionId, generation).changes),
     setRecurringPromptBySlug: (slug, write) =>
@@ -3309,7 +3347,7 @@ export function createStorage(source: string | Database, projectId: string): Sto
     recordTerminalExit: (slug, exit) => void recordTerminalExitStmt.run(exit.exitedAtMs, exit.exitCode, exit.signal || null, exit.stopped ? 1 : 0, slug),
     interruptRunningTerminals: (exitedAtMs) => void interruptTerminalsStmt.run(exitedAtMs),
     dropThreadTerminal: (slug) => dropThreadTerminalStmt.run(slug).changes === 1,
-    setThreadTerminalState: (slug, state) => setThreadTerminalStateStmt.run(state, state, slug, state).changes === 1,
+    setThreadTerminalState: (slug, state) => setThreadTerminalStateStmt.run(state, state, slug, state, state).changes === 1,
     setThreadTerminalPin: (slug, at) => setThreadTerminalPinStmt.run(at, slug).changes === 1,
     setThreadTerminalSnooze: (slug, until) => setThreadTerminalSnoozeStmt.run(until, slug).changes === 1,
     setThreadTerminalHandle: (slug, handle) => void setThreadTerminalHandleStmt.run(handle, slug),

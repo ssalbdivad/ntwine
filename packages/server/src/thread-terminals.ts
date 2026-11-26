@@ -316,12 +316,13 @@ export function withStarterHandle(terminal: ThreadTerminal, handleOf: (slug: str
   return handle ? { ...terminal, starterHandle: handle } : terminal
 }
 
-export function terminalThreadView(row: Pick<ThreadTerminalRow, "slug" | "state" | "created_at" | "pinned_at" | "snoozed_until" | "exit_queues">, terminal: ThreadTerminal, nowMs = Date.now()): ThreadView {
+export function terminalThreadView(row: Pick<ThreadTerminalRow, "slug" | "state" | "created_at" | "pinned_at" | "snoozed_until" | "exit_queues" | "reopened">, terminal: ThreadTerminal, nowMs = Date.now()): ThreadView {
   const outcome = terminalOutcome(terminal)
   const queuedFinish = queuesCleanExit(row, terminal)
-  const archived = row.state === "archived" || (outcome === "finished" && !queuedFinish) || outcome === "interrupted"
+  const explicitOpen = row.reopened === 1 && row.state !== "archived"
+  const archived = row.state === "archived" || (!explicitOpen && ((outcome === "finished" && !queuedFinish) || outcome === "interrupted"))
   const snoozedUntil = row.snoozed_until && Date.parse(row.snoozed_until) > nowMs && outcome !== "running" ? row.snoozed_until : undefined
-  const ready = !archived && (outcome === "prompt" || outcome === "failed" || queuedFinish)
+  const ready = !archived && (outcome === "prompt" || outcome === "failed" || queuedFinish || explicitOpen)
   // The instant it last changed state: what the row's age and the queue's order read.
   const at = terminal.awaitingSince ?? terminal.exitedAt ?? terminal.startedAt
   return {
@@ -692,7 +693,11 @@ export function createTerminalRunner(deps: TerminalRunnerDeps): TerminalRunner {
     },
     setSnooze(id, until) {
       knownRow(id)
-      if (deps.storage.setThreadTerminalSnooze(id, until)) {
+      // Snoozing a Done terminal reopens it atomically so Done → Snoozed works in one step; when the
+      // snooze later expires or is cleared, `reopened = 1` keeps it in Ready instead of vanishing back to Done.
+      const reopened = until !== null ? deps.storage.setThreadTerminalState(id, "open") : false
+      const snoozed = deps.storage.setThreadTerminalSnooze(id, until)
+      if (reopened || snoozed) {
         armSnooze(id, until)
         deps.onChange()
       }

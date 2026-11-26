@@ -244,3 +244,64 @@ test("a thread woken by its own work keeps its place in line; one the human sent
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test("explicitly moving a Waiting thread to Ready enters the queue immediately and expires on the next rest", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ntwine-queue-unpark-"))
+  const project: Project = { dir, id: "project-unpark", name: "fixture", label: "fixture", stateDir: dir, cwdSlug: "fixture" }
+  const iso = (hhmmss: string) => `2026-11-25T${hhmmss}.000Z`
+  let restAt = iso("09:00:00")
+  const telemetry = new Map<string, SessionTelemetry>([
+    ["watcher", {
+      turn: "idle",
+      permPrompt: false,
+      subAgents: [],
+      bgShells: [],
+      pendingQuestion: false,
+      lastAssistantAt: restAt,
+      lastFence: { kind: "awaiting", body: "", hints: [{ kind: "pr", value: "acme/app#42" }, { kind: "status", value: "watching" }] },
+    }],
+  ])
+  let nowMs = Date.parse(iso("10:00:00"))
+  const tailer = {
+    get: (slug: string) => telemetry.get(slug),
+    foreignIds: () => [],
+    foreign: () => undefined,
+  } as unknown as SessionTailer
+  const storage = createStorage(join(dir, "ui.db"), project.id)
+  storage.setSetting("signoffNudge", "off")
+  storage.upsertSession({ ...row("watcher"), spawned_at: iso("08:00:00") })
+  storage.setClaudeRuntime("watcher", "broker")
+  storage.setRestedAt("watcher", restAt)
+  storage.armPrWatch({ id: "prw_1", slug: "watcher", owner: "acme", repo: "app", number: 42, createdAtMs: Date.parse(iso("08:30:00")), expiresAtMs: Date.parse(iso("20:00:00")) })
+  const board = createBoard(project, storage, new Bus(), tailer, "queue-unpark", { now: () => nowMs })
+  const snapAt = (hhmmss: string) => {
+    nowMs = Date.parse(iso(hhmmss))
+    return board.refresh().threads.find((t) => t.id === "watcher")!
+  }
+
+  try {
+    // Initially parked in Waiting.
+    const waiting = snapAt("10:00:00")
+    assert.equal(waiting.needsYou, false)
+    assert.equal(waiting.waitStatus, "watching")
+
+    // Human moves it to Ready: enters Ready IMMEDIATELY with no 12s settle withhold.
+    storage.setUnparkedRestedAt("watcher", restAt)
+    const ready = snapAt("10:00:01")
+    assert.equal(ready.needsYou, true, "Waiting → Ready enters immediately without settle withhold")
+    assert.equal(ready.waitStatus, undefined)
+    assert.equal(ready.queuedAt, iso("10:00:01"))
+
+    // When the worker takes a new turn and rests again on the watch, the override naturally expires.
+    restAt = iso("10:05:00")
+    storage.setRestedAt("watcher", restAt)
+    telemetry.set("watcher", { ...telemetry.get("watcher")!, lastAssistantAt: restAt })
+    const reParked = snapAt("10:05:01")
+    assert.equal(reParked.needsYou, false, "unpark override expires on the next rest")
+    assert.equal(reParked.waitStatus, "watching")
+  } finally {
+    await board.stop()
+    storage.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

@@ -118,7 +118,7 @@ import { drawsWorking, frozenPendingAsk } from "../lib/operatorBlock.ts"
 // import path while the definitions live where both question producers can reach them.
 export { CARD_BODY, CARD_PRIMARY_BUTTON, CardActions, TranscriptCard } from "./TranscriptCard.tsx"
 export { QuestionBlockCard } from "./QuestionBlockCard.tsx"
-import { ThreadBandStamp } from "./BandLabel.tsx"
+import { ThreadBandPicker } from "./ThreadCategoryMenu.tsx"
 import { SignInModal } from "./SignInModal.tsx"
 import { PROVIDER_LABEL } from "../lib/signIn.ts"
 import { ThreadMenu, ThreadTerminalButton } from "./ThreadMenu.tsx"
@@ -1953,7 +1953,7 @@ export function ThreadHeader({ slug, onStatusApplied, onClose }: { slug: string;
               opened from, and says READY when its thread rests into the inbox behind it. Then the facts
               (ThreadHeaderFacts: last active, the context reading, the Goal's loop), then where the agent
               works, a spinoff's parent and the live status line. */}
-          <ThreadHeaderFacts thread={thread} lead={<ThreadBandStamp thread={thread} />}>
+          <ThreadHeaderFacts thread={thread} lead={<ThreadBandPicker thread={thread} onArchived={onStatusApplied} onSnoozed={onStatusApplied} />}>
             {/* Where the agent is working, only when that is off the project root (a worktree, or another folder). */}
             <Fact><ThreadCheckoutToken checkout={thread.checkout} homeDir={board?.homeDir} lead={<FactSep />} /></Fact>
             {/* A spinoff child's way back, ahead of the status line that takes the rest of the row. */}

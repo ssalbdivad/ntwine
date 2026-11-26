@@ -436,6 +436,55 @@ test("setThreadSnooze RPC refuses a working thread, and lets one waiting on the 
   h.storage.close()
 })
 
+test("recategorizing: Done → Snoozed reopens and snoozes atomically, and Done/Snoozed/Waiting → Ready clears holds", async () => {
+  const h = harness()
+  const slug = "rpc-recat"
+  h.storage.upsertSession(row(slug))
+  h.storage.setRestedAt(slug, "2026-11-25T12:00:00.000Z")
+  h.storage.setState(slug, "archived")
+  h.addExitedThread(slug)
+  const thread = h.snapshot.threads.at(-1)!
+  thread.state = "archived"
+  thread.archived = true
+  const until = "2099-07-14T08:45:00.000Z"
+
+  // Done → Snoozed: reopens and sets snooze in one call.
+  await h.router.setThreadSnooze.handler({ input: { slug, sessionId: `sid-${slug}`, until } })
+  assert.equal(h.storage.getSession(slug)?.state, "open")
+  assert.equal(h.storage.getSession(slug)?.archived, 0)
+  assert.equal(h.storage.getSession(slug)?.snoozed_until, until)
+  assert.ok(h.storage.getSession(slug)?.snooze_set_at)
+
+  // Still refuses Done → Snoozed if the archived thread is actively draining a turn.
+  h.storage.setState(slug, "archived")
+  thread.state = "archived"
+  thread.runtime = "running"
+  await assert.rejects(
+    h.router.setThreadSnooze.handler({ input: { slug, sessionId: `sid-${slug}`, until } }),
+    /working/,
+  )
+  assert.equal(h.storage.getSession(slug)?.state, "archived")
+
+  // Snoozed → Ready via setThreadState(open) clears snooze and stamps unparked_rested_at.
+  thread.runtime = "turn-idle"
+  thread.state = "open"
+  h.storage.setState(slug, "open")
+  h.storage.setSnoozedUntil(slug, until, "check CI", "2026-11-25T12:01:00.000Z")
+  h.storage.setBgSnoozeRestedAt(slug, "2026-11-25T12:00:00.000Z")
+  await h.router.setThreadState.handler({ input: { slug, state: "open" } })
+  const opened = h.storage.getSession(slug)!
+  assert.equal(opened.state, "open")
+  assert.equal(opened.snoozed_until, null)
+  assert.equal(opened.snooze_prompt, null)
+  assert.equal(opened.bg_snooze_rested_at, null)
+  assert.equal(opened.unparked_rested_at, "2026-11-25T12:00:00.000Z")
+
+  // Archiving clears unparked_rested_at again.
+  await h.router.setThreadState.handler({ input: { slug, state: "archived" } })
+  assert.equal(h.storage.getSession(slug)?.unparked_rested_at, null)
+  h.storage.close()
+})
+
 // The writer-yield guard exists to avoid racing an operator driving the thread from their own
 // terminal. A rollout FROZEN by a dead app-server looks identical from the rollout alone, and yielding
 // to it left the operator unable to answer their own stalled thread at all — the second half of the

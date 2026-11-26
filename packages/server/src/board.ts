@@ -1163,6 +1163,16 @@ function bgSnoozeArmed(row: Pick<SessionRow, "bg_snooze_rested_at" | "rested_at"
   return row.bg_snooze_rested_at != null && row.rested_at != null && row.bg_snooze_rested_at === row.rested_at
 }
 
+// Explicit human move-to-Ready for the CURRENT rest: holds while `unparked_rested_at` matches the
+// current rest instant, and naturally expires the moment the agent takes a new turn and rests again.
+function parkUnparked(
+  row: Pick<SessionRow, "unparked_rested_at" | "rested_at">,
+  tele?: Pick<SessionTelemetry, "lastAssistantAt">,
+): boolean {
+  const current = row.rested_at ?? tele?.lastAssistantAt ?? null
+  return row.unparked_rested_at != null && current != null && row.unparked_rested_at === current
+}
+
 // A DONE THE HUMAN CHOSE TO WATCH (2026-10-07). The done card offers "Watch #N" for each pull request or
 // issue it names (router.watchDoneRef): one click arms the watcher and parks THIS rest (bgSnoozeArmed).
 // So the thread is finished AND waiting on GitHub, and the human said which of the two they want to see:
@@ -1549,14 +1559,17 @@ export function deriveNeedsYou(
   // read the key after an upgrade and start writing it — and a `needs_input: true` it wrote must queue it,
   // where the legacy park rule would have excused it. A legacy thread's fence that writes NO answer keeps
   // the legacy rules below: deriving one for it would move rests that predate the contract.
+  // Explicit human move-to-Ready overrides an awaiting park for this rest (Waiting → Ready, or
+  // Done → Ready when a watch/timer is still armed), never a live sub-agent.
+  const humanUnparked = !hasLiveBackgroundWork(tele) && parkUnparked(row, tele)
   const answered = tele?.lastFence?.kind === "awaiting" && awaitingStatusWritten(tele.lastFence.hints)
   if (answered || needsInputRequired(row.spawned_at)) {
-    return needsInputQueues(row, tele, runtime, nowMs, excuseLiveOwnWork, registeredPrWatches, armedTimerIds)
+    return needsInputQueues(row, tele, runtime, nowMs, excuseLiveOwnWork && !humanUnparked, registeredPrWatches, armedTimerIds)
   }
   // Declared parks are STRONGER excusals than the awaiting-background card below, so they are checked
   // first: a worker that declared an awaiting-human fence stays held even if a child of its is still
   // live (it explicitly said what it is waiting on).
-  if (hasParkedExternalWait(tele, nowMs)) return false
+  if (!humanUnparked && hasParkedExternalWait(tele, nowMs)) return false
   // A top-level turn that came to rest while a dispatched SUB-AGENT is still running is EXCUSED from
   // the queue for exactly as long as that holds. The rail already shows it in the ACTIVE band (the
   // spinning rows above the rule — see ARCHITECTURE.md § Board nomenclature), and the two surfaces must
@@ -1621,7 +1634,7 @@ export function deriveNeedsYou(
   // there is something new for the human to read. Not while a sub-agent is out: that child re-invokes
   // the parent within minutes, and the rest it comes back to is the answer, which queues then — queueing
   // the "dispatched it, waiting" rest too would bounce the row between bands (maintainer 2026-07-30).
-  const parkExcuses = excuseLiveOwnWork && runtime !== "exited" && (hasLiveBackgroundWork(tele) || !replyUnseen(row, tele))
+  const parkExcuses = excuseLiveOwnWork && !humanUnparked && runtime !== "exited" && (hasLiveBackgroundWork(tele) || !replyUnseen(row, tele))
   if (parkExcuses && (hasDeclaredBackgroundPark(tele, nowMs) || hasRegisteredBackgroundPark(tele, armedWatches, nowMs))) return false
   // CI STILL RUNNING ON EVERY WATCHED PR. Ahead of the live-own-work line below, which would otherwise
   // queue the same thread on the strength of the watcher being armed at all. Rides `excuseLiveOwnWork`
@@ -2919,6 +2932,8 @@ export function createBoard(
   // Rows drawn from a stand-in for telemetry the tailer has not produced yet (boardTelemetry), as of the
   // last build — for the queue clock, which lets no such reading put a thread in the queue.
   let standIns = new Set<string>()
+  // Rows explicitly unparked to Ready by the human for their current rest — enter the queue at once.
+  let unparkedSlugs = new Set<string>()
   function buildSessionThreads(nowMs: number): ThreadView[] {
     // Old/corrupt databases predate the canonical storage guard. Keep such rows inert instead of
     // emitting an invalid board id or allowing it to reach tailer/dispatch consumers.
@@ -2937,6 +2952,7 @@ export function createBoard(
     const out: ThreadView[] = []
     heldByDelivery = new Set()
     standIns = new Set()
+    unparkedSlugs = new Set()
     for (const row of rows) {
       if (row.delivery_ledger && hasFreshDelivery(row, false)) heldByDelivery.add(row.slug)
       const key = interactionKey(row.slug, row.session_id)
@@ -2967,6 +2983,7 @@ export function createBoard(
       const tele = tailer.get(row.slug)
       const drawnFrom = boardTelemetry(row, tele, () => tailer.provisional?.(row.slug))
       if (drawnFrom !== tele) standIns.add(row.slug)
+      if (parkUnparked(row, drawnFrom)) unparkedSlugs.add(row.slug)
       const layered = withTerminals(drawnFrom, projectTerminals)
       const base = sessionThreadView(
         project.dir,
@@ -3110,6 +3127,7 @@ export function createBoard(
       // A terminal's prompt is one: the only thing that clears it is the human typing the answer.
       humanGate: (t) =>
         promptingTerminal(t) !== undefined || t.actionableInteraction === true || t.runtime === "perm-prompt" || t.pendingAsk !== undefined,
+      unparked: (t) => unparkedSlugs.has(t.id),
     })
     armSnoozeWake(sessionThreads, assembledAtMs, queueClock.nextEntryAt(assembledAtMs))
     notifyNeedsYou(ownThreads)

@@ -141,6 +141,8 @@ export interface QueueReading {
   humanOut(thread: ThreadView): boolean
   /** Queued on something only the human's own reply clears: a permission prompt, a native ask. */
   humanGate(thread: ThreadView): boolean
+  /** The human explicitly moved this parked thread to Ready — enter immediately without the settle withhold. */
+  unparked?(thread: ThreadView): boolean
 }
 
 export interface QueueClock {
@@ -296,7 +298,7 @@ export function createQueueClock(store: QueueClockStore): QueueClock {
         }
         const sighting = lastSeenOut.get(t.id)
         // `nowMs < NaN` is false, so a sighting with no snooze never reads as lifted early.
-        const liftedEarly = sighting !== undefined && nowMs < sighting.snoozedUntil
+        const liftedEarly = (sighting !== undefined && nowMs < sighting.snoozedUntil) || reading.unparked?.(t) === true
         if (sighting?.parked && sighting.rest === rest && !liftedEarly && !reading.urgent(t)) {
           const due = settling.get(t.id) ?? nowMs + SETTLE_MS
           if (nowMs < due) {

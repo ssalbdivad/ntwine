@@ -322,7 +322,7 @@ import { clearProjectIcon, customIconPath, findById, forgetProject, listProjects
 import { HOME_WORKSPACE_NAME, isHomeWorkspace, listWorkspaces, reorderWorkspaces } from "./home-workspace.ts"
 import { basename, dirname, isAbsolute, relative } from "node:path"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
-import { ProjectCard, ProjectQueue, ProjectRailCounts, ProjectsDoneInput, ProjectsDonePage, ThreadSearchEntry, ThreadsSearchInput, isActivelyRunning, isIndefiniteSnooze, type ProjectThreadEntry, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, awaitingNeedsInput, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
+import { ProjectCard, ProjectQueue, ProjectRailCounts, ProjectsDoneInput, ProjectsDonePage, ThreadSearchEntry, ThreadsSearchInput, isActivelyRunning, isIndefiniteSnooze, SNOOZE_INDEFINITE, type ProjectThreadEntry, activeBandThread, agentParked, boardAskThread, PROJECT_ICON_EXTENSIONS, PROJECT_ICON_MAX_BASE64_CHARS, queuedThread, ThreadHandoff, BURIED_ANSWERS_HEADER, awaitingNeedsInput, parseParkWake, sectionOf, workingThread } from "@ntwine/shared"
 import { EditorComposeInputSchema, EditorReviewTargetSchema, EditorSnapshotSchema, type EditorKind, type EditorReviewTarget, type EditorStateCheckout, type FilePosition } from "@ntwine/shared"
 import { imageDimensions } from "./image-header.ts"
 import { homedir } from "node:os"
@@ -4486,18 +4486,30 @@ export function createRouter(ctx: AppContext) {
     }),
 
     // Explicit lifecycle write for session threads: Archive (the done-card button / row action) and
-    // Reopen. This is the ONLY writer of state='archived' — the done fence itself mutates nothing
-    // (maintainer-settled). Touches only ui.db; never the .ntwine legacy files.
+    // Reopen / Move to Ready. This is the ONLY writer of state='archived' — the done fence itself mutates
+    // nothing (maintainer-settled). Touches only ui.db; never the .ntwine legacy files.
+    // Moving a non-schedule thread to `open` also clears any snooze/watch park and records the current rest
+    // as unparked so Done, Snoozed, and Waiting threads all land cleanly in Ready.
     setThreadState: mutation({
       input: z.object({ slug: ThreadSlug, state: z.enum(["open", "archived"]) }).strict(),
       handler: async ({ input }) => {
-        // A TERMINAL THREAD's Done: a running one is stopped first, so nothing live is filed under Done.
+        // A TERMINAL THREAD's Done/Ready: a running one is stopped first, so nothing live is filed under Done.
         if (ctx.terminalRunner.has(input.slug)) {
           await humanFiles(input.slug, input.state)
           return
         }
-        if (!ctx.storage.getSession(input.slug)) throw new Error(`no session registered for ${input.slug}`)
+        const row = ctx.storage.getSession(input.slug)
+        if (!row) throw new Error(`no session registered for ${input.slug}`)
         ctx.storage.setState(input.slug, input.state)
+        if (input.state === "open" && !isScheduleHeldRow(row)) {
+          const thread = (await ctx.board.snapshot()).threads.find((candidate) => candidate.id === input.slug)
+          ctx.storage.setSnoozedUntil(input.slug, null, null, null)
+          ctx.storage.setBgSnoozeRestedAt(input.slug, null)
+          if (!thread || !isActivelyRunning(thread)) {
+            const currentRest = row.rested_at ?? ctx.tailer.get(input.slug)?.lastAssistantAt ?? null
+            if (currentRest) ctx.storage.setUnparkedRestedAt(input.slug, currentRest)
+          }
+        }
         ctx.board.refresh() // storage-only change — overlay is enough
       },
     }),
@@ -4555,11 +4567,12 @@ export function createRouter(ctx: AppContext) {
       input: SetThreadSnoozeInput,
       handler: async ({ input }) => {
         // A TERMINAL THREAD: the human's snooze, to a time, on one that is not running (a running process is
-        // Working, and a working thread is never snoozed). No prompt: there is no agent to deliver one to.
+        // Working, and a working thread is never snoozed). Snoozing a Done terminal reopens it atomically.
+        // No prompt: there is no agent to deliver one to.
         if (ctx.terminalRunner.has(input.slug)) {
           const thread = (await ctx.board.snapshot()).threads.find((candidate) => candidate.id === input.slug)
           if (input.until !== null) {
-            if (!thread || thread.state === "archived") throw new Error("Reopen this terminal before snoozing it")
+            if (!thread) throw new Error(`terminal ${input.slug} is not editable`)
             if (Date.parse(input.until) <= Date.now()) throw new Error("Snooze time must be in the future")
             if (isActivelyRunning(thread)) throw new Error("Can't snooze while it's running")
           }
@@ -4570,7 +4583,6 @@ export function createRouter(ctx: AppContext) {
         const thread = (await ctx.board.snapshot()).threads.find((candidate) => candidate.id === input.slug)
         if (!thread || thread.kind !== "session" || thread.foreign) throw new Error(`thread ${input.slug} is not editable`)
         if (input.until !== null) {
-          if (thread.state === "archived") throw new Error("Reopen this thread before snoozing it")
           if (Date.parse(input.until) <= Date.now()) throw new Error("Snooze time must be in the future")
         }
         // A SCHEDULE'S NEXT RUN (ARCHITECTURE.md § Scheduled threads): snoozing it moves this one occurrence, and
@@ -4583,6 +4595,7 @@ export function createRouter(ctx: AppContext) {
             return
           }
           if (isIndefiniteSnooze(input.until)) throw new Error("A scheduled run can only be moved to a time")
+          if (thread.state === "archived") ctx.storage.setState(input.slug, "open")
           ctx.storage.setSnoozedUntil(input.slug, input.until, null)
           ctx.board.refresh()
           return
@@ -4593,6 +4606,10 @@ export function createRouter(ctx: AppContext) {
         // world — a `watching` rest — is not motion (shared isActivelyRunning), and can be snoozed.
         if (input.until !== null && isActivelyRunning(thread)) throw new Error("Can't snooze while it's working")
         if (isIndefiniteSnooze(input.until) && input.prompt?.trim()) throw new Error("A snooze with no end can't send a prompt")
+        // Snoozing a Done thread reopens it in the same step so Done → Snoozed is a single recategorization.
+        if (input.until !== null && thread.state === "archived") {
+          ctx.storage.setState(input.slug, "open")
+        }
         // `until: null` is Wake now: setSnoozedUntil clears the instant and the bump it owed together. The
         // stamp is what ends a plain snooze at the agent's next rest (board.futureSnooze).
         ctx.storage.setSnoozedUntil(input.slug, input.until, input.prompt ?? null, input.until === null ? null : new Date().toISOString())
@@ -6722,21 +6739,27 @@ export function createRouter(ctx: AppContext) {
               case "snooze": {
                 const nowMs = Date.now()
                 let until: string | undefined
-                if (input.until) {
+                if (input.indefinite || input.for?.trim().toLowerCase() === "indefinite") {
+                  until = SNOOZE_INDEFINITE
+                } else if (input.until) {
                   const parsed = Date.parse(input.until)
                   if (!Number.isFinite(parsed)) return refuse(`\`--until ${input.until}\` is not a valid ISO-8601 timestamp.`)
                   until = new Date(parsed).toISOString()
                 } else if (input.for) {
                   const durMs = parseControlDurationMs(input.for, nowMs)
-                  if (durMs === undefined || durMs <= 0) return refuse(`\`--for ${input.for}\` is not a valid duration (e.g. \`30m\`, \`2h\`, \`1d\`).`)
+                  if (durMs === undefined || durMs <= 0) return refuse(`\`--for ${input.for}\` is not a valid duration (e.g. \`30m\`, \`2h\`, \`1d\`, \`indefinite\`).`)
                   until = new Date(nowMs + durMs).toISOString()
                 } else {
-                  return refuse("`snooze` requires `--for <duration>` (e.g. `2h`, `1d`) or `--until <ISO timestamp>`.")
+                  return refuse("`snooze` requires `--for <duration>` (e.g. `2h`, `1d`), `--until <ISO timestamp>`, or `--indefinite`.")
                 }
                 await router.setThreadSnooze.handler({
                   input: { slug, sessionId, until, prompt: input.prompt?.trim() || null },
                 })
-                return succeed(`Snoozed @${handle} until ${until}${input.prompt?.trim() ? " (with scheduled follow-up prompt)" : ""}.`)
+                return succeed(
+                  isIndefiniteSnooze(until)
+                    ? `Snoozed @${handle} indefinitely.`
+                    : `Snoozed @${handle} until ${until}${input.prompt?.trim() ? " (with scheduled follow-up prompt)" : ""}.`,
+                )
               }
 
               case "unsnooze": {

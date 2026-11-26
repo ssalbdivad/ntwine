@@ -33,6 +33,7 @@ import { prefs } from "../lib/prefs.ts"
 import { RailDeadline } from "./DeadlineControl.tsx"
 import { terminalStateLabel } from "../lib/threadTerminals.ts"
 import { TerminalRowTitle, RowRestartButton, terminalRowAge } from "./TerminalThreadRow.tsx"
+import { ThreadContextMenu, type ContextMenuAnchor } from "./ThreadCategoryMenu.tsx"
 
 // THE THREAD ROW — one thread as a line of a list, with its indicator, its title and trailers, and the
 // verbs it offers on hover (pin, Retry, reopen). The tier list draws every project's threads with these
@@ -429,6 +430,11 @@ export const ThreadRow = memo(function ThreadRow({
   // `hover:bg-*` under the strip, the backing had to be a second, guessed colour, and it read as a
   // darker box around the buttons (maintainer 2026-09-03). `pointer-events-none`, so it never shadows a
   // click on the row or its actions; `rounded-md` because the row clips nothing.
+  // Right-click context menu for recategorizing any owned row (Done → Snoozed/Ready, Waiting → Ready,
+  // Snoozed → Ready/Done, Pin/Unpin). Mounted lazily only after a context-menu event so idle rows pay zero cost.
+  const [contextAnchor, setContextAnchor] = useState<ContextMenuAnchor | null>(null)
+  const closeContext = useCallback(() => setContextAnchor(null), [])
+  const canRecategorize = !foreign && (t.kind === "session" || t.kind === "terminal") && t.schedule?.pending !== true
   return (
     <div
       data-sidebar-item={t.id}
@@ -438,6 +444,10 @@ export const ThreadRow = memo(function ThreadRow({
       data-xq-rail-row={cardKey}
       data-xq-band={band}
       data-xq-held={held || undefined}
+      onContextMenu={canRecategorize ? (event) => {
+        event.preventDefault()
+        setContextAnchor({ x: event.clientX, y: event.clientY })
+      } : undefined}
       className={`group relative flex min-w-0 items-start rounded-md transition-[color,opacity] ${rowWashClass(open)} ${dim ? "sidebar-row-dim" : ""}`}
     >
       {/* The reading position owns a real, in-row rail rather than borrowing the status-icon column.
@@ -563,6 +573,7 @@ export const ThreadRow = memo(function ThreadRow({
           {!foreign && pinned && <RowPinButton t={t} />}
         </div>
       )}
+      {contextAnchor && <ThreadContextMenu thread={t} anchor={contextAnchor} onClose={closeContext} />}
     </div>
   )
 })

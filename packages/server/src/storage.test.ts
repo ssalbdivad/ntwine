@@ -1242,6 +1242,7 @@ test("thread_terminal: the day-one command_thread table keeps every row and valu
   const added = {
     handle: null, pinned_at: null, snoozed_until: null, exit_signal: null, watch_id: null, watch_expires_at: null,
     watch_slug: null, watch_armed_at: null, controller: null, control_notes: null, control_agent: null, control_from: null, control_changed_at: null,
+    exit_queues: 0, reopened: 0,
   }
   const expected = [
     { project_id: "p", slug: "term-a", command: "npm test", created_at: 10, started_at: 12, runs: 3, exited_at: 20, exit_code: 1, stopped: 0, state: "open", parent_slug: "fix-auth", cwd: "/w/fix-auth", shell: 0, ...added, started_by: "human" },

@@ -1,10 +1,12 @@
 import { useRef, useState, type ReactNode } from "react"
-import { Bot, Check, Loader2, SquareTerminal } from "lucide-react"
+import { Bot, Check, Inbox, Loader2, SquareTerminal } from "lucide-react"
 import type { CompletionHold, ThreadView } from "@ntwine/shared"
 import { useThreadApi, useThreadIsForeignToPage } from "../api/threadApi.tsx"
+import { futureSnoozedUntil } from "../groups.ts"
 import { showToast } from "../store.ts"
 import { threadLifecycleAvailability, completionArchivesImmediately, completionHoldSummary } from "../lib/threadLifecycle.ts"
 import { markArchived, clearArchived } from "../lib/optimisticArchive.ts"
+import { useAfterScopedWrite } from "../lib/scopedWrite.ts"
 import { useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
 import { AGENT_GLYPH_STROKE, CHILD_ARROW, CHILD_ARROW_CLASS } from "../lib/childOps.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
@@ -75,50 +77,224 @@ export function ThreadLifecycleActions({
     <span data-thread-lifecycle role="group" aria-label="Thread lifecycle actions" className={`flex shrink-0 items-center gap-0.5 ${className}`}>
       <span aria-hidden data-lifecycle-rule className="mx-2.5 h-4 w-px shrink-0 bg-border" />
       {!available.done && leading}
+      {available.snooze && <SnoozeMenu thread={thread} projectName={projectName} onSnoozed={onSnoozed} onUndone={onUnsnoozed} />}
       {available.done ? (
-        <DoneReadout />
+        <MoveToReadyButton thread={thread} />
       ) : (
-        <>
-          {available.snooze && <SnoozeMenu thread={thread} projectName={projectName} onSnoozed={onSnoozed} onUndone={onUnsnoozed} />}
-          {/* `command`: THE copy the `d` shortcut presses (lib/keyboardRuntime.ts) — the header's, not the
-              in-chat done card's second one. */}
-          <StateButton thread={thread} onArchived={onArchived} onDismissCancel={onDismissCancel} onCompleted={onCompleted} iconOnly command />
-        </>
+        /* `command`: THE copy the `d` shortcut presses (lib/keyboardRuntime.ts) — the header's, not the
+            in-chat done card's second one. */
+        <StateButton thread={thread} onArchived={onArchived} onDismissCancel={onDismissCancel} onCompleted={onCompleted} iconOnly command />
       )}
     </span>
   )
 }
 
-// What a completed thread says where its two verbs were. A STATEMENT, not a control: a
-// bump un-archives the thread on its way through (server/src/resume.ts un-archives up front on any
-// follow-up), so the prompt box already IS the reopen affordance and the tooltip points at it. (Reopening
-// WITHOUT sending anything is the rail's done checkbox — unchecking it — see RowUncheckDone in
-// Sidebar.tsx.)
-//
-// Same Check + "Done" pairing the sidebar's rail indicator and the ```done fence card use, so one
-// vocabulary covers all three surfaces. It takes the header icons' 28px height so completing a thread in
-// place swaps the verbs for the readout without moving the header's line.
-function DoneReadout() {
-  const label = "Marked done — send a message to reopen it"
+type MoveToReadyOptions = {
+  thread: ThreadView
+  onMoved?: () => void
+}
+
+/** Shared Move-to-Ready mutation (reopen Done, wake Snoozed, or unpark Waiting) with toast + Undo. */
+export function useMoveToReady({ thread, onMoved }: MoveToReadyOptions) {
+  const api = useThreadApi()
+  const overlayRail = !useThreadIsForeignToPage()
+  const afterWrite = useAfterScopedWrite()
+  const [busy, setBusy] = useState(false)
+
+  async function moveToReady(): Promise<boolean> {
+    const wasArchived = thread.state === "archived" || thread.archived === true
+    const snoozedUntil = futureSnoozedUntil(thread)
+    const previousSnooze = snoozedUntil ? { until: snoozedUntil, prompt: thread.snoozePrompt ?? null } : null
+    const sessionId = thread.sessionId ?? ""
+    setBusy(true)
+    if (wasArchived && overlayRail) clearArchived(thread.id)
+    try {
+      await api.setThreadState({ slug: thread.id, state: "open" })
+      afterWrite()
+      const undo = wasArchived
+        ? async () => {
+            try {
+              if (overlayRail) markArchived(thread.id)
+              await api.setThreadState({ slug: thread.id, state: "archived" })
+              afterWrite()
+              showToast("Returned to Done")
+            } catch (error) {
+              if (overlayRail) clearArchived(thread.id)
+              showToast((error instanceof Error ? error.message : "Undo failed").slice(0, 100))
+            }
+          }
+        : previousSnooze
+          ? async () => {
+              try {
+                if (Date.parse(previousSnooze.until) <= Date.now()) return
+                await api.setThreadSnooze({ slug: thread.id, sessionId, ...previousSnooze })
+                afterWrite()
+                showToast("Snooze restored")
+              } catch (error) {
+                showToast((error instanceof Error ? error.message : "Undo failed").slice(0, 100))
+              }
+            }
+          : undefined
+      showToast("Moved to Ready", undo ? { action: { label: "Undo", run: () => void undo() } } : undefined)
+      onMoved?.()
+      return true
+    } catch (error) {
+      showToast(`Couldn’t move to Ready: ${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`)
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return { busy, moveToReady }
+}
+
+function MoveToReadyButton({ thread }: { thread: ThreadView }) {
+  const { busy, moveToReady } = useMoveToReady({ thread })
+  const label = "Move to Ready"
   return (
-    <Tooltip label={label}>
-      <span
-        data-thread-done
+    <Tooltip label="Move to Ready (reopen)">
+      <button
+        type="button"
+        data-thread-reopen
+        disabled={busy}
         aria-label={label}
-        className="flex h-7 items-center gap-1 rounded-md px-2 text-[12px] font-medium text-muted"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => void moveToReady()}
+        className={HEADER_ICON_CLASS}
       >
-        <Check size={12} />
-        Done
-      </span>
+        {busy ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <Inbox size={14} strokeWidth={2} />}
+      </button>
     </Tooltip>
+  )
+}
+
+type CompleteThreadOptions = {
+  thread: ThreadView
+  onArchived?: () => void
+  onDismissCancel?: () => void
+  onCompleted?: () => void
+}
+
+/** Shared Mark-as-done mutation + live-work confirmation dialog state, used by StateButton and ThreadCategoryMenu. */
+export function useCompleteThread({ thread, onArchived, onDismissCancel, onCompleted }: CompleteThreadOptions) {
+  const api = useThreadApi()
+  const overlayRail = !useThreadIsForeignToPage()
+  const afterWrite = useAfterScopedWrite()
+  const [pending, setPending] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [hold, setHold] = useState<CompletionHold | undefined>(undefined)
+  const lastUserAt = useRef(thread.lastUserAt)
+  lastUserAt.current = thread.lastUserAt
+  const [confirmUserAt, setConfirmUserAt] = useState<string | undefined>(undefined)
+  const dialogOpen = confirmOpen && thread.lastUserAt === confirmUserAt
+  const [stops, setStops] = useState<ReadonlySet<string>>(new Set())
+
+  const complete = (terminateLive: boolean, optimistic = false) => {
+    setPending(true)
+    if (optimistic) onArchived?.()
+    const expectsArchive = terminateLive || completionArchivesImmediately(thread)
+    if (expectsArchive && overlayRail) markArchived(thread.id)
+    api
+      .completeThread({ slug: thread.id, sessionId: thread.sessionId ?? "", terminateLive, ...(terminateLive && stops.size > 0 ? { stopTerminals: [...stops] } : {}) })
+      .then((result) => {
+        if (result.needsConfirmation) {
+          if (overlayRail) clearArchived(thread.id)
+          if (optimistic) onDismissCancel?.()
+          setHold(result.hold)
+          setStops(new Set())
+          setConfirmUserAt(lastUserAt.current)
+          setConfirmOpen(true)
+          setPending(false)
+          return
+        }
+        setConfirmOpen(false)
+        afterWrite()
+        showToast("Done")
+        if (!optimistic) onArchived?.()
+        onCompleted?.()
+      })
+      .catch((error) => {
+        if (overlayRail) clearArchived(thread.id)
+        if (optimistic) onDismissCancel?.()
+        showToast(`Couldn’t finish: ${(error as Error).message.slice(0, 80)}`)
+        setPending(false)
+      })
+  }
+
+  const toggleStop = (id: string) =>
+    setStops((was) => {
+      const next = new Set(was)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  return {
+    pending,
+    dialogOpen,
+    hold,
+    stops,
+    toggleStop,
+    complete,
+    closeDialog: () => {
+      if (!pending) setConfirmOpen(false)
+    },
+  }
+}
+
+type CompletionConfirmDialogProps = {
+  open: boolean
+  pending: boolean
+  hold: CompletionHold | undefined
+  stops: ReadonlySet<string>
+  onToggleStop: (id: string) => void
+  onClose: () => void
+  onConfirm: () => void
+}
+
+export function CompletionConfirmDialog({ open, pending, hold, stops, onToggleStop, onClose, onConfirm }: CompletionConfirmDialogProps) {
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !pending) onClose()
+      }}
+      // A cut-off worker has no session left to end; the question is whether an unfinished thread
+      // should be filed as done at all (lib/threadLifecycle.ts completionHoldSummary).
+      title={hold?.cutOff ? "Mark an unfinished thread done?" : "End this session?"}
+      className="w-[390px] max-w-[92vw]"
+      footer={
+        <>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onClose}
+            className="button-outline rounded-md px-3 py-1.5 text-[12px] text-muted outline-none transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-45"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onConfirm}
+            className="button-outline flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[12px] font-medium text-bg outline-none transition-opacity hover:opacity-90 disabled:opacity-45"
+          >
+            {pending && <Loader2 size={12} className="animate-spin" />}
+            {hold?.cutOff ? "Mark done anyway" : "End session & mark done"}
+          </button>
+        </>
+      }
+    >
+      <CompletionHoldBody hold={hold} stops={stops} onToggle={onToggleStop} />
+    </Dialog>
   )
 }
 
 // The header's check (ThreadLifecycleActions, `iconOnly`), and also rendered — deliberately redundant —
 // as a white primary button at the bottom of the in-chat ```done card (see FenceCard) and as a row in
 // the phone's ⋯ sheet. Same completion mutation and live-session confirmation flow; only the chrome
-// differs, via `className` or `iconOnly`. There is deliberately NO Reopen state: reopening a thread is done by
-// sending it another message, so the button is always "Mark as done".
+// differs, via `className` or `iconOnly`.
 export function StateButton({
   thread,
   onArchived,
@@ -132,105 +308,20 @@ export function StateButton({
 }: {
   thread: ThreadView
   onArchived?: () => void
-  // Undo an optimistic dismissal (queue only). Present ⇒ the click may dismiss the card BEFORE the RPC
-  // returns and reinstate it if the server declines; absent ⇒ the button waits for the round-trip.
   onDismissCancel?: () => void
-  // The server recorded Done. The queue card times its return from here, not from the click, because the
-  // round-trip can be long and only a read that starts after it can say whether the thread really left.
   onCompleted?: () => void
-  // Carries the CORNER as well as the fill, because the surfaces disagree about it: the phone's sheet row
-  // is a list row, while the in-card copy takes the tighter card-action radius so it relates to the
-  // card's own corner (TranscriptCard's CARD_ACTION_RADIUS). It cannot be hardcoded
-  // below and overridden here — two same-specificity Tailwind utilities resolve by stylesheet order,
-  // not by string order, so the winner would be arbitrary.
   className?: string
-  // The optical nudge for the Check, which is font- AND size-dependent (lib/iconAlign.ts). The in-card
-  // copy runs at the shared 11px card-action scale and passes ICON_LABEL_NUDGE. Neither surface should
-  // guess on the other's behalf.
   iconClassName?: string
-  // The Check's size. 12 in the done card; the phone's ⋯ sheet draws it as a list row, where every row's
-  // icon is 19px.
   iconSize?: number
-  // THE HEADER'S CHECK: a bare glyph in the action strip's own square (lib/headerIcon.ts), its name in an
-  // immediate tooltip like every other header icon. 15px, one size up from the strip's 14: lucide's
-  // Check paints only 16 of its 24 units across, so at 14 it read lighter than the clock beside it.
   iconOnly?: boolean
-  // THE copy the `d` shortcut presses (lib/keyboardRuntime.ts). Only the header's copy sets it: the
-  // in-chat ```done card renders a second one, and the key must find exactly one per surface.
   command?: boolean
 }) {
-  // Disables the instant it's clicked. On success we DON'T reset it: the card is dissolving, so the
-  // button stays disabled (still reading "Mark as done", no spinner) for the whole fade-out rather
-  // than flickering back to enabled under the animation. Only a live-session confirmation prompt
-  // (re-enables under the dialog) or a failure (re-enables in place) clears it.
-  const api = useThreadApi()
-  // The rail overlay below is keyed by bare slug and read by THIS page's rail, so it is written only
-  // for a thread of this page's project (see api/threadApi.tsx).
-  const overlayRail = !useThreadIsForeignToPage()
-  const [pending, setPending] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  // The server's own evidence for declining, held for as long as the dialog is up. Never derived from
-  // the board snapshot: the snapshot lags the RPC by up to a poll, and the whole point of this copy is
-  // that it describes the exact state the server refused on.
-  const [hold, setHold] = useState<CompletionHold | undefined>(undefined)
-  // The thread's newest message (`lastUserAt`) as of the dialog opening. A message delivered while it is
-  // up — the human sending one from the composer or another tab — reopens the conversation they were
-  // about to close, and the hold the dialog lists describes a turn that is no longer current, so it
-  // withdraws itself rather than offering to end a session on stale evidence. DERIVED rather than closed
-  // from an effect: `confirmOpen` may stay true underneath, and the next decline re-captures the stamp,
-  // so a stale dialog can never flash back while a re-click's RPC is in flight. The ref is read when the
-  // reply lands, not at click time, so a message delivered mid-RPC does not immediately hide the dialog
-  // the server opened on it.
-  const lastUserAt = useRef(thread.lastUserAt)
-  lastUserAt.current = thread.lastUserAt
-  const [confirmUserAt, setConfirmUserAt] = useState<string | undefined>(undefined)
-  const dialogOpen = confirmOpen && thread.lastUserAt === confirmUserAt
-  // `optimistic`: fade the card NOW (before the RPC) rather than after the round-trip. Only when a
-  // reinstate path exists AND the completion is predicted to archive immediately — so the common resting
-  // "done" card feels instantaneous, while an executing turn still waits and shows the confirm dialog.
-  // The terminals the human ticked in the dialog to stop with the thread — none, by default.
-  const [stops, setStops] = useState<ReadonlySet<string>>(new Set())
-  const complete = (terminateLive: boolean, optimistic: boolean) => {
-    setPending(true)
-    if (optimistic) onArchived?.() // start the exit animation immediately
-    // Move the SIDEBAR row to Done now, on the same prediction the queue card's fade already runs on —
-    // and gated on the prediction rather than on `optimistic`, because the thread drawer's copy of this
-    // button has no queue card to dismiss and its rail row was left waiting on the round-trip too.
-    // `terminateLive` is the confirmed path: the operator has answered the dialog, so it archives.
-    const expectsArchive = terminateLive || completionArchivesImmediately(thread)
-    if (expectsArchive && overlayRail) markArchived(thread.id)
-    api
-      .completeThread({ slug: thread.id, sessionId: thread.sessionId ?? "", terminateLive, ...(terminateLive && stops.size > 0 ? { stopTerminals: [...stops] } : {}) })
-      .then((result) => {
-        if (result.needsConfirmation) {
-          if (overlayRail) clearArchived(thread.id) // mispredicted: the server wants the dialog, so the row stays put
-          // The server wants confirmation after all (an executing/ambiguous turn, or a rare mispredict).
-          // Reinstate the optimistically-dismissed card (onDismissCancel cancels its pending unmount too),
-          // then open the dialog over it. The server returns needsConfirmation from a cheap liveness/telemetry
-          // check BEFORE any worker teardown, so this reply normally lands before the card's exit and the button is
-          // still mounted → the dialog opens. If it arrives after the card already unmounted (a slow reply
-          // under event-loop contention), the card still reinstates but this setConfirmOpen no-ops on the
-          // gone instance — the user simply sees the card return and can click again. Safe either way.
-          if (optimistic) onDismissCancel?.()
-          setHold(result.hold)
-          setStops(new Set())
-          setConfirmUserAt(lastUserAt.current)
-          setConfirmOpen(true)
-          setPending(false)
-          return
-        }
-        setConfirmOpen(false)
-        showToast("Done")
-        if (!optimistic) onArchived?.() // non-optimistic path dismisses now; optimistic already did
-        onCompleted?.()
-      })
-      .catch((error) => {
-        if (overlayRail) clearArchived(thread.id) // …and the rail row back out of Done
-        if (optimistic) onDismissCancel?.() // roll the card back into the queue on failure
-        showToast(`Couldn’t finish: ${(error as Error).message.slice(0, 80)}`)
-        setPending(false)
-      })
-  }
+  const { pending, dialogOpen, hold, stops, toggleStop, complete, closeDialog } = useCompleteThread({
+    thread,
+    onArchived,
+    onDismissCancel,
+    onCompleted,
+  })
   const canOptimistic = !!onArchived && !!onDismissCancel && completionArchivesImmediately(thread)
   const doneKeys = useShortcutLabel("thread.done")
   const doneTitle = command ? withShortcut("Mark as done", doneKeys) : "Mark as done"
@@ -267,44 +358,15 @@ export function StateButton({
           Mark as done
         </button>
       )}
-      <Dialog
+      <CompletionConfirmDialog
         open={dialogOpen}
-        onOpenChange={(open) => {
-          if (!pending) setConfirmOpen(open)
-        }}
-        // A cut-off worker has no session left to end; the question is whether an unfinished thread
-        // should be filed as done at all (lib/threadLifecycle.ts completionHoldSummary).
-        title={hold?.cutOff ? "Mark an unfinished thread done?" : "End this session?"}
-        className="w-[390px] max-w-[92vw]"
-        footer={
-          <>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => setConfirmOpen(false)}
-              className="button-outline rounded-md px-3 py-1.5 text-[12px] text-muted outline-none transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-45"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => complete(true, false)}
-              className="button-outline flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[12px] font-medium text-bg outline-none transition-opacity hover:opacity-90 disabled:opacity-45"
-            >
-              {pending && <Loader2 size={12} className="animate-spin" />}
-              {hold?.cutOff ? "Mark done anyway" : "End session & mark done"}
-            </button>
-          </>
-        }
-      >
-        <CompletionHoldBody hold={hold} stops={stops} onToggle={(id) => setStops((was) => {
-          const next = new Set(was)
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
-          return next
-        })} />
-      </Dialog>
+        pending={pending}
+        hold={hold}
+        stops={stops}
+        onToggleStop={toggleStop}
+        onClose={closeDialog}
+        onConfirm={() => complete(true, false)}
+      />
     </>
   )
 }

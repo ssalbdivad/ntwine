@@ -1320,11 +1320,11 @@ const THREAD = {
     "  done <@handle>                Mark as done — stops idle runtime and moves to the Done band (aliases: `complete`, `archive`).\n" +
     "                                Refuses (exit 2) if a turn, sub-agent or bg shell is running unless `--force` is passed.\n" +
     "                                Add `--stop-terminals` to stop its running terminals too; `--body` records a done summary.\n" +
-    "  reopen <@handle>              Reopen a Done thread back to open.\n" +
+    "  reopen <@handle>              Move a Done, Snoozed, or Waiting thread to Ready (aliases: `open`, `ready`).\n" +
     "  stop <@handle>                Stop a running worker/terminal (aliases: `interrupt`, `kill`). With `--op <id>`, stops one sub-agent or bg shell.\n" +
     "  delete <@handle>              Permanently delete a thread (stops live worker, removes rows and scratchpad, frees `@handle`).\n" +
     "  pin / unpin <@handle>         Pin or unpin a thread.\n" +
-    "  snooze <@handle>              Snooze until `--for <duration>` or `--until <ISO>` (optional `--prompt` for a scheduled follow-up).\n" +
+    "  snooze <@handle>              Snooze until `--for <duration>`, `--until <ISO>`, or `--indefinite` (works from Ready, Waiting, Snoozed, or Done; optional `--prompt` for a scheduled follow-up).\n" +
     "  unsnooze <@handle>            Clear snooze / wake now (alias: `wake`).\n" +
     "  rename <@handle> <title>      Rename a thread (enforces uniqueness).\n" +
     "  compact <@handle>             Compact a resting thread's context.\n" +
@@ -1353,8 +1353,9 @@ const THREAD = {
       stop_terminals: { type: "boolean", description: "For `done`: also stop all running terminals owned by the thread." },
       body: { type: "string", description: "For `done`: optional markdown summary recorded on the thread's done card." },
       op: { type: "string", description: "For `stop`: stop one specific running sub-agent or background shell by its id instead of the whole thread." },
-      for: { type: "string", description: "For `snooze` or `deadline`: duration from now (`30m`, `2h`, `1d`)." },
+      for: { type: "string", description: "For `snooze` or `deadline`: duration from now (`30m`, `2h`, `1d`, or `indefinite` for `snooze`)." },
       until: { type: "string", description: "For `snooze`: ISO-8601 timestamp." },
+      indefinite: { type: "boolean", description: "For `snooze`: park indefinitely until woken." },
       at: { type: "string", description: "For `deadline`: ISO-8601 timestamp." },
       clear: { type: "boolean", description: "For `deadline`: remove the thread's deadline." },
       prompt: { type: "string", description: "For `snooze` (scheduled follow-up bump), `todo` (required opening task) or `start` (override held prompt)." },
@@ -2513,6 +2514,7 @@ async function threadControl(args) {
     mark_done: "done",
     reopen: "reopen",
     open: "reopen",
+    ready: "reopen",
     stop: "stop",
     interrupt: "stop",
     kill: "stop",
@@ -2575,6 +2577,7 @@ async function threadControl(args) {
   if (forVal) body.for = forVal
   const until = str(args.until)
   if (until) body.until = until
+  if (args.indefinite === true) body.indefinite = true
   const at = str(args.at)
   if (at) body.at = at
   if (args.clear === true) body.clear = true
@@ -3682,6 +3685,8 @@ const CLI = {
       complete: ["handle"],
       archive: ["handle"],
       reopen: ["handle"],
+      open: ["handle"],
+      ready: ["handle"],
       stop: ["handle"],
       interrupt: ["handle"],
       kill: ["handle"],

@@ -1,11 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSnapshot } from "valtio"
-import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Loader2, MonitorUp, Pencil, RefreshCw, RotateCcw } from "lucide-react"
+import { AlarmClock, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, FileText, Inbox, Loader2, MonitorUp, Pencil, Pin, PinOff, RefreshCw, RotateCcw } from "lucide-react"
 import { SNOOZE_INDEFINITE, SNOOZE_PROMPT_MAX, isIndefiniteSnooze, type ThreadLinkView, type ThreadView } from "@ntwine/shared"
 import { ThreadProjectScope, useThreadApi, useThreadIsForeignToPage, useThreadProjectDir, useThreadProjectId } from "../api/threadApi.tsx"
 import { showToast, store } from "../store.ts"
-import { displayTitle, futureSnoozedUntil, isActivelyRunning, offersRetry } from "../groups.ts"
+import { bandOf, displayTitle, futureSnoozedUntil, isActivelyRunning, offersRetry } from "../groups.ts"
 import { prefs } from "../lib/prefs.ts"
 import {
   INDEFINITE_SNOOZE_LABEL,
@@ -18,7 +18,9 @@ import {
   snoozePresetLabel,
   type SnoozePreset,
 } from "../lib/snooze.ts"
-import { threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
+import { canMoveToReady, threadLifecycleAvailability } from "../lib/threadLifecycle.ts"
+import { usePinToggle } from "../lib/pinThread.ts"
+import { clearArchived } from "../lib/optimisticArchive.ts"
 import { manualThreadTitleSeed, THREAD_TITLE_MAX_LENGTH, threadTitleToCommit } from "../lib/threadTitle.ts"
 import { copyTextToClipboard } from "../lib/clipboard.ts"
 import { outerPath } from "../lib/base-path.ts"
@@ -147,11 +149,29 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
   const snoozePreset = useSnapshot(prefs).snoozePreset
   const lifecycle = threadLifecycleAvailability(thread)
   const owned = thread.kind === "session" && thread.foreign !== true
+  const ownThread = (thread.kind === "session" || thread.kind === "terminal") && thread.foreign !== true
   const snoozedUntil = futureSnoozedUntil(thread)
+  const band = bandOf(thread)
   const goalOn = thread.recurringPrompt?.stopHook === true || thread.recurringPrompt?.heartbeat === true || thread.recurringPrompt?.postCompaction === true
   const links = thread.links ?? []
   const running = thread.runtime === "running" || thread.runtime === "spawning"
   const retry = owned && offersRetry(thread)
+  const pin = usePinToggle(thread)
+  const overlayRail = !useThreadIsForeignToPage()
+  const [movingReady, setMovingReady] = useState(false)
+  const offersMoveToReady = canMoveToReady(thread)
+  const offersDoneRow = lifecycle.archive && (running || band !== "ready" || !onArchived)
+  const moveToReady = () => {
+    setMovingReady(true)
+    if ((thread.state === "archived" || thread.archived === true) && overlayRail) clearArchived(thread.id)
+    api.setThreadState({ slug: thread.id, state: "open" })
+      .then(() => {
+        afterWrite()
+        dismiss(() => showToast("Moved to Ready"))
+      })
+      .catch((error: unknown) => showToast(`Couldn’t move to Ready: ${(error instanceof Error ? error.message : String(error)).slice(0, 80)}`))
+      .finally(() => setMovingReady(false))
+  }
   // Restart worker asks for a FRESH process, which only the page's own eager send can (lib/restartWorker.ts
   // `freshProcess`); the cross-project follow-up has no such flag, so a row of another project goes without
   // it. It is a dev-build verb, and the thread page's ⋯ still has it.
@@ -184,6 +204,15 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
   return (
     <div data-thread-actions-list>
       <SheetTitle>{title}</SheetTitle>
+      {offersMoveToReady && (
+        <ActionRow
+          data="move-ready"
+          disabled={movingReady}
+          icon={movingReady ? <Loader2 size={19} className="animate-spin" /> : <Inbox size={19} />}
+          label="Move to Ready"
+          onClick={moveToReady}
+        />
+      )}
       {lifecycle.snooze && (
         <ActionRow
           data="snooze"
@@ -210,10 +239,17 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
       {links.length > 0 && (
         <ActionRow data="files" icon={<FileText size={19} />} label="Files and links" value={String(links.length)} chevron onClick={() => setView("files")} />
       )}
-      {/* A RUNNING thread's Done lives here, not in the bottom bar: finishing a turn in flight is a
-          decision with a dialog behind it (mockup v2, "Working"). Same button, same confirmation path
-          as the desktop header's check — only the chrome is a row. */}
-      {running && lifecycle.archive && (
+      {ownThread && (
+        <ActionRow
+          data="pin"
+          icon={pin.pinned ? <PinOff size={19} /> : <Pin size={19} />}
+          label={pin.pinned ? "Unpin" : "Pin to top"}
+          onClick={() => dismiss(pin.toggle)}
+        />
+      )}
+      {/* Done lives here for running, snoozed, waiting, or long-pressed rows (a resting Ready thread on
+          the thread page keeps Done in its bottom bar). Same confirmation path as the desktop check. */}
+      {offersDoneRow && (
         <StateButton
           thread={thread}
           iconSize={19}
@@ -250,12 +286,14 @@ function ActionsList({ thread, title, setView, dismiss, onArchived, project }: {
 // becomes the default the board's swipe uses, which is the one gesture with no menu to choose from.
 function useSnoozeApply(thread: ThreadView, dismiss: (then?: () => void) => void) {
   const api = useThreadApi()
+  const overlayRail = !useThreadIsForeignToPage()
   const afterWrite = useAfterScopedWrite()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   async function apply(until: string | null, prompt: string | null = null): Promise<void> {
     setBusy(true)
     setError("")
+    if (until && (thread.state === "archived" || thread.archived === true) && overlayRail) clearArchived(thread.id)
     try {
       await api.setThreadSnooze({ slug: thread.id, sessionId: thread.sessionId ?? "", until, prompt: until ? prompt : null })
       afterWrite()
@@ -525,6 +563,7 @@ function useAfterScopedWrite(): () => void {
   const projectId = useThreadProjectId()
   const foreign = useThreadIsForeignToPage()
   return () => {
+    void queryClient.invalidateQueries({ queryKey: ["projectsDone"] })
     if (!foreign || !projectId) return
     void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
     void queryClient.invalidateQueries({ queryKey: ["ofProject", projectId, "board"] })

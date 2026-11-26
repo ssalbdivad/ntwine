@@ -11,6 +11,7 @@ export function useAfterScopedWrite(): () => void {
   const queryClient = useQueryClient()
   const projectId = useThreadProjectId()
   return useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["projectsDone"] })
     if (!projectId) return
     void queryClient.invalidateQueries({ queryKey: ["projectsQueues"] })
     void queryClient.invalidateQueries({ queryKey: ["ofProject", projectId, "board"] })

@@ -40,31 +40,31 @@ const actions = (extra: Partial<ThreadView>) => render(ThreadLifecycleActions, e
 const facts = (extra: Partial<ThreadView>) => render(ThreadHeaderFacts, extra)
 
 const CLUSTER = /data-thread-lifecycle(?!-)/
-const DONE_READOUT = /data-thread-done/
+const MOVE_TO_READY = /data-thread-reopen/
 const MARK_AS_DONE = /aria-label="Mark as done"/
 const SNOOZE = /aria-label="Snooze"/
 
-test("a done thread keeps its lifecycle cluster and reads Done where the verbs were", () => {
+test("a done thread keeps its lifecycle cluster with Snooze and Move to Ready", () => {
   for (const [name, extra] of [
     ["state column", { state: "archived", archived: true }],
     ["legacy flag only (rolling reload)", { archived: true }],
   ] as [string, Partial<ThreadView>][]) {
     const html = actions(extra)
     assert.match(html, CLUSTER, `a done thread (${name}) still renders the cluster`)
-    assert.match(html, DONE_READOUT, `a done thread (${name}) states that it is done`)
+    assert.match(html, MOVE_TO_READY, `a done thread (${name}) offers Move to Ready`)
+    assert.match(html, SNOOZE, `a done thread (${name}) can be snoozed directly`)
     assert.doesNotMatch(html, MARK_AS_DONE, `a done thread (${name}) cannot be marked done again`)
-    assert.doesNotMatch(html, SNOOZE, `a done thread (${name}) cannot be snoozed — the server rejects it`)
   }
 })
 
-test("an open thread keeps the verbs — bare icons, named for the screen reader — and says nothing about being done", () => {
+test("an open thread keeps the verbs — bare icons, named for the screen reader — and does not offer Move to Ready", () => {
   const html = actions({ state: "open", archived: false })
   assert.match(html, CLUSTER)
   assert.match(html, MARK_AS_DONE)
   assert.match(html, SNOOZE)
-  assert.doesNotMatch(html, DONE_READOUT)
+  assert.doesNotMatch(html, MOVE_TO_READY)
   // The names live in aria-label and the hover tooltip, not on the surface: the cluster draws no words.
-  assert.doesNotMatch(html.replace(/<[^>]*>/g, ""), /Mark as done|Snooze/, "the verbs are icons, not labelled buttons")
+  assert.doesNotMatch(html.replace(/<[^>]*>/g, ""), /Mark as done|Snooze|Move to Ready/, "the verbs are icons, not labelled buttons")
 })
 
 // The readout asserts a completion ntwine itself recorded. A foreign/legacy thread has no such record,

@@ -6971,6 +6971,7 @@ export const ControlThreadInput = z.object({
   op: z.string().trim().min(1).max(200).optional(),
   for: z.string().trim().min(1).max(64).optional(),
   until: z.string().trim().min(1).max(64).optional(),
+  indefinite: z.boolean().optional(),
   at: z.string().trim().min(1).max(64).optional(),
   clear: z.boolean().optional(),
   prompt: z.string().max(100_000).optional(),

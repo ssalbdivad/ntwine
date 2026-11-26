@@ -7,11 +7,12 @@
 // done card's ledger (plans/all-projects-first.md § Done, easily) so the list answers "what shipped this
 // week" without opening a thread. Server side: `projectsDone` (paged by rest time, cursor in
 // `nextBefore`) and `threadsSearch` for the search box (packages/server/src/router.ts).
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { Search } from "lucide-react"
 import type { ProjectCard, ProjectQueue, ProjectThreadEntry, ThreadView } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
+import { ThreadProjectScope } from "../api/threadApi.tsx"
 import { displayTitle, lastActiveLabelAt } from "../groups.ts"
 import { ageSpan, relativeAge } from "../lib/activityTime.ts"
 import { timeBreakLabel } from "../lib/timeBreaks.ts"
@@ -22,6 +23,7 @@ import { projectsQueuesQuery } from "../lib/projectsQueuesRead.ts"
 import { registeredDoneBody } from "../lib/registeredDone.ts"
 import { ProjectSquare } from "./ProjectSquare.tsx"
 import { LinkedHtml } from "./LinkedHtml.tsx"
+import { ThreadContextMenu, type ContextMenuAnchor } from "./ThreadCategoryMenu.tsx"
 import { QUEUE_WRAP } from "./TranscriptCard.tsx"
 
 export type HistoryEntry = ProjectThreadEntry
@@ -109,11 +111,16 @@ export function HistoryView({ projectIds, onOpen }: { projectIds?: readonly stri
       {groups.map((group) => (
         <section key={group.key} data-history-day={group.key} className="flex flex-col">
           <h3 className="sticky top-0 z-[1] bg-bg px-2 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-70">{group.label}</h3>
-          {group.entries.map((entry) => (
-            <MarkdownScopeContext.Provider key={`${entry.projectId}/${entry.thread.id}`} value={scopes.get(entry.projectId) ?? fallbackScope(entry, cards.get(entry.projectId))}>
-              <HistoryRow entry={entry} card={cards.get(entry.projectId)} now={now} onOpen={onOpen} />
-            </MarkdownScopeContext.Provider>
-          ))}
+          {group.entries.map((entry) => {
+            const scope = scopes.get(entry.projectId) ?? fallbackScope(entry, cards.get(entry.projectId))
+            return (
+              <MarkdownScopeContext.Provider key={`${entry.projectId}/${entry.thread.id}`} value={scope}>
+                <ThreadProjectScope projectId={entry.projectId} projectDir={scope.baseDir}>
+                  <HistoryRow entry={entry} card={cards.get(entry.projectId)} now={now} onOpen={onOpen} />
+                </ThreadProjectScope>
+              </MarkdownScopeContext.Provider>
+            )
+          })}
         </section>
       ))}
 
@@ -130,13 +137,24 @@ function HistoryRow({ entry, card, now, onOpen }: { entry: HistoryEntry; card: P
   const at = lastActiveLabelAt(thread)
   const span = ageSpan(at, now)
   const ledger = ledgerOf(thread)
+  const [contextAnchor, setContextAnchor] = useState<ContextMenuAnchor | null>(null)
+  const closeContext = useCallback(() => setContextAnchor(null), [])
+  const canRecategorize = thread.foreign !== true && (thread.kind === "session" || thread.kind === "terminal")
   // The whole row opens the thread, except a click that lands on a link or the ledger's own toggle.
   const open = (event: ReactMouseEvent) => {
     if ((event.target as HTMLElement).closest("a, button:not([data-history-open])")) return
     onOpen(entry)
   }
   return (
-    <div data-history-entry={`${entry.projectId}/${thread.id}`} onClick={open} className="group cursor-pointer rounded-md px-2 py-1.5 hover:bg-hover">
+    <div
+      data-history-entry={`${entry.projectId}/${thread.id}`}
+      onClick={open}
+      onContextMenu={canRecategorize ? (event) => {
+        event.preventDefault()
+        setContextAnchor({ x: event.clientX, y: event.clientY })
+      } : undefined}
+      className="group cursor-pointer rounded-md px-2 py-1.5 hover:bg-hover"
+    >
       <div className="flex min-w-0 items-baseline gap-2">
         {/* On the title's cap band, the way ProjectChip seats its square: lowered by half its height less half a cap. */}
         <span className="flex shrink-0 self-baseline translate-y-[calc(7px_-_0.5cap)]">
@@ -154,6 +172,7 @@ function HistoryRow({ entry, card, now, onOpen }: { entry: HistoryEntry; card: P
         )}
       </div>
       {ledger && <Ledger body={ledger} />}
+      {contextAnchor && <ThreadContextMenu thread={thread} anchor={contextAnchor} projectName={entry.projectName} onClose={closeContext} />}
     </div>
   )
 }

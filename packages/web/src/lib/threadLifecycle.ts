@@ -1,14 +1,18 @@
 import type { CompletionHold, ThreadView } from "@ntwine/shared"
-import { isDirectSubAgent } from "@ntwine/shared"
+import { isActivelyRunning, isDirectSubAgent } from "@ntwine/shared"
 
 export interface ThreadLifecycleAvailability {
-  // The header's lifecycle cluster renders (ThreadLifecycleActions). TRUE for any owned session thread,
+  // The header's lifecycle cluster renders (ThreadLifecycleActions). TRUE for any owned session/terminal thread,
   // done or not — see `done`.
   lifecycle: boolean
-  // The thread is already complete, so the cluster STATES that instead of offering a verb.
+  // The thread is currently archived (Done).
   done: boolean
+  // Can be snoozed (open or Done; working threads keep the control disabled with an explanation).
   snooze: boolean
+  // Can be marked done (open threads).
   archive: boolean
+  // Can be reopened to Ready from Done.
+  reopen: boolean
 }
 
 // One ownership/lifecycle decision shared by queue cards and full thread surfaces. The controls are
@@ -20,26 +24,31 @@ export function threadLifecycleAvailability(
   // the card claim to read fields it never touches.
   thread: Pick<ThreadView, "kind" | "foreign" | "state" | "archived">,
 ): ThreadLifecycleAvailability {
-  // A terminal thread has the same verbs: snooze it to a time, mark it done (which stops a running one).
+  // A terminal thread has the same verbs: snooze it to a time, mark it done (which stops a running one),
+  // or recategorize a Done one back to Ready/Snoozed.
   const owned = (thread.kind === "session" || thread.kind === "terminal") && thread.foreign !== true
   // `archived` mirrors the pre-state-column protocol; honor it during a rolling server/client reload.
   const archived = owned && (thread.state === "archived" || thread.archived === true)
-  // An archived thread has no lifecycle VERBS — there is no Reopen button (reopening is just sending
-  // the thread another message), and Snooze rejects an archived thread server-side. It keeps the
-  // CLUSTER regardless, reading "Done" where the buttons were, because dropping it left the completed
-  // state with nowhere to appear: a thread's full view showed a title, an activity stamp and a composer,
-  // and nothing anywhere said the thread was finished (maintainer 2026-07-29, on a /full page: "why does
-  // this not have a footer with the mark as done button?" — the honest answer is a readout, not an
-  // absence). The cluster was a footer under the prompt box until 2026-10-05; it closes the header's
-  // action strip now.
   const lifecycle = owned
   const actionable = owned && !archived
   return {
     lifecycle,
     done: archived,
-    snooze: actionable,
+    snooze: owned,
     archive: actionable,
+    reopen: archived,
   }
+}
+
+/** Whether an owned thread can be explicitly moved to Ready (reopen Done, wake Snoozed, unpark Waiting).
+ *  Refused for pending scheduled runs (whose Wake now starts them) and actively working open threads. */
+export function canMoveToReady(thread: ThreadView): boolean {
+  const owned = (thread.kind === "session" || thread.kind === "terminal") && thread.foreign !== true
+  if (!owned) return false
+  if (thread.schedule?.pending === true) return false
+  if (thread.state === "archived" || thread.archived === true) return true
+  if (isActivelyRunning(thread)) return false
+  return thread.needsYou !== true
 }
 
 // Predict whether Mark-as-done will archive IMMEDIATELY — with no "End this session?" dialog — so the

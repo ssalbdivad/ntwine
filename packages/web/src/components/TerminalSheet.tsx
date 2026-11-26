@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState, type ReactNode } from "react"
-import { Bot, Check, Copy, RotateCcw, SquareTerminal, Trash2 } from "lucide-react"
+import { Bot, Check, Copy, Inbox, RotateCcw, SquareTerminal, Trash2 } from "lucide-react"
 import type { BackgroundShellOutputResult, ThreadTerminal, WorkCheckout } from "@ntwine/shared"
 import { rpc } from "../api/rpc.ts"
 import { showToast, threadBySlug } from "../store.ts"
@@ -16,6 +16,7 @@ import { Sheet } from "./ui/Sheet.tsx"
 import { SheetHeader } from "./ui/SheetHeader.tsx"
 import { TerminalFollowUp } from "./TerminalFollowUp.tsx"
 import { TerminalControlBar, TerminalMoreMenu, terminalDriver } from "./TerminalControlBar.tsx"
+import { SnoozeMenu } from "./SnoozeMenu.tsx"
 
 // LAZY for the same reason as every xterm consumer: @xterm/xterm is browser-only, and node (tests)
 // imports the drawer stack transitively.
@@ -195,10 +196,12 @@ function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: n
     const call = kind === "stop" ? rpc.terminalStop({ id: terminalId })
       : kind === "restart" ? rpc.terminalRestart({ id: terminalId })
       : kind === "done" ? rpc.setThreadState({ slug: terminalId, state: "archived" })
+      : kind === "ready" ? rpc.setThreadState({ slug: terminalId, state: "open" })
       : rpc.terminalRemove({ id: terminalId })
     call
       .then(() => {
         if (kind === "remove" || kind === "done") close()
+        if (kind === "ready") showToast("Moved to Ready")
       })
       .catch((error: unknown) => showToast(error instanceof Error ? error.message : `Could not ${kind} this terminal`))
       .finally(() => setPending(null))
@@ -217,6 +220,7 @@ function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: n
             onAct={(kind) => act(kind, close)}
             onClose={close}
             driven={Boolean(driver)}
+            snooze={own?.kind === "terminal" ? <SnoozeMenu thread={own} onSnoozed={close} /> : undefined}
             more={terminal ? <TerminalMoreMenu terminal={terminal} threads={threads} move={move} triggerClass={actionClass} /> : undefined}
           />
           {terminal ? (
@@ -246,20 +250,22 @@ function HumanTerminalSheet({ id, slug, terminalId, depth, widthDepth }: { id: n
 
 /** YOUR TERMINAL'S DRAWER HEADER — the command, where it runs, how it stands, and its actions — split out so
  *  the terminals fixture draws the very header the drawer does (terminals-unified-fixture `?mode=header`). */
-export type TerminalAct = "stop" | "restart" | "remove" | "done"
+export type TerminalAct = "stop" | "restart" | "remove" | "done" | "ready"
 
-export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pending, done = true, onAct, onClose, driven = false, more }: {
+export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pending, done = true, onAct, onClose, driven = false, snooze, more }: {
   terminal: ThreadTerminal | undefined
   /** The thread's title, for a terminal with no folder (or none yet). */
   fallbackSubtitle?: string
   homeDir: string | undefined
   pending: TerminalAct | null
-  /** Already Done — so no Mark as done. A terminal is a thread of its own, and Done is its to reach. */
+  /** Already Done — swaps Mark as done for Move to Ready. A terminal is a thread of its own, and Done is its to reach. */
   done?: boolean
   onAct: (kind: TerminalAct) => void
   onClose: () => void
   /** A thread drives it: Stop and Restart wait until the human takes control. */
   driven?: boolean
+  /** Snooze menu for a terminal thread (disabled while running). */
+  snooze?: ReactNode
   /** The ⋯ menu (Let an agent drive), last in the row. */
   more?: ReactNode
 }) {
@@ -283,12 +289,17 @@ export function HumanTerminalHeader({ terminal, fallbackSubtitle, homeDir, pendi
                 {pending === "stop" ? "Stopping…" : "Stop"}
               </button>
             ) : null}
-            {/* Mark as done on a running one stops it first (thread-terminals.ts setState). */}
-            {!done ? (
+            {snooze}
+            {/* Mark as done on a running one stops it first (thread-terminals.ts setState); a Done one offers Move to Ready. */}
+            {done ? (
+              <button type="button" data-terminal-ready disabled={pending !== null} onClick={() => onAct("ready")} title="Move to Ready" aria-label="Move to Ready" className={actionClass}>
+                <NarrowGlyph icon={Inbox} text={pending === "ready" ? "Moving…" : "Move to Ready"} />
+              </button>
+            ) : (
               <button type="button" data-terminal-done disabled={pending !== null} onClick={() => onAct("done")} title="Mark as done" aria-label="Mark as done" className={actionClass}>
                 <NarrowGlyph icon={Check} text={pending === "done" ? "Marking…" : "Mark as done"} />
               </button>
-            ) : null}
+            )}
             {!driven ? <button type="button" data-terminal-restart disabled={pending !== null} onClick={() => onAct("restart")} title="Restart" aria-label="Restart" className={actionClass}>
               <NarrowGlyph icon={RotateCcw} text={pending === "restart" ? "Restarting…" : "Restart"} />
             </button> : null}

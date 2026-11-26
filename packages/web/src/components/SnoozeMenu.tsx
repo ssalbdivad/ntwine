@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { useSnapshot } from "valtio"
 import { AlarmClock, AlarmClockOff, Loader2 } from "lucide-react"
 import { SNOOZE_INDEFINITE, SNOOZE_PROMPT_MAX, isIndefiniteSnooze, type ThreadView } from "@ntwine/shared"
-import { useThreadApi } from "../api/threadApi.tsx"
+import { useThreadApi, useThreadIsForeignToPage } from "../api/threadApi.tsx"
 import { futureSnoozedUntil, isActivelyRunning } from "../groups.ts"
 import {
   DEFAULT_SNOOZE_PRESET,
@@ -16,6 +16,8 @@ import {
   snoozePresetInstant,
 } from "../lib/snooze.ts"
 import { HEADER_ICON_CLASS } from "../lib/headerIcon.ts"
+import { clearArchived } from "../lib/optimisticArchive.ts"
+import { useAfterScopedWrite } from "../lib/scopedWrite.ts"
 import { showToast, store } from "../store.ts"
 import { shouldSubmitStagedEnter } from "../lib/composerKeyboard.ts"
 import { useCommandHandler, useShortcutLabel, withShortcut } from "../lib/keyboardRuntime.ts"
@@ -48,6 +50,283 @@ import { Tooltip } from "./Tooltip.tsx"
 // (maintainer: "ensure active threads cant be hidden under snooze easily"). The clock stays in place —
 // a header verb that comes and goes moves its neighbours — but is disabled and says when it will work,
 // and the server refuses the same snooze (router.setThreadSnooze). Wake now is never blocked.
+type ApplySnoozeOptions = {
+  thread: ThreadView
+  projectName?: string
+  onSnoozed?: () => void
+  onUndone?: () => void
+  onError?: (message: string) => void
+  onApplied?: () => void
+}
+
+/** Shared snooze mutation + toast/Undo handler for SnoozeMenu and ThreadCategoryMenu.
+ *  When snoozing a Done thread, clears optimisticArchive and wires Undo to return it to Done. */
+export function useApplySnooze({ thread, projectName, onSnoozed, onUndone, onError, onApplied }: ApplySnoozeOptions) {
+  const api = useThreadApi()
+  const overlayRail = !useThreadIsForeignToPage()
+  const afterWrite = useAfterScopedWrite()
+  // The board's NAME, read whether or not the caller named the project: a board read but not dereferenced
+  // (the queue card passes `projectName`, so `board?.projectName` never ran) is tracked by valtio as used
+  // WHOLE, and every board delta re-rendered every queue card's snooze menu — the last of a card's
+  // subscriptions to the board (2026-10-02, queueCardVisibility.e2e.test.ts "a board delta re-renders no
+  // card").
+  const boardName = useSnapshot(store).board?.projectName
+  const where = projectName ?? boardName
+  const [busy, setBusy] = useState(false)
+
+  // `bump` is what upgrades a park into a scheduled BUMP: the server arms a durable wake that resumes
+  // this thread with exactly that text at `until`. null keeps the historical reminder behavior.
+  async function apply(until: string | null, bump: string | null = null): Promise<boolean> {
+    const snoozedUntil = futureSnoozedUntil(thread)
+    // What this click replaces, for the toast's Undo: a Done thread returns to Done, and an already-snoozed
+    // thread returns to its old deadline and follow-up.
+    const wasArchived = thread.state === "archived" || thread.archived === true
+    const previous = { until: snoozedUntil ?? null, prompt: snoozedUntil ? thread.snoozePrompt ?? null : null }
+    const sessionId = thread.sessionId ?? ""
+    setBusy(true)
+    if (until && wasArchived && overlayRail) clearArchived(thread.id)
+    try {
+      await api.setThreadSnooze({ slug: thread.id, sessionId, until, prompt: until ? bump : null })
+      afterWrite()
+      if (until) {
+        // UNDO, because a snooze takes the card off the page: the accident is cheap to make and was
+        // expensive to find. It runs after this menu may be gone — the card fades out on `onSnoozed` —
+        // so it touches no state of the menu's own.
+        const undo = async () => {
+          try {
+            if (wasArchived) {
+              await api.setThreadState({ slug: thread.id, state: "archived" })
+              afterWrite()
+              showToast("Returned to Done")
+            } else {
+              // A deadline that passed while the toast was up has nothing left to restore.
+              const restore = previous.until !== null && Date.parse(previous.until) > Date.now() ? previous : { until: null, prompt: null }
+              await api.setThreadSnooze({ slug: thread.id, sessionId, ...restore })
+              afterWrite()
+              showToast(restore.until ? "Snooze restored" : "Snooze undone")
+            }
+            onUndone?.()
+          } catch (error) {
+            showToast((error instanceof Error ? error.message : "Undo failed").slice(0, 100))
+          }
+        }
+        const { text, detail } = formatSnoozeConfirmation(until, bump, where)
+        showToast(text, { detail, action: { label: "Undo", run: () => void undo() } })
+        onSnoozed?.()
+      } else {
+        showToast("Snooze cleared")
+      }
+      onApplied?.()
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Snooze failed"
+      showToast(message.slice(0, 100))
+      onError?.(message)
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return { busy, apply }
+}
+
+type SnoozePresetRowsProps = {
+  thread: ThreadView
+  /** Recomputed whenever this flips true so wake times match the current clock. */
+  open: boolean
+  onPick: (until: string | null) => void
+  onCustom: () => void
+  /** Include the leading "Wake now" item when already snoozed. */
+  includeWakeNow?: boolean
+}
+
+export function SnoozePresetItems({ thread, open, onPick, onCustom, includeWakeNow = true }: SnoozePresetRowsProps) {
+  const snoozedUntil = futureSnoozedUntil(thread)
+  const offersIndefinite = thread.schedule?.pending !== true && !isIndefiniteSnooze(snoozedUntil)
+  const rows = useMemo(() => SNOOZE_PRESETS.map((preset) => {
+    const wake = formatSnoozeWake(snoozePresetInstant(preset.value))
+    return preset.value === "tomorrow"
+      ? { value: preset.value, label: "Tomorrow", wake: wake.replace(/^Tomorrow at /, "") }
+      : { value: preset.value, label: preset.label, wake }
+  }), [open])
+  return (
+    <>
+      {includeWakeNow && snoozedUntil && (
+        <>
+          <MenuItem value="wake-now" onSelect={() => onPick(null)} icon={<AlarmClockOff size={12} />}>Wake now</MenuItem>
+          <MenuSeparator />
+        </>
+      )}
+      {rows.map((row) => (
+        <MenuItem key={row.value} value={row.value} onSelect={() => onPick(snoozePresetInstant(row.value))} icon={<AlarmClock size={12} />}>
+          <span data-snooze-preset={row.value} className="flex min-w-0 flex-1 items-center justify-between gap-6">
+            <span>{row.label}</span>
+            <span className="text-[10.5px] text-muted-55">{row.wake}</span>
+          </span>
+        </MenuItem>
+      ))}
+      {/* THE BACKBURNER (2026-11-11): parked until you wake it. Its first letter is the typeahead, so
+          `s` then `i` puts the open thread away from the keyboard. */}
+      {offersIndefinite && (
+        <MenuItem value="indefinite" onSelect={() => onPick(SNOOZE_INDEFINITE)} icon={<AlarmClock size={12} />}>
+          <span data-snooze-preset="indefinite" className="flex min-w-0 flex-1 items-center justify-between gap-6">
+            <span>{INDEFINITE_SNOOZE_LABEL}</span>
+            <span className="text-[10.5px] text-muted-55">Until you wake it</span>
+          </span>
+        </MenuItem>
+      )}
+      <MenuSeparator />
+      <MenuItem value="custom-snooze" onSelect={onCustom}>Custom time &amp; prompt…</MenuItem>
+    </>
+  )
+}
+
+type CustomSnoozeDialogProps = {
+  open: boolean
+  onOpenChange: (next: boolean) => void
+  thread: ThreadView
+  busy: boolean
+  error: string
+  onErrorChange: (message: string) => void
+  onSubmit: (until: string, prompt: string | null) => void
+}
+
+export function CustomSnoozeDialog({ open, onOpenChange, thread, busy, error, onErrorChange, onSubmit }: CustomSnoozeDialogProps) {
+  const snoozedUntil = futureSnoozedUntil(thread)
+  const [customValue, setCustomValue] = useState("")
+  const [promptValue, setPromptValue] = useState("")
+  const customInputId = useId()
+  const promptInputId = useId()
+  const customFormId = useId()
+  const minCustom = useMemo(() => localDateTimeInputValue(new Date(Date.now() + 60_000)), [open])
+
+  // Seed inputs whenever the dialog opens: an existing timed snooze re-opens as itself so editing the
+  // follow-up never silently moves the deadline; otherwise the dialog starts a day out.
+  useEffect(() => {
+    if (!open) return
+    setCustomValue(localDateTimeInputValue(new Date(snoozedUntil && !isIndefiniteSnooze(snoozedUntil) ? snoozedUntil : snoozePresetInstant(DEFAULT_SNOOZE_PRESET))))
+    setPromptValue(thread.snoozePrompt ?? "")
+    onErrorChange("")
+  }, [open])
+
+  function submitCustom() {
+    const parsed = parseLocalSnooze(customValue)
+    if (!parsed.ok) {
+      onErrorChange(parsed.message)
+      return
+    }
+    const bump = promptValue.trim()
+    if (bump.length > SNOOZE_PROMPT_MAX) {
+      onErrorChange(`Prompt is too long (${bump.length}/${SNOOZE_PROMPT_MAX})`)
+      return
+    }
+    onSubmit(parsed.until, bump || null)
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!busy) onOpenChange(next)
+      }}
+      title="Snooze thread"
+      className="w-[360px] max-w-[92vw]"
+      footer={
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+            className="button-outline rounded-md px-3 py-1.5 text-[12px] text-muted outline-none transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-45"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form={customFormId}
+            disabled={busy}
+            className="button-outline flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[12px] font-medium text-bg outline-none transition-opacity hover:opacity-90 disabled:opacity-45"
+          >
+            {busy && <Loader2 size={12} className="animate-spin" />}
+            {promptValue.trim() ? "Snooze and follow up" : "Snooze"}
+          </button>
+        </>
+      }
+    >
+      <form
+        id={customFormId}
+        className="flex flex-col gap-2.5 p-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          submitCustom()
+        }}
+      >
+        <label htmlFor={customInputId} className="text-[11px] font-medium text-muted">
+          Wake at this local time
+        </label>
+        <input
+          id={customInputId}
+          type="datetime-local"
+          required
+          min={minCustom}
+          value={customValue}
+          onChange={(event) => {
+            setCustomValue(event.target.value)
+            onErrorChange("")
+          }}
+          className="w-full rounded-md border border-border bg-bg px-2.5 py-2 text-[13px] text-fg outline-none focus:border-accent"
+        />
+        <p className="text-[10.5px] text-muted-65">
+          Stored as an exact instant; shown here in your browser’s local time zone.
+        </p>
+        <label htmlFor={promptInputId} className="mt-1 text-[11px] font-medium text-muted">
+          Then send this prompt <span className="font-normal text-muted-55">(optional)</span>
+        </label>
+        {/* The prompt is the difference between a reminder and a scheduled bump, so the field is
+            focused: the dialog exists to write one, and the time above already carries a sane default. */}
+        <textarea
+          id={promptInputId}
+          data-1p-ignore
+          autoFocus
+          rows={3}
+          maxLength={SNOOZE_PROMPT_MAX}
+          placeholder="e.g. Check whether CI went green and land it if so."
+          value={promptValue}
+          onChange={(event) => {
+            setPromptValue(event.target.value)
+            onErrorChange("")
+          }}
+          onKeyDown={(event) => {
+            // Enter (or ⌘/Ctrl-Enter) submits from inside the textarea; Shift/Option-Enter make the
+            // newline — the three Enter keys every box shares (2026-08-26).
+            if (shouldSubmitStagedEnter({
+              key: event.key,
+              altKey: event.altKey,
+              ctrlKey: event.ctrlKey,
+              metaKey: event.metaKey,
+              shiftKey: event.shiftKey,
+              isComposing: event.nativeEvent.isComposing,
+              keyCode: event.nativeEvent.keyCode,
+            })) {
+              event.preventDefault()
+              submitCustom()
+            }
+          }}
+          className="w-full resize-y rounded-md border border-border bg-bg px-2.5 py-2 text-[13px] leading-5 text-fg outline-none placeholder:text-muted-40 focus:border-accent"
+        />
+        <TextareaCodeFences value={promptValue} />
+        <p className="min-h-4 text-[10.5px] text-muted-65">
+          {promptValue.trim()
+            ? "Sends this prompt when the snooze ends."
+            : "Leave empty to just bring the card back to your queue."}
+        </p>
+        {error && <p role="alert" className="text-[11px] text-danger">{error}</p>}
+      </form>
+    </Dialog>
+  )
+}
+
 export function SnoozeMenu({
   thread,
   projectName,
@@ -62,46 +341,32 @@ export function SnoozeMenu({
   /** The toast's Undo put the snooze back as it was: give back whatever `onSnoozed` took away. */
   onUndone?: () => void
 }) {
-  const api = useThreadApi()
-  // The board's NAME, read whether or not the caller named the project: a board read but not dereferenced
-  // (the queue card passes `projectName`, so `board?.projectName` never ran) is tracked by valtio as used
-  // WHOLE, and every board delta re-rendered every queue card's snooze menu — the last of a card's
-  // subscriptions to the board (2026-10-02, queueCardVisibility.e2e.test.ts "a board delta re-renders no
-  // card").
-  const boardName = useSnapshot(store).board?.projectName
-  const where = projectName ?? boardName
   const [open, setOpen] = useState(false)
   // Closing the menu hands focus back to the clock, and the tooltip opens on focus — where it then takes
   // the next Escape for itself, so one Escape closed the menu and the second only closed a tooltip
   // nobody asked for, instead of reaching the surface behind it. It stays quiet until focus or the pointer
   // leaves the clock; focus itself still returns, which is the menu's keyboard contract.
   const [tooltipQuiet, setTooltipQuiet] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [customOpen, setCustomOpen] = useState(false)
-  const [customValue, setCustomValue] = useState("")
-  const [promptValue, setPromptValue] = useState("")
   const [customError, setCustomError] = useState("")
-  const customInputId = useId()
-  const promptInputId = useId()
-  const customFormId = useId()
+  const { busy, apply } = useApplySnooze({
+    thread,
+    projectName,
+    onSnoozed,
+    onUndone,
+    onError: setCustomError,
+    onApplied: () => {
+      setCustomOpen(false)
+      setCustomError("")
+    },
+  })
   const snoozedUntil = futureSnoozedUntil(thread)
   const prompt = thread.snoozePrompt?.trim()
-  const minCustom = useMemo(() => localDateTimeInputValue(new Date(Date.now() + 60_000)), [customOpen])
-  // Recomputed when the menu opens, so each row's wake time is read off the clock at the moment it is
-  // offered rather than when the header first rendered.
-  const rows = useMemo(() => SNOOZE_PRESETS.map((preset) => {
-    const wake = formatSnoozeWake(snoozePresetInstant(preset.value))
-    return preset.value === "tomorrow"
-      ? { value: preset.value, label: "Tomorrow", wake: wake.replace(/^Tomorrow at /, "") }
-      : { value: preset.value, label: preset.label, wake }
-  }), [open])
   // Two shapes: a plain park only re-surfaces the card, while an armed one resumes the agent with that
   // text — so naming the follow-up IS the detail.
   const state = snoozedUntil
     ? isIndefiniteSnooze(snoozedUntil) ? SNOOZED_INDEFINITELY : prompt ? `Bumps ${formatSnoozeWake(snoozedUntil)}` : `Snoozed until ${formatSnoozeWake(snoozedUntil)}`
     : null
-  // A schedule's next run is moved to a time, never put off for good (router.setThreadSnooze).
-  const offersIndefinite = thread.schedule?.pending !== true && !isIndefiniteSnooze(snoozedUntil)
   // Working, and nothing to wake: the verb waits for the thread to stop.
   const working = !snoozedUntil && isActivelyRunning(thread)
   const snoozeKeys = useShortcutLabel("thread.snooze")
@@ -135,71 +400,6 @@ export function SnoozeMenu({
     })
     return () => cancelAnimationFrame(frame)
   }, [open])
-
-  // `bump` is what upgrades a park into a scheduled BUMP: the server arms a durable wake that resumes
-  // this thread with exactly that text at `until`. null keeps the historical reminder behavior.
-  async function apply(until: string | null, bump: string | null = null): Promise<void> {
-    // What this click replaces, for the toast's Undo: a thread that was already snoozed goes back to its
-    // old deadline and follow-up, not to awake.
-    const previous = { until: snoozedUntil ?? null, prompt: snoozedUntil ? thread.snoozePrompt ?? null : null }
-    const sessionId = thread.sessionId ?? ""
-    setBusy(true)
-    try {
-      await api.setThreadSnooze({ slug: thread.id, sessionId, until, prompt: until ? bump : null })
-      if (until) {
-        // UNDO, because a snooze takes the card off the page: the accident is cheap to make and was
-        // expensive to find. It runs after this menu may be gone — the card fades out on `onSnoozed` —
-        // so it touches no state of the menu's own.
-        const undo = async () => {
-          try {
-            // A deadline that passed while the toast was up has nothing left to restore.
-            const restore = previous.until !== null && Date.parse(previous.until) > Date.now() ? previous : { until: null, prompt: null }
-            await api.setThreadSnooze({ slug: thread.id, sessionId, ...restore })
-            showToast(restore.until ? "Snooze restored" : "Snooze undone")
-            onUndone?.()
-          } catch (error) {
-            showToast((error instanceof Error ? error.message : "Undo failed").slice(0, 100))
-          }
-        }
-        const { text, detail } = formatSnoozeConfirmation(until, bump, where)
-        showToast(text, { detail, action: { label: "Undo", run: () => void undo() } })
-        onSnoozed?.()
-      } else {
-        showToast("Snooze cleared")
-      }
-      setCustomOpen(false)
-      setCustomError("")
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Snooze failed"
-      showToast(message.slice(0, 100))
-      setCustomError(message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  // An existing snooze re-opens as itself so editing the follow-up never silently moves the deadline;
-  // otherwise the dialog starts a day out.
-  function openCustom() {
-    setCustomValue(localDateTimeInputValue(new Date(snoozedUntil && !isIndefiniteSnooze(snoozedUntil) ? snoozedUntil : snoozePresetInstant(DEFAULT_SNOOZE_PRESET))))
-    setPromptValue(thread.snoozePrompt ?? "")
-    setCustomError("")
-    setCustomOpen(true)
-  }
-
-  function submitCustom() {
-    const parsed = parseLocalSnooze(customValue)
-    if (!parsed.ok) {
-      setCustomError(parsed.message)
-      return
-    }
-    const bump = promptValue.trim()
-    if (bump.length > SNOOZE_PROMPT_MAX) {
-      setCustomError(`Prompt is too long (${bump.length}/${SNOOZE_PROMPT_MAX})`)
-      return
-    }
-    void apply(parsed.until, bump || null)
-  }
 
   return (
     <>
@@ -236,134 +436,24 @@ export function SnoozeMenu({
         </Tooltip>
         <MenuContent align="end">
           <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-muted-60">{state ?? "Snooze"}</div>
-          {snoozedUntil && (
-            <>
-              <MenuItem value="wake-now" onSelect={() => void apply(null)} icon={<AlarmClockOff size={12} />}>Wake now</MenuItem>
-              <MenuSeparator />
-            </>
-          )}
-          {rows.map((row) => (
-            <MenuItem key={row.value} value={row.value} onSelect={() => void apply(snoozePresetInstant(row.value))} icon={<AlarmClock size={12} />}>
-              <span data-snooze-preset={row.value} className="flex min-w-0 flex-1 items-center justify-between gap-6">
-                <span>{row.label}</span>
-                <span className="text-[10.5px] text-muted-55">{row.wake}</span>
-              </span>
-            </MenuItem>
-          ))}
-          {/* THE BACKBURNER (2026-11-11): parked until you wake it. Its first letter is the typeahead, so
-              `s` then `i` puts the open thread away from the keyboard. */}
-          {offersIndefinite && (
-            <MenuItem value="indefinite" onSelect={() => void apply(SNOOZE_INDEFINITE)} icon={<AlarmClock size={12} />}>
-              <span data-snooze-preset="indefinite" className="flex min-w-0 flex-1 items-center justify-between gap-6">
-                <span>{INDEFINITE_SNOOZE_LABEL}</span>
-                <span className="text-[10.5px] text-muted-55">Until you wake it</span>
-              </span>
-            </MenuItem>
-          )}
-          <MenuSeparator />
-          <MenuItem onSelect={openCustom}>Custom time &amp; prompt…</MenuItem>
+          <SnoozePresetItems
+            thread={thread}
+            open={open}
+            onPick={(until) => void apply(until)}
+            onCustom={() => setCustomOpen(true)}
+          />
         </MenuContent>
       </Menu>
 
-      <Dialog
+      <CustomSnoozeDialog
         open={customOpen}
-        onOpenChange={(next) => {
-          if (!busy) setCustomOpen(next)
-        }}
-        title="Snooze thread"
-        className="w-[360px] max-w-[92vw]"
-        footer={
-          <>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setCustomOpen(false)}
-              className="button-outline rounded-md px-3 py-1.5 text-[12px] text-muted outline-none transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-45"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              form={customFormId}
-              disabled={busy}
-              className="button-outline flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[12px] font-medium text-bg outline-none transition-opacity hover:opacity-90 disabled:opacity-45"
-            >
-              {busy && <Loader2 size={12} className="animate-spin" />}
-              {promptValue.trim() ? "Snooze and follow up" : "Snooze"}
-            </button>
-          </>
-        }
-      >
-        <form
-          id={customFormId}
-          className="flex flex-col gap-2.5 p-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            submitCustom()
-          }}
-        >
-          <label htmlFor={customInputId} className="text-[11px] font-medium text-muted">
-            Wake at this local time
-          </label>
-          <input
-            id={customInputId}
-            type="datetime-local"
-            required
-            min={minCustom}
-            value={customValue}
-            onChange={(event) => {
-              setCustomValue(event.target.value)
-              setCustomError("")
-            }}
-            className="w-full rounded-md border border-border bg-bg px-2.5 py-2 text-[13px] text-fg outline-none focus:border-accent"
-          />
-          <p className="text-[10.5px] text-muted-65">
-            Stored as an exact instant; shown here in your browser’s local time zone.
-          </p>
-          <label htmlFor={promptInputId} className="mt-1 text-[11px] font-medium text-muted">
-            Then send this prompt <span className="font-normal text-muted-55">(optional)</span>
-          </label>
-          {/* The prompt is the difference between a reminder and a scheduled bump, so the field is
-              focused: the dialog exists to write one, and the time above already carries a sane default. */}
-          <textarea
-            id={promptInputId}
-            data-1p-ignore
-            autoFocus
-            rows={3}
-            maxLength={SNOOZE_PROMPT_MAX}
-            placeholder="e.g. Check whether CI went green and land it if so."
-            value={promptValue}
-            onChange={(event) => {
-              setPromptValue(event.target.value)
-              setCustomError("")
-            }}
-            onKeyDown={(event) => {
-              // Enter (or ⌘/Ctrl-Enter) submits from inside the textarea; Shift/Option-Enter make the
-              // newline — the three Enter keys every box shares (2026-08-26).
-              if (shouldSubmitStagedEnter({
-                key: event.key,
-                altKey: event.altKey,
-                ctrlKey: event.ctrlKey,
-                metaKey: event.metaKey,
-                shiftKey: event.shiftKey,
-                isComposing: event.nativeEvent.isComposing,
-                keyCode: event.nativeEvent.keyCode,
-              })) {
-                event.preventDefault()
-                submitCustom()
-              }
-            }}
-            className="w-full resize-y rounded-md border border-border bg-bg px-2.5 py-2 text-[13px] leading-5 text-fg outline-none placeholder:text-muted-40 focus:border-accent"
-          />
-          <TextareaCodeFences value={promptValue} />
-          <p className="min-h-4 text-[10.5px] text-muted-65">
-            {promptValue.trim()
-              ? "Sends this prompt when the snooze ends."
-              : "Leave empty to just bring the card back to your queue."}
-          </p>
-          {customError && <p role="alert" className="text-[11px] text-danger">{customError}</p>}
-        </form>
-      </Dialog>
+        onOpenChange={setCustomOpen}
+        thread={thread}
+        busy={busy}
+        error={customError}
+        onErrorChange={setCustomError}
+        onSubmit={(until, bump) => void apply(until, bump)}
+      />
     </>
   )
 }

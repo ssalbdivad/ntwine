@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { CompletionHold, ThreadView } from "@ntwine/shared"
-import { threadLifecycleAvailability, completionArchivesImmediately, completionHoldSummary } from "./threadLifecycle.ts"
+import { threadLifecycleAvailability, canMoveToReady, completionArchivesImmediately, completionHoldSummary } from "./threadLifecycle.ts"
 
 function thread(over: Partial<ThreadView> = {}): ThreadView {
   return {
@@ -38,35 +38,48 @@ test("thread lifecycle controls have one home independent of queue/done presenta
     done: false,
     snooze: true,
     archive: true,
+    reopen: false,
   })
   assert.deepEqual(threadLifecycleAvailability(thread({ lastFence: { kind: "done", body: "Shipped", hints: [] } })), {
     lifecycle: true,
     done: false,
     snooze: true,
     archive: true,
+    reopen: false,
   }, "a done fence cannot move Archive inline or into a header")
-  // An archived thread has no lifecycle VERBS — reopening is done by sending it another message, not a
-  // Reopen button — but it KEEPS the strip, which reads "Done" where the buttons were. Dropping the strip
-  // left the completed state with nowhere to appear on a thread's own full view.
+  // An archived (Done) thread keeps its lifecycle controls so it can be recategorized directly to
+  // Snoozed or reopened to Ready without sending a message.
   assert.deepEqual(threadLifecycleAvailability(thread({ state: "archived", archived: true })), {
     lifecycle: true,
     done: true,
-    snooze: false,
+    snooze: true,
     archive: false,
+    reopen: true,
   })
   const rolling = threadLifecycleAvailability(thread({ state: undefined, archived: true }))
-  assert.deepEqual({ lifecycle: rolling.lifecycle, done: rolling.done, archive: rolling.archive }, { lifecycle: true, done: true, archive: false }, "rolling snapshots still read the legacy flag as done")
-  // A thread ntwine does not own has no lifecycle standing at all: no verbs AND no readout, because
-  // "Done" would assert a completion state ntwine never wrote.
+  assert.deepEqual({ lifecycle: rolling.lifecycle, done: rolling.done, snooze: rolling.snooze, archive: rolling.archive, reopen: rolling.reopen }, { lifecycle: true, done: true, snooze: true, archive: false, reopen: true }, "rolling snapshots still read the legacy flag as done")
+  // A thread ntwine does not own has no lifecycle standing at all: no verbs AND no readout.
   for (const unowned of [thread({ foreign: true }), thread({ kind: "legacy" })]) {
-    assert.deepEqual(threadLifecycleAvailability(unowned), { lifecycle: false, done: false, snooze: false, archive: false })
+    assert.deepEqual(threadLifecycleAvailability(unowned), { lifecycle: false, done: false, snooze: false, archive: false, reopen: false })
   }
   assert.deepEqual(threadLifecycleAvailability(thread({ foreign: true, state: "archived", archived: true })), {
     lifecycle: false,
     done: false,
     snooze: false,
     archive: false,
+    reopen: false,
   }, "an archived FOREIGN thread still gets no strip")
+})
+
+test("canMoveToReady allows Done, Snoozed, and Waiting threads and refuses Working, Ready, foreign, and pending schedules", () => {
+  assert.equal(canMoveToReady(thread({ state: "archived", archived: true, needsYou: false })), true, "Done → Ready")
+  assert.equal(canMoveToReady(thread({ state: "open", needsYou: false, snoozedUntil: "2099-01-01T00:00:00.000Z" })), true, "Snoozed → Ready")
+  assert.equal(canMoveToReady(thread({ state: "open", needsYou: false, waitStatus: "watching" })), true, "Waiting → Ready")
+  assert.equal(canMoveToReady(thread({ state: "open", needsYou: true })), false, "already Ready")
+  assert.equal(canMoveToReady(thread({ state: "open", runtime: "running", needsYou: false })), false, "actively working")
+  assert.equal(canMoveToReady(thread({ state: "open", runtime: "turn-idle", needsYou: false, subAgents: [{ label: "a", startedAt: "2026-10-01T00:00:00Z", state: "running" }] })), false, "live sub-agent")
+  assert.equal(canMoveToReady(thread({ state: "open", needsYou: false, schedule: { id: "s1", label: "Daily", pending: true } })), false, "pending schedule")
+  assert.equal(canMoveToReady(thread({ foreign: true, state: "archived", archived: true, needsYou: false })), false, "foreign")
 })
 
 // completionArchivesImmediately gates the OPTIMISTIC Mark-as-done dismissal, so it must match the
@@ -182,6 +195,7 @@ test("every owned open queue reason retains enabled lifecycle actions", () => {
       done: false,
       snooze: true,
       archive: true,
+      reopen: false,
     })
   }
 })
