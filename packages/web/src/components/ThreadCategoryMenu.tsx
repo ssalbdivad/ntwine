@@ -192,7 +192,7 @@ export function ThreadBandPicker({ thread, projectName, onArchived, onSnoozed, o
             <ChevronDown
               size={10}
               aria-hidden
-              className="shrink-0 -translate-y-[0.06em] text-muted-55 transition-colors group-hover/band:text-fg"
+              className="-mr-0.5 shrink-0 -translate-y-[0.06em] text-muted-55 transition-colors group-hover/band:text-fg"
             />
           </button>
         </MenuTrigger>

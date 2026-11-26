@@ -90,7 +90,7 @@ export function MenuItem({
       // its only growing part, so it still takes all the free space.
       className={`flex select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] outline-none transition-colors [&>*]:basis-auto ${
         disabled
-          ? "cursor-default text-muted-55 opacity-55"
+          ? "cursor-default text-muted opacity-55"
           : danger
             ? "cursor-pointer text-danger data-[highlighted]:bg-panel-2 data-[highlighted]:text-danger-soft"
             : "cursor-pointer text-muted data-[highlighted]:bg-panel-2 data-[highlighted]:text-fg"
@@ -125,7 +125,7 @@ export function MenuSubTrigger({
       data-value={value}
       className={`flex select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] outline-none transition-colors [&>*]:basis-auto ${
         disabled
-          ? "cursor-default text-muted-55 opacity-55"
+          ? "cursor-default text-muted opacity-55"
           : "cursor-pointer text-muted data-[highlighted]:bg-panel-2 data-[highlighted]:text-fg data-[state=open]:bg-panel-2 data-[state=open]:text-fg"
       }`}
     >
