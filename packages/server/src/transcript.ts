@@ -17,10 +17,12 @@ import {
   splitWakeDeliveries,
   type TranscriptMessage,
   type TranscriptPage,
+  type TranscriptPart,
   type TranscriptTodo,
   type TranscriptToolCall,
   moveLogOf,
 } from "@ntwine/shared"
+import { stampTranscriptItemAt, transcriptItemAt } from "./transcript-item-at.ts"
 import { projectTranscriptSessionPeers, type SessionPeerThread } from "./session-peer.ts"
 import { workDirOf, type Project } from "./project.ts"
 import type { Storage } from "./storage.ts"
@@ -148,15 +150,16 @@ function restMessage(sourceId: string, at: string | undefined): TranscriptMessag
 // detection, AND the client's optimistic-vs-server text match, which compares raw strings).
 // Append a text block to a message's ordered parts, coalescing into a trailing text part (so several
 // text blocks in a row read as one prose run) — otherwise starting a fresh text part after a tools run.
-function pushTextPart(m: TranscriptMessage, text: string): void {
+function pushTextPart(m: TranscriptMessage, text: string, at?: string): void {
   const last = m.parts[m.parts.length - 1]
   if (last && last.kind === "text") last.text = last.text ? `${last.text}\n\n${text}` : text
-  else m.parts.push({ kind: "text", text })
+  else m.parts.push(stampTranscriptItemAt({ kind: "text", text }, at))
 }
 // Append a tool call, coalescing into a trailing tools part (a contiguous run of calls = one card
 // band) — otherwise starting a fresh tools part after a text run, which is what keeps a lead-in colon
 // directly above ITS band and not hoisted above earlier prose.
-function pushToolPart(m: TranscriptMessage, call: TranscriptToolCall): void {
+function pushToolPart(m: TranscriptMessage, call: TranscriptToolCall, at?: string): void {
+  stampTranscriptItemAt(call, at)
   const last = m.parts[m.parts.length - 1]
   if (last && last.kind === "tools") last.tools.push(call)
   else m.parts.push({ kind: "tools", tools: [call] })
@@ -1034,13 +1037,13 @@ export function createTranscriptFold(identityPrefix = "claude"): TranscriptFold 
       // flat text/tools fields stay populated for the pre-restart client window + flat-field consumers.
       for (const block of msg.content) {
         if (block?.type === "text" && typeof block.text === "string") {
-          pushTextPart(m, block.text)
+          pushTextPart(m, block.text, rec.timestamp)
           m.text = m.text ? `${m.text}\n\n${block.text}` : block.text
         } else if (block?.type === "tool_use") {
           const calls = toolCalls(block, { turnModel: msg.model, turnEffort: rec.effort })
           for (const call of calls) {
             call.status = "pending"
-            pushToolPart(m, call)
+            pushToolPart(m, call, rec.timestamp)
             m.tools.push(call)
             // An Agent dispatch is registered by its tool_use id so a later completion notification can
             // back-fill its terminal state and drop an inline event line into the flow.
@@ -2566,7 +2569,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           let text = extractCodexNtwineTitle(ev.text, ev.final).text
           if (text) {
             const m = openAssistant(ev.at, sourceId, true)
-            pushTextPart(m, text)
+            pushTextPart(m, text, ev.at)
             m.text = m.text ? `${m.text}\n\n${text}` : text
           }
           if (ev.final) {
@@ -2599,7 +2602,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           if (!owner) {
             if (isPoll) call.backgroundState = "unknown"
             for (const card of split.cards) {
-              pushToolPart(m, card)
+              pushToolPart(m, card, ev.at)
               m.tools.push(card)
             }
           }
@@ -2870,7 +2873,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           const ft = finalText?.trim()
           if (ft && !sawFinalAnswer && ft !== lastFinalText?.trim()) {
             const m = openAssistant(ev.at, sourceId, true)
-            pushTextPart(m, finalText!)
+            pushTextPart(m, finalText!, ev.at)
             m.text = m.text ? `${m.text}\n\n${finalText!}` : finalText!
             sawFinalAnswer = true
           }
@@ -4622,7 +4625,7 @@ export function withSpinoffCards(
   for (const row of rows) {
     if (delivered.has(row.id)) continue
     const at = new Date(row.created_at).toISOString()
-    if (floor !== undefined && at < floor) continue
+    if (floor !== undefined && isBeforeInstant(at, floor)) continue
     cards.push({
       sourceId: `spinoff:${row.id}`,
       role: "user",
@@ -4634,19 +4637,169 @@ export function withSpinoffCards(
       spinoff: { id: row.id, instructions: row.instructions },
     })
   }
+  cards.sort((a, b) => (isBeforeInstant(a.at!, b.at!) ? -1 : isBeforeInstant(b.at!, a.at!) ? 1 : 0))
   return insertAtInstants(messages, cards)
 }
 
+function isBeforeInstant(a: string, b: string): boolean {
+  const ta = Date.parse(a)
+  const tb = Date.parse(b)
+  if (Number.isFinite(ta) && Number.isFinite(tb)) return ta < tb
+  return a < b
+}
+
+function canSplitAtInstants(m: TranscriptMessage, cardAt: string): boolean {
+  if (m.role !== "assistant" || m.kind !== undefined) return false
+  if (m.parts.length > 0) {
+    for (const part of m.parts) {
+      if (part.kind === "text") {
+        const at = transcriptItemAt(part)
+        if (at !== undefined && isBeforeInstant(cardAt, at)) return true
+      } else {
+        for (const tool of part.tools) {
+          const at = transcriptItemAt(tool)
+          if (at !== undefined && isBeforeInstant(cardAt, at)) return true
+        }
+      }
+    }
+  } else {
+    for (const tool of m.tools) {
+      const at = transcriptItemAt(tool)
+      if (at !== undefined && isBeforeInstant(cardAt, at)) return true
+    }
+  }
+  if (m.providerError) {
+    const at = transcriptItemAt(m.providerError)
+    if (at !== undefined && isBeforeInstant(cardAt, at)) return true
+  }
+  return false
+}
+
+// Split an assistant message whose internal parts/tool calls straddle one or more out-of-band timeline
+// events (a spinoff request or machine move divider). The first non-empty slice keeps `m.sourceId`; each
+// subsequent slice takes `${baseSourceId}#after:${card.sourceId}` so ids stay deterministic, unique, and
+// stable as later tool calls append below the event. Never mutates `m` or any of its parts/tools.
+function splitMessageWithCards(
+  out: TranscriptMessage[],
+  m: TranscriptMessage,
+  cards: readonly TranscriptMessage[],
+  startNext: number,
+): number {
+  let next = startNext
+  const baseSourceId = m.sourceId ? m.sourceId.split("#after:")[0] : undefined
+  const hasParts = m.parts.length > 0
+  let sliceParts: TranscriptPart[] = []
+  let sliceTools: TranscriptToolCall[] = []
+  let sliceTexts: string[] = []
+  let sliceAt: string | undefined
+  let sliceError: TranscriptMessage["providerError"]
+  let splitCardId: string | undefined
+  let emitted = 0
+  const slices: TranscriptMessage[] = []
+
+  const flush = () => {
+    if (!sliceParts.length && !sliceTools.length && !sliceTexts.length && !sliceError) return
+    const sourceId = emitted === 0
+      ? m.sourceId
+      : baseSourceId && splitCardId
+        ? `${baseSourceId}#after:${splitCardId}`
+        : baseSourceId
+          ? `${baseSourceId}#after:${emitted}`
+          : undefined
+    const slice: TranscriptMessage = {
+      ...m,
+      ...(sourceId !== undefined ? { sourceId } : {}),
+      at: sliceAt ?? (emitted === 0 ? m.at : undefined),
+      text: sliceTexts.join("\n\n"),
+      tools: sliceTools,
+      parts: hasParts ? sliceParts : [],
+    }
+    if (sliceError !== undefined) slice.providerError = sliceError
+    else delete slice.providerError
+    delete slice.fenceRefused
+    out.push(slice)
+    slices.push(slice)
+    emitted++
+    sliceParts = []
+    sliceTools = []
+    sliceTexts = []
+    sliceAt = undefined
+    sliceError = undefined
+  }
+
+  const advanceBefore = (itemAt: string | undefined) => {
+    if (itemAt === undefined) return
+    while (next < cards.length && isBeforeInstant(cards[next].at!, itemAt)) {
+      flush()
+      const card = cards[next++]
+      out.push(card)
+      splitCardId = card.sourceId
+    }
+  }
+
+  const addTextPart = (part: Extract<TranscriptPart, { kind: "text" }>, itemAt: string | undefined) => {
+    advanceBefore(itemAt)
+    if (sliceAt === undefined) sliceAt = itemAt ?? (emitted === 0 ? m.at : undefined)
+    sliceTexts.push(part.text)
+    if (hasParts) sliceParts.push(part)
+  }
+
+  const addTool = (tool: TranscriptToolCall, itemAt: string | undefined) => {
+    advanceBefore(itemAt)
+    if (sliceAt === undefined) sliceAt = itemAt ?? (emitted === 0 ? m.at : undefined)
+    sliceTools.push(tool)
+    if (hasParts) {
+      const last = sliceParts[sliceParts.length - 1]
+      if (last?.kind === "tools") last.tools.push(tool)
+      else sliceParts.push({ kind: "tools", tools: [tool] })
+    }
+  }
+
+  if (hasParts) {
+    for (const part of m.parts) {
+      if (part.kind === "text") {
+        addTextPart(part, transcriptItemAt(part))
+      } else {
+        for (const tool of part.tools) addTool(tool, transcriptItemAt(tool))
+      }
+    }
+  } else {
+    if (m.text) addTextPart({ kind: "text", text: m.text }, m.at)
+    for (const tool of m.tools) addTool(tool, transcriptItemAt(tool))
+  }
+
+  if (m.providerError) {
+    const errAt = transcriptItemAt(m.providerError)
+    advanceBefore(errAt)
+    if (sliceAt === undefined) sliceAt = errAt ?? (emitted === 0 ? m.at : undefined)
+    sliceError = m.providerError
+  }
+
+  flush()
+
+  if (m.fenceRefused && slices.length > 0) {
+    const owner = [...slices].reverse().find((s) => s.text.trim()) ?? slices[slices.length - 1]!
+    owner.fenceRefused = true
+  }
+
+  return next
+}
+
 /** `cards` (each timed, in time order) placed among `messages` by their instants. Each goes after the last
- *  message at or before its instant (ISO instants compare as strings); a message with no instant keeps its
- *  place relative to its neighbours, as a queued bubble at the tail does. */
+ *  message (or assistant part/tool call) at or before its instant; an assistant message spanning a card's
+ *  instant splits around it so later tool calls and prose stay chronological below the event. A message with
+ *  no instant keeps its place relative to its neighbours, as a queued bubble at the tail does. */
 function insertAtInstants(messages: TranscriptMessage[], cards: readonly TranscriptMessage[]): TranscriptMessage[] {
   if (!cards.length) return messages
   const out: TranscriptMessage[] = []
   let next = 0
   for (const m of messages) {
-    while (next < cards.length && m.at !== undefined && cards[next].at! < m.at) out.push(cards[next++])
-    out.push(m)
+    while (next < cards.length && m.at !== undefined && isBeforeInstant(cards[next].at!, m.at)) out.push(cards[next++])
+    if (next < cards.length && canSplitAtInstants(m, cards[next].at!)) {
+      next = splitMessageWithCards(out, m, cards, next)
+    } else {
+      out.push(m)
+    }
   }
   // A card after every timed message lands before a trailing run of untimed ones (queued sends).
   let tail = out.length
@@ -4690,7 +4843,7 @@ export function withMoveDividers(messages: TranscriptMessage[], storage: Pick<St
   const cards: TranscriptMessage[] = dividers
     .filter((divider) => !seen.has(divider.id) && seen.add(divider.id))
     .map((divider): TranscriptMessage => ({ sourceId: `moved:${divider.id}`, role: "assistant", kind: "event", boundary: "moved", text: divider.text, tools: [], parts: [], at: new Date(divider.at).toISOString() }))
-    .sort((a, b) => (a.at! < b.at! ? -1 : a.at! > b.at! ? 1 : 0))
+    .sort((a, b) => (isBeforeInstant(a.at!, b.at!) ? -1 : isBeforeInstant(b.at!, a.at!) ? 1 : 0))
   return insertAtInstants(messages, cards)
 }
 

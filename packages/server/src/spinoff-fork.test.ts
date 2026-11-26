@@ -22,7 +22,8 @@ import { createTailer } from "./tailer.ts"
 import { createStorage, type SessionRow } from "./storage.ts"
 import { Bus } from "./bus.ts"
 import type { Project } from "./project.ts"
-import { __clearTranscriptCacheForTests, readLatestThreadTranscriptPage, readThreadTranscript, readTranscript, withSpinoffCards } from "./transcript.ts"
+import { __clearTranscriptCacheForTests, parseCodexTranscript, readLatestThreadTranscriptPage, readThreadTranscript, readTranscript, withMoveDividers, withSpinoffCards } from "./transcript.ts"
+import { projectAcpTranscript, type AcpRecord } from "./backend/acp-transcript.ts"
 import { discoverTranscriptId } from "./discover.ts"
 import { composePrompt } from "./dispatch.ts"
 
@@ -266,6 +267,156 @@ test("chat: a request draws its card in the parent's chat from its row, at the i
     // A window that starts after the requests does not pull them in.
     const later = withSpinoffCards([page[5]!, page[6]!], f.storage, "parent", false)
     assert.equal(later.length, 2)
+  } finally {
+    f.close()
+  }
+})
+
+test("chat: a mid-run spinoff splits a Codex turn's condensed tool run chronologically, and survives a chained move divider", () => {
+  const f = projectFixture()
+  try {
+    const codexLine = (timestamp: string, type: string, payload: Record<string, unknown>) =>
+      JSON.stringify({ timestamp, type, payload })
+    const call = (n: number, id: string, cmd: string) => [
+      codexLine(ts(n), "response_item", { type: "function_call", call_id: id, name: "exec_command", arguments: JSON.stringify({ cmd }) }),
+      codexLine(ts(n + 1), "response_item", { type: "function_call_output", call_id: id, output: "Process exited with code 0\nOutput:\nok" }),
+    ]
+    const raw = lines([
+      codexLine(ts(1), "event_msg", { type: "user_message", message: "investigate the types" }),
+      codexLine(ts(2), "event_msg", { type: "agent_message", message: "Printing RefMapOf<Def>.", phase: "commentary" }),
+      ...call(3, "c1", "ls a"),
+      ...call(5, "c2", "ls b"),
+      // spinoff #1 lands at ts(8)
+      ...call(10, "c3", "ls c"),
+      ...call(12, "c4", "ls d"),
+      // spinoff #2 lands at ts(15), move divider lands at ts(22)
+      ...call(18, "c5", "ls e"),
+      codexLine(ts(25), "response_item", { type: "function_call", call_id: "c6", name: "exec_command", arguments: JSON.stringify({ cmd: "ls f" }) }),
+    ])
+    const base = parseCodexTranscript(raw, "codex:r1")
+    // Precondition: Codex folds the whole turn into one assistant message whose `at` is the commentary's.
+    assert.equal(base.length, 2)
+    assert.equal(base[1]!.tools.length, 6)
+    assert.equal(base[1]!.at, ts(2))
+
+    f.storage.upsertSession(row({
+      slug: "parent",
+      session_id: PARENT_SID,
+      thread_name: "ntwine-parent",
+    }))
+    f.storage.insertSpinoff({ id: "spn_first", parentSlug: "parent", instructions: "answer lesson questions", createdAtMs: Date.parse(ts(8)) })
+    f.storage.insertSpinoff({ id: "spn_second", parentSlug: "parent", instructions: "check perf", createdAtMs: Date.parse(ts(15)) })
+
+    const withSpinoffs = withSpinoffCards(base, f.storage, "parent", true)
+    assert.deepEqual(
+      withSpinoffs.map((m) => [m.sourceId, m.spinoff?.id ?? m.role, m.text, m.tools.map((t) => t.detail), m.at]),
+      [
+        [base[0]!.sourceId, "user", "investigate the types", [], ts(1)],
+        [base[1]!.sourceId, "assistant", "Printing RefMapOf<Def>.", ["ls a", "ls b"], ts(2)],
+        ["spinoff:spn_first", "spn_first", "answer lesson questions", [], ts(8)],
+        [`${base[1]!.sourceId}#after:spinoff:spn_first`, "assistant", "", ["ls c", "ls d"], ts(10)],
+        ["spinoff:spn_second", "spn_second", "check perf", [], ts(15)],
+        [`${base[1]!.sourceId}#after:spinoff:spn_second`, "assistant", "", ["ls e", "ls f"], ts(18)],
+      ],
+    )
+    // Original cached message is never mutated.
+    assert.equal(base[1]!.tools.length, 6)
+
+    // Chained move divider splits the post-spinoff slice again using the same per-tool timestamps.
+    const movedStorage = {
+      getSession: () => ({
+        ...f.storage.getSession("parent")!,
+        move_log: JSON.stringify([{ moveId: "mv1", from: "mac", to: "linux", at: ts(22) }]),
+      }),
+    }
+    const withBoth = withMoveDividers(withSpinoffs, movedStorage, "parent")
+    assert.deepEqual(
+      withBoth.slice(4).map((m) => [m.sourceId, m.boundary ?? m.spinoff?.id ?? m.role, m.tools.map((t) => t.detail), m.at]),
+      [
+        ["spinoff:spn_second", "spn_second", [], ts(15)],
+        [`${base[1]!.sourceId}#after:spinoff:spn_second`, "assistant", ["ls e"], ts(18)],
+        ["moved:mv1", "moved", [], ts(22)],
+        [`${base[1]!.sourceId}#after:moved:mv1`, "assistant", ["ls f"], ts(25)],
+      ],
+    )
+  } finally {
+    f.close()
+  }
+})
+
+test("chat: a mid-run spinoff splits an ACP turn's tools, trailing prose, and later provider error chronologically", () => {
+  const f = projectFixture()
+  try {
+    const records: AcpRecord[] = [
+      { kind: "user-message", at: ts(1), text: "audit the builder", synthetic: false },
+      { kind: "turn-start", at: ts(1) },
+      { kind: "assistant-text", at: ts(2), text: "Checking scope.", final: false, messageId: "m1" },
+      { kind: "tool-call", at: ts(3), id: "c1", name: "bash", input: { command: "echo one" } },
+      { kind: "tool-result", at: ts(4), id: "c1", text: "one" },
+      { kind: "tool-call", at: ts(5), id: "c2", name: "bash", input: { command: "echo two" } },
+      { kind: "tool-result", at: ts(6), id: "c2", text: "two" },
+      // spinoff #1 at ts(8)
+      { kind: "tool-call", at: ts(10), id: "c3", name: "bash", input: { command: "echo three" } },
+      { kind: "tool-result", at: ts(11), id: "c3", text: "three" },
+      { kind: "assistant-text", at: ts(12), text: "Found the cause.", final: false, messageId: "m2" },
+      // spinoff #2 at ts(14)
+      { kind: "provider-error", at: ts(16), error: { message: "Rate limit" } },
+    ]
+    const base = projectAcpTranscript(records.map((r) => JSON.stringify(r)).join("\n"), "acp:s1")
+    assert.equal(base.length, 2, "precondition: ACP keeps the whole turn in one assistant message")
+
+    f.storage.upsertSession(row({ slug: "parent", session_id: PARENT_SID, thread_name: "ntwine-parent" }))
+    f.storage.insertSpinoff({ id: "spn_a", parentSlug: "parent", instructions: "lesson q&a", createdAtMs: Date.parse(ts(8)) })
+    f.storage.insertSpinoff({ id: "spn_b", parentSlug: "parent", instructions: "retry later", createdAtMs: Date.parse(ts(14)) })
+
+    const out = withSpinoffCards(base, f.storage, "parent", true)
+    assert.deepEqual(
+      out.map((m) => [m.spinoff?.id ?? m.role, m.text, m.tools.map((t) => t.detail), m.providerError?.message ?? null, m.at]),
+      [
+        ["user", "audit the builder", [], null, ts(1)],
+        ["assistant", "Checking scope.", ["echo one", "echo two"], null, ts(2)],
+        ["spn_a", "lesson q&a", [], null, ts(8)],
+        ["assistant", "Found the cause.", ["echo three"], null, ts(10)],
+        ["spn_b", "retry later", [], null, ts(14)],
+        ["assistant", "", [], "Rate limit", ts(16)],
+      ],
+    )
+    assert.deepEqual(out[3]!.parts.map((p) => p.kind), ["tools", "text"])
+  } finally {
+    f.close()
+  }
+})
+
+test("chat: a Claude multi-record assistant message splits around a spinoff without mutating the retained fold", () => {
+  const f = projectFixture()
+  try {
+    f.storage.upsertSession(row({ slug: "parent", session_id: PARENT_SID, thread_name: "ntwine-parent" }))
+    f.storage.setBackend("parent", "claude")
+    f.storage.setClaudeRuntime("parent", "broker")
+    const parentLines = [
+      user(1, "check both files"),
+      rec({ type: "assistant", timestamp: ts(2), uuid: "a2", message: { id: "msg_shared", role: "assistant", stop_reason: null, content: [{ type: "text", text: "Reading first." }] } }),
+      rec({ type: "assistant", timestamp: ts(3), uuid: "a3", message: { id: "msg_shared", role: "assistant", stop_reason: null, content: [{ type: "tool_use", id: "tu1", name: "Read", input: { file_path: "/p/a.ts" } }] } }),
+      rec({ type: "assistant", timestamp: ts(9), uuid: "a9", message: { id: "msg_shared", role: "assistant", stop_reason: "tool_use", content: [{ type: "tool_use", id: "tu2", name: "Read", input: { file_path: "/p/b.ts" } }] } }),
+    ].map((l) => l.replace(CHILD_SID, PARENT_SID))
+    writeFileSync(join(f.logDir, `${PARENT_SID}.jsonl`), lines(parentLines))
+
+    f.storage.insertSpinoff({ id: "spn_mid", parentSlug: "parent", instructions: "spin off b", createdAtMs: Date.parse(ts(5)) })
+
+    const page = readLatestThreadTranscriptPage(f.project, f.storage, "parent").messages
+    assert.deepEqual(
+      page.map((m) => [m.spinoff?.id ?? m.role, m.text, m.tools.map((t) => t.detail), m.at]),
+      [
+        ["user", "check both files", [], ts(1)],
+        ["assistant", "Reading first.", ["/p/a.ts"], ts(2)],
+        ["spn_mid", "spin off b", [], ts(5)],
+        ["assistant", "", ["/p/b.ts"], ts(9)],
+      ],
+    )
+    // Reading the raw transcript directly must still see the unmutated retained-fold message.
+    const raw = readTranscript(f.project, PARENT_SID)
+    assert.equal(raw.length, 2)
+    assert.equal(raw[1]!.tools.length, 2)
   } finally {
     f.close()
   }

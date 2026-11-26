@@ -873,3 +873,42 @@ test("a Windows project root shortens labels the same way, and the board's homeD
   assert.equal(toolActivityLabel(tool("Read", { detail: "D:\\other\\a.ts" }), root), "Reading D:\\other\\a.ts")
   assert.equal(toolActivityLabel(tool("Read", { detail: "C:\\Windows\\hosts" }), "C:\\"), "Reading C:\\Windows\\hosts")
 })
+
+test("a spinoff card splits a tool run: pre-spinoff calls stay settled above it while post-spinoff calls drive the live shimmer and clock", () => {
+  const before = toolMessage("a1", [
+    tool("Read", { detail: "src/a.ts", status: "completed" }),
+    tool("Read", { detail: "src/b.ts", status: "completed" }),
+  ], "2026-11-25T19:00:00.000Z")
+  const spinoff: ChatMessage = {
+    sourceId: "spinoff:spn_1",
+    role: "user",
+    text: "answer lesson questions",
+    displayText: "answer lesson questions",
+    tools: [],
+    parts: [],
+    at: "2026-11-25T19:05:00.000Z",
+    spinoff: { id: "spn_1", instructions: "answer lesson questions" },
+  }
+  const afterDone = toolMessage("a1#after:spinoff:spn_1", [
+    tool("Read", { detail: "src/c.ts", status: "completed" }),
+  ], "2026-11-25T19:06:00.000Z")
+  const afterLive = toolMessage("a2", [
+    tool("Bash", { desc: "Running typecheck", status: "pending" }),
+  ], "2026-11-25T19:07:00.000Z")
+
+  const coalesced = coalesceToolActivityMessages([before, spinoff, afterDone, afterLive])
+  assert.deepEqual(
+    coalesced.map((entry) => [entry.message.sourceId, entry.message.tools.length]),
+    [["a1", 2], ["spinoff:spn_1", 0], ["a1#after:spinoff:spn_1", 2]],
+  )
+
+  const history = historicalToolActivityMessages(coalesced)
+  assert.deepEqual(
+    history.map((entry) => [entry.message.sourceId, entry.message.tools.length]),
+    [["a1", 2], ["spinoff:spn_1", 0]],
+    "pre-spinoff calls remain settled above the spinoff card while post-spinoff calls move into the live slot",
+  )
+  assert.equal(liveToolActivityTail(coalesced)?.desc, "Running typecheck")
+  assert.equal(liveToolActivityRun(coalesced)?.tools.length, 2)
+  assert.equal(liveRuntimeStartedAt(coalesced), "2026-11-25T19:06:00.000Z")
+})

@@ -3,6 +3,7 @@ import { dirname, join } from "node:path"
 import { isWakeDelivery, parseGithubWakeSteer, type TranscriptMessage, type TranscriptToolCall } from "@ntwine/shared"
 import type { AgentBackend, BuiltCommand, FoldState, NormalizedEvent, ResumeOpts, SpawnOpts } from "./types.ts"
 import { applyEvent } from "../tailer.ts"
+import { stampTranscriptItemAt } from "../transcript-item-at.ts"
 import { createCorrectionSink, normalizeNewlines, pushUserRecord, userDisplayText } from "../user-projection.ts"
 
 // The ACP backend's transcript: a JSONL file NTWINE writes, one per thread, at
@@ -202,13 +203,14 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
     }
     return current
   }
-  const appendText = (msg: TranscriptMessage, text: string) => {
+  const appendText = (msg: TranscriptMessage, text: string, at: string | undefined) => {
     const last = msg.parts[msg.parts.length - 1]
     if (last?.kind === "text") last.text += text
-    else msg.parts.push({ kind: "text", text })
+    else msg.parts.push(stampTranscriptItemAt({ kind: "text", text }, at))
     msg.text = msg.parts.filter((p) => p.kind === "text").map((p) => (p as { text: string }).text).join("\n\n")
   }
-  const appendTool = (msg: TranscriptMessage, tool: TranscriptToolCall) => {
+  const appendTool = (msg: TranscriptMessage, tool: TranscriptToolCall, at: string | undefined) => {
+    stampTranscriptItemAt(tool, at)
     const last = msg.parts[msg.parts.length - 1]
     if (last?.kind === "tools") last.tools.push(tool)
     else msg.parts.push({ kind: "tools", tools: [tool] })
@@ -278,7 +280,7 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
           if (last?.kind === "text") { last.text += rec.text; msg.text = msg.parts.filter((p) => p.kind === "text").map((p) => (p as { text: string }).text).join("\n\n"); break }
         }
         currentMessageId = mid
-        appendText(msg, rec.text)
+        appendText(msg, rec.text, rec.at)
         break
       }
       case "tool-call": {
@@ -286,7 +288,7 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
         currentMessageId = undefined
         const call = toolCallFor(rec, (rec as { acp?: AcpToolMeta }).acp)
         openTools.set(rec.id, call)
-        appendTool(msg, call)
+        appendTool(msg, call, rec.at)
         break
       }
       case "tool-result": {
@@ -301,7 +303,7 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
       }
       case "provider-error": {
         const msg = openAssistant(i, rec.at)
-        msg.providerError = rec.error
+        msg.providerError = stampTranscriptItemAt({ ...rec.error }, rec.at)
         close()
         break
       }
