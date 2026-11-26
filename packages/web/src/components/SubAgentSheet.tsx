@@ -9,7 +9,7 @@ import { rpc } from "../api/rpc.ts"
 import { showToast, store } from "../store.ts"
 import { PROMPT_CONTROL_TYPOGRAPHY_CLASS } from "../lib/promptControlTypography.ts"
 import { subAgentProfileLabel } from "../lib/subAgentProfile.ts"
-import { coalesceToolActivityMessages, historicalToolActivityMessages, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, toolActivityLabel } from "../lib/toolActivity.ts"
+import { coalesceToolActivityMessages, historicalToolActivityMessages, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, liveTurnReasoning, toolActivityLabel } from "../lib/toolActivity.ts"
 import { BackgroundOpsStrip, ChildDrillSlugContext, Message, VSpace, WorkingIndicator, transcriptBackgroundShells, withMessageSpacers, withoutLiveTranscriptBackgroundTools, workingIndicatorGap } from "./ChatView.tsx"
 import { Composer } from "./Composer.tsx"
 import { Sheet } from "./ui/Sheet.tsx"
@@ -103,6 +103,7 @@ export function SubAgentSheet({
   const liveActivityLabel = liveToolActivity ? toolActivityLabel(liveToolActivity, projectDir) : undefined
   // The child's runtime clock times its current stretch too; the child's own launch instant is the fallback.
   const liveRuntimeStart = running ? liveRuntimeStartedAt(coalescedActivityMessages) : undefined
+  const liveReasoning = running ? liveTurnReasoning(presentationMessages) : undefined
   const activityMessages = useMemo(
     () => running ? historicalToolActivityMessages(coalescedActivityMessages) : coalescedActivityMessages,
     [coalescedActivityMessages, running],
@@ -191,7 +192,7 @@ export function SubAgentSheet({
                     {/* The shimmer joins the tight meta run when the child's last rendered row is a
                         tool band or a thought label — the same rule the thread transcript uses. */}
                     <VSpace h={workingIndicatorGap(activityMessages.map((entry) => entry.message))} />
-                    <WorkingIndicator since={startedAt} startedAt={liveRuntimeStart} activityLabel={liveActivityLabel} run={liveToolRun} />
+                    <WorkingIndicator since={startedAt} startedAt={liveRuntimeStart} activityLabel={liveActivityLabel} run={liveToolRun} liveReasoning={liveReasoning} />
                   </>}
                 </div>
               </ChildDrillSlugContext.Provider>

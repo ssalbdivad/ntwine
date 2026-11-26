@@ -27,6 +27,7 @@ const SLUG = "working-tail-spacing"
 const PARAMS = new URLSearchParams(location.search)
 const PROSE_TAIL = PARAMS.get("tail") === "prose"
 const META_TAIL = PARAMS.get("tail") === "meta"
+const NEON_TAIL = PARAMS.get("tail") === "neon"
 // Relative to NOW so the shimmer and the dispatch cards read the report's own durations ("1m 12s")
 // instead of a years-old wall clock. Nothing here is asserted on — only the geometry is.
 const AGO = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString()
@@ -75,7 +76,45 @@ const agentCall = (agentId: string, detail: string) => ({
   status: "running",
 })
 
-const messages: TranscriptMessage[] = [
+const neonMessages: TranscriptMessage[] = [
+  { sourceId: "u1", role: "user", text: "update the experimental query builder pr to also accept arktype schemas using a dsl scope with ambient:", tools: [], parts: [] },
+  {
+    sourceId: "r1",
+    role: "assistant",
+    kind: "reasoning",
+    text: [
+      "Initial assessment assumes custom definition language needs replacement with ArkType schemas. Inspecting the codebase reveals a specific release candidate feature regarding ambient scope keyword limitation.",
+      "Discovered `arktype@3.0.0-rc.9` introduces per-scope ambient configuration via `{ ambient: ... }` to override or opt out of global keywords.",
+      "Dependency update completed with `arktype@3.0.0-rc.9` resolved in the workspace lockfile. Verifying runtime behavior and type exports against `packages/be-libs/query-builder/src/model/apiExperiments.ts` before running typecheck.",
+    ].join("\n\n"),
+    latestReasoning: "Dependency update completed with `arktype@3.0.0-rc.9` resolved in the workspace lockfile. Verifying runtime behavior and type exports against `packages/be-libs/query-builder/src/model/apiExperiments.ts` before running typecheck.",
+    tools: [],
+    parts: [],
+  },
+  {
+    sourceId: "t1",
+    role: "assistant",
+    text: "",
+    at: AGO(48),
+    tools: [
+      { name: "Read", detail: "packages/be-libs/query-builder/src/DataType.ts", status: "completed" },
+      { name: "Read", detail: "packages/be-libs/query-builder/src/model/output.ts", status: "completed" },
+      { name: "Edit", detail: "packages/be-libs/query-builder/src/model/apiExperiments.ts", status: "completed" },
+      { name: "Bash", desc: "Running query-builder typecheck", detail: "pnpm --filter @slashfi/query-builder run typecheck", status: "pending" },
+    ],
+    parts: [{
+      kind: "tools",
+      tools: [
+        { name: "Read", detail: "packages/be-libs/query-builder/src/DataType.ts", status: "completed" },
+        { name: "Read", detail: "packages/be-libs/query-builder/src/model/output.ts", status: "completed" },
+        { name: "Edit", detail: "packages/be-libs/query-builder/src/model/apiExperiments.ts", status: "completed" },
+        { name: "Bash", desc: "Running query-builder typecheck", detail: "pnpm --filter @slashfi/query-builder run typecheck", status: "pending" },
+      ],
+    }],
+  },
+] as unknown as TranscriptMessage[]
+
+const messages: TranscriptMessage[] = NEON_TAIL ? neonMessages : [
   { sourceId: "u1", role: "user", text: "Two bootstrap tests are failing on b14 — find out why.", tools: [], parts: [] },
 
   // The reasoning label from the report: quiet meta row, chevron flush right of the text.
@@ -119,6 +158,9 @@ window.fetch = async (input, init) => {
   // Lists too: the spinoff dialog iterates both.
   if (url.pathname === "/_ntwine/rpc/projectsQueues" || url.pathname === "/_ntwine/rpc/projectsList") {
     return new Response(JSON.stringify({ result: [] }), { headers: { "content-type": "application/json" } })
+  }
+  if (url.pathname === "/_ntwine/rpc/resolveLocalPaths") {
+    return new Response(JSON.stringify({ result: { resolved: [] } }), { headers: { "content-type": "application/json" } })
   }
   if (url.pathname.startsWith("/_ntwine/rpc/")) {
     return new Response(JSON.stringify({ result: {} }), { headers: { "content-type": "application/json" } })

@@ -8,9 +8,11 @@ import {
   historicalToolActivityMessages,
   isPictureTool,
   isToolActivityException,
+  latestReasoningExcerpt,
   liveRuntimeStartedAt,
   liveToolActivityRun,
   liveToolActivityTail,
+  liveTurnReasoning,
   editedFileCount,
   failedToolCount,
   settledToolActivityLabel,
@@ -911,4 +913,60 @@ test("a spinoff card splits a tool run: pre-spinoff calls stay settled above it 
   assert.equal(liveToolActivityTail(coalesced)?.desc, "Running typecheck")
   assert.equal(liveToolActivityRun(coalesced)?.tools.length, 2)
   assert.equal(liveRuntimeStartedAt(coalesced), "2026-11-25T19:06:00.000Z")
+})
+
+test("latestReasoningExcerpt keeps the trailing paragraph, plus a preceding Codex bold heading", () => {
+  assert.equal(latestReasoningExcerpt("   \n\n  "), undefined)
+  assert.equal(
+    latestReasoningExcerpt("Initial assessment.\n\nChecking lockfile.\n\nDependency update completed."),
+    "Dependency update completed.",
+  )
+  assert.equal(
+    latestReasoningExcerpt("First step.\n\n**Checking callers**\n\nTracing ambient exports across packages."),
+    "**Checking callers**\n\nTracing ambient exports across packages.",
+  )
+})
+
+test("liveTurnReasoning surfaces active reasoning while silent, hides after visible prose, and ignores earlier turns", () => {
+  const userMsg: ChatMessage = { sourceId: "u1", role: "user", text: "update query builder", tools: [], parts: [] }
+  const silentReasoning: ChatMessage = {
+    sourceId: "r1",
+    role: "assistant",
+    kind: "reasoning",
+    text: "Step one.\n\nStep two.",
+    latestReasoning: "Step two.",
+    tools: [],
+    parts: [],
+  }
+  const toolsOnly = toolMessage("a1", [tool("Bash", { desc: "Running rush update", status: "pending" })])
+  const queuedFollowUp: ChatMessage = { sourceId: "q1", role: "user", text: "also check tests", queued: true, tools: [], parts: [] }
+
+  // Silent Neon turn with queued follow-up pinned at the tail: surfaces latest thought.
+  assert.equal(liveTurnReasoning([userMsg, silentReasoning, toolsOnly, queuedFollowUp]), "Step two.")
+
+  // Mid-turn prose followed by a fresh thought burst (server re-armed latestReasoning): surfaces the new thought.
+  const narratedThenTools: ChatMessage = {
+    sourceId: "a2",
+    role: "assistant",
+    text: "Found the config seam.",
+    tools: [tool("Read", { status: "pending" })],
+    parts: [
+      { kind: "text", text: "Found the config seam." },
+      { kind: "tools", tools: [tool("Read", { status: "pending" })] },
+    ],
+  }
+  assert.equal(liveTurnReasoning([userMsg, silentReasoning, narratedThenTools]), "Step two.")
+
+  // Visible prose with latestReasoning cleared by the server (e.g. final answer streaming): hides live reasoning.
+  const clearedReasoning: ChatMessage = { ...silentReasoning, latestReasoning: undefined }
+  assert.equal(liveTurnReasoning([userMsg, clearedReasoning, narratedThenTools]), undefined)
+
+  // Pre-restart fallback: reasoning row without latestReasoning still surfaces when no prose followed it.
+  assert.equal(liveTurnReasoning([userMsg, clearedReasoning, toolsOnly]), "Step two.")
+
+  // Earlier turn's reasoning never leaks across a user turn boundary or rest divider.
+  const nextUser: ChatMessage = { sourceId: "u2", role: "user", text: "next task", tools: [], parts: [] }
+  assert.equal(liveTurnReasoning([userMsg, silentReasoning, nextUser]), undefined)
+  const restDivider: ChatMessage = { sourceId: "e1", role: "assistant", kind: "event", boundary: "rest", text: "Agent rested", tools: [], parts: [] }
+  assert.equal(liveTurnReasoning([userMsg, silentReasoning, restDivider]), undefined)
 })

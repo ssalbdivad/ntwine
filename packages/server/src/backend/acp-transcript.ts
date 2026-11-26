@@ -37,7 +37,7 @@ export interface AcpNote { kind: "acp-note"; at: string; text: string }
 export type AcpRecord =
   | AcpSessionHeader
   | AcpNote
-  | (NormalizedEvent & { messageId?: string; acp?: { kind?: string; title?: string; locations?: string[]; input?: unknown } })
+  | (NormalizedEvent & { messageId?: string; thoughtId?: string; acp?: { kind?: string; title?: string; locations?: string[]; input?: unknown } })
 
 const EVENT_KINDS: ReadonlySet<string> = new Set([
   "turn-start", "turn-end", "provider-error", "assistant-text", "user-message", "tool-call", "tool-result",
@@ -63,7 +63,7 @@ export function parseAcpRecord(line: string): AcpRecord | undefined {
 export function parseAcpLine(line: string): NormalizedEvent[] {
   const rec = parseAcpRecord(line)
   if (!rec || rec.kind === "acp-session" || rec.kind === "acp-note") return []
-  const { messageId: _m, acp: _a, ...ev } = rec as NormalizedEvent & { messageId?: string; acp?: unknown }
+  const { messageId: _m, thoughtId: _t, acp: _a, ...ev } = rec as NormalizedEvent & { messageId?: string; thoughtId?: string; acp?: unknown }
   return [ev as NormalizedEvent]
 }
 
@@ -192,6 +192,7 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
   let current: TranscriptMessage | undefined // the open assistant message
   let currentMessageId: string | undefined
   let turnReasoning: TranscriptMessage | undefined
+  let currentThoughtId: string | undefined
   const openTools = new Map<string, TranscriptToolCall>()
   const lines = raw.split("\n")
 
@@ -232,6 +233,7 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
       case "user-message": {
         close()
         turnReasoning = undefined
+        currentThoughtId = undefined
         const text = normalizeNewlines(rec.text ?? "")
         if (rec.synthetic) {
           // A synthetic record is machine-originated by declaration (never a human card action or
@@ -252,20 +254,37 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
         break
       case "turn-end":
         close()
+        if (turnReasoning) {
+          turnReasoning.text = turnReasoning.text.trimEnd()
+          if (turnReasoning.latestReasoning) turnReasoning.latestReasoning = turnReasoning.latestReasoning.trimEnd()
+        }
         turnReasoning = undefined
+        currentThoughtId = undefined
         break
       case "reasoning": {
         // Coalesce all reasoning chunks in a turn into one expandable block, matching Codex
         // (transcript.ts). Only the first chunk closes the open assistant message; subsequent chunks
         // append upstream without closing `current`, so thinking between tool calls (e.g. Gemini's
         // `agent_thought_chunk` before every batch) does not shatter tool-call collapsing into tiny runs.
-        const text = rec.text.replace(/\r\n?/g, "\n").trim()
-        if (!text) break
+        const rawText = rec.text.replace(/\r\n?/g, "\n")
+        const tid = (rec as { thoughtId?: string }).thoughtId
+        if (turnReasoning && tid && tid === currentThoughtId) {
+          if (!rawText) break
+          turnReasoning.text += rawText
+          turnReasoning.latestReasoning = (turnReasoning.latestReasoning ?? "") + rawText
+          break
+        }
+        if (!rawText.trim()) break
+        // Preserve trailing whitespace on a partial flush carrying `thoughtId` so a word-boundary
+        // space ("Inspecting " + "scope.ts") survives until the burst closes.
+        const text = tid ? rawText.trimStart() : rawText.trim()
+        currentThoughtId = tid
         if (turnReasoning) {
-          turnReasoning.text = `${turnReasoning.text}\n\n${text}`
+          turnReasoning.text = `${turnReasoning.text.trimEnd()}\n\n${text}`
+          turnReasoning.latestReasoning = text
         } else {
           close()
-          turnReasoning = { sourceId: `${identityPrefix}:${i}`, role: "assistant", kind: "reasoning", text, tools: [], parts: [], ...(rec.at ? { at: rec.at } : {}) }
+          turnReasoning = { sourceId: `${identityPrefix}:${i}`, role: "assistant", kind: "reasoning", text, latestReasoning: text, tools: [], parts: [], ...(rec.at ? { at: rec.at } : {}) }
           out.push(turnReasoning)
         }
         break
@@ -273,6 +292,11 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
       case "assistant-text": {
         // Partial flushes of one agent message share a messageId → one bubble. A different message (or
         // none) after tools still continues the same assistant turn as a new text part.
+        currentThoughtId = undefined
+        if (turnReasoning) {
+          turnReasoning.text = turnReasoning.text.trimEnd()
+          if (rec.text.trim()) delete turnReasoning.latestReasoning
+        }
         const msg = openAssistant(i, rec.at)
         const mid = (rec as { messageId?: string }).messageId
         if (mid && mid === currentMessageId) {
@@ -284,6 +308,11 @@ export function projectAcpTranscript(raw: string, identityPrefix = "acp"): Trans
         break
       }
       case "tool-call": {
+        currentThoughtId = undefined
+        if (turnReasoning) {
+          turnReasoning.text = turnReasoning.text.trimEnd()
+          if (turnReasoning.latestReasoning) turnReasoning.latestReasoning = turnReasoning.latestReasoning.trimEnd()
+        }
         const msg = openAssistant(i, rec.at)
         currentMessageId = undefined
         const call = toolCallFor(rec, (rec as { acp?: AcpToolMeta }).acp)

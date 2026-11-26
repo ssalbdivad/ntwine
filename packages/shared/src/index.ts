@@ -8571,6 +8571,11 @@ export const TranscriptMessage = z.object({
   // ordinary user/assistant message. Old clients that don't know a `kind` render it as a plain
   // assistant line, which is a graceful (if unstyled) degrade.
   kind: z.enum(["event", "reasoning"]).optional(),
+  // The newest reasoning burst in this turn, present on a `kind:"reasoning"` message only while no
+  // visible assistant prose has landed after it. Cleared as soon as non-empty assistant text lands
+  // so live surfaces (`WorkingIndicator`) surface the latest thought while the worker is silent
+  // between prose updates without ever echoing stale thinking below fresh prose.
+  latestReasoning: z.string().optional(),
   // Wall-clock the model spent THINKING, in ms — set only on a `kind:"reasoning"` message. Derived from
   // the rollout's per-step reasoning timestamps (Σ of each reasoning step's gap from the event before it,
   // which excludes tool-execution time). NOT rendered: it used to caption the reasoning disclosure as

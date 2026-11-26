@@ -2568,6 +2568,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
           // final-only so normal commentary headings remain ordinary prose.
           let text = extractCodexNtwineTitle(ev.text, ev.final).text
           if (text) {
+            if (turnReasoning) delete turnReasoning.latestReasoning
             const m = openAssistant(ev.at, sourceId, true)
             pushTextPart(m, text, ev.at)
             m.text = m.text ? `${m.text}\n\n${text}` : text
@@ -2730,6 +2731,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
             const stepMs = Number.isFinite(gap) && gap > 0 ? gap : 0
             if (turnReasoning) {
               turnReasoning.text = `${turnReasoning.text}\n\n${text}`
+              turnReasoning.latestReasoning = text
               turnReasoning.durationMs = (turnReasoning.durationMs ?? 0) + stepMs
               // NO `cur = null` HERE. This step pushed nothing: it appended to a block already sitting
               // UPSTREAM in `out`, so closing the open assistant message cannot move any content below
@@ -2742,7 +2744,7 @@ export function projectCodexTranscript(raw: string, identityPrefix = "codex"): T
               // collapsing is also totally broken"). Only the CREATE below closes the message, which is
               // the case the comment above was ever describing.
             } else {
-              turnReasoning = { sourceId, role: "assistant", kind: "reasoning", text, tools: [], parts: [], at: ev.at, ...(stepMs ? { durationMs: stepMs } : {}) }
+              turnReasoning = { sourceId, role: "assistant", kind: "reasoning", text, latestReasoning: text, tools: [], parts: [], at: ev.at, ...(stepMs ? { durationMs: stepMs } : {}) }
               out.push(turnReasoning)
               cur = null
             }

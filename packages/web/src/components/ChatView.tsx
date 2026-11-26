@@ -128,7 +128,7 @@ import { prependEarlierPage } from "../lib/transcriptPagination.ts"
 import { earlierLoadGate, nextTailFollow, TAIL_FOLLOW_PX, transcriptMessageRows, type VirtualTranscriptMessageRow } from "../lib/virtualTranscript.ts"
 import { withoutRedundantRestDividers, withoutSilentExchanges } from "../lib/restDividers.ts"
 import { wakeRendersNothing, withoutNtwineOwnCalls } from "../lib/ntwineMachinery.ts"
-import { coalesceToolActivityMessages, editedFileCount, failedToolCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, settledToolActivityLabel, settledToolActivityParts, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
+import { coalesceToolActivityMessages, editedFileCount, failedToolCount, historicalToolActivityMessages, isPictureTool, isSettledAsk, isToolActivityException, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, liveTurnReasoning, settledToolActivityLabel, settledToolActivityParts, thinkingToolActivityLabel, toolActivityLabel } from "../lib/toolActivity.ts"
 import { CodexDirectiveCard, MermaidDiagram } from "./CodexRichOutput.tsx"
 import { LightboxGallery } from "./Lightbox.tsx"
 import { META_CARD_STEP, PICTURE_STEP, STEP, TIME_BREAK_ABOVE, TIME_BREAK_BELOW, USER_TAIL_EXTRA, VSpace } from "./rhythm.tsx"
@@ -339,6 +339,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
   const liveActivityLabel = liveToolActivity ? toolActivityLabel(liveToolActivity, board?.projectDir) : undefined
   // What the runtime slot's clock counts from — this stretch of work, not the turn. See liveRuntimeStartedAt.
   const liveRuntimeStart = running ? liveRuntimeStartedAt(coalescedActivityMessages) : undefined
+  const liveReasoning = running ? liveTurnReasoning(presentationMessages) : undefined
   // A live tool run belongs in the existing bottom runtime slot, never in transcript history. Once
   // it settles, the whole coalesced run returns as one `Ran N tool calls` disclosure.
   //
@@ -649,6 +650,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
                 liveRuntimeStart={liveRuntimeStart}
                 liveActivityLabel={liveActivityLabel}
                 liveToolRun={liveToolRun}
+                liveReasoning={liveReasoning}
               />
             )}
             {/* SIBLING of the chain above, not a branch in it. Those are mutually exclusive because they
@@ -692,6 +694,7 @@ function ChatView({ slug, virtualized, phone = false }: { slug: string; virtuali
                   liveRuntimeStart={liveRuntimeStart}
                   liveActivityLabel={liveActivityLabel}
                   liveToolRun={liveToolRun}
+                  liveReasoning={liveReasoning}
                 />
               </>
             )}
@@ -948,15 +951,7 @@ export function restingFenceBodyOf(text: string | undefined): string | undefined
   return undefined
 }
 
-export function RuntimeStatusLadder({
-  state,
-  slug,
-  retryText,
-  restingFenceBody,
-  liveRuntimeStart,
-  liveActivityLabel,
-  liveToolRun,
-}: {
+type RuntimeStatusLadderProps = {
   state: RuntimeStatusState
   slug: string
   /** The human's last ask, for the fault card's retry. */
@@ -966,7 +961,19 @@ export function RuntimeStatusLadder({
   liveRuntimeStart: string | undefined
   liveActivityLabel: string | undefined
   liveToolRun: { tools: readonly TranscriptToolCall[]; at?: string } | undefined
-}) {
+  liveReasoning?: string
+}
+
+export function RuntimeStatusLadder({
+  state,
+  slug,
+  retryText,
+  restingFenceBody,
+  liveRuntimeStart,
+  liveActivityLabel,
+  liveToolRun,
+  liveReasoning,
+}: RuntimeStatusLadderProps) {
   const thread = state.thread
   switch (runtimeStatusRung(state)) {
     case "provider-fault":
@@ -978,7 +985,7 @@ export function RuntimeStatusLadder({
     case "pending-ask":
       return <TerminalNetCard thread={thread!} />
     case "working":
-      return <WorkingIndicator since={thread?.lastUserAt} startedAt={liveRuntimeStart} activityLabel={liveActivityLabel} run={liveToolRun} />
+      return <WorkingIndicator since={thread?.lastUserAt} startedAt={liveRuntimeStart} activityLabel={liveActivityLabel} run={liveToolRun} liveReasoning={liveReasoning} />
     case "snooze":
       return <SnoozeCard thread={thread!} />
     case "resting":
@@ -1065,6 +1072,7 @@ function VirtualizedThreadTranscript({
   const liveToolActivity = running ? liveToolActivityTail(coalescedActivityMessages) : undefined
   const liveActivityLabel = liveToolActivity ? toolActivityLabel(liveToolActivity, projectDir) : undefined
   const liveRuntimeStart = running ? liveRuntimeStartedAt(coalescedActivityMessages) : undefined
+  const liveReasoning = running ? liveTurnReasoning(messages) : undefined
   const lastAgentIdx = useMemo(() => lastAssistantIndex(messages), [messages])
   // No awaiting card while the thread runs — see the drawer's copy above.
   const awaitingCut = running ? messages.length : lastAgentIdx
@@ -1855,6 +1863,7 @@ function VirtualizedThreadTranscript({
                   liveRuntimeStart={liveRuntimeStart}
                   liveActivityLabel={liveActivityLabel}
                   liveToolRun={liveToolRun}
+                  liveReasoning={liveReasoning}
                 />
                 {/* SIBLING of the ladder, not a rung in it. Those are mutually exclusive because they all
                     describe the ONE thing currently blocking; a policy denial already happened and blocks
@@ -5168,7 +5177,15 @@ function Dots() {
 // and the count ticking up is the progress signal. See lib/toolActivity.thinkingToolActivityLabel; the
 // number is `total`, the same run this row expands onto and the same one its digest will state — and,
 // since the clock moved off the turn, the same run the clock beside it is timing.
-export function WorkingIndicator({ since, startedAt, activityLabel, run }: { since?: string; startedAt?: string; activityLabel?: string; run?: { tools: readonly TranscriptToolCall[]; at?: string } }) {
+type WorkingIndicatorProps = {
+  since?: string
+  startedAt?: string
+  activityLabel?: string
+  run?: { tools: readonly TranscriptToolCall[]; at?: string }
+  liveReasoning?: string
+}
+
+export function WorkingIndicator({ since, startedAt, activityLabel, run, liveReasoning }: WorkingIndicatorProps) {
   // The clock counts the STRETCH this row is reporting (lib/toolActivity.liveRuntimeStartedAt), not the
   // turn — so it re-baselines every time the run it stands for changes, and `since` is only the fallback
   // for a transcript that carries no usable instant at all. It used to latch the turn's start at mount,
@@ -5276,8 +5293,16 @@ export function WorkingIndicator({ since, startedAt, activityLabel, run }: { sin
             </button>
           )
         : <div className={rowClass}>{row}</div>}
+      {liveReasoning && (
+        <div
+          data-working-reasoning
+          className="ntwine-reasoning ntwine-live-reasoning mt-1.5 ml-[5px] border-l border-border/70 pl-3"
+        >
+          <ProseHtml md={liveReasoning} wrap />
+        </div>
+      )}
       {expandable && expanded && (
-        <div id={cardsId} className="mt-1.5 flex flex-col">
+        <div id={cardsId} className={liveReasoning ? "mt-2 flex flex-col" : "mt-1.5 flex flex-col"}>
           {/* `at` is the emitting batch's timestamp — the clock a pending card times itself against, and
               every card in a LIVE run is pending, so it matters more here than in the settled digest. */}
           {withSpacers(collapsed.map((tool, i) => <ToolCardRouter key={i} t={tool} startedAt={run?.at} />), 6)}

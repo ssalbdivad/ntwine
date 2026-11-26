@@ -20,7 +20,7 @@ import type { ThreadView } from "@ntwine/shared"
 import { projectRpc } from "../api/rpc.ts"
 import { useTranscript, type ChatMessage, type TranscriptData } from "../hooks.ts"
 import { lastHumanTurnIndex, updateReplyIndexes } from "../lib/messagePresentation.ts"
-import { coalesceToolActivityMessages, historicalToolActivityMessages, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, toolActivityLabel } from "../lib/toolActivity.ts"
+import { coalesceToolActivityMessages, historicalToolActivityMessages, liveRuntimeStartedAt, liveToolActivityRun, liveToolActivityTail, liveTurnReasoning, toolActivityLabel } from "../lib/toolActivity.ts"
 import type { QueuesProject } from "../lib/allQueues.ts"
 import type { HeldReply } from "../lib/queueHold.ts"
 import { Message, VSpace, WorkingIndicator, withMessageSpacers, withoutLiveTranscriptBackgroundTools, workingIndicatorGap } from "./ChatView.tsx"
@@ -85,6 +85,7 @@ function Turn({ messages, projectDir, slug, running: threadRunning, sent, onTool
   const activity = useMemo(() => (running ? historicalToolActivityMessages(coalesced) : coalesced), [coalesced, running])
   const liveToolRun = running ? liveToolActivityRun(coalesced) : undefined
   const liveTool = running ? liveToolActivityTail(coalesced) : undefined
+  const liveReasoning = running ? liveTurnReasoning(turn) : undefined
   const rows = activity.map((entry) => entry.message)
   const updateReplies = useMemo(() => updateReplyIndexes(rows), [rows])
   return (
@@ -96,7 +97,7 @@ function Turn({ messages, projectDir, slug, running: threadRunning, sent, onTool
         {running && (
           <>
             {rows.length > 0 && <VSpace h={workingIndicatorGap(rows)} />}
-            <WorkingIndicator since={turn[0]?.at} startedAt={liveRuntimeStartedAt(coalesced)} activityLabel={liveTool ? toolActivityLabel(liveTool, projectDir) : undefined} run={liveToolRun} />
+            <WorkingIndicator since={turn[0]?.at} startedAt={liveRuntimeStartedAt(coalesced)} activityLabel={liveTool ? toolActivityLabel(liveTool, projectDir) : undefined} run={liveToolRun} liveReasoning={liveReasoning} />
           </>
         )}
       </div>

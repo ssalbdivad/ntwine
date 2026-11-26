@@ -215,3 +215,29 @@ test("acp-transcript: wakes and follow-up riders take the shared user projection
   assert.equal(msgs[4]!.wake, undefined)
   assert.equal(msgs[4]!.displayText, "looks good")
 })
+
+test("acp-transcript: latestReasoning joins partial thoughtId flushes, clears on visible prose, and re-arms on later thought", () => {
+  const recs: AcpRecord[] = [
+    { kind: "user-message", at: T(0), text: "fix it", synthetic: false },
+    { kind: "turn-start", at: T(0) },
+    { kind: "reasoning", at: T(1), text: "Inspecting ", thoughtId: "t1" },
+    { kind: "reasoning", at: T(2), text: "scope.ts first.", thoughtId: "t1" },
+    { kind: "tool-call", at: T(3), id: "c1", name: "read", input: { path: "scope.ts" } },
+    { kind: "tool-result", at: T(4), id: "c1", text: "ok" },
+    { kind: "assistant-text", at: T(5), text: "Found the config seam.", final: false, messageId: "m1" },
+  ]
+  const afterProse = projectAcpTranscript(recs.map((r) => JSON.stringify(r)).join("\n"), "lr")
+  assert.equal(afterProse[1]!.text, "Inspecting scope.ts first.", "partial flushes with the same thoughtId concatenate without blank lines")
+  assert.equal(afterProse[1]!.latestReasoning, undefined, "visible assistant prose clears latestReasoning so stale thinking is not surfaced")
+
+  // A subsequent thought burst after mid-turn prose re-arms latestReasoning while preserving full history.
+  const more: AcpRecord[] = [
+    ...recs,
+    { kind: "reasoning", at: T(6), text: "Checking ", thoughtId: "t2" },
+    { kind: "reasoning", at: T(7), text: "ambient callers.", thoughtId: "t2" },
+    { kind: "tool-call", at: T(8), id: "c2", name: "read", input: { path: "callers.ts" } },
+  ]
+  const afterLaterThought = projectAcpTranscript(more.map((r) => JSON.stringify(r)).join("\n"), "lr")
+  assert.equal(afterLaterThought[1]!.text, "Inspecting scope.ts first.\n\nChecking ambient callers.")
+  assert.equal(afterLaterThought[1]!.latestReasoning, "Checking ambient callers.")
+})

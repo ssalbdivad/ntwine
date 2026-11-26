@@ -147,6 +147,10 @@ interface Turn {
   /** Everything the CURRENT agent message has said, flushed or not — the turn's final text. */
   messageText: string
   thought: string
+  thoughtId?: string
+  thoughtSeq: number
+  thoughtFlushed: boolean
+  thoughtFlushTimer?: NodeJS.Timeout
   flushTimer?: NodeJS.Timeout
   /** True when the agent woke autonomously (e.g. a subagent finished) with no `session/prompt` in flight. */
   unsolicited?: boolean
@@ -878,7 +882,7 @@ export class AcpBridge {
   private newTurn(deliveryId: string | undefined): Turn {
     let finish!: () => void
     const done = new Promise<void>((r) => { finish = r })
-    return { startedAt: this.now(), ...(deliveryId ? { deliveryId } : {}), text: "", messageText: "", thought: "", cancelRequested: false, done, finish }
+    return { startedAt: this.now(), ...(deliveryId ? { deliveryId } : {}), text: "", messageText: "", thought: "", thoughtSeq: 0, thoughtFlushed: false, cancelRequested: false, done, finish }
   }
 
   private async runTurn(live: LiveSession, sendText: string, recordTexts: string | readonly string[], deliveryId: string | undefined): Promise<void> {
@@ -961,11 +965,28 @@ export class AcpBridge {
     return final && turn.messageText ? turn.messageText : undefined
   }
 
-  private flushThought(live: LiveSession): void {
+  private flushThought(live: LiveSession, endBurst = true): void {
     const turn = live.turn
-    if (!turn?.thought.trim()) { if (turn) turn.thought = ""; return }
-    live.writer.append({ kind: "reasoning", at: this.now(), text: turn.thought })
-    turn.thought = ""
+    if (!turn) return
+    if (turn.thoughtFlushTimer) { clearTimeout(turn.thoughtFlushTimer); turn.thoughtFlushTimer = undefined }
+    if (turn.thought && (turn.thoughtFlushed || turn.thought.trim())) {
+      live.writer.append({ kind: "reasoning", at: this.now(), text: turn.thought, ...(turn.thoughtId ? { thoughtId: turn.thoughtId } : {}) })
+      turn.thought = ""
+      turn.thoughtFlushed = true
+    } else if (endBurst) {
+      turn.thought = ""
+    }
+    if (endBurst) {
+      turn.thoughtId = undefined
+      turn.thoughtFlushed = false
+    }
+  }
+
+  private scheduleThoughtFlush(live: LiveSession): void {
+    const turn = live.turn
+    if (!turn || turn.thoughtFlushTimer) return
+    turn.thoughtFlushTimer = setTimeout(() => { turn.thoughtFlushTimer = undefined; this.flushThought(live, false) }, this.options.flushMs ?? 1_000)
+    turn.thoughtFlushTimer.unref?.()
   }
 
   private scheduleFlush(live: LiveSession): void {
@@ -1047,7 +1068,9 @@ export class AcpBridge {
         const t = contentText(update.content)
         if (!t) return
         const turn = this.ensureUnsolicitedTurn(live)
+        if (!turn.thoughtId) turn.thoughtId = `t${++turn.thoughtSeq}`
         turn.thought += t
+        this.scheduleThoughtFlush(live)
         this.touchUnsolicitedTurn(live)
         return
       }

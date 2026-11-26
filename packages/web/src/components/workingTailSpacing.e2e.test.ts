@@ -115,6 +115,47 @@ test("the live row joins the meta run, and its typing dots sit like the next car
     await page.waitForSelector("[data-transcript-column] [data-working-indicator]")
     const drawerProse = await tailGap(page, true)
     near(drawerProse.aboveWorking!, STEP, "the drawer prose control")
+    const proseHasReasoning = await page.evaluate(() => document.querySelector("[data-working-reasoning]") !== null)
+    assert.equal(proseHasReasoning, false, "visible prose after reasoning hides the live reasoning excerpt")
+
+    // 5. Silent multi-tool Neon turn: surfaces only the latest reasoning summary under WorkingIndicator,
+    //    and keeps tool expansion working cleanly below it.
+    await page.goto(fixtureUrl("?tail=neon"), { waitUntil: "domcontentloaded" })
+    await page.waitForSelector("[data-working-reasoning]")
+    const neon = await page.evaluate(() => {
+      const box = document.querySelector("[data-working-reasoning]")
+      const row = document.querySelector("[data-working-indicator] button")
+      if (!box || !row) return null
+      const br = box.getBoundingClientRect()
+      const rr = row.getBoundingClientRect()
+      return {
+        text: box.textContent?.trim() ?? "",
+        belowRow: Math.round((br.top - rr.bottom) * 10) / 10,
+        overflows: box.scrollWidth > box.clientWidth + 1,
+      }
+    })
+    assert.ok(neon, "silent Neon turn mounts live reasoning under WorkingIndicator")
+    assert.match(neon!.text, /Dependency update completed/, "shows the newest reasoning summary")
+    assert.doesNotMatch(neon!.text, /Initial assessment/, "omits earlier reasoning paragraphs")
+    near(neon!.belowRow, TIGHT, "live reasoning sits 6px below the working row")
+    assert.equal(neon!.overflows, false, "live reasoning wraps without horizontal overflow")
+
+    // Clicking the working row expands the live tool cards cleanly below the live reasoning block.
+    await page.click("[data-working-indicator] button")
+    await page.waitForSelector('[data-working-indicator] button[aria-expanded="true"]')
+    const expandedNeon = await page.evaluate(() => {
+      const reasoning = document.querySelector("[data-working-reasoning]")
+      const button = document.querySelector("[data-working-indicator] button")
+      const cardsId = button?.getAttribute("aria-controls")
+      const cards = cardsId ? document.getElementById(cardsId) : null
+      if (!reasoning || !cards) return null
+      return {
+        gap: Math.round((cards.getBoundingClientRect().top - reasoning.getBoundingClientRect().bottom) * 10) / 10,
+        cardCount: cards.children.length,
+      }
+    })
+    assert.ok(expandedNeon && expandedNeon.cardCount > 0, "live tool cards expand beneath live reasoning")
+    assert.ok(expandedNeon!.gap >= 7 && expandedNeon!.gap <= 9, `cards sit ~8px below live reasoning, got ${expandedNeon!.gap}px`)
 
     assert.deepEqual(errors, [], "no console/page errors")
   } finally {

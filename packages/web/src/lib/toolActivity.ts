@@ -935,4 +935,55 @@ export function thinkingToolActivityLabel(ranCalls: number): string | undefined 
   return ranCalls > 0 ? settledToolActivityLabel(ranCalls) : undefined
 }
 
+const SINGLE_LINE_BOLD_HEADING = /^\*\*[^*\n]+\*\*$/
+
+/**
+ * The newest summary block from a reasoning payload, for live surfacing while a turn runs.
+ *
+ * Neon's `agent_thought_chunk` and Codex's reasoning summaries are already short paragraphs (median
+ * ~320 chars), joined with blank lines as the turn progresses. Taking the trailing paragraph surfaces
+ * what the model is thinking NOW without dumping 20 earlier paragraphs into the live footer. When the
+ * preceding block is a bare single-line bold heading (Codex's `**Step**\n\nBody` shape), keep both.
+ */
+export function latestReasoningExcerpt(text: string): string | undefined {
+  const blocks = text.replace(/\r\n?/g, "\n").trim().split(/\n{2,}/).map((b) => b.trim()).filter(Boolean)
+  if (blocks.length === 0) return undefined
+  const last = blocks[blocks.length - 1]!
+  if (blocks.length >= 2 && SINGLE_LINE_BOLD_HEADING.test(blocks[blocks.length - 2]!)) {
+    return `${blocks[blocks.length - 2]}\n\n${last}`
+  }
+  return last
+}
+
+/**
+ * The active turn's latest reasoning excerpt, for surfacing muted under the live `WorkingIndicator`
+ * while the worker is running silently between prose updates (e.g. Gemini 4 Neon emitting coherent
+ * thought summaries with zero mid-turn assistant text).
+ *
+ * Returns undefined as soon as non-empty visible assistant prose has landed after the latest thought
+ * (including while streaming the final answer), so stale thinking never echoes below fresh prose.
+ * Prefers the server's `latestReasoning` (which tracks exact event order across mid-turn prose and
+ * subsequent thoughts appended upstream into the turn's coalesced reasoning block), falling back to
+ * `m.text` only when no visible prose appeared after the reasoning row (pre-restart servers/fixtures).
+ */
+export function liveTurnReasoning(messages: readonly ChatMessage[]): string | undefined {
+  let sawProseAfter = false
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!
+    if (m.queued) continue
+    if (m.role === "user") break
+    if (m.kind === "event") {
+      if (m.boundary) break
+      continue
+    }
+    if (m.kind === "reasoning") {
+      if (m.latestReasoning?.trim()) return latestReasoningExcerpt(m.latestReasoning)
+      if (!sawProseAfter && m.text.trim()) return latestReasoningExcerpt(m.text)
+      return undefined
+    }
+    if (m.text.trim()) sawProseAfter = true
+  }
+  return undefined
+}
+
 export type ToolActivityTool = TranscriptMessage["tools"][number]

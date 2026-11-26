@@ -296,6 +296,16 @@ body {
   font-weight: inherit;
 }
 
+/* Live reasoning excerpt shown under WorkingIndicator while a turn runs silently. Normal 2-4 line
+   summaries render in full; capping height keeps an unusually long single thought paragraph from
+   pushing the live footer off-screen. */
+.ntwine-live-reasoning .md-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+
 /* Petite caps for the inline dispatch readouts — subtle small-capital glyphs, a touch of tracking. */
 .petite-caps {
   font-variant-caps: all-petite-caps;
