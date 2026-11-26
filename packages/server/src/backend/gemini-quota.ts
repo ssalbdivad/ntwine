@@ -1,6 +1,7 @@
 import { execFile, spawn } from "node:child_process"
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { readFile } from "node:fs/promises"
+import { homedir, tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 import type { ProviderQuota, QuotaWindow } from "@ntwine/shared"
 import { findOnPathAsync } from "./acp-agents.ts"
@@ -12,7 +13,7 @@ import { findOnPathAsync } from "./acp-agents.ts"
 // (agy 1.1.11 changelog). Verified live 2026-11-20 against agy 1.5.11 on a Google AI Ultra account:
 // `num_turns: 0`, every usage counter 0, the conversations directory unchanged, ~3s wall. Under it agy
 // calls Cloud Code's `v1internal:retrieveUserQuotaSummary`; nothing is cached on disk to read instead
-// (~/.gemini/antigravity-cli holds logs and conversations, the token is in the keychain).
+// (the token lives in the OS keyring or `~/.gemini/antigravity-cli/antigravity-oauth-token`).
 //
 //   {"conversation_id":"","status":"SUCCESS","num_turns":0, …, "command":{"name":"usage","data":{
 //     "groups":[
@@ -123,21 +124,74 @@ function agySupportsUsage(bin: string): Promise<boolean> {
 // (The first, unstubbed run of that measurement opened a real browser tab.) So two bounds, either of
 // which alone would do:
 //
-//   • NO CREDENTIAL, NO PROCESS. agy keeps its sign-in in the login keychain as a generic password,
-//     service "gemini", account "antigravity" (go-keyring). `security find-generic-password` without -w
-//     reads only that the item exists — no secret, no prompt, ~10ms, exit 44 when it does not. On every
-//     other platform the keyring is something ntwine has not verified, so there is no Gemini chip there.
-//   • NO BROWSER TO OPEN. Every run puts a directory first on PATH whose `open` and `xdg-open` refuse,
-//     so a credential that exists but no longer works (revoked, expired past refresh) still cannot
-//     reach the screen. agy resolves `open` through PATH, which is how the stub measurement saw it.
+//   • NO CREDENTIAL, NO PROCESS. agy keeps its sign-in in the OS keyring via go-keyring — service
+//     "gemini", account "antigravity" — and falls back to `~/.gemini/antigravity-cli/antigravity-oauth-token`
+//     when no keyring daemon is available (headless Linux / WSL2, verified 2026-11-26 on agy 1.5.15).
+//     On macOS, `security find-generic-password` without -w reads only that the item exists (no secret,
+//     no prompt, ~10ms, exit 44 when absent). On Linux, we check the token file first and fall back to
+//     Secret Service's `SearchItems` over D-Bus (which returns item object paths without unlocking the
+//     keyring or reading any secret). On Windows neither store nor browser guard is verified, so there
+//     is no Gemini chip there.
+//   • NO BROWSER TO OPEN. Every run puts a directory first on PATH whose `open`, `xdg-open` and `wslview`
+//     refuse, so a credential that exists but no longer works (revoked, expired past refresh) still cannot
+//     reach the screen. agy resolves `open` (macOS) and `xdg-open` (Linux/WSL2, measured 2026-11-26)
+//     through PATH, which is how the stub measurements saw them.
 const KEYCHAIN_SERVICE = "gemini"
 const KEYCHAIN_ACCOUNT = "antigravity"
 
-export function hasAgySignIn(): Promise<boolean> {
-  if (process.platform !== "darwin") return Promise.resolve(false)
+/** Whether agy's on-disk fallback OAuth token file holds a token (Linux/WSL2 without a keyring daemon). */
+export async function hasAgyTokenFile(home = homedir()): Promise<boolean> {
+  try {
+    const raw = await readFile(join(home, ".gemini", "antigravity-cli", "antigravity-oauth-token"), "utf8")
+    const doc = JSON.parse(raw) as Record<string, unknown> | null
+    if (!doc || typeof doc !== "object") return false
+    const tok = doc.token && typeof doc.token === "object" ? (doc.token as Record<string, unknown>) : doc
+    return (typeof tok.refresh_token === "string" && tok.refresh_token.length > 0)
+      || (typeof tok.access_token === "string" && tok.access_token.length > 0)
+  } catch {
+    return false
+  }
+}
+
+/** Parse `gdbus call … org.freedesktop.Secret.Service.SearchItems` output (unlocked + locked item paths). */
+export function parseSecretServiceSearch(stdout: string): boolean {
+  return /'\/org\/freedesktop\/secrets\/[^']+'/.test(stdout)
+}
+
+function hasLinuxSecretServiceItem(): Promise<boolean> {
+  if (!process.env.DBUS_SESSION_BUS_ADDRESS) return Promise.resolve(false)
   return new Promise((resolve) => {
-    execFile("/usr/bin/security", ["find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", KEYCHAIN_ACCOUNT], { timeout: 5_000 }, (err) => resolve(!err))
+    execFile(
+      "gdbus",
+      [
+        "call",
+        "--session",
+        "--dest",
+        "org.freedesktop.secrets",
+        "--object-path",
+        "/org/freedesktop/secrets",
+        "--method",
+        "org.freedesktop.Secret.Service.SearchItems",
+        `{"service": "${KEYCHAIN_SERVICE}", "username": "${KEYCHAIN_ACCOUNT}"}`,
+      ],
+      { timeout: 5_000 },
+      (err, stdout) => resolve(!err && parseSecretServiceSearch(String(stdout))),
+    )
   })
+}
+
+export async function hasAgySignIn(): Promise<boolean> {
+  if (process.platform === "darwin") {
+    if (await hasAgyTokenFile()) return true
+    return new Promise((resolve) => {
+      execFile("/usr/bin/security", ["find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", KEYCHAIN_ACCOUNT], { timeout: 5_000 }, (err) => resolve(!err))
+    })
+  }
+  if (process.platform === "linux") {
+    if (await hasAgyTokenFile()) return true
+    return hasLinuxSecretServiceItem()
+  }
+  return false
 }
 
 let noBrowserDir: string | undefined
@@ -145,7 +199,7 @@ function noBrowserPath(): string {
   if (!noBrowserDir) {
     const dir = join(tmpdir(), "ntwine-agy-no-browser")
     mkdirSync(dir, { recursive: true })
-    for (const name of ["open", "xdg-open"]) {
+    for (const name of ["open", "xdg-open", "wslview"]) {
       const file = join(dir, name)
       writeFileSync(file, "#!/bin/sh\nexit 1\n")
       chmodSync(file, 0o755)
@@ -280,8 +334,8 @@ export interface GeminiQuotaOptions {
  * Antigravity CLI has no Gemini chip to draw, which is different from one whose read failed. Never throws.
  */
 export async function readGeminiQuota(options: GeminiQuotaOptions = {}): Promise<ProviderQuota | undefined> {
-  // Only macOS has a sign-in check ntwine has verified (hasAgySignIn); elsewhere there is no chip.
-  if (process.platform !== "darwin" && !options.signedIn) return undefined
+  // Only macOS and Linux have verified sign-in checks and browser-open guards; elsewhere there is no chip.
+  if (process.platform !== "darwin" && process.platform !== "linux" && !options.signedIn) return undefined
   const bin = options.bin ?? (await findOnPathAsync("agy"))
   if (!bin) return undefined
   const now = (options.now ?? Date.now)()

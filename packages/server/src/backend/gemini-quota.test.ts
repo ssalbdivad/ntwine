@@ -1,7 +1,10 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { ProviderQuota } from "@ntwine/shared"
-import { parseAgyVersion, parseAntigravityUsage, readGeminiQuota, resetGeminiQuotaMemo } from "./gemini-quota.ts"
+import { hasAgyTokenFile, parseAgyVersion, parseAntigravityUsage, parseSecretServiceSearch, readGeminiQuota, resetGeminiQuotaMemo } from "./gemini-quota.ts"
 
 // `agy -p "/usage" --output-format json`, captured from agy 1.5.11 on 2026-11-20 (descriptions trimmed).
 const CAPTURED = {
@@ -131,4 +134,30 @@ test("gemini reader: signed out, agy is never run", async () => {
   assert.equal((await readGeminiQuota(opts))?.status, "unavailable")
   await readGeminiQuota({ ...opts, force: true })
   assert.equal(ran, 0)
+})
+
+test("gemini sign-in: on-disk token file (Linux/WSL2) requires a non-empty OAuth token", async () => {
+  const home = mkdtempSync(join(tmpdir(), "ntwine-agy-tok-"))
+  try {
+    assert.equal(await hasAgyTokenFile(home), false)
+    const dir = join(home, ".gemini", "antigravity-cli")
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, "antigravity-oauth-token")
+    writeFileSync(file, "{}")
+    assert.equal(await hasAgyTokenFile(home), false)
+    writeFileSync(file, "not json")
+    assert.equal(await hasAgyTokenFile(home), false)
+    writeFileSync(file, JSON.stringify({ token: { access_token: "", refresh_token: "" }, auth_method: "oauth" }))
+    assert.equal(await hasAgyTokenFile(home), false)
+    writeFileSync(file, JSON.stringify({ token: { access_token: "ya29.test", refresh_token: "1//test" }, auth_method: "oauth" }))
+    assert.equal(await hasAgyTokenFile(home), true)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test("gemini sign-in: Linux Secret Service SearchItems matches unlocked or locked items, never empty", () => {
+  assert.equal(parseSecretServiceSearch("(@ao [], @ao [])\n"), false)
+  assert.equal(parseSecretServiceSearch("([objectpath '/org/freedesktop/secrets/collection/login/42'], @ao [])\n"), true)
+  assert.equal(parseSecretServiceSearch("(@ao [], [objectpath '/org/freedesktop/secrets/collection/login/42'])\n"), true)
 })
